@@ -157,7 +157,9 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 webResultsCount = preferences[WEB_RESULTS_COUNT] ?: 5,
                 contactResultsCount = preferences[CONTACT_RESULTS_COUNT] ?: 5,
                 fileResultsCount = preferences[FILE_RESULTS_COUNT] ?: 5,
-                shortcutResultsCount = preferences[SHORTCUT_RESULTS_COUNT] ?: 6
+                shortcutResultsCount = preferences[SHORTCUT_RESULTS_COUNT] ?: 6,
+                contextAwareQuickApps = preferences[CONTEXT_AWARE_QUICK_APPS] ?: false,
+                smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: true
             )
         }
 

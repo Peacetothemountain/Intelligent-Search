@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_icon_primary">@android:color/system_accent1_200</color>
+    <color name="widget_icon_secondary">@android:color/system_accent2_200</color>
+    <color name="widget_icon_tertiary">@android:color/system_accent3_200</color>
+</resources>

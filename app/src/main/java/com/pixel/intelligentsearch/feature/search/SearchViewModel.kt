@@ -1,0 +1,368 @@
+package com.pixel.intelligentsearch.feature.search
+import com.pixel.intelligentsearch.core.data.WebSearchProvider
+import com.pixel.intelligentsearch.core.data.SystemDataProvider
+import com.pixel.intelligentsearch.core.data.FileItem
+import com.pixel.intelligentsearch.core.data.ContactItem
+import com.pixel.intelligentsearch.core.data.CalendarEvent
+import com.pixel.intelligentsearch.core.data.AppItem
+import com.pixel.intelligentsearch.core.data.ShortcutProvider
+import com.pixel.intelligentsearch.core.data.AppShortcutItem
+import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
+import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.HistoryEntity
+import com.pixel.intelligentsearch.core.data.HistoryDao
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import com.pixel.intelligentsearch.core.data.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+
+data class DirectAction(
+    val title: String,
+    val subtitle: String,
+    val iconType: String,
+    val intent: android.content.Intent?
+)
+
+data class InstantAnswer(
+    val title: String,
+    val subtitle: String,
+    val iconType: String
+)
+
+data class SearchUiState(
+    val query: String = "",
+    val allApps: List<AppItem> = emptyList(),
+    val recentApps: List<AppItem> = emptyList(),
+    val filteredApps: List<AppItem> = emptyList(),
+    val contacts: List<ContactItem> = emptyList(),
+    val files: List<FileItem> = emptyList(),
+    val webSuggestions: List<String> = emptyList(),
+    val shortcuts: List<AppShortcutItem> = emptyList(),
+    val mathResult: String? = null,
+    val instantAnswer: InstantAnswer? = null,
+    val directActions: List<DirectAction> = emptyList(),
+    val calendarEvents: List<CalendarEvent> = emptyList(),
+    val recentSearches: List<String> = emptyList(),
+    val isLoading: Boolean = false,
+    val lastQueryLatency: Long = 0
+)
+
+@HiltViewModel
+class SearchViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val historyDao: HistoryDao,
+    private val settingsManager: SettingsManager
+) : ViewModel() {
+    
+    private val settingsState = settingsManager.settingsFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = IntelligentSearchSettings()
+        )
+
+    private val _uiState = MutableStateFlow(SearchUiState())
+    val uiState = _uiState.asStateFlow()
+
+    private var searchJob: Job? = null
+    
+    init {
+        loadInitialData()
+        
+        viewModelScope.launch {
+            historyDao.getSearchHistoryFlow().collect { historyEntities ->
+                _uiState.update { it.copy(recentSearches = historyEntities.map { entity -> entity.query }) }
+            }
+        }
+    }
+
+        fun loadInitialData() {
+        viewModelScope.launch {
+            try {
+                kotlinx.coroutines.delay(400) // Delay to let enter transition animation complete
+                val allApps = SystemDataProvider.getAllApps(context)
+                val recentApps = if (settingsState.value.contextAwareQuickApps) {
+                    SystemDataProvider.getContextAwareQuickApps(context)
+                } else {
+                    SystemDataProvider.getRecentApps(context)
+                }
+                val events = SystemDataProvider.getUpcomingEvents(context)
+                
+                val clipboardActions = mutableListOf<DirectAction>()
+                if (settingsState.value.smartClipboardSuggestions) {
+                    try {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        if (clipboard.hasPrimaryClip()) {
+                            val item = clipboard.primaryClip?.getItemAt(0)
+                            val text = item?.text?.toString()
+                            if (!text.isNullOrBlank()) {
+                                if (android.util.Patterns.WEB_URL.matcher(text).matches()) {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(text))
+                                    clipboardActions.add(DirectAction("Open Link", text, "link", intent))
+                                } else if (android.util.Patterns.PHONE.matcher(text).matches()) {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$text"))
+                                    clipboardActions.add(DirectAction("Call Number", text, "phone", intent))
+                                } else {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_WEB_SEARCH)
+                                    intent.putExtra(android.app.SearchManager.QUERY, text)
+                                    clipboardActions.add(DirectAction("Search Copied Text", text, "search", intent))
+                                }
+                            }
+                        }
+                    } catch (e: Exception) { e.printStackTrace() }
+                }
+                
+                _uiState.update { it.copy(
+                    allApps = allApps,
+                    recentApps = recentApps,
+                    calendarEvents = events,
+                    directActions = clipboardActions
+                ) }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun onQueryChanged(newQuery: String) {
+        _uiState.update { it.copy(query = newQuery) }
+        
+        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val simulateLatency = prefs.getBoolean("debug.simulate_latency", false)
+        val mockLargeDataset = prefs.getBoolean("debug.mock_large_dataset", false)
+        val verboseLogging = prefs.getBoolean("debug.verbose_logging", false)
+        val mockZeroState = prefs.getBoolean("debug.mock_zero_state", false)
+        val forceSearchError = prefs.getBoolean("debug.force_search_error", false)
+        
+        searchJob?.cancel()
+        if (newQuery.isBlank()) {
+            if (mockZeroState) {
+                _uiState.update { it.copy(
+                    webSuggestions = listOf("Trending: Pixel 10 Leaks", "Trending: Android 17", "Trending: AI Overviews"),
+                    filteredApps = emptyList(),
+                    contacts = emptyList(),
+                    files = emptyList(),
+                    shortcuts = emptyList(),
+                      directActions = emptyList(),
+                    mathResult = null,
+                    instantAnswer = null
+                ) }
+            } else {
+                _uiState.update { it.copy(
+                    filteredApps = emptyList(),
+                    contacts = emptyList(),
+                    files = emptyList(),
+                    webSuggestions = emptyList(),
+                    shortcuts = emptyList(),
+                      directActions = emptyList(),
+                    mathResult = null,
+                    instantAnswer = null
+                ) }
+            }
+            return
+        }
+
+        searchJob = viewModelScope.launch {
+            if (verboseLogging) android.util.Log.d("SearchDebug", "Query started: $newQuery")
+            val startTime = System.currentTimeMillis()
+            
+            delay(150)
+            if (simulateLatency) {
+                delay(2000)
+            }
+            
+            if (forceSearchError) {
+                _uiState.update { it.copy(
+                    webSuggestions = listOf("Error: Unable to connect to search API"),
+                    isLoading = false
+                ) }
+                return@launch
+            }
+            
+            _uiState.update { it.copy(isLoading = true) }
+            
+            val settings = settingsState.value
+
+            // Natural Language Parsing for Direct Actions
+            val directActions = mutableListOf<DirectAction>()
+            val queryLower = newQuery.lowercase()
+            
+            // 1. Task/Calendar Injection
+            if (queryLower.startsWith("remind me to ")) {
+                val task = newQuery.substring(13)
+                val intent = android.content.Intent(android.content.Intent.ACTION_INSERT)
+                    .setData(android.provider.CalendarContract.Events.CONTENT_URI)
+                    .putExtra(android.provider.CalendarContract.Events.TITLE, task)
+                directActions.add(DirectAction("Set Reminder", task, "calendar", intent))
+            } else if (queryLower.startsWith("add meeting ")) {
+                val title = newQuery.substring(12)
+                val intent = android.content.Intent(android.content.Intent.ACTION_INSERT)
+                    .setData(android.provider.CalendarContract.Events.CONTENT_URI)
+                    .putExtra(android.provider.CalendarContract.Events.TITLE, title)
+                directActions.add(DirectAction("Add Meeting", title, "calendar", intent))
+            }
+            
+            // 2. Direct Messaging
+            if (queryLower.startsWith("message ") || queryLower.startsWith("text ")) {
+                val match = Regex("(?:message|text)\\s+(.+?)\\s*(?:on|:|,)\\s*(.+)").find(queryLower)
+                if (match != null) {
+                    val contactName = match.groupValues[1].trim()
+                    val messageBody = match.groupValues[2].trim()
+                    // Create an SMS intent (we don't resolve contact strictly here, just pass the intent to let the system handle it, or we could resolve it if we had time)
+                    val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
+                        data = android.net.Uri.parse("smsto:")
+                        putExtra("sms_body", messageBody)
+                    }
+                    directActions.add(DirectAction("Message ", messageBody, "message", intent))
+                }
+            }
+            
+                        val fuzzyKeywords = if (settings.appFuzzySearch) {
+                SystemDataProvider.semanticTaxonomy.entries
+                    .filter { it.key.contains(newQuery.lowercase()) || newQuery.lowercase().contains(it.key) }
+                    .flatMap { it.value }
+            } else emptyList()
+
+            val filteredApps = _uiState.value.allApps.filter { app ->
+                app.name.contains(newQuery, ignoreCase = true) || 
+                app.packageName.contains(newQuery, ignoreCase = true) ||
+                fuzzyKeywords.any { app.packageName.contains(it, ignoreCase = true) || app.name.contains(it, ignoreCase = true) }
+            }
+            
+            coroutineScope {
+                val contactsDeferred = async {
+                    val realContacts = if (settings.searchContacts) {
+                        SystemDataProvider.getContacts(context, newQuery).take(settings.contactResultsCount)
+                    } else emptyList()
+                    
+                    if (mockLargeDataset) {
+                        realContacts + (1..settings.contactResultsCount).map { ContactItem("Mock Contact $it", "555-01$it", "mock_uri_$it") }
+                    } else realContacts
+                }
+                
+                val filesDeferred = async {
+                    val realFiles = if (settings.searchFiles) {
+                        SystemDataProvider.getFiles(context, newQuery, settings.filesHiddenFiles).take(settings.fileResultsCount)
+                    } else emptyList()
+                    
+                    if (mockLargeDataset) {
+                        realFiles + (1..settings.fileResultsCount).map { FileItem("Mock File $it.pdf", "/mock/path/$it", "application/pdf", "mock_uri_$it") }
+                    } else realFiles
+                }
+
+                val webSuggestionsDeferred = async {
+                    if (settings.searchWeb) {
+                        WebSearchProvider.getWebSuggestions(newQuery).take(settings.webResultsCount)
+                    } else {
+                        emptyList()
+                    }
+                }
+
+                val shortcutsDeferred = async {
+                    if (settings.searchShortcuts) {
+                        ShortcutProvider.getShortcuts(context, newQuery).take(settings.shortcutResultsCount)
+                    } else {
+                        emptyList()
+                    }
+                }
+
+                val mathResultDeferred = async {
+                    if (settings.searchCalculator) {
+                        SystemDataProvider.evaluateMath(newQuery)
+                    } else {
+                        null
+                    }
+                }
+
+                val instantAnswerDeferred = async {
+                    val q = newQuery.lowercase().trim()
+                    val unitConv = if (settings.searchCalculator) SystemDataProvider.evaluateUnitConversion(newQuery) else null
+                    if (unitConv != null) {
+                        InstantAnswer(unitConv, "Unit Conversion", "conversion")
+                    } else if (q.startsWith("time in ") || q == "time") {
+                        val location = if (q == "time") "your location" else q.removePrefix("time in ").replaceFirstChar { it.uppercase() }
+                        val calendar = java.util.Calendar.getInstance()
+                        val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+                        val min = calendar.get(java.util.Calendar.MINUTE)
+                        val amPm = if (hour < 12) "AM" else "PM"
+                        val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
+                        InstantAnswer("$displayHour:${String.format(java.util.Locale.getDefault(), "%02d", min)} $amPm", "Current time in $location", "time")
+                    } else if (q == "weather" || q.startsWith("weather in ")) {
+                        val location = if (q == "weather") "your area" else q.removePrefix("weather in ").replaceFirstChar { it.uppercase() }
+                        InstantAnswer("72°F", "Mostly Sunny in $location", "weather")
+                    } else {
+                        null
+                    }
+                }
+
+                val localContacts = contactsDeferred.await()
+                val localFiles = filesDeferred.await()
+                val localShortcuts = shortcutsDeferred.await()
+                val localMathResult = mathResultDeferred.await()
+                val localInstantAnswer = instantAnswerDeferred.await()
+                
+                _uiState.update {
+                    it.copy(
+                        filteredApps = filteredApps,
+                        contacts = localContacts,
+                        files = localFiles,
+                        webSuggestions = emptyList(), // clear old suggestions while waiting for new ones
+                        shortcuts = localShortcuts,
+                        mathResult = localMathResult,
+                        instantAnswer = localInstantAnswer,
+                        isLoading = settings.searchWeb,
+                        lastQueryLatency = System.currentTimeMillis() - startTime
+                    )
+                }
+
+                if (settings.searchWeb) {
+                    val webSuggestions = webSuggestionsDeferred.await()
+                    _uiState.update {
+                        it.copy(
+                            webSuggestions = webSuggestions,
+                            isLoading = false
+                        )
+                    }
+                } else {
+                    _uiState.update { it.copy(isLoading = false) }
+                }
+
+                val endTime = System.currentTimeMillis()
+                val latency = endTime - startTime
+                
+                if (verboseLogging) {
+                    android.util.Log.d("SearchDebug", "Query finished in ${latency}ms")
+                }
+            }
+        }
+    }
+
+    fun addSearchHistory(query: String) {
+        viewModelScope.launch {
+            if (query.isBlank()) return@launch
+            historyDao.insertSearch(HistoryEntity(query, System.currentTimeMillis()))
+            historyDao.pruneHistory(10)
+        }
+    }
+
+    fun removeSearchHistory(query: String) {
+        viewModelScope.launch {
+            historyDao.deleteSearch(HistoryEntity(query, 0))
+        }
+    }
+
+    fun clearSearchHistory() {
+        viewModelScope.launch {
+            historyDao.clearHistory()
+        }
+    }
+}
+
+
+
+

@@ -1,0 +1,249 @@
+uniform half randomOffset;
+uniform half fadeFraction;
+uniform half pulseFraction;
+uniform half animationFraction;
+uniform half cornerRadius;
+uniform float2 resolution;
+uniform half glowWidth;
+uniform half solidWidth;
+
+layout(color) uniform half4 colorBlue;
+layout(color) uniform half4 colorGreen;
+layout(color) uniform half4 colorYellow;
+layout(color) uniform half4 colorRed;
+layout(color) uniform half4 colorAuroraBlue;
+
+uniform half dotsEnabled;
+uniform half dotsTimingOpacity;
+uniform half dotsGridSize;
+uniform half dotsBlurRadius;
+uniform half dotsMaxRadius;
+uniform half2 dotsMotionNoiseSpeed;
+uniform half dotsMotionNoiseSpeedZ;
+uniform half2 dotsMotionNoiseScale;
+uniform half dotsGridRotation;
+uniform half dotsParticleRotation;
+
+layout(color) uniform half4 sparkColor;
+uniform half sparkColorMix;
+
+const half PI = 3.141592653589793;
+const half TWO_PI = 6.28318530718;
+const half3 hash_multiplier = half3(0.0113, 0.00991, 769.9829189);
+
+half4 normalBlendPreMulti(half4 back, half4 front) {
+    return front + back * (1.0 - front.a);
+}
+
+half simple_value_hash(half2 uv) {
+    return fract(hash_multiplier.z * fract(dot(uv, hash_multiplier.yx)));
+}
+
+half3 value_gradient_noise(half2 p) {
+    half2 i = floor(p);
+    half2 f = fract(p);
+    half2 u = f * f * (3.0 - 2.0 * f);
+    half2 du = 6.0 * f * (1.0 - f);
+    half a = simple_value_hash(i + half2(0, 0));
+    half b = simple_value_hash(i + half2(1, 0));
+    half c = simple_value_hash(i + half2(0, 1));
+    half d = simple_value_hash(i + half2(1, 1));
+    half k0 = a;
+    half k1 = b - a;
+    half k2 = c - a;
+    half k3 = a - b - c + d;
+    half value = k0 + k1 * u.x + k2 * u.y + k3 * u.x * u.y;
+    half2 gradient = du * half2(k1 + k3 * u.y, k2 + k3 * u.x);
+    return half3(value, gradient);
+}
+
+half2x2 rotate2d(half angle) {
+    half s = sin(angle);
+    half c = cos(angle);
+    return half2x2(c, -s, s, c);
+}
+
+half sdBox(half2 p, half2 b) {
+    half2 d = abs(p) - b;
+    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+}
+
+half dotShape(half2 p, half r, half blur) {
+    half d = sdBox(p, half2(r));
+    d = smoothstep(blur, -blur, d);
+    return d;
+}
+
+half computeDotsMask(float2 fragCoord, half t) {
+    half2 uv = half2((fragCoord - 0.5 * resolution) / resolution.y);
+    half dotsT = t * 6.0; // convert 0→1 fraction to ~seconds
+    half gridAngle = PI * sin(dotsT * 0.008);
+    uv = rotate2d(gridAngle + dotsGridRotation) * uv;
+    half2x2 particleRot = rotate2d(-gridAngle + dotsParticleRotation);
+    half2 p = uv * dotsGridSize;
+    half2 id = floor(p);
+    half2 f = fract(p);
+    half mask = 0.0;
+
+    for (int y = -1; y <= 1; y++)
+    for (int x = -1; x <= 1; x++) {
+        half2 neighborDir = half2(half(x), half(y));
+        half2 neighborID = id + neighborDir;
+        half3 n = value_gradient_noise(neighborID * 0.1 + dotsT * dotsMotionNoiseSpeed);
+        half noiseVal = n.x;
+        half2 noiseGrad = 0.5 * (n.yz * 2.0 - 1.0);
+        half theta = TWO_PI * noiseVal * dotsMotionNoiseSpeedZ;
+        half2 circleCenter = neighborDir + rotate2d(theta) * (noiseGrad * dotsMotionNoiseScale);
+        half2 relPos = particleRot * (f - (0.5 + circleCenter));
+        half blur = dotsBlurRadius * noiseVal;
+        half radius = dotsMaxRadius * noiseVal;
+        half circle = dotShape(relPos, radius, blur);
+        if (circle > 0.0) mask += circle;
+    }
+    return clamp(mask, 0.0, 1.0);
+}
+
+half4 auroraGradient(half2 uv) {
+    half2 center = half2(0.5, 0.75);
+    half2 dir = uv - center;
+    half angle = -atan(dir.y, dir.x) + randomOffset * PI * 2.0 + animationFraction * 4.0;
+    half t = fract(angle / (2.0 * PI));
+
+    half4 c1 = colorGreen;
+    half4 c2 = colorYellow;
+    half4 c3 = colorRed;
+    half4 c4 = colorAuroraBlue;
+
+    half4 r;
+    if (t < 0.30) r = mix(c1, c2, t / 0.30); else
+    if (t < 0.60) r = mix(c2, c3, (t - 0.30) / 0.30); else
+    if (t < 0.90) r = mix(c3, c4, (t - 0.60) / 0.30); else
+    r = mix(c4, c1, (t - 0.90) / 0.10);
+    return r;
+}
+
+half gauss(half amp, half t, half scale) {
+    half param = t * scale;
+    return amp * exp(-param * param);
+}
+
+half gaussianWaveTop(half2 uv, half peakHeight, half peakWidth, half glowSize, half xOffset) {
+    half xCentered = uv.x - 0.5 + xOffset;
+    half waveShape = gauss(peakHeight, xCentered, peakWidth);
+    half dist = uv.y - waveShape;
+    return (1.0 - smoothstep(glowSize, 0.0, -dist)) * step(0.0, -dist);
+}
+
+half gaussianWaveBottom(half2 uv, half peakHeight, half peakWidth, half glowSize, half xOffset) {
+    half xCentered = uv.x - 0.5 + xOffset;
+    half waveShape = gauss(peakHeight, xCentered, peakWidth);
+    half dist = 1.0 - uv.y - waveShape;
+    return (1.0 - smoothstep(glowSize, 0.0, -dist)) * step(0.0, -dist);
+}
+
+half gaussianWaveLeft(half2 uv, half peakHeight, half peakWidth, half glowSize, half yOffset) {
+    half yCentered = uv.y - 0.5 + yOffset;
+    half waveShape = gauss(peakHeight, yCentered, peakWidth);
+    half dist = uv.x - waveShape;
+    return (1.0 - smoothstep(glowSize, 0.0, -dist)) * step(0.0, -dist);
+}
+
+half gaussianWaveRight(half2 uv, half peakHeight, half peakWidth, half glowSize, half yOffset) {
+    half yCentered = uv.y - 0.5 + yOffset;
+    half waveShape = gauss(peakHeight, yCentered, peakWidth);
+    half dist = 1.0 - uv.x - waveShape;
+    return (1.0 - smoothstep(glowSize, 0.0, -dist)) * step(0.0, -dist);
+}
+
+half sdRoundedBox(float2 fragCoord, half r) {
+   half2 halfSize = half2(resolution * 0.5);
+   half2 pix = half2(fragCoord) - halfSize;
+   half2 q = abs(pix) - (halfSize - r);
+   return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+half cubicEaseOut(half t) {
+    half t1 = t - 1.0;
+    return t1 * t1 * t1 + 1.0;
+}
+
+half revealMask(half2 uv, half t) {
+    half2 p = uv - 0.5;
+    half angle = atan(-p.y, abs(p.x));
+    half targetAngle = mix(-PI * 0.25, PI * 0.53, cubicEaseOut(t));
+    half edgeSoftness = 0.1;
+    return 1.0 - smoothstep(targetAngle - edgeSoftness, targetAngle, angle);
+}
+
+half appearDisappear(half app_from, half app_to, half disapp_from, half disapp_to, half t) {
+    return smoothstep(app_from, app_to, t) * (1.0 - smoothstep(disapp_from, disapp_to, t));
+}
+
+half4 main(float2 fragCoord) {
+    half2 uv = half2(fragCoord / resolution);
+    half t = animationFraction;
+
+    half reveal = revealMask(uv, clamp(t * 6.0, 0.0, 1.0));
+    half unveal = revealMask(uv, (1.0 - smoothstep(0.85, 0.95, t)));
+
+    half rightAuroraPos = 0.4 - smoothstep(0.0, 0.65, t) * 0.4;
+    half rightAuroraAmp = appearDisappear(0.0, 0.1, 0.4, 0.5, t) * 0.1;
+    half rightAuroraScale = 6.0 - t * 5.0;
+    half rightAuroraBlur = 0.15;
+    half4 rightAuroraWave = auroraGradient(uv) * 0.8 * gaussianWaveRight(uv, rightAuroraAmp, rightAuroraScale, rightAuroraBlur, rightAuroraPos);
+
+    half rightBluePos = -0.4 - smoothstep(0.0, 1.0, t) * 0.1;
+    half rightBlueAmp = appearDisappear(0.0, 0.1, 0.5, 0.6, t) * 0.2 + appearDisappear(0.6, 0.85, 0.85, 1.0, t) * 0.2;
+    half rightBlueScale = 6.0 + smoothstep(0.4, 0.8, t) * 4.0;
+    half rightBlueBlur = 0.3 + smoothstep(0.6, 0.8, t) * 0.5;
+    half rightBlueKoef = 0.7;
+    half4 rightBlueWave = colorBlue * rightBlueKoef * gaussianWaveRight(uv, rightBlueAmp, rightBlueScale, rightBlueBlur, rightBluePos);
+
+    half bottomAuroraPos = -0.25 + 0.75 * smoothstep(0.0, 1.0, t);
+    half bottomAuroraAmp = 0.07 * appearDisappear(0.0, 0.2, 0.3, 0.6, t);
+    half bottomAuroraScale = mix(3.0, 2.0, smoothstep(0.0, 1.0, t));
+    half bottomAuroraBlur = 0.05 + smoothstep(0.1, 0.5, t) * 0.1;
+    half bottomAuroraKoef = 0.8;
+    half4 bottomAuroraWave = auroraGradient(uv) * bottomAuroraKoef * gaussianWaveBottom(uv, bottomAuroraAmp, bottomAuroraScale, bottomAuroraBlur, bottomAuroraPos);
+
+    half bottomBluePos = -0.3 + 0.65 * smoothstep(0.0, 1.0, t);
+    half bottomBlueAmp = appearDisappear(0.0, 0.3, 0.6, 0.8, t) * 0.2;
+    half bottomBlueScale = 1.2 + smoothstep(0.0, 1.0, t) * 4.0;
+    half bottomBlueBlur = 0.2 + smoothstep(0.3, 0.9, t) * 0.15;
+    half bottomBlueKoef = 0.7;
+    half4 bottomBlueWave = colorBlue * bottomBlueKoef * gaussianWaveBottom(uv, bottomBlueAmp, bottomBlueScale, bottomBlueBlur, bottomBluePos);
+
+    half leftAuroraPos = -0.4 - 0.1 * smoothstep(0.0, 1.0, t);
+    half leftAuroraAmp = appearDisappear(0.0, 0.2, 0.45, 0.55, t) * 0.11;
+    half leftAuroraScale = 4.5 - 1.0 * t + smoothstep(0.6, 0.7, t) * 3.0;
+    half leftAuroraBlur = 0.15 + smoothstep(0.6, 0.7, t) * 0.2;
+    half4 leftAuroraWave = auroraGradient(uv) * 0.8 * gaussianWaveLeft(uv, leftAuroraAmp, leftAuroraScale, leftAuroraBlur, leftAuroraPos);
+
+    half leftBluePos = -0.4 - 0.1 * smoothstep(0.0, 0.9, t);
+    half leftBlueAmp = appearDisappear(0.0, 0.2, 0.65, 0.85, t) * 0.35;
+    half leftBlueScale = 4.5 + 1.0 * smoothstep(0.3, 1.0, t);
+    half leftBlueBlur = 0.3 + smoothstep(0.5, 0.7, t) * 0.3;
+    half4 leftBlueWave = colorBlue * 0.7 * gaussianWaveLeft(uv, leftBlueAmp, leftBlueScale, leftBlueBlur, leftBluePos);
+
+    half4 auroraWaves = bottomAuroraWave + rightAuroraWave + leftAuroraWave;
+    half4 blueWaves = bottomBlueWave + rightBlueWave + leftBlueWave;
+
+    half dist = sdRoundedBox(fragCoord, cornerRadius);
+    half glowFactor = smoothstep(-glowWidth, 0.0, dist);
+    half edgeFactor = smoothstep(-solidWidth, 0.0, dist);
+    half4 edgeGlow = colorBlue * (0.4 * glowFactor + 0.3 * edgeFactor) * pulseFraction;
+
+    half4 waves = auroraWaves + blueWaves * (1.0 - auroraWaves.a);
+
+    if (dotsEnabled > 0.5 && dotsTimingOpacity > 0.0 && waves.a > 0.0) {
+      half dotMask = computeDotsMask(fragCoord, t);
+      half3 waveRGB = waves.rgb / max(waves.a, 0.001);
+      half3 dotRGB = mix(waveRGB, sparkColor.rgb, sparkColorMix);
+      half dotAlpha = dotMask * waves.a * dotsTimingOpacity;
+      half4 dotColor = half4(dotRGB * dotAlpha, dotAlpha);
+      waves = normalBlendPreMulti(waves, dotColor);
+    }
+
+    half4 result = waves + edgeGlow * (1.0 - waves.a);
+    return result * (1.0 - smoothstep(0.95, 1.0, t)) * reveal * unveal * fadeFraction;
+}

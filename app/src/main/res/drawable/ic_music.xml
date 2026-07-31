@@ -1,0 +1,32 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Rightmost dot/bar -->
+    <path
+        android:strokeColor="@color/widget_icon_tertiary"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:pathData="M 19,11.5 L 19,12.5" />
+
+    <!-- Middle bar -->
+    <path
+        android:strokeColor="@color/widget_icon_secondary"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:pathData="M 14.5,9.5 L 14.5,15.5" />
+
+    <!-- Note stem -->
+    <path
+        android:strokeColor="@color/widget_icon_primary"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:pathData="M 10,7 L 10,16" />
+
+    <!-- Note head -->
+    <path
+        android:fillColor="@color/widget_icon_primary"
+        android:pathData="M 11.6,16.5 C 11.6,19.26 9.36,21.5 6.6,21.5 C 3.84,21.5 1.6,19.26 1.6,16.5 C 1.6,13.74 3.84,11.5 6.6,11.5 C 8.6,11.5 10.3,12.7 11.1,14.4 Z" />
+</vector>

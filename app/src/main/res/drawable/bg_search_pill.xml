@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Search pill background — matches native Pixel Launcher QSB dark pill.
+    system_neutral1_900 is a very dark grey (near-black) that adapts to
+    the user's Material You wallpaper palette. On dark wallpapers this
+    renders as approximately #1C1C1E (dark charcoal), exactly matching
+    the Pixel Launcher's built-in search bar background.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@android:color/system_neutral1_900" />
+    <corners android:radius="50dp" />
+</shape>

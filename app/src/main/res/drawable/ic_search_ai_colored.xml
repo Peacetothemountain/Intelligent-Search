@@ -1,0 +1,35 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Bottom and left part of the ring -->
+    <path
+        android:strokeColor="@color/widget_icon_primary"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M 10.5,4 A 6.5,6.5 0 0 0 4,10.5 A 6.5,6.5 0 0 0 10.5,17 A 6.5,6.5 0 0 0 15,15" />
+
+    <!-- Top left part of the ring (Tertiary accent) -->
+    <path
+        android:strokeColor="@color/widget_icon_tertiary"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M 14,5 A 6.5,6.5 0 0 0 10.5,4 A 6.5,6.5 0 0 0 5,7.5" />
+
+    <!-- Handle (Secondary accent) -->
+    <path
+        android:strokeColor="@color/widget_icon_secondary"
+        android:strokeWidth="3.0"
+        android:strokeLineCap="round"
+        android:pathData="M 15.5,15.5 L 20,20" />
+
+    <!-- Sparkle at top right -->
+    <path
+        android:fillColor="@color/widget_icon_primary"
+        android:pathData="M 18,0.5 C 18,4 21,6.5 24,6.5 C 21,6.5 18,9 18,12.5 C 18,9 15,6.5 12,6.5 C 15,6.5 18,4 18,0.5 Z" />
+
+
+
+</vector>

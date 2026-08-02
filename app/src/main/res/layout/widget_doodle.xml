@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/search_bar_background"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="4dp"
+    android:layout_margin="8dp">
+
+    <FrameLayout
+        android:id="@+id/doodle_touch_target"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:clickable="true"
+        android:focusable="true">
+        
+        <AdapterViewFlipper
+            android:id="@+id/doodle_flipper"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="4dp"
+            android:autoStart="true"
+            android:flipInterval="100" />
+            
+    </FrameLayout>
+
+    <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Search..."
+        android:textColor="#888888"
+        android:textSize="18sp"
+        android:layout_marginStart="8dp" />
+
+    <ImageView
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@android:drawable/ic_btn_speak_now"
+        android:layout_marginEnd="16dp"
+        android:alpha="0.7"/>
+
+    <ImageView
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@android:drawable/ic_menu_camera"
+        android:layout_marginEnd="12dp"
+        android:alpha="0.7"/>
+
+</LinearLayout>

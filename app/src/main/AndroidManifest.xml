@@ -32,7 +32,7 @@
     </queries>
 
     <!-- Application level uses the primary launcher icon -->
-    <application android:allowBackup="false" android:name=".App"
+    <application android:allowBackup="true" android:fullBackupContent="true" android:name=".App"
         android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher"
         android:label="Intelligent Search"
@@ -120,6 +120,24 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/search_widget_info" />
         </receiver>
+
+        <receiver
+            android:name="com.pixel.intelligentsearch.feature.widget.doodle.DoodleWidgetProvider"
+            android:label="HyperRealistic Doodle"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/doodle_widget_info" />
+        </receiver>
+        
+        <service
+            android:name="com.pixel.intelligentsearch.feature.widget.doodle.DoodleWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
 
         <service android:name=".feature.widget.SearchTileService"
                  android:label="Intelligent Search"

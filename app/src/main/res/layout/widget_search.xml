@@ -1,144 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Widget layout with dual-layer for proper teal rim effect.
-    Outer ImageView gives the accent-tinted border rim.
-    Inner ImageViews give the dark pill/circle backgrounds.
-    All colors applied via setColorFilter in SearchWidgetProvider using system_accent1/neutral1 tokens.
--->
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_root"
-    android:layout_width="match_parent"
-    android:layout_height="64dp"
-    android:padding="0dp">
-
-    <!-- Outer rim capsule (accent-tinted border) -->
-    <ImageView
-        android:id="@+id/widget_outer_background"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:src="@drawable/bg_outer_capsule"
-        android:scaleType="fitXY" />
-
-    <!-- Inner content row (3dp inset to expose rim) -->
-    <LinearLayout android:baselineAligned="false"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="3dp"
-        android:paddingEnd="3dp"
-        android:paddingTop="3dp"
-        android:paddingBottom="3dp">
-
-        <!-- Search pill -->
-        <FrameLayout
-            android:id="@+id/widget_pill_container"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:clickable="true"
-            android:focusable="true">
-
-            <!-- Pill dark background -->
-            <ImageView
-                android:id="@+id/widget_pill_background"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:src="@drawable/bg_search_pill"
-                android:scaleType="fitXY" />
-
-            <!-- Pill content -->
-            <LinearLayout android:baselineAligned="false"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingStart="18dp"
-                android:paddingEnd="18dp">
-
-                <!-- Google G logo (monochromatic, accent-tinted) -->
-                <ImageView
-                    android:id="@+id/widget_g_logo"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:src="@drawable/ic_g_logo"
-                    android:scaleType="fitCenter"
-                    android:contentDescription="Google" />
-
-                <!-- Spacer -->
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    android:text="" />
-
-                <!-- Microphone -->
-                <ImageView
-                    android:id="@+id/widget_voice_search"
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:src="@drawable/ic_mic"
-                    android:scaleType="fitCenter"
-                    android:contentDescription="Voice Search"
-                    android:clickable="true"
-                    android:focusable="true" />
-
-                <!-- Google Lens -->
-                <ImageView
-                    android:id="@+id/widget_lens_search"
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:layout_marginStart="32dp"
-                    android:src="@drawable/ic_camera"
-                    android:scaleType="fitCenter"
-                    android:contentDescription="Google Lens"
-                    android:clickable="true"
-                    android:focusable="true" />
-
-                <!-- Gemini (hidden by default) -->
-                <ImageView
-                    android:id="@+id/widget_gemini_search"
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
-                    android:src="@drawable/ic_gemini"
-                    android:scaleType="fitCenter"
-                    android:layout_marginStart="18dp"
-                    android:visibility="gone"
-                    android:contentDescription="Gemini"
-                    android:clickable="true"
-                    android:focusable="true" />
-
+<FrameLayout android:id="@+id/widget_root" android:padding="0.0dip" android:layout_width="fill_parent" android:layout_height="64.0dip"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <ImageView android:id="@+id/widget_outer_background" android:layout_width="fill_parent" android:layout_height="fill_parent" android:src="@drawable/bg_outer_capsule" android:scaleType="fitXY" />
+    <LinearLayout android:gravity="center_vertical" android:orientation="horizontal" android:paddingTop="3.0dip" android:paddingBottom="3.0dip" android:layout_width="fill_parent" android:layout_height="fill_parent" android:baselineAligned="false" android:paddingStart="3.0dip" android:paddingEnd="3.0dip">
+        <FrameLayout android:id="@+id/widget_pill_container" android:focusable="true" android:clickable="true" android:layout_width="0.0dip" android:layout_height="fill_parent" android:layout_weight="1.0">
+            <ImageView android:id="@+id/widget_pill_background" android:layout_width="fill_parent" android:layout_height="fill_parent" android:src="@drawable/bg_search_pill" android:scaleType="fitXY" />
+            <LinearLayout android:gravity="center_vertical" android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="fill_parent" android:baselineAligned="false" android:paddingStart="18.0dip" android:paddingEnd="18.0dip">
+                <ImageView android:id="@+id/widget_g_logo" android:layout_width="30.0dip" android:layout_height="30.0dip" android:src="@drawable/ic_g_logo" android:scaleType="fitCenter" android:contentDescription="Google" />
+                <AdapterViewFlipper android:id="@+id/widget_doodle_flipper" android:layout_width="30.0dip" android:layout_height="30.0dip" android:autoStart="true" android:flipInterval="100" />
+                <TextView android:layout_width="0.0dip" android:layout_height="0.0dip" android:text="" android:layout_weight="1.0" />
+                <ImageView android:id="@+id/widget_voice_search" android:focusable="true" android:clickable="true" android:layout_width="32.0dip" android:layout_height="32.0dip" android:src="@drawable/ic_mic" android:scaleType="fitCenter" android:contentDescription="Voice Search" />
+                <ImageView android:id="@+id/widget_lens_search" android:focusable="true" android:clickable="true" android:layout_width="32.0dip" android:layout_height="32.0dip" android:src="@drawable/ic_camera" android:scaleType="fitCenter" android:contentDescription="Google Lens" android:layout_marginStart="32.0dip" />
             </LinearLayout>
         </FrameLayout>
-
-        <!-- Circle AI button -->
-        <FrameLayout
-            android:id="@+id/widget_sound_search"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
-            android:layout_marginStart="6dp"
-            android:clickable="true"
-            android:focusable="true">
-
-            <ImageView
-                android:id="@+id/widget_sound_background"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:src="@drawable/bg_circle_button"
-                android:scaleType="fitXY" />
-
-            <ImageView
-                android:id="@+id/widget_sound_icon"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_search_ai_colored"
-                android:scaleType="fitCenter"
-                android:contentDescription="AI Search" />
-
+        <FrameLayout android:id="@+id/widget_sound_search" android:focusable="true" android:clickable="true" android:layout_width="52.0dip" android:layout_height="52.0dip" android:layout_marginStart="6.0dip">
+            <ImageView android:id="@+id/widget_sound_background" android:layout_width="fill_parent" android:layout_height="fill_parent" android:src="@drawable/bg_circle_button" android:scaleType="fitXY" />
+            <ImageView android:layout_gravity="center" android:id="@+id/widget_sound_icon" android:layout_width="22.0dip" android:layout_height="22.0dip" android:src="@drawable/ic_search_ai_colored" android:scaleType="fitCenter" android:contentDescription="AI Search" />
         </FrameLayout>
-
     </LinearLayout>
-
 </FrameLayout>
-

@@ -180,6 +180,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
             // Shortcut visibility
             views.setViewVisibility(R.id.widget_voice_search, if (showVoice) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.widget_lens_search, if (widgetShortcut != "None") View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.widget_gemini_search, if (showGemini) View.VISIBLE else View.GONE)
 
             // Tap pill -> main search
             val enableSearchOverlay = prefs.getBoolean("search_overlay_enabled", true) && isMaterialYou
@@ -215,7 +216,11 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             views.setOnClickPendingIntent(R.id.widget_lens_search, shortcutPI)
 
-            // Gemini intent removed as view is no longer in layout
+            // Tap sparkle circle inside pill -> Gemini
+            val geminiPI = PendingIntent.getActivity(context, appWidgetId + 2500,
+                getGeminiSearchIntent(context),
+                PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            views.setOnClickPendingIntent(R.id.widget_gemini_search, geminiPI)
             
             // Set up custom action icon (Circle Button)
             val actionIntent = when (actionIconStr) {
@@ -235,18 +240,6 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 else -> R.drawable.ic_search_ai_colored // Search
             }
             views.setImageViewResource(R.id.widget_sound_icon, actionIconRes)
-            
-            // --- Doodle Logic ---
-            val doodleIntent = Intent(context, com.pixel.intelligentsearch.feature.widget.doodle.DoodleWidgetService::class.java).apply {
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
-            }
-            views.setRemoteAdapter(R.id.widget_doodle_flipper, doodleIntent)
-            
-            // Toggle visibility to show doodle instead of the static G logo
-            views.setViewVisibility(R.id.widget_doodle_flipper, View.VISIBLE)
-            views.setViewVisibility(R.id.widget_g_logo, View.GONE)
-            // --------------------
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }

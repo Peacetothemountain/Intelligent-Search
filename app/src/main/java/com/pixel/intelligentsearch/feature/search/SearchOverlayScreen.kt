@@ -496,7 +496,7 @@ fun SearchOverlayScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.ic_g_logo),
+                    painter = painterResource(id = R.drawable.ic_search_ai_colored),
                     contentDescription = "Google",
                     modifier = Modifier.size(28.dp)
                 )
@@ -540,8 +540,12 @@ fun SearchOverlayScreen(
                                         val intent = Intent(Intent.ACTION_VIEW).apply {
                                             setDataAndType(Uri.parse(bestMatch.uri), bestMatch.mimeType)
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            setPackage("com.google.android.apps.nbu.files")
                                         }
-                                        try { context.startActivity(intent) } catch (e: Exception) {}
+                                        try { context.startActivity(intent) } catch (e: Exception) {
+                                            intent.setPackage(null)
+                                            try { context.startActivity(intent) } catch(e2: Exception) {}
+                                        }
                                     }
                                 }
                                 closeOverlay()
@@ -771,8 +775,12 @@ fun SearchOverlayScreen(
                                         val intent = Intent(Intent.ACTION_VIEW).apply {
                                             setDataAndType(Uri.parse(match.uri), match.mimeType)
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            setPackage("com.google.android.apps.nbu.files")
                                         }
-                                        try { context.startActivity(intent) } catch(e: Exception) {}
+                                        try { context.startActivity(intent) } catch(e: Exception) {
+                                            intent.setPackage(null)
+                                            try { context.startActivity(intent) } catch(e2: Exception) {}
+                                        }
                                         closeOverlay()
                                     }
                                     .padding(horizontal = 16.dp, vertical = 14.dp),

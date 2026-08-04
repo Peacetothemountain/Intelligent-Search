@@ -1619,13 +1619,44 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onCheckedChange = { contextAwareApps = it },
                     showDivider = true
                 )
-                var smartClipboard by rememberBooleanPreference(prefs, "smart_clipboard_suggestions", true)
+                var smartClipboard by rememberBooleanPreference(prefs, "smart_clipboard_suggestions", false)
+                var showSmartClipboardWarning by remember { mutableStateOf(false) }
+
+                if (showSmartClipboardWarning) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { showSmartClipboardWarning = false },
+                        title = { Text("Privacy Warning") },
+                        text = { Text("Smart Clipboard uses foreground-only lifecycle observers due to Android 10+ restrictions. It reads your clipboard to provide contextual suggestions. Do you want to enable this feature?") },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(onClick = {
+                                smartClipboard = true
+                                showSmartClipboardWarning = false
+                            }) {
+                                Text("Enable")
+                            }
+                        },
+                        dismissButton = {
+                            androidx.compose.material3.TextButton(onClick = {
+                                showSmartClipboardWarning = false
+                            }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
+                }
+
                 SettingsRowToggle(
                     title = "Smart Clipboard Suggestions",
                     subtitle = "Suggest actions based on copied text",
                     icon = Icons.Default.ContentPaste,
                     isChecked = smartClipboard,
-                    onCheckedChange = { smartClipboard = it },
+                    onCheckedChange = { isChecked -> 
+                        if (isChecked) {
+                            showSmartClipboardWarning = true
+                        } else {
+                            smartClipboard = false
+                        }
+                    },
                     showDivider = false
                 )
             }

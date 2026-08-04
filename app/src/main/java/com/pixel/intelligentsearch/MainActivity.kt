@@ -80,7 +80,11 @@ open class MainActivity : AppCompatActivity() {
                                     val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
                                     if (launchIntent != null) {
                                         if (settingsState.appAnimations) {
-                                            startActivity(launchIntent)
+                                            val dm = resources.displayMetrics
+                                            val options = android.app.ActivityOptions.makeScaleUpAnimation(
+                                                window.decorView, dm.widthPixels / 2, dm.heightPixels / 2, 0, 0
+                                            )
+                                            startActivity(launchIntent, options.toBundle())
                                         } else {
                                             val options = android.app.ActivityOptions.makeCustomAnimation(this@MainActivity, 0, 0)
                                             startActivity(launchIntent, options.toBundle())

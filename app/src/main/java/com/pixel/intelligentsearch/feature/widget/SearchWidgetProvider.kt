@@ -119,6 +119,14 @@ class SearchWidgetProvider : AppWidgetProvider() {
             else -> R.drawable.ic_camera
         }
 
+        val subthemeStr = prefs.getString("search_widget_subtheme", "System") ?: "System"
+        val customColorHex = prefs.getString("search_widget_custom_color", "#FFFFFF") ?: "#FFFFFF"
+        val actualCustomColor = try {
+            android.graphics.Color.parseColor(customColorHex)
+        } catch (e: Exception) {
+            android.graphics.Color.WHITE
+        }
+
         // Outer accent rim: system_accent2 (secondary tonal, matches wallpaper teal/color)
         val rimColor = if (isMaterialYou) {
             context.getColor(
@@ -131,11 +139,15 @@ class SearchWidgetProvider : AppWidgetProvider() {
 
         // Inner pill: deepest neutral surface (near-black on dark, near-white on light)
         val pillColor = if (isMaterialYou) {
-            context.getColor(
-                // Use a much darker neutral color instead of the bright accent color
-                if (isDark) android.R.color.system_neutral1_900
-                else android.R.color.system_neutral1_100
-            )
+            if (subthemeStr == "Custom") {
+                actualCustomColor
+            } else {
+                context.getColor(
+                    // Use a much darker neutral color instead of the bright accent color
+                    if (isDark) android.R.color.system_neutral1_900
+                    else android.R.color.system_neutral1_100
+                )
+            }
         } else {
             if (isDark) 0xFF303134.toInt() else 0xFFFFFFFF.toInt()
         }
@@ -166,27 +178,23 @@ class SearchWidgetProvider : AppWidgetProvider() {
             android.graphics.Color.blue(circleColor)
         )
         
-        val subtheme = prefs.getString("search_widget_subtheme", "System") ?: "System"
-        val customColorHex = prefs.getString("search_widget_custom_color", "#FFFFFF") ?: "#FFFFFF"
-        val customColor = try {
-            android.graphics.Color.parseColor(customColorHex)
-        } catch (e: Exception) {
-            android.graphics.Color.WHITE
-        }
+        // Luminance helper for custom color
+        val customColorLuminance = (0.299 * android.graphics.Color.red(actualCustomColor) + 0.587 * android.graphics.Color.green(actualCustomColor) + 0.114 * android.graphics.Color.blue(actualCustomColor)) / 255
+        val customIconTint = if (customColorLuminance > 0.5) android.graphics.Color.BLACK else android.graphics.Color.WHITE
 
         // Determine Icon Tint
         val iconTint = when {
             !isMaterialYou -> {
-                when (subtheme) {
+                when (subthemeStr) {
                     "Light" -> android.graphics.Color.BLACK
                     "System" -> if (!isDark) android.graphics.Color.BLACK else android.graphics.Color.WHITE
-                    "Custom" -> customColor
+                    "Custom" -> customIconTint
                     else -> android.graphics.Color.WHITE
                 }
             }
             else -> {
-                if (subtheme == "Custom") {
-                    customColor
+                if (subthemeStr == "Custom") {
+                    customIconTint
                 } else {
                     if (isDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
                 }
@@ -217,8 +225,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
             if (isMaterialYou) {
                 // If custom, the user wants the custom color across the entire search bar (inner pill) and maybe rim?
                 // Let's use custom color for both if subtheme == Custom
-                val matRimColorAlpha = if (subtheme == "Custom") circleColorAlpha else rimColorAlpha
-                val matPillColorAlpha = if (subtheme == "Custom") circleColorAlpha else pillColorAlpha
+                val matRimColorAlpha = if (subthemeStr == "Custom") circleColorAlpha else rimColorAlpha
+                val matPillColorAlpha = if (subthemeStr == "Custom") circleColorAlpha else pillColorAlpha
                 
                 views.setInt(R.id.widget_outer_background, "setColorFilter", matRimColorAlpha)
                 views.setInt(R.id.widget_pill_background, "setColorFilter", matPillColorAlpha)

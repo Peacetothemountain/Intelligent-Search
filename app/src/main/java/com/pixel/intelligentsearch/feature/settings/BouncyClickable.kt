@@ -13,10 +13,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 
 @OptIn(ExperimentalFoundationApi::class)
 fun Modifier.bouncyClickable(
+    shape: Shape? = null,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ): Modifier = composed {
@@ -31,13 +34,14 @@ fun Modifier.bouncyClickable(
         label = "bouncy_click"
     )
 
-    val view = androidx.compose.ui.platform.LocalView.current
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
     this
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
         }
+        .then(if (shape != null) Modifier.clip(shape) else Modifier)
         .combinedClickable(
             interactionSource = interactionSource,
             indication = ripple(
@@ -45,19 +49,15 @@ fun Modifier.bouncyClickable(
                 bounded = true
             ),
             onLongClick = onLongClick?.let { {
-                view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                 it()
             } },
             onClick = {
-                view.performHapticFeedback(
-                    android.view.HapticFeedbackConstants.VIRTUAL_KEY,
-                    android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING
-                )
+                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                 onClick()
             }
         )
 }
-
 
 
 

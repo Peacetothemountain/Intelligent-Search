@@ -25,7 +25,7 @@
             
     </FrameLayout>
 
-    <TextView
+    <TextView android:id="@+id/doodle_search_text"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
@@ -34,14 +34,14 @@
         android:textSize="18sp"
         android:layout_marginStart="8dp" />
 
-    <ImageView
+    <ImageView android:id="@+id/doodle_mic_icon"
         android:layout_width="24dp"
         android:layout_height="24dp"
         android:src="@android:drawable/ic_btn_speak_now"
         android:layout_marginEnd="16dp"
         android:alpha="0.7"/>
 
-    <ImageView
+    <ImageView android:id="@+id/doodle_camera_icon"
         android:layout_width="24dp"
         android:layout_height="24dp"
         android:src="@android:drawable/ic_menu_camera"

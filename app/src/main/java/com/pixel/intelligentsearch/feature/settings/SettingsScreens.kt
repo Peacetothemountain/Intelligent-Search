@@ -2026,69 +2026,165 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(180.dp)
-                        .background(androidx.compose.ui.graphics.Color(0xFF1E1B24)),
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(androidx.compose.ui.graphics.Color(0xFF1C1B1F)),
                     contentAlignment = Alignment.Center
                 ) {
+                    val infiniteTransition = rememberInfiniteTransition(label = "gemini_dots")
+                    val phase by infiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 2f * Math.PI.toFloat(),
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(8000, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "phase"
+                    )
+
+                    val customHue = localHue
+                    val customSat = localSaturation / 100f
+                    val alphaInt = (255 * (100 - localOpacity.toInt()) / 100).coerceIn(0, 255) / 255f
+                    val accentColor = if (localSubtheme == "Custom") {
+                        androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor((localOpacity * 2.55f).toInt(), floatArrayOf(customHue, customSat, 1f)))
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
+
+                    val geminiColors = listOf(
+                        androidx.compose.ui.graphics.Color(0xFF4285F4),
+                        androidx.compose.ui.graphics.Color(0xFFEA4335),
+                        androidx.compose.ui.graphics.Color(0xFFFBBC05),
+                        androidx.compose.ui.graphics.Color(0xFF34A853)
+                    )
+
+                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                        val width = size.width
+                        val height = size.height
+
+                        val numParticles = 35
+                        for (i in 0 until numParticles) {
+                            val t = (i.toFloat() / numParticles + phase / (2f * Math.PI.toFloat())) % 1f
+                            val x = t * width
+                            
+                            val waveAmp = height / 3.5f
+                            val yOffset1 = Math.sin((t * 2f * Math.PI + phase).toDouble()).toFloat() * waveAmp
+                            val yOffset2 = Math.cos((t * 4f * Math.PI - phase * 1.5f).toDouble()).toFloat() * (waveAmp / 2f)
+                            
+                            val centerY = height / 2f + yOffset1 + yOffset2
+
+                            val alphaEdge = if (t < 0.1f) t * 10f else if (t > 0.9f) (1f - t) * 10f else 1f
+                            val twinkle = (Math.sin((t * 30f * Math.PI + phase * 6f).toDouble()).toFloat() + 1f) / 2f
+                            val radius = (1.5.dp.toPx() + 2.5.dp.toPx() * twinkle) * alphaEdge
+                            
+                            val color = if (localSubtheme == "Custom") {
+                                accentColor.copy(alpha = 0.8f * alphaEdge * twinkle)
+                            } else {
+                                geminiColors[i % geminiColors.size].copy(alpha = 0.8f * alphaEdge * twinkle)
+                            }
+
+                            drawCircle(
+                                color = color,
+                                radius = radius,
+                                center = androidx.compose.ui.geometry.Offset(x, centerY)
+                            )
+                            
+                            drawCircle(
+                                color = color.copy(alpha = 0.35f * alphaEdge * twinkle),
+                                radius = radius * 2.5f,
+                                center = androidx.compose.ui.geometry.Offset(x, centerY)
+                            )
+                        }
+                    }
+
+                    val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)"
+                    val previewRimColorAlpha = if (previewIsMaterialYou) {
+                        val rimC = androidx.compose.ui.graphics.Color(0xFF6C63FF)
+                        if (localSubtheme == "Custom") accentColor.copy(alpha = alphaInt) else rimC.copy(alpha = alphaInt)
+                    } else androidx.compose.ui.graphics.Color.Transparent
+                    
+                    val previewPillColorAlpha = if (previewIsMaterialYou) {
+                        val pillC = androidx.compose.ui.graphics.Color(0xFF1C1B1F)
+                        if (localSubtheme == "Custom") accentColor.copy(alpha = alphaInt) else pillC.copy(alpha = alphaInt)
+                    } else {
+                        androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = alphaInt)
+                    }
+                    
+                    val previewIconTint = if (localSubtheme == "Custom") {
+                        val luminance = (0.299 * accentColor.red + 0.587 * accentColor.green + 0.114 * accentColor.blue)
+                        if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+                    } else {
+                        androidx.compose.ui.graphics.Color.White
+                    }
+
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .background(previewRimColorAlpha, RoundedCornerShape(40.dp))
+                            .padding(if (previewIsMaterialYou) 8.dp else 0.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(56.dp)
-                                .background(androidx.compose.ui.graphics.Color(0xFF33303D), RoundedCornerShape(28.dp))
+                                .background(previewPillColorAlpha, RoundedCornerShape(28.dp))
                                 .padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (localShowGIcon) {
+                                val previewGIcon = if (localThemeStyle == "System Default") {
+                                    if (localMaterialGIconTheme == "Accented G Icon") com.pixel.intelligentsearch.R.drawable.ic_g_logo else com.pixel.intelligentsearch.R.drawable.ic_g_logo_colored
+                                } else {
+                                    if (localMaterialGIconTheme == "Accented G Icon") com.pixel.intelligentsearch.R.drawable.ic_g_logo else com.pixel.intelligentsearch.R.drawable.ic_g_logo_colored
+                                }
                                 Icon(
-                                    imageVector = ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored),
-                                    contentDescription = "G Icon",
-                                    tint = androidx.compose.ui.graphics.Color.Unspecified,
-                                    modifier = Modifier.size(24.dp)
+                                    painter = androidx.compose.ui.res.painterResource(id = previewGIcon),
+                                    contentDescription = "G Logo",
+                                    modifier = Modifier.size(24.dp),
+                                    tint = if (localThemeStyle != "System Default" && localMaterialGIconTheme != "System G Icon") previewIconTint else androidx.compose.ui.graphics.Color.Unspecified
                                 )
                             }
-                            Spacer(modifier = Modifier.weight(1f))
+                            
+                            Spacer(Modifier.weight(1f))
+                            
                             if (localShortcut != "None") {
                                 val shortcutOption = shortcutOptions.find { it.first == localShortcut }
                                 if (shortcutOption != null) {
                                     Icon(
                                         imageVector = shortcutOption.second,
                                         contentDescription = localShortcut,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = previewIconTint,
                                         modifier = Modifier.size(24.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(16.dp))
+                                    if (localShowVoice) {
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                    }
                                 }
                             }
                             if (localShowVoice) {
-                                Icon(
-                                    imageVector = Icons.Default.Mic,
-                                    contentDescription = "Voice Search",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(24.dp)
-                                )
+                                Icon(Icons.Default.Mic, contentDescription = "Mic", modifier = Modifier.size(24.dp), tint = previewIconTint)
                             }
                         }
-                        if (localThemeStyle == "Material You (Minimal)") {
-                            Spacer(modifier = Modifier.width(16.dp))
+                        
+                        if (localActionIcon != "None" && previewIsMaterialYou) {
+                            Spacer(Modifier.width(8.dp))
                             Box(
                                 modifier = Modifier
                                     .size(56.dp)
-                                    .background(androidx.compose.ui.graphics.Color(0xFF33303D), androidx.compose.foundation.shape.CircleShape),
+                                    .background(previewPillColorAlpha, androidx.compose.foundation.shape.CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                val iconRes = when (localActionIcon) {
+                                val actIcon = when (localActionIcon) {
                                     "Search" -> com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored
                                     "Gemini" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
                                     "Now Playing" -> com.pixel.intelligentsearch.R.drawable.ic_music
                                     else -> com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored
                                 }
                                 Icon(
-                                    imageVector = ImageVector.vectorResource(id = iconRes),
-                                    contentDescription = "Action Icon",
-                                    tint = androidx.compose.ui.graphics.Color.Unspecified,
+                                    painter = androidx.compose.ui.res.painterResource(id = actIcon),
+                                    contentDescription = "Action",
+                                    tint = previewIconTint,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -2275,7 +2371,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         value = localHue,
                                         onValueChange = { localHue = it },
                                         valueRange = 0f..360f,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth(),
+                                        showTrack = false
                                     )
                                 }
                             }
@@ -2306,7 +2403,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         value = localSaturation,
                                         onValueChange = { localSaturation = it },
                                         valueRange = 0f..100f,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth(),
+                                        showTrack = false
                                     )
                                 }
                             }
@@ -2337,7 +2435,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         value = localOpacity,
                                         onValueChange = { localOpacity = it },
                                         valueRange = 0f..100f,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth(),
+                                        showTrack = false
                                     )
                                 }
                             }
@@ -2545,7 +2644,8 @@ fun Android17Slider(
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
     modifier: Modifier = Modifier,
-    steps: Int = 0
+    steps: Int = 0,
+    showTrack: Boolean = true
 ) {
     val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
     
@@ -2615,34 +2715,36 @@ fun Android17Slider(
             }
 
             // Draw active track (Squiggle)
-            val path = androidx.compose.ui.graphics.Path()
-            path.moveTo(0f, centerY)
-            var x = 0f
-            while (x < thumbX) {
-                // To move towards the right, we subtract the phase
-                val y = centerY + Math.sin((x * frequency - phase).toDouble()).toFloat() * amplitude
-                path.lineTo(x, y)
-                x += 2f
-            }
-            
-            drawPath(
-                path = path,
-                color = activeColor,
-                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                    width = trackHeight,
-                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+            if (showTrack) {
+                val path = androidx.compose.ui.graphics.Path()
+                path.moveTo(0f, centerY)
+                var x = 0f
+                while (x < thumbX) {
+                    // To move towards the right, we subtract the phase
+                    val y = centerY + Math.sin((x * frequency - phase).toDouble()).toFloat() * amplitude
+                    path.lineTo(x, y)
+                    x += 2f
+                }
+                
+                drawPath(
+                    path = path,
+                    color = activeColor,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = trackHeight,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    )
                 )
-            )
-
-            // Draw inactive track (Straight line)
-            if (thumbX < size.width) {
-                drawLine(
-                    color = inactiveColor,
-                    start = androidx.compose.ui.geometry.Offset(thumbX, centerY),
-                    end = androidx.compose.ui.geometry.Offset(size.width, centerY),
-                    strokeWidth = trackHeight,
-                    cap = androidx.compose.ui.graphics.StrokeCap.Round
-                )
+    
+                // Draw inactive track (Straight line)
+                if (thumbX < size.width) {
+                    drawLine(
+                        color = inactiveColor,
+                        start = androidx.compose.ui.geometry.Offset(thumbX, centerY),
+                        end = androidx.compose.ui.geometry.Offset(size.width, centerY),
+                        strokeWidth = trackHeight,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    )
+                }
             }
 
             // Draw thumb (vertical pill)

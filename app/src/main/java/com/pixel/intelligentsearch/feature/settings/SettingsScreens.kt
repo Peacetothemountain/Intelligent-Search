@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
@@ -1933,7 +1934,6 @@ private fun WidgetCustomizationCard(content: @Composable ColumnScope.() -> Unit)
 fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     var showShortcutSheet by remember { mutableStateOf(false) }
-    
     var showCustomUrlDialogFor by remember { mutableStateOf<String?>(null) }
     var showCustomAppDialogFor by remember { mutableStateOf<String?>(null) }
     var customInputValue by remember { mutableStateOf("") }
@@ -1954,18 +1954,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         "News" to Icons.AutoMirrored.Filled.Article
     )
 
-    // Local State Initialization
     var localShowGIcon by remember { mutableStateOf(prefs.getBoolean("widget_show_g_icon", true)) }
-    var localShowDoodle by remember { mutableStateOf(prefs.getBoolean("widget_show_doodle", false)) }
-    
+    var localShowDoodle by remember { mutableStateOf(prefs.getBoolean("widget_show_doodle", true)) }
     var localThemeStyle by remember { mutableStateOf(prefs.getString("widget.theme.style", "System Default") ?: "System Default") }
     var localSubtheme by remember { mutableStateOf(prefs.getString("widget_subtheme", "System") ?: "System") }
     var localMaterialGIconTheme by remember { mutableStateOf(prefs.getString("widget_material_g_icon", "Material G Icon") ?: "Material G Icon") }
-    
     var localHue by remember { mutableStateOf(prefs.getInt("widget_custom_hue", 277).toFloat()) }
     var localSaturation by remember { mutableStateOf(prefs.getInt("widget_custom_saturation", 51).toFloat()) }
     var localOpacity by remember { mutableStateOf(prefs.getInt("search.background.transparency", 28).toFloat()) }
-    
     var localShowVoice by remember { mutableStateOf(prefs.getBoolean("widget_show_voice", true)) }
     var localActionIcon by remember { mutableStateOf(prefs.getString("widget_action_icon", "Search") ?: "Search") }
     var localShortcut by remember { mutableStateOf(prefs.getString("widget_shortcut", "Google Lens") ?: "Google Lens") }
@@ -2010,7 +2006,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         updateWidgets(context)
                         onBack()
                     }) {
-                        Text("Apply", color = MaterialTheme.colorScheme.onSurface)
+                        Text("Apply", color = MaterialTheme.colorScheme.primary)
                     }
                 }
             )
@@ -2021,96 +2017,107 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
             // Live Preview Card
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .background(androidx.compose.ui.graphics.Color(0xFF1E1B24), RoundedCornerShape(24.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                // Widget Container
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(16.dp)
+            SettingsCard {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .background(androidx.compose.ui.graphics.Color(0xFF1E1B24)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    // Pill
                     Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                            .background(androidx.compose.ui.graphics.Color(0xFF33303D), RoundedCornerShape(28.dp))
-                            .padding(horizontal = 16.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (localShowGIcon) {
-                            if (localShowDoodle) {
-                                Icon(Icons.Default.Celebration, contentDescription = "Doodle", tint = androidx.compose.ui.graphics.Color.Unspecified, modifier = Modifier.size(24.dp))
-                            } else {
-                                Icon(ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_g_logo_colored), contentDescription = "G Logo", tint = androidx.compose.ui.graphics.Color.Unspecified, modifier = Modifier.size(24.dp))
-                            }
-                            Spacer(modifier = Modifier.weight(1f))
-                        } else {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                        
-                        if (localShowVoice) {
-                            Icon(ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_mic_original), contentDescription = "Voice", tint = androidx.compose.ui.graphics.Color.Gray, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.width(16.dp))
-                        }
-                        
-                        if (localShortcut != "None") {
-                            val iconRes = shortcutOptions.find { it.first == localShortcut }?.second ?: Icons.Default.Close
-                            Icon(iconRes, contentDescription = "Shortcut", tint = androidx.compose.ui.graphics.Color.Gray, modifier = Modifier.size(24.dp))
-                        }
-                    }
-                    
-                    // Action Circle
-                    if (localThemeStyle == "Material You (Minimal)") {
-                        Box(
+                        Row(
                             modifier = Modifier
-                                .size(56.dp)
-                                .background(androidx.compose.ui.graphics.Color(0xFF33303D), androidx.compose.foundation.shape.CircleShape),
-                            contentAlignment = Alignment.Center
+                                .weight(1f)
+                                .height(56.dp)
+                                .background(androidx.compose.ui.graphics.Color(0xFF33303D), RoundedCornerShape(28.dp))
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val actIcon = when (localActionIcon) {
-                                "Search" -> ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored)
-                                "Gemini" -> ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_gemini)
-                                "Now Playing" -> ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_music)
-                                else -> Icons.Default.Search
+                            if (localShowGIcon) {
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored),
+                                    contentDescription = "G Icon",
+                                    tint = androidx.compose.ui.graphics.Color.Unspecified,
+                                    modifier = Modifier.size(24.dp)
+                                )
                             }
-                            Icon(actIcon, contentDescription = "Action", tint = androidx.compose.ui.graphics.Color.Unspecified, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.weight(1f))
+                            if (localShortcut != "None") {
+                                val shortcutOption = shortcutOptions.find { it.first == localShortcut }
+                                if (shortcutOption != null) {
+                                    Icon(
+                                        imageVector = shortcutOption.second,
+                                        contentDescription = localShortcut,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                }
+                            }
+                            if (localShowVoice) {
+                                Icon(
+                                    imageVector = Icons.Default.Mic,
+                                    contentDescription = "Voice Search",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                        if (localThemeStyle == "Material You (Minimal)") {
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .background(androidx.compose.ui.graphics.Color(0xFF33303D), androidx.compose.foundation.shape.CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val iconRes = when (localActionIcon) {
+                                    "Search" -> com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored
+                                    "Gemini" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
+                                    "Now Playing" -> com.pixel.intelligentsearch.R.drawable.ic_music
+                                    else -> com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored
+                                }
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(id = iconRes),
+                                    contentDescription = "Action Icon",
+                                    tint = androidx.compose.ui.graphics.Color.Unspecified,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // Toggles Card
+            // G Icon options
             SettingsCard {
                 SettingsRowToggle(
                     title = "Display G Icon",
-                    subtitle = "",
-                    icon = ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_g_logo_colored),
+                    subtitle = "Show Google logo in search bar",
+                    icon = Icons.Default.Star,
                     isChecked = localShowGIcon,
                     onCheckedChange = { localShowGIcon = it },
                     showDivider = true
                 )
                 SettingsRowToggle(
                     title = "G Icon Doodle",
-                    subtitle = "Use Google's Event Icon to Celebrate Special Occasions.",
-                    icon = Icons.Default.CalendarToday,
+                    subtitle = "Show special event doodles",
+                    icon = Icons.Default.Brush,
                     isChecked = localShowDoodle,
                     onCheckedChange = { localShowDoodle = it },
                     showDivider = false
                 )
             }
-            
-            // Design Segmented Buttons (System Design | Material Design)
+
+            // Theme Buttons
             SettingsCard {
                 Row(
                     modifier = Modifier
@@ -2208,7 +2215,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
                 }
             }
-            
+
             if (localThemeStyle == "Material You (Minimal)" && localSubtheme == "Custom") {
                 // Material G Icon Row
                 SettingsCard {
@@ -2234,7 +2241,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     }
                 }
-                
+            }
+
+            if (localSubtheme == "Custom") {
                 // Sliders Card
                 SettingsCard {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -2276,7 +2285,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         
                         // Saturation
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.InvertColors, contentDescription = "Saturation", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+                            Icon(Icons.Default.WaterDrop, contentDescription = "Saturation", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2287,8 +2296,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
                                     brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
                                         colors = listOf(
-                                            androidx.compose.ui.graphics.Color(0xFF333333),
-                                            androidx.compose.ui.graphics.Color(0xFFAA00FF)
+                                            androidx.compose.ui.graphics.Color.White,
+                                            androidx.compose.ui.graphics.Color(0xFFE91E63)
                                         )
                                     ),
                                     shape = RoundedCornerShape(8.dp)
@@ -2307,7 +2316,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         
                         // Opacity
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.Opacity, contentDescription = "Opacity", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+                            Icon(Icons.Default.Contrast, contentDescription = "Opacity", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2318,112 +2327,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
                                     brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
                                         colors = listOf(
-                                            androidx.compose.ui.graphics.Color(0xFF222222),
-                                            androidx.compose.ui.graphics.Color(0xFFBB86FC)
-                                        )
-                                    ),
-                                    shape = RoundedCornerShape(8.dp)
-                                )) {
-                                    Android17Slider(
-                                        value = localOpacity,
-                                        onValueChange = { localOpacity = it },
-                                        valueRange = 0f..100f,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            if (localThemeStyle == "System Default" && localSubtheme == "Custom") {
-                // If System Design -> Custom is selected, presumably they should also see sliders, but wait, the screenshot doesn't explicitly show it.
-                // Let's assume the sliders are the same.
-                SettingsCard {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        // Hue
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.Palette, contentDescription = "Hue", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Hue", fontSize = 16.sp)
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Text("${localHue.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
-                                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                        colors = listOf(
-                                            androidx.compose.ui.graphics.Color.Red,
-                                            androidx.compose.ui.graphics.Color.Yellow,
-                                            androidx.compose.ui.graphics.Color.Green,
-                                            androidx.compose.ui.graphics.Color.Cyan,
-                                            androidx.compose.ui.graphics.Color.Blue,
-                                            androidx.compose.ui.graphics.Color.Magenta,
-                                            androidx.compose.ui.graphics.Color.Red
-                                        )
-                                    ),
-                                    shape = RoundedCornerShape(8.dp)
-                                )) {
-                                    Android17Slider(
-                                        value = localHue,
-                                        onValueChange = { localHue = it },
-                                        valueRange = 0f..360f,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        // Saturation
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.InvertColors, contentDescription = "Saturation", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Saturation", fontSize = 16.sp)
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Text("${localSaturation.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
-                                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                        colors = listOf(
-                                            androidx.compose.ui.graphics.Color(0xFF333333),
-                                            androidx.compose.ui.graphics.Color(0xFFAA00FF)
-                                        )
-                                    ),
-                                    shape = RoundedCornerShape(8.dp)
-                                )) {
-                                    Android17Slider(
-                                        value = localSaturation,
-                                        onValueChange = { localSaturation = it },
-                                        valueRange = 0f..100f,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        // Opacity
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.Opacity, contentDescription = "Opacity", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Opacity", fontSize = 16.sp)
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Text("${localOpacity.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
-                                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                        colors = listOf(
-                                            androidx.compose.ui.graphics.Color(0xFF222222),
-                                            androidx.compose.ui.graphics.Color(0xFFBB86FC)
+                                            androidx.compose.ui.graphics.Color.Transparent,
+                                            androidx.compose.ui.graphics.Color.White
                                         )
                                     ),
                                     shape = RoundedCornerShape(8.dp)
@@ -2441,7 +2346,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 }
             }
 
-            Text("WIDGET ACTIONS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp))
+            Text("WIDGET ACTIONS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
 
             // Actions Card
             SettingsCard {
@@ -2451,19 +2356,16 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     icon = Icons.Default.Mic,
                     isChecked = localShowVoice,
                     onCheckedChange = { localShowVoice = it },
-                    showDivider = localThemeStyle == "Material You (Minimal)" || localShortcut != "None"
+                    showDivider = true
                 )
-                
                 if (localThemeStyle == "Material You (Minimal)") {
                     SettingsDropdownRow(
                         title = "Widget Action Icon",
-                        subtitle = "(Material Design only) $localActionIcon",
+                        subtitle = localActionIcon,
                         icon = Icons.Default.Search,
                         options = listOf("Search", "Gemini", "Now Playing"),
                         selectedOption = localActionIcon,
-                        onOptionSelected = {
-                            localActionIcon = it
-                        },
+                        onOptionSelected = { localActionIcon = it },
                         showDivider = true,
                         optionIcons = mapOf(
                             "Search" to com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored,
@@ -2472,11 +2374,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         )
                     )
                 }
-                
                 SettingsRow(
                     title = "Widget Shortcut",
                     subtitle = localShortcut,
-                    icon = ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_camera), 
+                    icon = Icons.Default.AddCircleOutline,
                     onClick = { showShortcutSheet = true },
                     showDivider = false
                 )
@@ -2503,179 +2404,128 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier.bouncyClickable {
-                                        if (option.first == "Google Lens" || option.first == "Translate (camera)") {
-                                            val isInstalled = try {
-                                                context.packageManager.getPackageInfo("com.google.ar.lens", 0)
-                                                true
-                                            } catch (e: Exception) {
-                                                false
-                                            }
-                                            if (!isInstalled) {
-                                                try {
-                                                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=com.google.ar.lens")))
-                                                } catch (e: Exception) {
-                                                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://play.google.com/store/apps/details?id=com.google.ar.lens")))
-                                                }
-                                                showShortcutSheet = false
-                                                return@bouncyClickable
-                                            }
+                                        if (isCustomizable) {
+                                            expandedDropdownFor = option.first
+                                        } else {
+                                            localShortcut = option.first
+                                            showShortcutSheet = false
                                         }
-                                        localShortcut = option.first
-                                        showShortcutSheet = false
                                     }
                                 ) {
-                                    val isSel = localShortcut == option.first
-                                    Box(
-                                        modifier = Modifier
-                                            .size(56.dp)
-                                            .background(
-                                                if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                                                androidx.compose.foundation.shape.CircleShape
-                                            )
-                                            .border(
-                                                width = if (isSel) 2.dp else 0.dp,
-                                                color = if (isSel) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent,
-                                                shape = androidx.compose.foundation.shape.CircleShape
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
+                                    Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             imageVector = option.second,
                                             contentDescription = option.first,
-                                            tint = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                            modifier = Modifier
+                                                .size(56.dp)
+                                                .background(
+                                                    if (localShortcut == option.first) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                                    androidx.compose.foundation.shape.CircleShape
+                                                )
+                                                .padding(16.dp),
+                                            tint = if (localShortcut == option.first) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
-                                    }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                         if (isCustomizable) {
-                                            Box(modifier = Modifier.bouncyClickable {
-                                                expandedDropdownFor = option.first
-                                            }) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(
-                                                        text = option.first,
-                                                        fontSize = 12.sp,
-                                                        maxLines = 1,
-                                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                                    )
-                                                    Icon(Icons.Default.ArrowDropDown, contentDescription = "Edit", modifier = Modifier.size(16.dp))
-                                                }
-                                                androidx.compose.material3.DropdownMenu(
-                                                    expanded = expandedDropdownFor == option.first,
-                                                    onDismissRequest = { expandedDropdownFor = null }
-                                                ) {
-                                                    androidx.compose.material3.DropdownMenuItem(
-                                                        text = { Text("Default") },
-                                                        onClick = {
-                                                            localShortcut = option.first
-                                                            expandedDropdownFor = null
-                                                            showShortcutSheet = false
-                                                        }
-                                                    )
-                                                    androidx.compose.material3.DropdownMenuItem(
-                                                        text = { Text("Custom Website (URL)") },
-                                                        onClick = {
-                                                            val currentVal = prefs.getString("${option.first}_custom_value", "") ?: ""
-                                                            customInputValue = if (prefs.getString("${option.first}_custom_type", "") == "url") currentVal else ""
-                                                            showCustomUrlDialogFor = option.first
-                                                            expandedDropdownFor = null
-                                                        }
-                                                    )
-                                                    androidx.compose.material3.DropdownMenuItem(
-                                                        text = { Text("Custom App (APK)") },
-                                                        onClick = {
-                                                            val currentVal = prefs.getString("${option.first}_custom_value", "") ?: ""
-                                                            customInputValue = if (prefs.getString("${option.first}_custom_type", "") == "app") currentVal else ""
-                                                            showCustomAppDialogFor = option.first
-                                                            expandedDropdownFor = null
-                                                        }
-                                                    )
-                                                }
+                                            androidx.compose.material3.DropdownMenu(
+                                                expanded = expandedDropdownFor == option.first,
+                                                onDismissRequest = { expandedDropdownFor = null }
+                                            ) {
+                                                androidx.compose.material3.DropdownMenuItem(
+                                                    text = { Text("Default (Google)") },
+                                                    onClick = {
+                                                        localShortcut = option.first
+                                                        showShortcutSheet = false
+                                                        expandedDropdownFor = null
+                                                    }
+                                                )
+                                                androidx.compose.material3.DropdownMenuItem(
+                                                    text = { Text("Custom Website (URL)") },
+                                                    onClick = {
+                                                        showCustomUrlDialogFor = option.first
+                                                        expandedDropdownFor = null
+                                                    }
+                                                )
+                                                androidx.compose.material3.DropdownMenuItem(
+                                                    text = { Text("Custom App (APK)") },
+                                                    onClick = {
+                                                        showCustomAppDialogFor = option.first
+                                                        expandedDropdownFor = null
+                                                    }
+                                                )
                                             }
-                                        } else {
-                                            Text(
-                                                text = option.first,
-                                                fontSize = 12.sp,
-                                                maxLines = 1,
-                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                            )
                                         }
                                     }
+                                    Text(
+                                        text = option.first,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.padding(top = 8.dp),
+                                        textAlign = TextAlign.Center
+                                    )
                                 }
-                            }
-                            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                                Spacer(modifier = Modifier.height(32.dp))
                             }
                         }
                     }
                 }
-                
-                if (showCustomUrlDialogFor != null) {
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = { showCustomUrlDialogFor = null },
-                        title = { Text("Custom URL for $showCustomUrlDialogFor") },
-                        text = {
-                            androidx.compose.material3.OutlinedTextField(
-                                value = customInputValue,
-                                onValueChange = { customInputValue = it },
-                                label = { Text("Enter full URL (https://...)") },
-                                singleLine = true
-                            )
-                        },
-                        confirmButton = {
-                            androidx.compose.material3.TextButton(onClick = {
-                                prefs.edit()
-                                    .putString("${showCustomUrlDialogFor}_custom_type", "url")
-                                    .putString("${showCustomUrlDialogFor}_custom_value", customInputValue)
-                                    .apply()
-                                localShortcut = showCustomUrlDialogFor!!
-                                showShortcutSheet = false
-                                showCustomUrlDialogFor = null
-                            }) { Text("Save") }
-                        },
-                        dismissButton = {
-                            androidx.compose.material3.TextButton(onClick = { showCustomUrlDialogFor = null }) { Text("Cancel") }
-                        }
-                    )
-                }
+            }
 
-                if (showCustomAppDialogFor != null) {
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = { showCustomAppDialogFor = null },
-                        title = { Text("Custom App for $showCustomAppDialogFor") },
-                        text = {
-                            androidx.compose.material3.OutlinedTextField(
-                                value = customInputValue,
-                                onValueChange = { customInputValue = it },
-                                label = { Text("Enter Package Name (e.g. com.example.app)") },
-                                singleLine = true
-                            )
-                        },
-                        confirmButton = {
-                            androidx.compose.material3.TextButton(onClick = {
-                                prefs.edit()
-                                    .putString("${showCustomAppDialogFor}_custom_type", "app")
-                                    .putString("${showCustomAppDialogFor}_custom_value", customInputValue)
-                                    .apply()
-                                localShortcut = showCustomAppDialogFor!!
-                                showShortcutSheet = false
-                                showCustomAppDialogFor = null
-                            }) { Text("Save") }
-                        },
-                        dismissButton = {
-                            androidx.compose.material3.TextButton(onClick = { showCustomAppDialogFor = null }) { Text("Cancel") }
-                        }
-                    )
-                }
+            if (showCustomUrlDialogFor != null) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showCustomUrlDialogFor = null },
+                    title = { Text("Custom URL for ${showCustomUrlDialogFor}") },
+                    text = {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = customInputValue,
+                            onValueChange = { customInputValue = it },
+                            label = { Text("Enter URL") }
+                        )
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            prefs.edit()
+                                .putString("${showCustomUrlDialogFor}_custom_type", "url")
+                                .putString("${showCustomUrlDialogFor}_custom_value", customInputValue)
+                                .apply()
+                            localShortcut = showCustomUrlDialogFor!!
+                            showShortcutSheet = false
+                            showCustomUrlDialogFor = null
+                        }) { Text("Save") }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { showCustomUrlDialogFor = null }) { Text("Cancel") }
+                    }
+                )
+            }
+
+            if (showCustomAppDialogFor != null) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showCustomAppDialogFor = null },
+                    title = { Text("Custom App for ${showCustomAppDialogFor}") },
+                    text = {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = customInputValue,
+                            onValueChange = { customInputValue = it },
+                            label = { Text("Enter Package Name") }
+                        )
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            prefs.edit()
+                                .putString("${showCustomAppDialogFor}_custom_type", "app")
+                                .putString("${showCustomAppDialogFor}_custom_value", customInputValue)
+                                .apply()
+                            localShortcut = showCustomAppDialogFor!!
+                            showShortcutSheet = false
+                            showCustomAppDialogFor = null
+                        }) { Text("Save") }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { showCustomAppDialogFor = null }) { Text("Cancel") }
+                    }
+                )
             }
         }
     }
 }
-
-
-
-
-
 
 
 fun updateWidgets(context: Context) {
@@ -3263,6 +3113,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         }
     }
 }
+
 
 
 

@@ -2057,6 +2057,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         androidx.compose.ui.graphics.Color(0xFF34A853)
                     )
 
+                    val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)"
+                    val matPrimary = MaterialTheme.colorScheme.primary
+                    val matSecondary = MaterialTheme.colorScheme.secondary
+                    val matTertiary = MaterialTheme.colorScheme.tertiary
+                    val matError = MaterialTheme.colorScheme.error
+
                     androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
                         val width = size.width
                         val height = size.height
@@ -2078,6 +2084,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             
                             val color = if (localSubtheme == "Custom") {
                                 accentColor.copy(alpha = 0.8f * alphaEdge * twinkle)
+                            } else if (previewIsMaterialYou && localSubtheme == "Material") {
+                                val dynamicColors = listOf(matPrimary, matSecondary, matTertiary, matError)
+                                dynamicColors[i % dynamicColors.size].copy(alpha = 0.8f * alphaEdge * twinkle)
                             } else {
                                 geminiColors[i % geminiColors.size].copy(alpha = 0.8f * alphaEdge * twinkle)
                             }
@@ -2096,22 +2105,32 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     }
 
-                    val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)"
                     val previewRimColorAlpha = if (previewIsMaterialYou) {
-                        val rimC = androidx.compose.ui.graphics.Color(0xFF6C63FF)
-                        if (localSubtheme == "Custom") accentColor.copy(alpha = alphaInt) else rimC.copy(alpha = alphaInt)
+                        if (localSubtheme == "Custom") {
+                            accentColor.copy(alpha = alphaInt)
+                        } else if (localSubtheme == "Material") {
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = alphaInt)
+                        } else {
+                            androidx.compose.ui.graphics.Color(0xFF6C63FF).copy(alpha = alphaInt)
+                        }
                     } else androidx.compose.ui.graphics.Color.Transparent
                     
                     val previewPillColorAlpha = if (previewIsMaterialYou) {
-                        val pillC = androidx.compose.ui.graphics.Color(0xFF1C1B1F)
-                        if (localSubtheme == "Custom") accentColor.copy(alpha = alphaInt) else pillC.copy(alpha = alphaInt)
+                        if (localSubtheme == "Custom") {
+                            androidx.compose.ui.graphics.Color(0xFF1C1B1F).copy(alpha = alphaInt)
+                        } else if (localSubtheme == "Material") {
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alphaInt)
+                        } else {
+                            androidx.compose.ui.graphics.Color(0xFF1C1B1F).copy(alpha = alphaInt)
+                        }
                     } else {
                         androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = alphaInt)
                     }
                     
                     val previewIconTint = if (localSubtheme == "Custom") {
-                        val luminance = (0.299 * accentColor.red + 0.587 * accentColor.green + 0.114 * accentColor.blue)
-                        if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+                        androidx.compose.ui.graphics.Color.White
+                    } else if (previewIsMaterialYou && localSubtheme == "Material") {
+                        MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
                         androidx.compose.ui.graphics.Color.White
                     }
@@ -2441,6 +2460,23 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 }
                             }
                         }
+                        
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
+                        // Hex Color Box
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.Tag, contentDescription = "Hex Color", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(16.dp))
+                            val customColorHex = String.format("#%06X", (0xFFFFFF and android.graphics.Color.HSVToColor(floatArrayOf(localHue, localSaturation / 100f, 1f))))
+                            Row(
+                                modifier = Modifier
+                                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp))
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(customColorHex, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                     }
                 }
             }
@@ -2476,7 +2512,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRow(
                     title = "Widget Shortcut",
                     subtitle = localShortcut,
-                    icon = Icons.Default.AddCircleOutline,
+                    icon = shortcutOptions.find { it.first == localShortcut }?.second ?: Icons.Default.AddCircleOutline,
                     onClick = { showShortcutSheet = true },
                     showDivider = false
                 )
@@ -2525,6 +2561,15 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             tint = if (localShortcut == option.first) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         if (isCustomizable) {
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowDropDown,
+                                                contentDescription = "Options",
+                                                modifier = Modifier
+                                                    .align(Alignment.BottomEnd)
+                                                    .size(20.dp)
+                                                    .background(MaterialTheme.colorScheme.surface, androidx.compose.foundation.shape.CircleShape),
+                                                tint = MaterialTheme.colorScheme.onSurface
+                                            )
                                             androidx.compose.material3.DropdownMenu(
                                                 expanded = expandedDropdownFor == option.first,
                                                 onDismissRequest = { expandedDropdownFor = null }

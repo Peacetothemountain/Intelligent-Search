@@ -28,18 +28,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
             val isHidden = intent.action == "com.pixel.intelligentsearch.ACTION_HIDE_WIDGET"
             val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
             val widgetThemeStyle = prefs.getString("widget.theme.style", "System Default")
-            val isMaterialYou = when (widgetThemeStyle) {
-                "Material You (Minimal)" -> true
-                "Google App (Default)" -> false
-                else -> {
-                    try {
-                        val packTheme = android.provider.Settings.Secure.getInt(context.contentResolver, "pack_theme_feature_enabled", -1)
-                        if (packTheme == 0) false else true
-                    } catch (e: Exception) {
-                        true
-                    }
-                }
-            }
+            val isMaterialYou = widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
             val layoutId = if (isMaterialYou) R.layout.widget_search else R.layout.widget_search_colorful
 
             for (appWidgetId in appWidgetIds) {
@@ -90,20 +79,9 @@ class SearchWidgetProvider : AppWidgetProvider() {
             else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
         }
 
-        // â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
+        // ————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
         val widgetThemeStyle = prefs.getString("widget.theme.style", "System Default")
-        val isMaterialYou = when (widgetThemeStyle) {
-            "Material You (Minimal)" -> true
-            "Google App (Default)" -> false
-            else -> {
-                try {
-                    val packTheme = android.provider.Settings.Secure.getInt(context.contentResolver, "pack_theme_feature_enabled", -1)
-                    if (packTheme == 0) false else true
-                } catch (e: Exception) {
-                    true
-                }
-            }
-        }
+        val isMaterialYou = widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
         
         val shortcutIconRes = when (widgetShortcut) {
             "Live" -> R.drawable.ic_gemini
@@ -119,23 +97,28 @@ class SearchWidgetProvider : AppWidgetProvider() {
             else -> R.drawable.ic_camera
         }
 
+        val subthemeStr = prefs.getString("widget_subtheme", "System") ?: "System"
+        val customHue = prefs.getInt("widget_custom_hue", 277).toFloat()
+        val customSaturation = prefs.getInt("widget_custom_saturation", 67).toFloat()
+        val actualCustomColor = android.graphics.Color.HSVToColor(floatArrayOf(customHue, customSaturation / 100f, 1f))
+
         // Outer accent rim: system_accent2 (secondary tonal, matches wallpaper teal/color)
         val rimColor = if (isMaterialYou) {
-            context.getColor(
-                if (isDark) android.R.color.system_accent2_700
-                else android.R.color.system_accent2_200
-            )
+            if (subthemeStr == "Custom") {
+                actualCustomColor
+            } else {
+                context.getColor(
+                    if (isDark) android.R.color.system_accent2_700
+                    else android.R.color.system_accent2_200
+                )
+            }
         } else {
             android.graphics.Color.TRANSPARENT
         }
 
         // Inner pill: deepest neutral surface (near-black on dark, near-white on light)
         val pillColor = if (isMaterialYou) {
-            context.getColor(
-                // Use a much darker neutral color instead of the bright accent color
-                if (isDark) android.R.color.system_neutral1_900
-                else android.R.color.system_neutral1_100
-            )
+            0xFF1F1F1F.toInt()
         } else {
             if (isDark) 0xFF303134.toInt() else 0xFFFFFFFF.toInt()
         }
@@ -166,27 +149,23 @@ class SearchWidgetProvider : AppWidgetProvider() {
             android.graphics.Color.blue(circleColor)
         )
         
-        val subtheme = prefs.getString("search_widget_subtheme", "System") ?: "System"
-        val customColorHex = prefs.getString("search_widget_custom_color", "#FFFFFF") ?: "#FFFFFF"
-        val customColor = try {
-            android.graphics.Color.parseColor(customColorHex)
-        } catch (e: Exception) {
-            android.graphics.Color.WHITE
-        }
+        // Luminance helper for custom color
+        val customColorLuminance = (0.299 * android.graphics.Color.red(actualCustomColor) + 0.587 * android.graphics.Color.green(actualCustomColor) + 0.114 * android.graphics.Color.blue(actualCustomColor)) / 255
+        val customIconTint = if (customColorLuminance > 0.5) android.graphics.Color.BLACK else android.graphics.Color.WHITE
 
         // Determine Icon Tint
         val iconTint = when {
             !isMaterialYou -> {
-                when (subtheme) {
+                when (subthemeStr) {
                     "Light" -> android.graphics.Color.BLACK
                     "System" -> if (!isDark) android.graphics.Color.BLACK else android.graphics.Color.WHITE
-                    "Custom" -> customColor
+                    "Custom" -> customIconTint
                     else -> android.graphics.Color.WHITE
                 }
             }
             else -> {
-                if (subtheme == "Custom") {
-                    customColor
+                if (subthemeStr == "Custom") {
+                    customIconTint
                 } else {
                     if (isDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
                 }
@@ -209,19 +188,21 @@ class SearchWidgetProvider : AppWidgetProvider() {
             }
         }
         
+        val actionIconRes = when (actionIconStr) {
+            "Search" -> R.drawable.ic_search_ai_colored
+            "Gemini" -> R.drawable.ic_gemini
+            "Now Playing" -> R.drawable.ic_music
+            else -> R.drawable.ic_search_ai_colored
+        }
+        
         for (appWidgetId in appWidgetIds) {
             val layoutId = if (isMaterialYou) R.layout.widget_search else R.layout.widget_search_colorful
             val views = RemoteViews(context.packageName, layoutId)
 
             // Apply Material You colors with transparency
             if (isMaterialYou) {
-                // If custom, the user wants the custom color across the entire search bar (inner pill) and maybe rim?
-                // Let's use custom color for both if subtheme == Custom
-                val matRimColorAlpha = if (subtheme == "Custom") circleColorAlpha else rimColorAlpha
-                val matPillColorAlpha = if (subtheme == "Custom") circleColorAlpha else pillColorAlpha
-                
-                views.setInt(R.id.widget_outer_background, "setColorFilter", matRimColorAlpha)
-                views.setInt(R.id.widget_pill_background, "setColorFilter", matPillColorAlpha)
+                views.setInt(R.id.widget_outer_background, "setColorFilter", rimColorAlpha)
+                views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorAlpha)
                 views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorAlpha)
                 
                 views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
@@ -232,15 +213,18 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 }
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic)
                 views.setImageViewResource(R.id.widget_lens_search, shortcutIconRes)
+                views.setImageViewResource(R.id.widget_sound_icon, actionIconRes)
                 
                 if (materialGIconTheme == "Accented G Icon") {
                     views.setInt(R.id.widget_g_logo, "setColorFilter", iconTint)
                     views.setInt(R.id.widget_voice_search, "setColorFilter", iconTint)
                     views.setInt(R.id.widget_lens_search, "setColorFilter", iconTint)
+                    views.setInt(R.id.widget_sound_icon, "setColorFilter", iconTint)
                 } else {
                     views.setInt(R.id.widget_g_logo, "setColorFilter", android.graphics.Color.TRANSPARENT)
                     views.setInt(R.id.widget_voice_search, "setColorFilter", android.graphics.Color.TRANSPARENT)
                     views.setInt(R.id.widget_lens_search, "setColorFilter", android.graphics.Color.TRANSPARENT)
+                    views.setInt(R.id.widget_sound_icon, "setColorFilter", android.graphics.Color.TRANSPARENT)
                 }
 
             } else {
@@ -274,6 +258,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_voice_search, if (showVoice) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.widget_lens_search, if (widgetShortcut != "None") View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.widget_gemini_search, if (showGemini) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.widget_sound_search, if (actionIconStr != "None") View.VISIBLE else View.GONE)
 
             // Tap pill -> main search
             val enableSearchOverlay = prefs.getBoolean("search_overlay_enabled", true)
@@ -316,23 +301,28 @@ class SearchWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_gemini_search, geminiPI)
             
             // Set up custom action icon (Circle Button)
-            val actionIntent = when (actionIconStr) {
-                "Gemini" -> getGeminiSearchIntent(context)
-                "Now Playing" -> getNowPlayingIntent(context)
-                else -> getGeminiSearchIntent(context) // Search acts as Gemini
+            if (actionIconStr == "None") {
+                views.setViewVisibility(R.id.widget_sound_search, View.GONE)
+            } else {
+                views.setViewVisibility(R.id.widget_sound_search, View.VISIBLE)
+                val actionIntent = when (actionIconStr) {
+                    "Gemini" -> getGeminiSearchIntent(context)
+                    "Now Playing" -> getNowPlayingIntent(context)
+                    else -> getGeminiSearchIntent(context) // Search acts as Gemini
+                }
+                val actionPI = PendingIntent.getActivity(context, appWidgetId + 3000,
+                    actionIntent,
+                    PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                views.setOnClickPendingIntent(R.id.widget_sound_search, actionPI)
+                
+                // Set the icon
+                val actionIconRes = when (actionIconStr) {
+                    "Gemini" -> R.drawable.ic_gemini
+                    "Now Playing" -> R.drawable.ic_music
+                    else -> R.drawable.ic_search_ai_colored // Search
+                }
+                views.setImageViewResource(R.id.widget_sound_icon, actionIconRes)
             }
-            val actionPI = PendingIntent.getActivity(context, appWidgetId + 3000,
-                actionIntent,
-                PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            views.setOnClickPendingIntent(R.id.widget_sound_search, actionPI)
-            
-            // Set the icon
-            val actionIconRes = when (actionIconStr) {
-                "Gemini" -> R.drawable.ic_gemini
-                "Now Playing" -> R.drawable.ic_music
-                else -> R.drawable.ic_search_ai_colored // Search
-            }
-            views.setImageViewResource(R.id.widget_sound_icon, actionIconRes)
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }

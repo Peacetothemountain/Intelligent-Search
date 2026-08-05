@@ -118,6 +118,9 @@ dependencies {
 
   // Lottie for Animations
   implementation("com.airbnb.android:lottie-compose:6.7.1")
+
+  // Graphics Shapes for Material Morph Animations
+  implementation("androidx.graphics:graphics-shapes:1.0.1")
 }
 
 

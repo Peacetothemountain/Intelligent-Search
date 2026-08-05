@@ -1,17 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Widget layout with dual-layer for proper teal rim effect.
-    Outer ImageView gives the accent-tinted border rim.
-    Inner ImageViews give the dark pill/circle backgrounds.
-    All colors applied via setColorFilter in SearchWidgetProvider using system_accent1/neutral1 tokens.
--->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="64dp"
     android:padding="0dp">
 
-    <!-- Outer rim capsule (accent-tinted border) -->
+    <!-- Outer rim capsule -->
     <ImageView
         android:id="@+id/widget_outer_background"
         android:layout_width="match_parent"
@@ -19,18 +13,17 @@
         android:src="@drawable/bg_outer_capsule"
         android:scaleType="fitXY" />
 
-    <!-- Inner content row (3dp inset to expose rim) -->
-    <LinearLayout android:baselineAligned="false"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="horizontal"
         android:gravity="center_vertical"
+        android:baselineAligned="false"
         android:paddingStart="3dp"
         android:paddingEnd="3dp"
         android:paddingTop="3dp"
         android:paddingBottom="3dp">
 
-        <!-- Search pill -->
         <FrameLayout
             android:id="@+id/widget_pill_container"
             android:layout_width="0dp"
@@ -39,7 +32,6 @@
             android:clickable="true"
             android:focusable="true">
 
-            <!-- Pill dark background -->
             <ImageView
                 android:id="@+id/widget_pill_background"
                 android:layout_width="match_parent"
@@ -47,16 +39,15 @@
                 android:src="@drawable/bg_search_pill"
                 android:scaleType="fitXY" />
 
-            <!-- Pill content -->
-            <LinearLayout android:baselineAligned="false"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
+                android:baselineAligned="false"
                 android:paddingStart="18dp"
                 android:paddingEnd="18dp">
 
-                <!-- Google G logo (monochromatic, accent-tinted) -->
                 <ImageView
                     android:id="@+id/widget_g_logo"
                     android:layout_width="30dp"
@@ -65,14 +56,19 @@
                     android:scaleType="fitCenter"
                     android:contentDescription="Google" />
 
-                <!-- Spacer -->
+                <AdapterViewFlipper
+                    android:id="@+id/widget_doodle_flipper"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:autoStart="true"
+                    android:flipInterval="100" />
+
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="0dp"
                     android:layout_weight="1"
                     android:text="" />
 
-                <!-- Microphone -->
                 <ImageView
                     android:id="@+id/widget_voice_search"
                     android:layout_width="32dp"
@@ -83,7 +79,6 @@
                     android:clickable="true"
                     android:focusable="true" />
 
-                <!-- Google Lens -->
                 <ImageView
                     android:id="@+id/widget_lens_search"
                     android:layout_width="32dp"
@@ -95,23 +90,21 @@
                     android:clickable="true"
                     android:focusable="true" />
 
-                <!-- Gemini (hidden by default) -->
                 <ImageView
                     android:id="@+id/widget_gemini_search"
                     android:layout_width="22dp"
                     android:layout_height="22dp"
+                    android:layout_marginStart="18dp"
                     android:src="@drawable/ic_gemini"
                     android:scaleType="fitCenter"
-                    android:layout_marginStart="18dp"
-                    android:visibility="gone"
                     android:contentDescription="Gemini"
+                    android:visibility="gone"
                     android:clickable="true"
                     android:focusable="true" />
 
             </LinearLayout>
         </FrameLayout>
 
-        <!-- Circle AI button -->
         <FrameLayout
             android:id="@+id/widget_sound_search"
             android:layout_width="52dp"
@@ -137,8 +130,5 @@
                 android:contentDescription="AI Search" />
 
         </FrameLayout>
-
     </LinearLayout>
-
 </FrameLayout>
-

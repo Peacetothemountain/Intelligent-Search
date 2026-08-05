@@ -1,4 +1,17 @@
 package com.pixel.intelligentsearch.feature.settings
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.geometry.Offset
+import androidx.graphics.shapes.RoundedPolygon
+import androidx.graphics.shapes.star
+import androidx.graphics.shapes.Morph
+import androidx.graphics.shapes.toPath
+import androidx.graphics.shapes.CornerRounding
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clipToBounds
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.feature.widget.SearchTileService
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
@@ -48,6 +61,7 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
@@ -72,7 +86,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.*
 import androidx.compose.foundation.Image
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -907,7 +921,10 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         // Icon packs loading removed
     }
 
-    Scaffold(
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+        Scaffold(
+            containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text("Appearance", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
@@ -936,44 +953,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     showDivider = true
                 )
 
-                var nightMode by rememberStringPreference(prefs, "night.mode", "System")
-                val hasMaterialYou = true
-                val darkOption = "Material Dark"
-                val lightOption = "Material Light"
-                SettingsDropdownRow(
-                    title = "Style",
-                    subtitle = "System, $darkOption, or $lightOption",
-                    icon = Icons.Default.DarkMode,
-                    options = listOf("System", darkOption, lightOption),
-                    selectedOption = nightMode,
-                    onOptionSelected = { 
-                        nightMode = it
-                        val intent = android.content.Intent(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
-                            action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
 
-                            val ids = android.appwidget.AppWidgetManager.getInstance(context).getAppWidgetIds(
-                                android.content.ComponentName(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java)
-                            )
-                            putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-                        }
-                        context.sendBroadcast(intent)
-                    },
-                    showDivider = true
-                )
-
-                var widgetThemeStyle by rememberStringPreference(prefs, "widget.theme.style", "System Default")
-                SettingsDropdownRow(
-                    title = "Widget Theme Style",
-                    subtitle = "Matches Android 'Icons' setting automatically",
-                    icon = Icons.Default.Palette,
-                    options = listOf("System Default", "Material You (Minimal)", "Google App (Default)"),
-                    selectedOption = widgetThemeStyle,
-                    onOptionSelected = { 
-                        widgetThemeStyle = it
-                        updateWidgets(context)
-                    },
-                    showDivider = true
-                )
                 
                 var showWall by rememberBooleanPreference(prefs, "search.background.show.wall", true) { updateWidgets(context) }
                 SettingsRowToggle(
@@ -1016,8 +996,10 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     showDivider = false
                 )
             }
+            
         }
     }
+}
 }
 
 // -----------------------------------------------------------------------------------------
@@ -1027,7 +1009,10 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 @Composable
 fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
-    Scaffold(
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+        Scaffold(
+            containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text("Search Sources", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
@@ -1176,6 +1161,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
             }
         }
     }
+}
 }
 
 // -----------------------------------------------------------------------------------------
@@ -1569,7 +1555,10 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
-    Scaffold(
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+        Scaffold(
+            containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text("Search Behavior", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
@@ -1632,6 +1621,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             }
         }
     }
+}
 }
 
 // -----------------------------------------------------------------------------------------
@@ -1715,7 +1705,8 @@ fun SettingsRow(
 fun SettingsDropdownRow(
     title: String,
     subtitle: String,
-    icon: ImageVector,
+    icon: ImageVector? = null,
+    iconContent: (@Composable () -> Unit)? = null,
     options: List<String>,
     selectedOption: String,
     onOptionSelected: (String) -> Unit,
@@ -1736,12 +1727,16 @@ fun SettingsDropdownRow(
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp)
-            )
+            if (iconContent != null) {
+                iconContent()
+            } else if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = title, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
@@ -1768,12 +1763,22 @@ fun SettingsDropdownRow(
                             text = { Text(option) },
                             leadingIcon = if (optionIcons != null && optionIcons.containsKey(option)) {
                                 {
-                                    Icon(
-                                        painter = androidx.compose.ui.res.painterResource(id = optionIcons[option]!!),
-                                        contentDescription = option,
-                                        modifier = Modifier.size(24.dp),
-                                        tint = androidx.compose.ui.graphics.Color.Unspecified
-                                    )
+                                    if (title == "Widget Action Icon" && option in listOf("Search", "Gemini", "Now Playing")) {
+                                        ComposeActionIcon(
+                                            iconType = option,
+                                            modifier = Modifier.size(24.dp),
+                                            primaryColor = MaterialTheme.colorScheme.primary,
+                                            secondaryColor = MaterialTheme.colorScheme.secondary,
+                                            tertiaryColor = MaterialTheme.colorScheme.tertiary
+                                        )
+                                    } else {
+                                        Icon(
+                                            painter = androidx.compose.ui.res.painterResource(id = optionIcons[option]!!),
+                                            contentDescription = option,
+                                            modifier = Modifier.size(24.dp),
+                                            tint = androidx.compose.ui.graphics.Color.Unspecified
+                                        )
+                                    }
                                 }
                             } else null,
                             onClick = {
@@ -1796,7 +1801,8 @@ fun SettingsRowToggle(
     onLongClick: (() -> Unit)? = null,
     title: String,
     subtitle: String,
-    icon: Any?,
+    icon: Any? = null,
+    customIcon: (@Composable () -> Unit)? = null,
     isChecked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     onClick: (() -> Unit)? = null,
@@ -1817,28 +1823,32 @@ fun SettingsRowToggle(
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            when (icon) {
-                is ImageVector -> {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = title,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                is android.graphics.drawable.Drawable -> {
-                    Image(
-                        bitmap = icon.toBitmap().asImageBitmap(),
-                        contentDescription = title,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-                is androidx.compose.ui.graphics.ImageBitmap -> {
-                    Image(
-                        bitmap = icon,
-                        contentDescription = title,
-                        modifier = Modifier.size(32.dp)
-                    )
+            if (customIcon != null) {
+                customIcon()
+            } else {
+                when (icon) {
+                    is ImageVector -> {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = title,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    is android.graphics.drawable.Drawable -> {
+                        Image(
+                            bitmap = icon.toBitmap().asImageBitmap(),
+                            contentDescription = title,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                    is androidx.compose.ui.graphics.ImageBitmap -> {
+                        Image(
+                            bitmap = icon,
+                            contentDescription = title,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.width(16.dp))
@@ -1918,7 +1928,7 @@ private fun WidgetCustomizationCard(content: @Composable ColumnScope.() -> Unit)
             ),
         shape = RoundedCornerShape(24.dp),
         colors = androidx.compose.material3.CardDefaults.cardColors(
-            containerColor = androidx.compose.ui.graphics.Color(0xFF1E1B24).copy(alpha = 0.6f)
+            containerColor = androidx.compose.ui.graphics.Color(0xFF1F1F1F)
         ),
         elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
@@ -1938,6 +1948,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var showCustomAppDialogFor by remember { mutableStateOf<String?>(null) }
     var customInputValue by remember { mutableStateOf("") }
     var expandedDropdownFor by remember { mutableStateOf<String?>(null) }
+    var showHexInput by remember { mutableStateOf(false) }
+    var tempHexInput by remember { mutableStateOf("") }
     
     val shortcutOptions = listOf(
         "None" to Icons.Default.Close,
@@ -2026,69 +2038,235 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(180.dp)
-                        .background(androidx.compose.ui.graphics.Color(0xFF1E1B24)),
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(androidx.compose.ui.graphics.Color(0xFF1C1B1F)),
                     contentAlignment = Alignment.Center
                 ) {
+                    val infiniteTransition = rememberInfiniteTransition(label = "gemini_dots")
+                    val phase by infiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 2f * Math.PI.toFloat(),
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(8000, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "phase"
+                    )
+
+                    val customHue = localHue
+                    val customSat = localSaturation / 100f
+                    val alphaInt = (255 * (100 - localOpacity.toInt()) / 100).coerceIn(0, 255) / 255f
+                    val accentColor = if (localSubtheme == "Custom") {
+                        androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor((localOpacity * 2.55f).toInt(), floatArrayOf(customHue, customSat, 1f)))
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
+
+                    val geminiColors = listOf(
+                        androidx.compose.ui.graphics.Color(0xFF4285F4),
+                        androidx.compose.ui.graphics.Color(0xFFEA4335),
+                        androidx.compose.ui.graphics.Color(0xFFFBBC05),
+                        androidx.compose.ui.graphics.Color(0xFF34A853)
+                    )
+
+                    val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)"
+                    val matPrimary = MaterialTheme.colorScheme.primary
+                    val matSecondary = MaterialTheme.colorScheme.secondary
+                    val matTertiary = MaterialTheme.colorScheme.tertiary
+                    val matError = MaterialTheme.colorScheme.error
+
+                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                        val width = size.width
+                        val height = size.height
+
+                        val numParticles = 35
+                        for (i in 0 until numParticles) {
+                            val t = (i.toFloat() / numParticles + phase / (2f * Math.PI.toFloat())) % 1f
+                            val x = t * width
+                            
+                            val waveAmp = height / 2.5f
+                            val xOffset = Math.sin((t * 3f * Math.PI + phase * 1.2f).toDouble()).toFloat() * (width / 5f)
+                            val yOffset1 = Math.sin((t * 2f * Math.PI + phase).toDouble()).toFloat() * waveAmp
+                            val yOffset2 = Math.cos((t * 3f * Math.PI - phase).toDouble()).toFloat() * (waveAmp / 2f)
+                            
+                            val centerX = (x + xOffset + width) % width
+                            val centerY = height / 2f + yOffset1 + yOffset2
+
+                            val alphaEdge = if (t < 0.2f) t * 5f else if (t > 0.8f) (1f - t) * 5f else 1f
+                            val twinkle = (Math.sin((t * 40f * Math.PI + phase * 8f).toDouble()).toFloat() + 1f) / 2f
+                            val radius = (0.5.dp.toPx() + 1.dp.toPx() * twinkle) * alphaEdge
+                            
+                            val baseAlpha = 0.4f
+                            val color = if (localSubtheme == "Custom") {
+                                accentColor.copy(alpha = baseAlpha * alphaEdge * twinkle)
+                            } else if (previewIsMaterialYou && localSubtheme == "Material") {
+                                val dynamicColors = listOf(matPrimary, matSecondary, matTertiary, matError)
+                                dynamicColors[i % dynamicColors.size].copy(alpha = baseAlpha * alphaEdge * twinkle)
+                            } else {
+                                geminiColors[i % geminiColors.size].copy(alpha = baseAlpha * alphaEdge * twinkle)
+                            }
+
+                            drawCircle(
+                                color = color,
+                                radius = radius,
+                                center = androidx.compose.ui.geometry.Offset(centerX, centerY)
+                            )
+                            
+                            drawCircle(
+                                color = color.copy(alpha = (baseAlpha / 2f) * alphaEdge * twinkle),
+                                radius = radius * 2.5f,
+                                center = androidx.compose.ui.geometry.Offset(centerX, centerY)
+                            )
+                        }
+                    }
+                    
+                    val waterPhase by infiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 2f * Math.PI.toFloat(),
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(4000, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        )
+                    )
+
+                    val previewRimColorAlpha = if (previewIsMaterialYou) {
+                        if (localSubtheme == "Custom") {
+                            accentColor.copy(alpha = alphaInt)
+                        } else if (localSubtheme == "Material") {
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = alphaInt)
+                        } else {
+                            androidx.compose.ui.graphics.Color(0xFF6C63FF).copy(alpha = alphaInt)
+                        }
+                    } else androidx.compose.ui.graphics.Color.Transparent
+                    
+                    val rimBrush = if (previewIsMaterialYou && localSubtheme == "Custom") {
+                        androidx.compose.ui.graphics.Brush.linearGradient(
+                            colors = listOf(
+                                accentColor.copy(alpha = alphaInt),
+                                accentColor.copy(alpha = alphaInt * 0.4f),
+                                accentColor.copy(alpha = alphaInt)
+                            ),
+                            start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                            end = androidx.compose.ui.geometry.Offset(Math.cos(waterPhase.toDouble()).toFloat() * 1000f + 1000f, Math.sin(waterPhase.toDouble()).toFloat() * 500f + 500f)
+                        )
+                    } else {
+                        androidx.compose.ui.graphics.Brush.linearGradient(listOf(previewRimColorAlpha, previewRimColorAlpha))
+                    }
+                    
+                    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+                    val previewPillColorAlpha = if (previewIsMaterialYou) {
+                        androidx.compose.ui.graphics.Color(0xFF1F1F1F).copy(alpha = alphaInt)
+                    } else {
+                        when (localSubtheme) {
+                            "Light" -> androidx.compose.ui.graphics.Color.White.copy(alpha = alphaInt)
+                            "Dark" -> androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = alphaInt)
+                            "Custom" -> accentColor.copy(alpha = alphaInt)
+                            else -> if (isSystemDark) androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = alphaInt) else androidx.compose.ui.graphics.Color.White.copy(alpha = alphaInt)
+                        }
+                    }
+                    
+                    val previewIconTint = if (!previewIsMaterialYou) {
+                        // System Design
+                        when (localSubtheme) {
+                            "System" -> MaterialTheme.colorScheme.onSurfaceVariant // Material 3 Color
+                            "Dark" -> androidx.compose.ui.graphics.Color.White
+                            "Light" -> androidx.compose.ui.graphics.Color(0xFF5F6368)
+                            "Custom" -> {
+                                val luminance = (0.299 * accentColor.red + 0.587 * accentColor.green + 0.114 * accentColor.blue)
+                                if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+                            }
+                            else -> if (isSystemDark) androidx.compose.ui.graphics.Color(0xFF9AA0A6) else androidx.compose.ui.graphics.Color(0xFF5F6368)
+                        }
+                    } else {
+                        // Material Design
+                        when (localMaterialGIconTheme) {
+                            "System G Icon" -> androidx.compose.ui.graphics.Color.White
+                            "Material G Icon" -> MaterialTheme.colorScheme.onSurfaceVariant // Material 3 Color
+                            "Accented G Icon" -> accentColor
+                            else -> androidx.compose.ui.graphics.Color.White
+                        }
+                    }
+
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .then(
+                                Modifier.background(rimBrush, RoundedCornerShape(40.dp))
+                            )
+                            .padding(if (previewIsMaterialYou) 8.dp else 0.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(56.dp)
-                                .background(androidx.compose.ui.graphics.Color(0xFF33303D), RoundedCornerShape(28.dp))
+                                .then(
+                                    Modifier.background(previewPillColorAlpha, RoundedCornerShape(28.dp))
+                                )
                                 .padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (localShowGIcon) {
-                                Icon(
-                                    imageVector = ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored),
-                                    contentDescription = "G Icon",
-                                    tint = androidx.compose.ui.graphics.Color.Unspecified,
-                                    modifier = Modifier.size(24.dp)
+                                val gIconTint = if (!previewIsMaterialYou && localSubtheme == "System") {
+                                    previewIconTint
+                                } else if (previewIsMaterialYou && localMaterialGIconTheme != "System G Icon") {
+                                    previewIconTint
+                                } else {
+                                    androidx.compose.ui.graphics.Color.Unspecified
+                                }
+                                val useOriginalGIcon = !previewIsMaterialYou && localSubtheme != "System"
+                                ComposeGIcon(
+                                    modifier = Modifier.size(24.dp),
+                                    primaryColor = MaterialTheme.colorScheme.primary,
+                                    secondaryColor = MaterialTheme.colorScheme.secondary,
+                                    tertiaryColor = MaterialTheme.colorScheme.tertiary,
+                                    isAccented = localMaterialGIconTheme == "Accented G Icon",
+                                    accentColor = accentColor,
+                                    fallbackTint = gIconTint,
+                                    useOriginalColors = useOriginalGIcon
                                 )
                             }
-                            Spacer(modifier = Modifier.weight(1f))
+                            
+                            Spacer(Modifier.weight(1f))
+                            
                             if (localShortcut != "None") {
                                 val shortcutOption = shortcutOptions.find { it.first == localShortcut }
                                 if (shortcutOption != null) {
                                     Icon(
                                         imageVector = shortcutOption.second,
                                         contentDescription = localShortcut,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = previewIconTint,
                                         modifier = Modifier.size(24.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(16.dp))
+                                    if (localShowVoice) {
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                    }
                                 }
                             }
                             if (localShowVoice) {
-                                Icon(
-                                    imageVector = Icons.Default.Mic,
-                                    contentDescription = "Voice Search",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(24.dp)
-                                )
+                                Icon(Icons.Default.Mic, contentDescription = "Mic", modifier = Modifier.size(24.dp), tint = previewIconTint)
                             }
                         }
-                        if (localThemeStyle == "Material You (Minimal)") {
-                            Spacer(modifier = Modifier.width(16.dp))
+                        
+                        if (localActionIcon != "None" && previewIsMaterialYou) {
+                            Spacer(Modifier.width(8.dp))
                             Box(
                                 modifier = Modifier
                                     .size(56.dp)
-                                    .background(androidx.compose.ui.graphics.Color(0xFF33303D), androidx.compose.foundation.shape.CircleShape),
+                                    .background(previewPillColorAlpha, androidx.compose.foundation.shape.CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                val iconRes = when (localActionIcon) {
+                                val actIcon = when (localActionIcon) {
                                     "Search" -> com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored
                                     "Gemini" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
                                     "Now Playing" -> com.pixel.intelligentsearch.R.drawable.ic_music
                                     else -> com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored
                                 }
                                 Icon(
-                                    imageVector = ImageVector.vectorResource(id = iconRes),
-                                    contentDescription = "Action Icon",
-                                    tint = androidx.compose.ui.graphics.Color.Unspecified,
+                                    painter = androidx.compose.ui.res.painterResource(id = actIcon),
+                                    contentDescription = "Action",
+                                    tint = previewIconTint,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -2102,7 +2280,47 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Display G Icon",
                     subtitle = "Show Google logo in search bar",
-                    icon = Icons.Default.Star,
+                    icon = null,
+                    customIcon = {
+                        if (localThemeStyle == "System Default") {
+                            Image(
+                                bitmap = androidx.core.content.ContextCompat.getDrawable(
+                                    LocalContext.current,
+                                    R.drawable.ic_g_logo_colored
+                                )!!.toBitmap().asImageBitmap(),
+                                contentDescription = "G Icon",
+                                modifier = Modifier.size(24.dp)
+                            )
+                        } else {
+                            val previewIsMaterialYou = localThemeStyle == "Material Design"
+                            val previewIconTint = if (!previewIsMaterialYou) {
+                                when (localSubtheme) {
+                                    "Light" -> androidx.compose.ui.graphics.Color(0xFF4285F4)
+                                    "Dark" -> androidx.compose.ui.graphics.Color.White
+                                    "Custom" -> androidx.compose.ui.graphics.Color.White
+                                    else -> if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color(0xFF4285F4)
+                                }
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                            val alphaInt = (255 * (100 - localOpacity.toInt()) / 100).coerceIn(0, 255) / 255f
+                            val accentColor = if (localSubtheme == "Custom") {
+                                androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor((localOpacity * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            }
+                            val gTint = if (localMaterialGIconTheme != "System G Icon") previewIconTint else androidx.compose.ui.graphics.Color.Unspecified
+                            ComposeGIcon(
+                                modifier = Modifier.size(24.dp),
+                                primaryColor = MaterialTheme.colorScheme.primary,
+                                secondaryColor = MaterialTheme.colorScheme.secondary,
+                                tertiaryColor = MaterialTheme.colorScheme.tertiary,
+                                isAccented = localMaterialGIconTheme == "Accented G Icon",
+                                accentColor = accentColor,
+                                fallbackTint = gTint
+                            )
+                        }
+                    },
                     isChecked = localShowGIcon,
                     onCheckedChange = { localShowGIcon = it },
                     showDivider = true
@@ -2130,21 +2348,23 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .background(if (isSystem) MaterialTheme.colorScheme.surfaceVariant else androidx.compose.ui.graphics.Color.Transparent)
-                            .bouncyClickable { localThemeStyle = "System Default" },
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(if (isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
+                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "System Default" },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("System Design", style = MaterialTheme.typography.labelLarge, color = if (isSystem) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("System Design", style = MaterialTheme.typography.labelLarge, color = if (isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .background(if (!isSystem) MaterialTheme.colorScheme.surfaceVariant else androidx.compose.ui.graphics.Color.Transparent)
-                            .bouncyClickable { localThemeStyle = "Material You (Minimal)" },
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(if (!isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
+                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "Material You (Minimal)" },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("Material Design", style = MaterialTheme.typography.labelLarge, color = if (!isSystem) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Material Design", style = MaterialTheme.typography.labelLarge, color = if (!isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -2160,18 +2380,23 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val systemOpts = listOf("System", "Light", "Dark", "Custom")
                     systemOpts.forEach { opt ->
                         val isSel = localSubtheme == opt
+                        val dynColor = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor((localOpacity * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
                         val bgModifier = if (opt == "Custom") {
-                            Modifier.background(
-                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                    colors = listOf(androidx.compose.ui.graphics.Color(0xFF3F51B5), androidx.compose.ui.graphics.Color(0xFFE91E63))
-                                ),
-                                shape = RoundedCornerShape(32.dp)
-                            )
+                            if (isSel) {
+                                Modifier.waterBackground(dynColor, RoundedCornerShape(32.dp))
+                            } else {
+                                Modifier.background(
+                                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                        colors = listOf(androidx.compose.ui.graphics.Color(0xFF3F51B5), androidx.compose.ui.graphics.Color(0xFFE91E63))
+                                    ),
+                                    shape = RoundedCornerShape(32.dp)
+                                )
+                            }
                         } else {
-                            Modifier.background(if (isSel) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f), RoundedCornerShape(32.dp))
+                            Modifier.background(if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f), RoundedCornerShape(32.dp))
                         }
                         
-                        val borderMod = if (isSel && opt != "Custom") Modifier.border(1.dp, androidx.compose.ui.graphics.Color.White, RoundedCornerShape(32.dp)) else Modifier
+                        val borderMod = Modifier
                         
                         Box(
                             modifier = Modifier
@@ -2179,27 +2404,39 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .height(48.dp)
                                 .then(bgModifier)
                                 .then(borderMod)
-                                .bouncyClickable { localSubtheme = opt },
+                                .clip(RoundedCornerShape(32.dp))
+                                .bouncyClickable(shape = RoundedCornerShape(32.dp)) { localSubtheme = opt },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(opt, style = MaterialTheme.typography.labelMedium, color = if (opt == "Custom" || isSel) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
+                            val textColor = if (isSel) {
+                                if (opt == "Custom") {
+                                    val luminance = (0.299 * dynColor.red + 0.587 * dynColor.green + 0.114 * dynColor.blue)
+                                    if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+                                } else MaterialTheme.colorScheme.onPrimaryContainer
+                            } else MaterialTheme.colorScheme.onSurfaceVariant
+                            Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor)
                         }
                     }
                 } else {
                     val matOpts = listOf("Material", "Custom")
                     matOpts.forEach { opt ->
                         val isSel = localSubtheme == opt
+                        val dynColor = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor((localOpacity * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
                         val bgModifier = if (opt == "Custom") {
-                            Modifier.background(
-                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                    colors = listOf(androidx.compose.ui.graphics.Color(0xFF5E35B1), androidx.compose.ui.graphics.Color(0xFFAD1457))
-                                ),
-                                shape = RoundedCornerShape(32.dp)
-                            )
+                            if (isSel) {
+                                Modifier.waterBackground(dynColor, RoundedCornerShape(32.dp))
+                            } else {
+                                Modifier.background(
+                                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                        colors = listOf(androidx.compose.ui.graphics.Color(0xFF5E35B1), androidx.compose.ui.graphics.Color(0xFFAD1457))
+                                    ),
+                                    shape = RoundedCornerShape(32.dp)
+                                )
+                            }
                         } else {
-                            Modifier.background(if (isSel) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f), RoundedCornerShape(32.dp))
+                            Modifier.background(if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f), RoundedCornerShape(32.dp))
                         }
-                        val borderMod = if (isSel && opt != "Custom") Modifier.border(1.dp, androidx.compose.ui.graphics.Color.White, RoundedCornerShape(32.dp)) else Modifier
+                        val borderMod = Modifier
                         
                         Box(
                             modifier = Modifier
@@ -2207,10 +2444,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .height(48.dp)
                                 .then(bgModifier)
                                 .then(borderMod)
-                                .bouncyClickable { localSubtheme = opt },
+                                .clip(RoundedCornerShape(32.dp))
+                                .bouncyClickable(shape = RoundedCornerShape(32.dp)) { localSubtheme = opt },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(opt, style = MaterialTheme.typography.labelMedium, color = if (opt == "Custom" || isSel) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
+                            val textColor = if (isSel) {
+                                if (opt == "Custom") {
+                                    val luminance = (0.299 * dynColor.red + 0.587 * dynColor.green + 0.114 * dynColor.blue)
+                                    if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+                                } else MaterialTheme.colorScheme.onPrimaryContainer
+                            } else MaterialTheme.colorScheme.onSurfaceVariant
+                            Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor)
                         }
                     }
                 }
@@ -2222,7 +2466,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp),
+                            .height(56.dp)
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val opts = listOf("System G Icon", "Material G Icon", "Accented G Icon")
@@ -2232,11 +2478,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight()
-                                    .background(if (isSel) MaterialTheme.colorScheme.surfaceVariant else androidx.compose.ui.graphics.Color.Transparent)
-                                    .bouncyClickable { localMaterialGIconTheme = opt },
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(if (isSel) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+                                    .bouncyClickable(shape = androidx.compose.foundation.shape.CircleShape) { localMaterialGIconTheme = opt },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(opt, style = MaterialTheme.typography.labelSmall, color = if (isSel) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(opt, style = MaterialTheme.typography.labelSmall, color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -2275,7 +2522,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         value = localHue,
                                         onValueChange = { localHue = it },
                                         valueRange = 0f..360f,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth(),
+                                        showTrack = false
                                     )
                                 }
                             }
@@ -2306,7 +2554,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         value = localSaturation,
                                         onValueChange = { localSaturation = it },
                                         valueRange = 0f..100f,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth(),
+                                        showTrack = false
                                     )
                                 }
                             }
@@ -2337,10 +2586,34 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         value = localOpacity,
                                         onValueChange = { localOpacity = it },
                                         valueRange = 0f..100f,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth(),
+                                        showTrack = false
                                     )
                                 }
                             }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
+                        // Hex Color Box
+                        val customColorHex = String.format("#%06X", (0xFFFFFF and android.graphics.Color.HSVToColor(floatArrayOf(localHue, localSaturation / 100f, 1f))))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .clickable {
+                                    tempHexInput = customColorHex
+                                    showHexInput = true
+                                }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Tag, contentDescription = "Hex Color", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(customColorHex, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Icon(Icons.Default.Edit, contentDescription = "Edit Hex", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -2358,26 +2631,43 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onCheckedChange = { localShowVoice = it },
                     showDivider = true
                 )
-                if (localThemeStyle == "Material You (Minimal)") {
-                    SettingsDropdownRow(
-                        title = "Widget Action Icon",
-                        subtitle = localActionIcon,
-                        icon = Icons.Default.Search,
-                        options = listOf("Search", "Gemini", "Now Playing"),
-                        selectedOption = localActionIcon,
-                        onOptionSelected = { localActionIcon = it },
-                        showDivider = true,
-                        optionIcons = mapOf(
-                            "Search" to com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored,
-                            "Gemini" to com.pixel.intelligentsearch.R.drawable.ic_gemini,
-                            "Now Playing" to com.pixel.intelligentsearch.R.drawable.ic_music
-                        )
-                    )
+                val customSat = localSaturation / 100f
+                val alphaInt = (255 * (100 - localOpacity.toInt()) / 100).coerceIn(0, 255) / 255f
+                val dynamicAccentColor = if (localSubtheme == "Custom") {
+                    androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor((localOpacity * 2.55f).toInt(), floatArrayOf(localHue, customSat, 1f)))
+                } else {
+                    MaterialTheme.colorScheme.primary
                 }
+                SettingsDropdownRow(
+                    title = "Widget Action Icon",
+                    subtitle = localActionIcon,
+                    iconContent = {
+                        if (localActionIcon == "None") {
+                            Icon(Icons.Default.Close, contentDescription = "None", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        } else {
+                            ComposeActionIcon(
+                                iconType = localActionIcon,
+                                modifier = Modifier.size(24.dp),
+                                primaryColor = MaterialTheme.colorScheme.primary,
+                                secondaryColor = MaterialTheme.colorScheme.secondary,
+                                tertiaryColor = MaterialTheme.colorScheme.tertiary
+                            )
+                        }
+                    },
+                    options = listOf("None", "Search", "Gemini", "Now Playing"),
+                    selectedOption = localActionIcon,
+                    onOptionSelected = { localActionIcon = it },
+                    showDivider = true,
+                    optionIcons = mapOf(
+                        "Search" to com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored,
+                        "Gemini" to com.pixel.intelligentsearch.R.drawable.ic_gemini,
+                        "Now Playing" to com.pixel.intelligentsearch.R.drawable.ic_music
+                    )
+                )
                 SettingsRow(
                     title = "Widget Shortcut",
                     subtitle = localShortcut,
-                    icon = Icons.Default.AddCircleOutline,
+                    icon = shortcutOptions.find { it.first == localShortcut }?.second ?: Icons.Default.AddCircleOutline,
                     onClick = { showShortcutSheet = true },
                     showDivider = false
                 )
@@ -2426,6 +2716,15 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             tint = if (localShortcut == option.first) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         if (isCustomizable) {
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowDropDown,
+                                                contentDescription = "Options",
+                                                modifier = Modifier
+                                                    .align(Alignment.BottomEnd)
+                                                    .size(20.dp)
+                                                    .background(MaterialTheme.colorScheme.surface, androidx.compose.foundation.shape.CircleShape),
+                                                tint = MaterialTheme.colorScheme.onSurface
+                                            )
                                             androidx.compose.material3.DropdownMenu(
                                                 expanded = expandedDropdownFor == option.first,
                                                 onDismissRequest = { expandedDropdownFor = null }
@@ -2466,6 +2765,35 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     }
                 }
+            }
+
+            if (showHexInput) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showHexInput = false },
+                    title = { Text("Enter Hex Color") },
+                    text = {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = tempHexInput,
+                            onValueChange = { tempHexInput = it },
+                            label = { Text("Hex Code") }
+                        )
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            try {
+                                val parsedColor = android.graphics.Color.parseColor(if (!tempHexInput.startsWith("#")) "#$tempHexInput" else tempHexInput)
+                                val hsv = FloatArray(3)
+                                android.graphics.Color.colorToHSV(parsedColor, hsv)
+                                localHue = hsv[0]
+                                localSaturation = hsv[1] * 100f
+                            } catch (e: Exception) {}
+                            showHexInput = false
+                        }) { Text("Save") }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { showHexInput = false }) { Text("Cancel") }
+                    }
+                )
             }
 
             if (showCustomUrlDialogFor != null) {
@@ -2527,15 +2855,125 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
 }
 
+@Composable
+fun ComposeActionIcon(
+    iconType: String,
+    modifier: Modifier = Modifier,
+    primaryColor: androidx.compose.ui.graphics.Color,
+    secondaryColor: androidx.compose.ui.graphics.Color,
+    tertiaryColor: androidx.compose.ui.graphics.Color
+) {
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        val scaleX = size.width / 24f
+        val scaleY = size.height / 24f
+        scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
+            when (iconType) {
+                "Search" -> {
+                    drawPath(
+                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10.5,4 A 6.5,6.5 0 0 0 4,10.5 A 6.5,6.5 0 0 0 10.5,17 A 6.5,6.5 0 0 0 15,15").toPath(),
+                        color = primaryColor,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    )
+                    drawPath(
+                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 14,5 A 6.5,6.5 0 0 0 10.5,4 A 6.5,6.5 0 0 0 5,7.5").toPath(),
+                        color = tertiaryColor,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    )
+                    drawPath(
+                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 15.5,15.5 L 20,20").toPath(),
+                        color = secondaryColor,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    )
+                    drawPath(
+                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 18,0.5 C 18,4 21,6.5 24,6.5 C 21,6.5 18,9 18,12.5 C 18,9 15,6.5 12,6.5 C 15,6.5 18,4 18,0.5 Z").toPath(),
+                        color = primaryColor
+                    )
+                }
+                "Gemini" -> {
+                    drawPath(
+                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,2L14.8,9.2L22,12L14.8,14.8L12,22L9.2,14.8L2,12L9.2,9.2L12,2Z").toPath(),
+                        color = primaryColor
+                    )
+                }
+                "Now Playing" -> {
+                    drawPath(
+                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 19,11.5 L 19,12.5").toPath(),
+                        color = tertiaryColor,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    )
+                    drawPath(
+                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 14.5,9.5 L 14.5,15.5").toPath(),
+                        color = secondaryColor,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    )
+                    drawPath(
+                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10,7 L 10,16").toPath(),
+                        color = primaryColor,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    )
+                    drawPath(
+                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 11.6,16.5 C 11.6,19.26 9.36,21.5 6.6,21.5 C 3.84,21.5 1.6,19.26 1.6,16.5 C 1.6,13.74 3.84,11.5 6.6,11.5 C 8.6,11.5 10.3,12.7 11.1,14.4 Z").toPath(),
+                        color = primaryColor
+                    )
+                }
+            }
+        }
+    }
+}
 
 fun updateWidgets(context: Context) {
-    val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
-    val ids = appWidgetManager.getAppWidgetIds(
-        android.content.ComponentName(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java)
-    )
-    if (ids != null && ids.isNotEmpty()) {
-        val provider = com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider()
-        provider.onUpdate(context, appWidgetManager, ids)
+    val intent = android.content.Intent(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
+        action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
+        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
+        val ids = appWidgetManager.getAppWidgetIds(
+            android.content.ComponentName(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java)
+        )
+        putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+    }
+    context.sendBroadcast(intent)
+}
+
+@Composable
+fun ComposeGIcon(
+    modifier: Modifier = Modifier,
+    primaryColor: androidx.compose.ui.graphics.Color,
+    secondaryColor: androidx.compose.ui.graphics.Color,
+    tertiaryColor: androidx.compose.ui.graphics.Color,
+    isAccented: Boolean = false,
+    accentColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
+    fallbackTint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
+    useOriginalColors: Boolean = false
+) {
+    if (useOriginalColors) {
+        Image(
+            painter = androidx.compose.ui.res.painterResource(id = com.pixel.intelligentsearch.R.drawable.ic_g_logo_colored),
+            contentDescription = "G Logo",
+            modifier = modifier
+        )
+        return
+    }
+    if (fallbackTint != androidx.compose.ui.graphics.Color.Unspecified) {
+        Icon(
+            painter = androidx.compose.ui.res.painterResource(id = com.pixel.intelligentsearch.R.drawable.ic_g_logo_colored),
+            contentDescription = "G Logo",
+            modifier = modifier,
+            tint = fallbackTint
+        )
+        return
+    }
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        val scaleX = size.width / 24f
+        val scaleY = size.height / 24f
+        scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
+            val pColor = if (isAccented) accentColor else primaryColor
+            val sColor = if (isAccented) accentColor else secondaryColor
+            val tColor = if (isAccented) accentColor else tertiaryColor
+
+            drawPath(androidx.compose.ui.graphics.vector.PathParser().parsePathString("M22.56,12.25C22.56,11.47 22.49,10.72 22.36,10L12,10L12,14.26L17.92,14.26C17.66,15.63 16.88,16.79 15.71,17.57L15.71,20.34L19.28,20.34C21.36,18.42 22.56,15.6 22.56,12.25Z").toPath(), color = pColor)
+            drawPath(androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,23C14.97,23 17.46,22.02 19.28,20.34L15.71,17.57C14.73,18.23 13.48,18.63 12,18.63C9.14,18.63 6.71,16.7 5.84,14.1L2.18,14.1L2.18,16.94C3.99,20.53 7.7,23 12,23Z").toPath(), color = sColor)
+            drawPath(androidx.compose.ui.graphics.vector.PathParser().parsePathString("M5.84,14.09C5.62,13.43 5.5,12.73 5.5,12C5.5,11.27 5.62,10.57 5.84,9.91L5.84,7.07L2.18,7.07C1.43,8.55 1,10.22 1,12C1,13.78 1.43,15.45 2.18,16.93L5.84,14.09Z").toPath(), color = tColor)
+            drawPath(androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,5.38C13.62,5.38 15.06,5.94 16.21,7.02L19.36,3.87C17.45,2.09 14.97,1 12,1C7.7,1 3.99,3.47 2.18,7.07L5.84,9.91C6.71,7.31 9.14,5.38 12,5.38Z").toPath(), color = pColor)
+        }
     }
 }
 
@@ -2545,7 +2983,8 @@ fun Android17Slider(
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
     modifier: Modifier = Modifier,
-    steps: Int = 0
+    steps: Int = 0,
+    showTrack: Boolean = true
 ) {
     val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
     
@@ -2615,34 +3054,36 @@ fun Android17Slider(
             }
 
             // Draw active track (Squiggle)
-            val path = androidx.compose.ui.graphics.Path()
-            path.moveTo(0f, centerY)
-            var x = 0f
-            while (x < thumbX) {
-                // To move towards the right, we subtract the phase
-                val y = centerY + Math.sin((x * frequency - phase).toDouble()).toFloat() * amplitude
-                path.lineTo(x, y)
-                x += 2f
-            }
-            
-            drawPath(
-                path = path,
-                color = activeColor,
-                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                    width = trackHeight,
-                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+            if (showTrack) {
+                val path = androidx.compose.ui.graphics.Path()
+                path.moveTo(0f, centerY)
+                var x = 0f
+                while (x < thumbX) {
+                    // To move towards the right, we subtract the phase
+                    val y = centerY + Math.sin((x * frequency - phase).toDouble()).toFloat() * amplitude
+                    path.lineTo(x, y)
+                    x += 2f
+                }
+                
+                drawPath(
+                    path = path,
+                    color = activeColor,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = trackHeight,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    )
                 )
-            )
-
-            // Draw inactive track (Straight line)
-            if (thumbX < size.width) {
-                drawLine(
-                    color = inactiveColor,
-                    start = androidx.compose.ui.geometry.Offset(thumbX, centerY),
-                    end = androidx.compose.ui.geometry.Offset(size.width, centerY),
-                    strokeWidth = trackHeight,
-                    cap = androidx.compose.ui.graphics.StrokeCap.Round
-                )
+    
+                // Draw inactive track (Straight line)
+                if (thumbX < size.width) {
+                    drawLine(
+                        color = inactiveColor,
+                        start = androidx.compose.ui.geometry.Offset(thumbX, centerY),
+                        end = androidx.compose.ui.geometry.Offset(size.width, centerY),
+                        strokeWidth = trackHeight,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    )
+                }
             }
 
             // Draw thumb (vertical pill)
@@ -3029,7 +3470,10 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 @Composable
 fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
-    Scaffold(
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+        Scaffold(
+            containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text("Launch Portal", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
@@ -3113,7 +3557,259 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         }
     }
 }
+}
 
+@Composable
+fun Modifier.waterBackground(color: androidx.compose.ui.graphics.Color, shape: androidx.compose.ui.graphics.Shape): Modifier {
+    val transition = rememberInfiniteTransition(label = "waterTransition")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 2f * Math.PI.toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "waterPhase"
+    )
+    return this
+        .clip(shape)
+        .drawBehind {
+            drawRect(color.copy(alpha = 0.3f))
+            val path = androidx.compose.ui.graphics.Path()
+            val waveHeight = this.size.height * 0.15f
+            val baseLine = this.size.height * 0.55f
+            path.moveTo(0f, this.size.height)
+            path.lineTo(0f, baseLine)
+            var x = 0f
+            while (x <= this.size.width) {
+                val y = baseLine + kotlin.math.sin((x / this.size.width) * 2 * Math.PI + phase).toFloat() * waveHeight
+                path.lineTo(x, y)
+                x += 5f
+            }
+            path.lineTo(this.size.width, this.size.height)
+            path.close()
+            drawPath(path, color.copy(alpha = 0.8f))
+        }
+}
+
+
+
+
+@Composable
+fun SettingsShellBox(title: String, subtitle: String, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFFFEF7FF),
+        tonalElevation = 2.dp
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(text = title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1D1B20))
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = subtitle, fontSize = 14.sp, color = Color(0xFF49454F))
+        }
+    }
+}
+
+@Composable
+fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier = modifier) {
+        val width = constraints.maxWidth.toFloat()
+        val height = constraints.maxHeight.toFloat()
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val view = androidx.compose.ui.platform.LocalView.current
+
+        val baseAccentColor = MaterialTheme.colorScheme.primary
+        val variant1 = MaterialTheme.colorScheme.secondary
+        val variant2 = MaterialTheme.colorScheme.tertiary
+        val variant3 = MaterialTheme.colorScheme.primaryContainer
+
+        ExpressiveBackgroundSwirls(width, height, baseAccentColor, variant1, variant2, variant3)
+
+        val colors = listOf(
+            baseAccentColor,
+            variant1,
+            variant2,
+            variant3
+        )
+        
+        val shapeConfigs = remember(width, height) {
+            listOf(
+                ShapeConfig(xRatio = 0.15f, sizeRatio = 0.035f, delay = 0L, color = colors[0], apexRatio = 0.15f),
+                ShapeConfig(xRatio = 0.40f, sizeRatio = 0.040f, delay = 150L, color = colors[1], apexRatio = 0.12f),
+                ShapeConfig(xRatio = 0.65f, sizeRatio = 0.030f, delay = 350L, color = colors[2], apexRatio = 0.18f),
+                ShapeConfig(xRatio = 0.85f, sizeRatio = 0.035f, delay = 500L, color = colors[3], apexRatio = 0.10f)
+            )
+        }
+
+        shapeConfigs.forEach { config ->
+            BouncingMaterialShape(
+                containerWidthPx = width,
+                containerHeightPx = height,
+                xRatio = config.xRatio,
+                sizeRatio = config.sizeRatio,
+                apexRatio = config.apexRatio,
+                color = config.color,
+                startDelayMillis = config.delay,
+                context = context,
+                view = view
+            )
+        }
+    }
+}
+
+private data class ShapeConfig(
+    val xRatio: Float, val sizeRatio: Float, val delay: Long, val color: Color, val apexRatio: Float
+)
+
+@Composable
+private fun ExpressiveBackgroundSwirls(width: Float, height: Float, c1: Color, c2: Color, c3: Color, c4: Color) {
+    val swirl1Rotation = remember { Animatable(0f) }
+    val swirl2Rotation = remember { Animatable(360f) }
+    
+    val bgShapes = remember {
+        listOf(
+            RoundedPolygon.star(numVerticesPerRadius = 5, innerRadius = 0.5f, rounding = CornerRounding(radius = 0.3f)),
+            RoundedPolygon.star(numVerticesPerRadius = 7, innerRadius = 0.6f, rounding = CornerRounding(radius = 0.4f))
+        )
+    }
+    
+    var currentBgIndex by remember { mutableIntStateOf(0) }
+    var bgMorph by remember { mutableStateOf(Morph(bgShapes[0], bgShapes[1])) }
+    val bgMorphProgress = remember { Animatable(0f) }
+
+    LaunchedEffect(Unit) {
+        launch { swirl1Rotation.animateTo(360f, infiniteRepeatable(tween(25000, easing = LinearEasing), RepeatMode.Restart)) }
+        launch { swirl2Rotation.animateTo(0f, infiniteRepeatable(tween(32000, easing = LinearEasing), RepeatMode.Restart)) }
+        launch {
+            while(true) {
+                bgMorphProgress.animateTo(1f, tween(8000, easing = FastOutSlowInEasing))
+                currentBgIndex = (currentBgIndex + 1) % bgShapes.size
+                bgMorphProgress.snapTo(0f)
+                bgMorph = Morph(bgShapes[currentBgIndex], bgShapes[(currentBgIndex + 1) % bgShapes.size])
+            }
+        }
+    }
+
+    Canvas(modifier = Modifier.fillMaxSize().blur(40.dp)) {
+        val path = android.graphics.Path()
+        bgMorph.toPath(progress = bgMorphProgress.value, path = path)
+        
+        translate(left = width * 0.3f, top = height * 0.5f) {
+            rotate(swirl1Rotation.value) {
+                scale(scale = width * 0.8f, pivot = Offset.Zero) { drawPath(path.asComposePath(), Color(0x33D0BCFF)) }
+            }
+        }
+        translate(left = width * 0.7f, top = height * 0.6f) {
+            rotate(swirl2Rotation.value) {
+                scale(scale = width * 0.9f, pivot = Offset.Zero) { drawPath(path.asComposePath(), Color(0x22F2B8B5)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BouncingMaterialShape(
+    containerWidthPx: Float, containerHeightPx: Float, xRatio: Float, sizeRatio: Float, 
+    apexRatio: Float, color: Color, startDelayMillis: Long, context: android.content.Context, view: android.view.View
+) {
+    val shapes = remember {
+        listOf(
+            RoundedPolygon(numVertices = 8, rounding = CornerRounding(radius = 1f)), 
+            RoundedPolygon(numVertices = 4, rounding = CornerRounding(radius = 0.4f)),
+            RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.75f, rounding = CornerRounding(radius = 0.2f)),
+            RoundedPolygon.star(numVerticesPerRadius = 4, innerRadius = 0.4f, rounding = CornerRounding(radius = 0.6f))
+        ).shuffled()
+    }
+
+    var currentShapeIndex by remember { mutableIntStateOf(0) }
+    var morph by remember { mutableStateOf(Morph(shapes[0], shapes[1])) }
+
+    val yOffset = remember { Animatable(1f) } 
+    val morphProgress = remember { Animatable(0f) }
+    val squishX = remember { Animatable(1f) }
+    val squishY = remember { Animatable(1f) }
+    val rotation = remember { Animatable(0f) }
+    val alpha = remember { Animatable(0f) }
+
+    LaunchedEffect(Unit) {
+        launch { rotation.animateTo(360f, infiniteRepeatable(tween(8000 + startDelayMillis.toInt(), easing = LinearEasing), RepeatMode.Restart)) }
+        kotlinx.coroutines.delay(startDelayMillis)
+        launch { alpha.animateTo(1f, tween(300)) }
+        
+        var currentIndex = 0
+        while (true) {
+            triggerCrispHapticThump(context, view)
+
+            launch {
+                squishY.snapTo(0.4f)
+                squishY.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow))
+            }
+            launch {
+                squishX.snapTo(1.6f)
+                squishX.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow))
+            }
+
+            launch { morphProgress.animateTo(1f, tween(1000, easing = FastOutSlowInEasing)) }
+
+            yOffset.animateTo(0f, tween(3000, easing = LinearOutSlowInEasing))
+
+            currentIndex = (currentIndex + 1) % shapes.size
+            morphProgress.snapTo(0f)
+            morph = Morph(shapes[currentIndex], shapes[(currentIndex + 1) % shapes.size])
+
+            yOffset.animateTo(1f, tween(3000, easing = FastOutLinearInEasing))
+        }
+    }
+
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val baseSizePx = containerWidthPx * sizeRatio
+        val horizontalOffsetPx = containerWidthPx * xRatio
+        
+        val floorY = containerHeightPx - baseSizePx
+        
+        val jumpHeight = containerHeightPx * apexRatio
+        
+        val apexY = floorY - jumpHeight
+        val dropDistance = (floorY - apexY).coerceAtLeast(0f)
+        val currentY = apexY + (dropDistance * yOffset.value)
+
+        val path = android.graphics.Path()
+        morph.toPath(progress = morphProgress.value, path = path)
+        
+        translate(left = horizontalOffsetPx, top = currentY) {
+            scale(scaleX = squishX.value, scaleY = squishY.value, pivot = Offset(0f, baseSizePx)) {
+                rotate(degrees = rotation.value, pivot = Offset.Zero) {
+                    scale(scale = baseSizePx, pivot = Offset.Zero) {
+                        drawPath(path = path.asComposePath(), color = color.copy(alpha = alpha.value))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun triggerCrispHapticThump(context: android.content.Context, view: android.view.View) {
+    try {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val vibratorManager = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+            val vibrator = vibratorManager.defaultVibrator
+            if (vibrator.areAllPrimitivesSupported(android.os.VibrationEffect.Composition.PRIMITIVE_THUD)) {
+                val effect = android.os.VibrationEffect.startComposition()
+                    .addPrimitive(android.os.VibrationEffect.Composition.PRIMITIVE_THUD, 0.45f) 
+                    .compose()
+                vibrator.vibrate(effect)
+                return
+            }
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            view.performHapticFeedback(android.view.HapticFeedbackConstants.GESTURE_END)
+        } else {
+            view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+        }
+    } catch (e: Exception) {
+    }
+}
 
 
 

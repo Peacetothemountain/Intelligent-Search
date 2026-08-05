@@ -44,16 +44,6 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier) {
         val sparkleSize = 4.5f
         val baseColor = Color(0x60A09EB0)
         
-        // Create the 4-pointed Gemini sparkle star path
-        val sparklePath = androidx.compose.ui.graphics.Path().apply {
-            moveTo(0f, -sparkleSize)
-            quadraticTo(0f, 0f, sparkleSize, 0f)
-            quadraticTo(0f, 0f, 0f, sparkleSize)
-            quadraticTo(0f, 0f, -sparkleSize, 0f)
-            quadraticTo(0f, 0f, 0f, -sparkleSize)
-            close()
-        }
-        
         // Pre-calculate positions to eliminate per-frame math overhead on cold boots
         val points = mutableListOf<Pair<Offset, Float>>()
         for (c in 0..cols) {
@@ -68,12 +58,21 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier) {
         onDrawBehind {
             points.forEach { (offset, offsetPhase) ->
                 val alpha = ((kotlin.math.sin((phase + offsetPhase).toDouble()).toFloat() + 1f) / 2f) * 0.8f + 0.2f
-                translate(left = offset.x, top = offset.y) {
-                    drawPath(
-                        path = sparklePath,
-                        color = baseColor.copy(alpha = alpha)
-                    )
+                val s = sparkleSize
+                val cx = offset.x
+                val cy = offset.y
+                val path = Path().apply {
+                    moveTo(cx, cy - s)
+                    quadraticBezierTo(cx, cy, cx + s, cy)
+                    quadraticBezierTo(cx, cy, cx, cy + s)
+                    quadraticBezierTo(cx, cy, cx - s, cy)
+                    quadraticBezierTo(cx, cy, cx, cy - s)
+                    close()
                 }
+                drawPath(
+                    path = path,
+                    color = baseColor.copy(alpha = alpha)
+                )
             }
         }
     })

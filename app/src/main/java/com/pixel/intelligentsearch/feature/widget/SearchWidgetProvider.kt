@@ -12,6 +12,9 @@ import android.speech.RecognizerIntent
 import android.view.View
 import android.widget.RemoteViews
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 
 @AndroidEntryPoint
 class SearchWidgetProvider : AppWidgetProvider() {
@@ -54,6 +57,23 @@ class SearchWidgetProvider : AppWidgetProvider() {
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
+    ) {
+        val pendingResult = goAsync()
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val doodleBitmap = DoodleFetcher.fetchCurrentDoodleBitmap()
+                updateWidgetsSync(context, appWidgetManager, appWidgetIds, doodleBitmap)
+            } finally {
+                pendingResult.finish()
+            }
+        }
+    }
+
+    private fun updateWidgetsSync(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray,
+        doodleBitmap: android.graphics.Bitmap?
     ) {
         val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
         val showVoice = prefs.getBoolean("widget_show_voice", true)
@@ -156,7 +176,11 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorAlpha)
                 views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorAlpha)
                 
-                views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo)
+                if (doodleBitmap != null) {
+                    views.setImageViewBitmap(R.id.widget_g_logo, doodleBitmap)
+                } else {
+                    views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo)
+                }
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic)
                 views.setImageViewResource(R.id.widget_lens_search, shortcutIconRes)
 
@@ -167,7 +191,11 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorAlpha)
                 views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorAlpha)
                 
-                views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo_colored)
+                if (doodleBitmap != null) {
+                    views.setImageViewBitmap(R.id.widget_g_logo, doodleBitmap)
+                } else {
+                    views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo_colored)
+                }
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic_original)
                 // Use default camera image or a colored lens equivalent
                 val coloredShortcutRes = when (widgetShortcut) {
@@ -183,7 +211,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_gemini_search, if (showGemini) View.VISIBLE else View.GONE)
 
             // Tap pill -> main search
-            val enableSearchOverlay = prefs.getBoolean("search_overlay_enabled", true) && isMaterialYou
+            val enableSearchOverlay = prefs.getBoolean("search_overlay_enabled", true)
             val mainIntent = if (enableSearchOverlay) {
                 Intent(context, WidgetActivity::class.java).apply {
                     putExtra("SHOW_GEMINI_OVERLAY", false)

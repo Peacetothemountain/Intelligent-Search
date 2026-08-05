@@ -353,7 +353,7 @@ fun SettingsScreensHub(
             "web_search" -> com.pixel.intelligentsearch.core.navigation.Route.WebSearch
             "contact_search" -> com.pixel.intelligentsearch.core.navigation.Route.ContactSearch
             "file_search" -> com.pixel.intelligentsearch.core.navigation.Route.FileSearch
-            "widget" -> com.pixel.intelligentsearch.core.navigation.Route.WidgetSettings
+            "widget" -> com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization
             "manage_hidden_apps" -> com.pixel.intelligentsearch.core.navigation.Route.ManageHiddenApps
             "debug" -> com.pixel.intelligentsearch.core.navigation.Route.Debug
             else -> com.pixel.intelligentsearch.core.navigation.Route.Main
@@ -400,7 +400,7 @@ fun SettingsScreensHub(
                     composable<com.pixel.intelligentsearch.core.navigation.Route.WebSearch> { WebSearchScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.ContactSearch> { ContactSearchScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.FileSearch> { FileSearchScreen(prefs, onBack) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.WidgetSettings> { WidgetSettingsScreen(prefs, onBack) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization> { WidgetCustomizationScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.ManageHiddenApps> { ManageHiddenAppsScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Debug> {
                         if (prefs.getBoolean("debug_unlocked", false)) {
@@ -654,10 +654,10 @@ fun MainSettingsScreen(
 
                 )
                 SettingsRow(
-                    title = "Widget",
+                    title = "Widget Customization",
                     subtitle = "Customize widget shape and color",
                     icon = Icons.Default.Widgets,
-                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.WidgetSettings) },
+                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization) },
                     showDivider = true,
 
                 )
@@ -1938,7 +1938,7 @@ fun SettingsSliderRow(
 // -----------------------------------------------------------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
+fun WidgetCustomizationScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     var showShortcutSheet by remember { mutableStateOf(false) }
     

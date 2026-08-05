@@ -3852,8 +3852,9 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
             launch { alpha.animateTo(1f, tween(300)) }
 
             val gravity = 3500f 
-            val restitution = 0.75f 
-            val wallRestitution = 0.85f
+            // Perfectly elastic collisions so they never stop and never need to magically respawn
+            val restitution = 1.0f 
+            val wallRestitution = 1.0f
             
             var lastTime = androidx.compose.runtime.withFrameNanos { it }
             while (true) {
@@ -3876,12 +3877,6 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
                     if (vy > 0) {
                         vy = -vy * restitution
                         bounced = true
-                        
-                        // Stop micro-bouncing (settle on floor)
-                        if (kotlin.math.abs(vy) < 60f) {
-                            vy = 0f
-                            bounced = false // too small to feel
-                        }
                     }
                 }
                 
@@ -3901,30 +3896,8 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
                     }
                 }
                 
-                // Floor friction
-                if (y == maxY) {
-                    vx *= (1f - 2f * safeDt) 
-                }
-                
                 if (bounced) {
                     engine.hapticEventFlow.tryEmit(Unit)
-                }
-                
-                // Respawn if fully settled
-                if (y == maxY && vy == 0f && kotlin.math.abs(vx) < 5f) {
-                    delay(1500)
-                    // Reset position
-                    x = sizePx + Math.random().toFloat() * (boundsWidth - 2 * sizePx)
-                    if (Math.random() > 0.5) {
-                        y = boundsHeight - sizePx
-                        vy = -(1500f + Math.random().toFloat() * 1200f)
-                    } else {
-                        y = boundsHeight * 0.1f
-                        vy = 0f
-                    }
-                    vx = (if (Math.random() > 0.5) 1f else -1f) * (300f + Math.random().toFloat() * 500f)
-                    
-                    lastTime = androidx.compose.runtime.withFrameNanos { it } // avoid dt spike
                 }
             }
         }

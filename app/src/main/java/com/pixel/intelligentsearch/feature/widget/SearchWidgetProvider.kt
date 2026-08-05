@@ -78,6 +78,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
         val showVoice = prefs.getBoolean("widget_show_voice", true)
         val showGemini = prefs.getBoolean("widget_show_gemini", false)
+        val showGIcon = prefs.getBoolean("widget_show_g_icon", true)
+        val showDoodle = prefs.getBoolean("widget_show_doodle", false)
         val actionIconStr = prefs.getString("widget_action_icon", "Search") ?: "Search"
         val widgetShortcut = prefs.getString("widget_shortcut", "None") ?: "None"
 
@@ -176,7 +178,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorAlpha)
                 views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorAlpha)
                 
-                if (doodleBitmap != null) {
+                views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
+                if (showDoodle && doodleBitmap != null) {
                     views.setImageViewBitmap(R.id.widget_g_logo, doodleBitmap)
                 } else {
                     views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo)
@@ -191,7 +194,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorAlpha)
                 views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorAlpha)
                 
-                if (doodleBitmap != null) {
+                views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
+                if (showDoodle && doodleBitmap != null) {
                     views.setImageViewBitmap(R.id.widget_g_logo, doodleBitmap)
                 } else {
                     views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo_colored)

@@ -3786,62 +3786,9 @@ private fun generate40MaterialShapes(): List<RoundedPolygon> {
 class MorphAnimationEngine(val coroutineScope: CoroutineScope) {
     val shapePool = generate40MaterialShapes()
 
-    val bgSwirl1Rot = Animatable(0f)
-    val bgSwirl2Rot = Animatable(360f)
-    var bgMorph by mutableStateOf(Morph(shapePool[0], shapePool[1]))
-    val bgMorphProgress = Animatable(0f)
-
-    val stringRot1 = Animatable(0f)
-    val stringRot2 = Animatable(360f)
-    var stringMorph1 by mutableStateOf(Morph(shapePool[2], shapePool[3]))
-    var stringMorph2 by mutableStateOf(Morph(shapePool[4], shapePool[5]))
-    val stringMorphProgress = Animatable(0f)
-    val string1X = Animatable(0.2f)
-    val string1Y = Animatable(0.3f)
-    val string2X = Animatable(0.8f)
-    val string2Y = Animatable(0.7f)
-
     val bouncers = List(4) { BouncerState(it, this) }
 
     val hapticEventFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 4)
-
-    init {
-        coroutineScope.launch { bgSwirl1Rot.animateTo(360f, infiniteRepeatable(tween(25000, easing = LinearEasing))) }
-        coroutineScope.launch { bgSwirl2Rot.animateTo(0f, infiniteRepeatable(tween(32000, easing = LinearEasing))) }
-        coroutineScope.launch {
-            var idx = 0
-            while(true) {
-                bgMorphProgress.animateTo(1f, tween(8000, easing = FastOutSlowInEasing))
-                idx = (idx + 1) % shapePool.size
-                bgMorph = Morph(shapePool[idx], shapePool[(idx + 1) % shapePool.size])
-                bgMorphProgress.snapTo(0f)
-            }
-        }
-
-        coroutineScope.launch { stringRot1.animateTo(360f, infiniteRepeatable(tween(20000, easing = LinearEasing))) }
-        coroutineScope.launch { stringRot2.animateTo(0f, infiniteRepeatable(tween(24000, easing = LinearEasing))) }
-        coroutineScope.launch {
-            var idx1 = 2
-            var idx2 = 4
-            while(true) {
-                stringMorphProgress.animateTo(1f, tween(7000, easing = FastOutSlowInEasing))
-                idx1 = (idx1 + 1) % shapePool.size
-                idx2 = (idx2 + 1) % shapePool.size
-                stringMorph1 = Morph(shapePool[idx1], shapePool[(idx1 + 1) % shapePool.size])
-                stringMorph2 = Morph(shapePool[idx2], shapePool[(idx2 + 1) % shapePool.size])
-                stringMorphProgress.snapTo(0f)
-            }
-        }
-        coroutineScope.launch {
-            while (true) {
-                launch { string1X.animateTo(kotlin.random.Random.nextFloat() * 0.8f + 0.1f, tween(15000, easing = FastOutSlowInEasing)) }
-                launch { string1Y.animateTo(kotlin.random.Random.nextFloat() * 0.8f + 0.1f, tween(18000, easing = FastOutSlowInEasing)) }
-                launch { string2X.animateTo(kotlin.random.Random.nextFloat() * 0.8f + 0.1f, tween(17000, easing = FastOutSlowInEasing)) }
-                launch { string2Y.animateTo(kotlin.random.Random.nextFloat() * 0.8f + 0.1f, tween(14000, easing = FastOutSlowInEasing)) }
-                delay(18000)
-            }
-        }
-    }
 }
 
 class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
@@ -3906,45 +3853,6 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
         val variant2 = MaterialTheme.colorScheme.tertiary
         val variant3 = MaterialTheme.colorScheme.primaryContainer
 
-        Canvas(modifier = Modifier.fillMaxSize().blur(40.dp)) {
-            val path = android.graphics.Path()
-            engine.bgMorph.toPath(progress = engine.bgMorphProgress.value, path = path)
-            
-            translate(left = width * 0.3f, top = height * 0.5f) {
-                rotate(engine.bgSwirl1Rot.value) {
-                    scale(scale = width * 0.8f, pivot = Offset.Zero) { drawPath(path.asComposePath(), Color(0x33D0BCFF)) }
-                }
-            }
-            translate(left = width * 0.7f, top = height * 0.6f) {
-                rotate(engine.bgSwirl2Rot.value) {
-                    scale(scale = width * 0.9f, pivot = Offset.Zero) { drawPath(path.asComposePath(), Color(0x22F2B8B5)) }
-                }
-            }
-        }
-
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val path1 = android.graphics.Path()
-            engine.stringMorph1.toPath(progress = engine.stringMorphProgress.value, path = path1)
-            
-            translate(left = width * engine.string1X.value, top = height * engine.string1Y.value) {
-                rotate(engine.stringRot1.value) {
-                    scale(scale = width * 0.45f, pivot = Offset.Zero) {
-                        drawPath(path1.asComposePath(), color = variant1.copy(alpha = 0.4f), style = Stroke(width = 4.dp.toPx()))
-                    }
-                }
-            }
-            
-            val path2 = android.graphics.Path()
-            engine.stringMorph2.toPath(progress = engine.stringMorphProgress.value, path = path2)
-            
-            translate(left = width * engine.string2X.value, top = height * engine.string2Y.value) {
-                rotate(engine.stringRot2.value) {
-                    scale(scale = width * 0.35f, pivot = Offset.Zero) {
-                        drawPath(path2.asComposePath(), color = variant2.copy(alpha = 0.5f), style = Stroke(width = 3.dp.toPx()))
-                    }
-                }
-            }
-        }
 
         val colors = listOf(baseAccentColor, variant1, variant2, variant3)
         val shapeConfigs = remember(width, height) {

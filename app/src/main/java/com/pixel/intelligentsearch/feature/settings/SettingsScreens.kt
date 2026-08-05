@@ -3806,12 +3806,17 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
     var boundsWidth = 0f
     var boundsHeight = 0f
     var sizePx = 0f
+    var mass = 1f
     
     fun updateBounds(width: Float, height: Float) {
         boundsWidth = width
         boundsHeight = height
-        val baseSize = listOf(0.040f, 0.045f, 0.035f, 0.040f)[index % 4]
-        sizePx = width * baseSize
+        // "None are smaller though. Some are a medium size bigger."
+        // Base is 0.04f. Multipliers: 1.0, 1.2, 1.4, 1.6
+        val sizeMultiplier = 1.0f + (index % 4) * 0.2f
+        sizePx = width * 0.04f * sizeMultiplier
+        // Mass scales with 2D area (radius squared)
+        mass = sizeMultiplier * sizeMultiplier
     }
 
     init {
@@ -3852,9 +3857,11 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
             launch { alpha.animateTo(1f, tween(300)) }
 
             val gravity = 3500f 
-            // Perfectly elastic collisions so they never stop and never need to magically respawn
-            val restitution = 1.0f 
-            val wallRestitution = 1.0f
+            val restitution = 0.82f // realistic bouncy ball
+            val wallRestitution = 0.85f
+            
+            val airDragCoeff = 0.8f // scales air resistance
+            val groundFrictionCoeff = 2.5f // scales friction when touching the floor
             
             var lastTime = androidx.compose.runtime.withFrameNanos { it }
             while (true) {
@@ -3864,35 +3871,62 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
                 
                 val safeDt = minOf(dt, 0.05f)
                 
-                vy += gravity * safeDt
+                // Acceleration = Gravity - (Drag / Mass) * Velocity
+                val ax = -(airDragCoeff / mass) * vx
+                val ay = gravity - (airDragCoeff / mass) * vy
+                
+                vx += ax * safeDt
+                vy += ay * safeDt
                 
                 x += vx * safeDt
                 y += vy * safeDt
                 
                 var bounced = false
+                var touchingGround = false
                 
                 val maxY = boundsHeight - sizePx
-                if (y > maxY) {
+                if (y >= maxY) {
                     y = maxY
+                    touchingGround = true
                     if (vy > 0) {
                         vy = -vy * restitution
-                        bounced = true
+                        // Prevent micro-vibrations going infinitely (Zeno's paradox for physics engines), 
+                        // but do not artificially stop if it's visually bounding. 
+                        // If it's incredibly tiny, just zero it out naturally.
+                        if (kotlin.math.abs(vy) < 15f) {
+                            vy = 0f
+                        } else {
+                            bounced = true
+                        }
                     }
                 }
                 
                 val minX = sizePx
                 val maxX = boundsWidth - sizePx
-                if (x < minX) {
+                if (x <= minX) {
                     x = minX
                     if (vx < 0) {
                         vx = -vx * wallRestitution
                         bounced = true
                     }
-                } else if (x > maxX) {
+                } else if (x >= maxX) {
                     x = maxX
                     if (vx > 0) {
                         vx = -vx * wallRestitution
                         bounced = true
+                    }
+                }
+                
+                // Apply ground friction if it's on the ground
+                if (touchingGround) {
+                    val frictionDrag = groundFrictionCoeff * mass * gravity
+                    // apply friction opposing velocity
+                    if (vx > 0) {
+                        vx -= frictionDrag * safeDt / mass
+                        if (vx < 0) vx = 0f
+                    } else if (vx < 0) {
+                        vx += frictionDrag * safeDt / mass
+                        if (vx > 0) vx = 0f
                     }
                 }
                 

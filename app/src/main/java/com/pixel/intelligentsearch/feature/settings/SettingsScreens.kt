@@ -21,6 +21,19 @@ import com.pixel.intelligentsearch.feature.search.AnimatedMatrixBackground
 import com.pixel.intelligentsearch.R
 import android.app.Application
 import android.content.Context
+
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.VibratorManager
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+
 import android.content.Intent
 import android.content.SharedPreferences
 import android.app.StatusBarManager
@@ -96,6 +109,9 @@ import androidx.compose.ui.zIndex
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.pixel.intelligentsearch.core.data.SettingsManager
+
+// Allows the animation state to persist seamlessly across all settings pages!
+val LocalMorphEngine = staticCompositionLocalOf<MorphAnimationEngine> { error("No engine provided") }
 
 val LocalSettingsViewModel = staticCompositionLocalOf<SettingsViewModel?> {
     null
@@ -357,7 +373,12 @@ fun SettingsScreensHub(
             androidx.compose.runtime.withFrameMillis { value = it }
         }
     }
+
+    val coroutineScope = rememberCoroutineScope()
+    val morphEngine = remember { MorphAnimationEngine(coroutineScope) }
+    
     CompositionLocalProvider(
+        LocalMorphEngine provides morphEngine,
         LocalSettingsViewModel provides viewModel,
         LocalSettingsState provides settingsState,
         LocalAnimationTime provides animationTime
@@ -3688,180 +3709,213 @@ fun SettingsShellBox(title: String, subtitle: String, onClick: () -> Unit) {
     }
 }
 
+// -----------------------------------------------------------------------------------------
+// 3. THE 40 RANDOM SHAPE GENERATOR & ENGINE LOGIC
+// -----------------------------------------------------------------------------------------
+
+private fun generate40MaterialShapes(): List<RoundedPolygon> {
+    val shapes = mutableListOf<RoundedPolygon>()
+    for (i in 3..12) shapes.add(RoundedPolygon(numVertices = i, rounding = CornerRounding(radius = 0.2f)))
+    for (i in 3..12) shapes.add(RoundedPolygon(numVertices = i, rounding = CornerRounding(radius = 1f)))
+    for (i in 4..13) shapes.add(RoundedPolygon.star(numVerticesPerRadius = i, innerRadius = 0.5f, rounding = CornerRounding(radius = 0.2f)))
+    for (i in 4..13) shapes.add(RoundedPolygon.star(numVerticesPerRadius = i, innerRadius = 0.7f, rounding = CornerRounding(radius = 0.6f)))
+    return shapes.shuffled()
+}
+
+@Stable
+class MorphAnimationEngine(val coroutineScope: CoroutineScope) {
+    val shapePool = generate40MaterialShapes()
+
+    val bgSwirl1Rot = Animatable(0f)
+    val bgSwirl2Rot = Animatable(360f)
+    var bgMorph by mutableStateOf(Morph(shapePool[0], shapePool[1]))
+    val bgMorphProgress = Animatable(0f)
+
+    val stringRot1 = Animatable(0f)
+    val stringRot2 = Animatable(360f)
+    var stringMorph1 by mutableStateOf(Morph(shapePool[2], shapePool[3]))
+    var stringMorph2 by mutableStateOf(Morph(shapePool[4], shapePool[5]))
+    val stringMorphProgress = Animatable(0f)
+    val string1X = Animatable(0.2f)
+    val string1Y = Animatable(0.3f)
+    val string2X = Animatable(0.8f)
+    val string2Y = Animatable(0.7f)
+
+    val bouncers = List(4) { BouncerState(it, this) }
+
+    val hapticEventFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+
+    init {
+        coroutineScope.launch { bgSwirl1Rot.animateTo(360f, infiniteRepeatable(tween(25000, easing = LinearEasing))) }
+        coroutineScope.launch { bgSwirl2Rot.animateTo(0f, infiniteRepeatable(tween(32000, easing = LinearEasing))) }
+        coroutineScope.launch {
+            var idx = 0
+            while(true) {
+                bgMorphProgress.animateTo(1f, tween(8000, easing = FastOutSlowInEasing))
+                idx = (idx + 1) % shapePool.size
+                bgMorph = Morph(shapePool[idx], shapePool[(idx + 1) % shapePool.size])
+                bgMorphProgress.snapTo(0f)
+            }
+        }
+
+        coroutineScope.launch { stringRot1.animateTo(360f, infiniteRepeatable(tween(20000, easing = LinearEasing))) }
+        coroutineScope.launch { stringRot2.animateTo(0f, infiniteRepeatable(tween(24000, easing = LinearEasing))) }
+        coroutineScope.launch {
+            var idx1 = 2
+            var idx2 = 4
+            while(true) {
+                stringMorphProgress.animateTo(1f, tween(7000, easing = FastOutSlowInEasing))
+                idx1 = (idx1 + 1) % shapePool.size
+                idx2 = (idx2 + 1) % shapePool.size
+                stringMorph1 = Morph(shapePool[idx1], shapePool[(idx1 + 1) % shapePool.size])
+                stringMorph2 = Morph(shapePool[idx2], shapePool[(idx2 + 1) % shapePool.size])
+                stringMorphProgress.snapTo(0f)
+            }
+        }
+        coroutineScope.launch {
+            while (true) {
+                launch { string1X.animateTo(kotlin.random.Random.nextFloat() * 0.8f + 0.1f, tween(15000, easing = FastOutSlowInEasing)) }
+                launch { string1Y.animateTo(kotlin.random.Random.nextFloat() * 0.8f + 0.1f, tween(18000, easing = FastOutSlowInEasing)) }
+                launch { string2X.animateTo(kotlin.random.Random.nextFloat() * 0.8f + 0.1f, tween(17000, easing = FastOutSlowInEasing)) }
+                launch { string2Y.animateTo(kotlin.random.Random.nextFloat() * 0.8f + 0.1f, tween(14000, easing = FastOutSlowInEasing)) }
+                delay(18000)
+            }
+        }
+    }
+}
+
+class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
+    val yOffset = Animatable(1f)
+    val squishX = Animatable(1f)
+    val squishY = Animatable(1f)
+    val rotation = Animatable(0f)
+    val morphProgress = Animatable(0f)
+    val alpha = Animatable(0f)
+    var morph by mutableStateOf(Morph(engine.shapePool[index * 5], engine.shapePool[(index * 5 + 1) % engine.shapePool.size]))
+
+    init {
+        val startDelay = listOf(0L, 150L, 350L, 500L)[index % 4]
+        engine.coroutineScope.launch {
+            rotation.animateTo(360f, infiniteRepeatable(tween(8000 + startDelay.toInt(), easing = LinearEasing)))
+        }
+        engine.coroutineScope.launch {
+            delay(startDelay)
+            launch { alpha.animateTo(1f, tween(300)) }
+
+            var poolIdx = index * 5
+            while (true) {
+                engine.hapticEventFlow.tryEmit(Unit) 
+
+                launch { squishY.snapTo(0.4f); squishY.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow)) }
+                launch { squishX.snapTo(1.6f); squishX.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow)) }
+                
+                launch { morphProgress.animateTo(1f, tween(1000, easing = FastOutSlowInEasing)) }
+                yOffset.animateTo(0f, tween(2200, easing = LinearOutSlowInEasing))
+
+                poolIdx = (poolIdx + 1) % engine.shapePool.size
+                morphProgress.snapTo(0f)
+                morph = Morph(engine.shapePool[poolIdx], engine.shapePool[(poolIdx + 1) % engine.shapePool.size])
+
+                yOffset.animateTo(1f, tween(2200, easing = FastOutLinearInEasing))
+            }
+        }
+    }
+}
+
 @Composable
 fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
+    val engine = LocalMorphEngine.current 
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
+    val view = LocalView.current
+
+    LaunchedEffect(engine, lifecycleOwner) {
+        engine.hapticEventFlow.collect {
+            if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                triggerCrispHapticThump(context, view)
+            }
+        }
+    }
+
     BoxWithConstraints(modifier = modifier) {
         val width = constraints.maxWidth.toFloat()
         val height = constraints.maxHeight.toFloat()
-        val context = androidx.compose.ui.platform.LocalContext.current
-        val view = androidx.compose.ui.platform.LocalView.current
 
         val baseAccentColor = MaterialTheme.colorScheme.primary
         val variant1 = MaterialTheme.colorScheme.secondary
         val variant2 = MaterialTheme.colorScheme.tertiary
         val variant3 = MaterialTheme.colorScheme.primaryContainer
 
-        ExpressiveBackgroundSwirls(width, height, baseAccentColor, variant1, variant2, variant3)
+        Canvas(modifier = Modifier.fillMaxSize().blur(40.dp)) {
+            val path = android.graphics.Path()
+            engine.bgMorph.toPath(progress = engine.bgMorphProgress.value, path = path)
+            
+            translate(left = width * 0.3f, top = height * 0.5f) {
+                rotate(engine.bgSwirl1Rot.value) {
+                    scale(scale = width * 0.8f, pivot = Offset.Zero) { drawPath(path.asComposePath(), Color(0x33D0BCFF)) }
+                }
+            }
+            translate(left = width * 0.7f, top = height * 0.6f) {
+                rotate(engine.bgSwirl2Rot.value) {
+                    scale(scale = width * 0.9f, pivot = Offset.Zero) { drawPath(path.asComposePath(), Color(0x22F2B8B5)) }
+                }
+            }
+        }
 
-        val colors = listOf(
-            baseAccentColor,
-            variant1,
-            variant2,
-            variant3
-        )
-        
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val path1 = android.graphics.Path()
+            engine.stringMorph1.toPath(progress = engine.stringMorphProgress.value, path = path1)
+            
+            translate(left = width * engine.string1X.value, top = height * engine.string1Y.value) {
+                rotate(engine.stringRot1.value) {
+                    scale(scale = width * 0.45f, pivot = Offset.Zero) {
+                        drawPath(path1.asComposePath(), color = variant1.copy(alpha = 0.4f), style = Stroke(width = 4.dp.toPx()))
+                    }
+                }
+            }
+            
+            val path2 = android.graphics.Path()
+            engine.stringMorph2.toPath(progress = engine.stringMorphProgress.value, path = path2)
+            
+            translate(left = width * engine.string2X.value, top = height * engine.string2Y.value) {
+                rotate(engine.stringRot2.value) {
+                    scale(scale = width * 0.35f, pivot = Offset.Zero) {
+                        drawPath(path2.asComposePath(), color = variant2.copy(alpha = 0.5f), style = Stroke(width = 3.dp.toPx()))
+                    }
+                }
+            }
+        }
+
+        val colors = listOf(baseAccentColor, variant1, variant2, variant3)
         val shapeConfigs = remember(width, height) {
             listOf(
-                ShapeConfig(xRatio = 0.15f, sizeRatio = 0.035f, delay = 0L, color = colors[0], apexRatio = 0.15f),
-                ShapeConfig(xRatio = 0.40f, sizeRatio = 0.040f, delay = 150L, color = colors[1], apexRatio = 0.12f),
-                ShapeConfig(xRatio = 0.65f, sizeRatio = 0.030f, delay = 350L, color = colors[2], apexRatio = 0.18f),
-                ShapeConfig(xRatio = 0.85f, sizeRatio = 0.035f, delay = 500L, color = colors[3], apexRatio = 0.10f)
+                ShapeConfig(xRatio = 0.15f, sizeRatio = 0.040f, apexRatio = 0.15f),
+                ShapeConfig(xRatio = 0.40f, sizeRatio = 0.045f, apexRatio = 0.12f),
+                ShapeConfig(xRatio = 0.65f, sizeRatio = 0.035f, apexRatio = 0.18f),
+                ShapeConfig(xRatio = 0.85f, sizeRatio = 0.040f, apexRatio = 0.10f)
             )
         }
 
-        shapeConfigs.forEach { config ->
-            BouncingMaterialShape(
-                containerWidthPx = width,
-                containerHeightPx = height,
-                xRatio = config.xRatio,
-                sizeRatio = config.sizeRatio,
-                apexRatio = config.apexRatio,
-                color = config.color,
-                startDelayMillis = config.delay,
-                context = context,
-                view = view
-            )
-        }
-    }
-}
+        shapeConfigs.forEachIndexed { index, config ->
+            val bouncer = engine.bouncers[index]
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val sizePx = width * config.sizeRatio
+                val x = width * config.xRatio
+                
+                val startY = height - (sizePx / 2)
+                val endY = height * config.apexRatio
+                val currentY = androidx.compose.ui.util.lerp(endY, startY, bouncer.yOffset.value)
 
-private data class ShapeConfig(
-    val xRatio: Float, val sizeRatio: Float, val delay: Long, val color: Color, val apexRatio: Float
-)
-
-@Composable
-private fun ExpressiveBackgroundSwirls(width: Float, height: Float, c1: Color, c2: Color, c3: Color, c4: Color) {
-    val swirl1Rotation = remember { Animatable(0f) }
-    val swirl2Rotation = remember { Animatable(360f) }
-    
-    val bgShapes = remember {
-        listOf(
-            RoundedPolygon.star(numVerticesPerRadius = 5, innerRadius = 0.5f, rounding = CornerRounding(radius = 0.3f)),
-            RoundedPolygon.star(numVerticesPerRadius = 7, innerRadius = 0.6f, rounding = CornerRounding(radius = 0.4f))
-        )
-    }
-    
-    var currentBgIndex by remember { mutableIntStateOf(0) }
-    var bgMorph by remember { mutableStateOf(Morph(bgShapes[0], bgShapes[1])) }
-    val bgMorphProgress = remember { Animatable(0f) }
-
-    LaunchedEffect(Unit) {
-        launch { swirl1Rotation.animateTo(360f, infiniteRepeatable(tween(25000, easing = LinearEasing), RepeatMode.Restart)) }
-        launch { swirl2Rotation.animateTo(0f, infiniteRepeatable(tween(32000, easing = LinearEasing), RepeatMode.Restart)) }
-        launch {
-            while(true) {
-                bgMorphProgress.animateTo(1f, tween(8000, easing = FastOutSlowInEasing))
-                currentBgIndex = (currentBgIndex + 1) % bgShapes.size
-                bgMorphProgress.snapTo(0f)
-                bgMorph = Morph(bgShapes[currentBgIndex], bgShapes[(currentBgIndex + 1) % bgShapes.size])
-            }
-        }
-    }
-
-    Canvas(modifier = Modifier.fillMaxSize().blur(40.dp)) {
-        val path = android.graphics.Path()
-        bgMorph.toPath(progress = bgMorphProgress.value, path = path)
-        
-        translate(left = width * 0.3f, top = height * 0.5f) {
-            rotate(swirl1Rotation.value) {
-                scale(scale = width * 0.8f, pivot = Offset.Zero) { drawPath(path.asComposePath(), Color(0x33D0BCFF)) }
-            }
-        }
-        translate(left = width * 0.7f, top = height * 0.6f) {
-            rotate(swirl2Rotation.value) {
-                scale(scale = width * 0.9f, pivot = Offset.Zero) { drawPath(path.asComposePath(), Color(0x22F2B8B5)) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun BouncingMaterialShape(
-    containerWidthPx: Float, containerHeightPx: Float, xRatio: Float, sizeRatio: Float, 
-    apexRatio: Float, color: Color, startDelayMillis: Long, context: android.content.Context, view: android.view.View
-) {
-    val shapes = remember {
-        listOf(
-            RoundedPolygon(numVertices = 8, rounding = CornerRounding(radius = 1f)), 
-            RoundedPolygon(numVertices = 4, rounding = CornerRounding(radius = 0.4f)),
-            RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.75f, rounding = CornerRounding(radius = 0.2f)),
-            RoundedPolygon.star(numVerticesPerRadius = 4, innerRadius = 0.4f, rounding = CornerRounding(radius = 0.6f))
-        ).shuffled()
-    }
-
-    var currentShapeIndex by remember { mutableIntStateOf(0) }
-    var morph by remember { mutableStateOf(Morph(shapes[0], shapes[1])) }
-
-    val yOffset = remember { Animatable(1f) } 
-    val morphProgress = remember { Animatable(0f) }
-    val squishX = remember { Animatable(1f) }
-    val squishY = remember { Animatable(1f) }
-    val rotation = remember { Animatable(0f) }
-    val alpha = remember { Animatable(0f) }
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-
-    LaunchedEffect(Unit) {
-        launch { rotation.animateTo(360f, infiniteRepeatable(tween(8000 + startDelayMillis.toInt(), easing = LinearEasing), RepeatMode.Restart)) }
-        kotlinx.coroutines.delay(startDelayMillis)
-        launch { alpha.animateTo(1f, tween(300)) }
-        
-        var currentIndex = 0
-        while (true) {
-            if (lifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
-                triggerCrispHapticThump(context, view)
-            }
-
-            launch {
-                squishY.snapTo(0.4f)
-                squishY.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow))
-            }
-            launch {
-                squishX.snapTo(1.6f)
-                squishX.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow))
-            }
-
-            launch { morphProgress.animateTo(1f, tween(1000, easing = FastOutSlowInEasing)) }
-
-            yOffset.animateTo(0f, tween(2500, easing = LinearOutSlowInEasing))
-
-            currentIndex = (currentIndex + 1) % shapes.size
-            morphProgress.snapTo(0f)
-            morph = Morph(shapes[currentIndex], shapes[(currentIndex + 1) % shapes.size])
-
-            yOffset.animateTo(1f, tween(2500, easing = FastOutLinearInEasing))
-        }
-    }
-
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val baseSizePx = containerWidthPx * sizeRatio
-        val horizontalOffsetPx = containerWidthPx * xRatio
-        
-        val floorY = containerHeightPx - baseSizePx
-        
-        val jumpHeight = containerHeightPx * apexRatio
-        
-        val apexY = floorY - jumpHeight
-        val dropDistance = (floorY - apexY).coerceAtLeast(0f)
-        val currentY = apexY + (dropDistance * yOffset.value)
-
-        val path = android.graphics.Path()
-        morph.toPath(progress = morphProgress.value, path = path)
-        
-        translate(left = horizontalOffsetPx, top = currentY) {
-            scale(scaleX = squishX.value, scaleY = squishY.value, pivot = Offset(0f, baseSizePx)) {
-                rotate(degrees = rotation.value, pivot = Offset.Zero) {
-                    scale(scale = baseSizePx, pivot = Offset.Zero) {
-                        drawPath(path = path.asComposePath(), color = color.copy(alpha = alpha.value))
+                translate(left = x, top = currentY) {
+                    rotate(bouncer.rotation.value) {
+                        scale(scaleX = bouncer.squishX.value, scaleY = bouncer.squishY.value) {
+                            val path = android.graphics.Path()
+                            bouncer.morph.toPath(progress = bouncer.morphProgress.value, path = path)
+                            
+                            scale(scale = sizePx, pivot = Offset.Zero) {
+                                drawPath(path.asComposePath(), colors[index].copy(alpha = bouncer.alpha.value * 0.9f))
+                            }
+                        }
                     }
                 }
             }
@@ -3869,26 +3923,25 @@ private fun BouncingMaterialShape(
     }
 }
 
-private fun triggerCrispHapticThump(context: android.content.Context, view: android.view.View) {
+private data class ShapeConfig(val xRatio: Float, val sizeRatio: Float, val apexRatio: Float)
+
+private fun triggerCrispHapticThump(context: Context, view: android.view.View) {
     try {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            val vibratorManager = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
-            val vibrator = vibratorManager.defaultVibrator
-            if (vibrator.areAllPrimitivesSupported(android.os.VibrationEffect.Composition.PRIMITIVE_THUD)) {
-                val effect = android.os.VibrationEffect.startComposition()
-                    .addPrimitive(android.os.VibrationEffect.Composition.PRIMITIVE_THUD, 0.45f) 
-                    .compose()
-                vibrator.vibrate(effect)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            if (vibratorManager.defaultVibrator.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_THUD)) {
+                vibratorManager.defaultVibrator.vibrate(
+                    VibrationEffect.startComposition().addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.45f).compose()
+                )
                 return
             }
         }
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             view.performHapticFeedback(android.view.HapticFeedbackConstants.GESTURE_END)
         } else {
             view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
         }
-    } catch (e: Exception) {
-    }
+    } catch (e: Exception) { }
 }
 
 

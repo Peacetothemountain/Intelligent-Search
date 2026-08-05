@@ -165,27 +165,83 @@ class SearchWidgetProvider : AppWidgetProvider() {
             android.graphics.Color.green(circleColor),
             android.graphics.Color.blue(circleColor)
         )
+        
+        val subtheme = prefs.getString("search_widget_subtheme", "System") ?: "System"
+        val customColorHex = prefs.getString("search_widget_custom_color", "#FFFFFF") ?: "#FFFFFF"
+        val customColor = try {
+            android.graphics.Color.parseColor(customColorHex)
+        } catch (e: Exception) {
+            android.graphics.Color.WHITE
+        }
 
+        // Determine Icon Tint
+        val iconTint = when {
+            !isMaterialYou -> {
+                when (subtheme) {
+                    "Light" -> android.graphics.Color.BLACK
+                    "System" -> if (!isDark) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+                    "Custom" -> customColor
+                    else -> android.graphics.Color.WHITE
+                }
+            }
+            else -> {
+                if (subtheme == "Custom") {
+                    customColor
+                } else {
+                    if (isDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
+                }
+            }
+        }
+        
+        // Determine Material G Icon Theme
+        val materialGIconTheme = prefs.getString("widget_material_g_icon", "Material G Icon") ?: "Material G Icon"
+        val gIconRes = when {
+            !isMaterialYou -> {
+                if (materialGIconTheme == "Accented G Icon") R.drawable.ic_g_logo else R.drawable.ic_g_logo_colored
+            }
+            else -> {
+                when (materialGIconTheme) {
+                    "System G Icon" -> R.drawable.ic_g_logo_colored
+                    "Material G Icon" -> R.drawable.ic_g_logo
+                    "Accented G Icon" -> R.drawable.ic_g_logo
+                    else -> R.drawable.ic_g_logo_colored
+                }
+            }
+        }
+        
         for (appWidgetId in appWidgetIds) {
             val layoutId = if (isMaterialYou) R.layout.widget_search else R.layout.widget_search_colorful
             val views = RemoteViews(context.packageName, layoutId)
 
-            // Make circle button visible by default
-
             // Apply Material You colors with transparency
             if (isMaterialYou) {
-                views.setInt(R.id.widget_outer_background, "setColorFilter", rimColorAlpha)
-                views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorAlpha)
+                // If custom, the user wants the custom color across the entire search bar (inner pill) and maybe rim?
+                // Let's use custom color for both if subtheme == Custom
+                val matRimColorAlpha = if (subtheme == "Custom") circleColorAlpha else rimColorAlpha
+                val matPillColorAlpha = if (subtheme == "Custom") circleColorAlpha else pillColorAlpha
+                
+                views.setInt(R.id.widget_outer_background, "setColorFilter", matRimColorAlpha)
+                views.setInt(R.id.widget_pill_background, "setColorFilter", matPillColorAlpha)
                 views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorAlpha)
                 
                 views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
                 if (showDoodle && doodleBitmap != null) {
                     views.setImageViewBitmap(R.id.widget_g_logo, doodleBitmap)
                 } else {
-                    views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo)
+                    views.setImageViewResource(R.id.widget_g_logo, gIconRes)
                 }
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic)
                 views.setImageViewResource(R.id.widget_lens_search, shortcutIconRes)
+                
+                if (materialGIconTheme == "Accented G Icon") {
+                    views.setInt(R.id.widget_g_logo, "setColorFilter", iconTint)
+                    views.setInt(R.id.widget_voice_search, "setColorFilter", iconTint)
+                    views.setInt(R.id.widget_lens_search, "setColorFilter", iconTint)
+                } else {
+                    views.setInt(R.id.widget_g_logo, "setColorFilter", android.graphics.Color.TRANSPARENT)
+                    views.setInt(R.id.widget_voice_search, "setColorFilter", android.graphics.Color.TRANSPARENT)
+                    views.setInt(R.id.widget_lens_search, "setColorFilter", android.graphics.Color.TRANSPARENT)
+                }
 
             } else {
                 // In Colorful mode, do not tint the outer rim transparent drawable,
@@ -197,16 +253,21 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
                 if (showDoodle && doodleBitmap != null) {
                     views.setImageViewBitmap(R.id.widget_g_logo, doodleBitmap)
+                    views.setInt(R.id.widget_g_logo, "setColorFilter", android.graphics.Color.TRANSPARENT)
                 } else {
-                    views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo_colored)
+                    views.setImageViewResource(R.id.widget_g_logo, gIconRes)
+                    if (materialGIconTheme == "Accented G Icon") {
+                        views.setInt(R.id.widget_g_logo, "setColorFilter", iconTint)
+                    } else {
+                        // Remove color filter if previously set
+                        views.setInt(R.id.widget_g_logo, "setColorFilter", android.graphics.Color.TRANSPARENT)
+                    }
                 }
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic_original)
-                // Use default camera image or a colored lens equivalent
-                val coloredShortcutRes = when (widgetShortcut) {
-                    "Sports" -> R.drawable.ic_sports_colored
-                    else -> shortcutIconRes
-                }
-                views.setImageViewResource(R.id.widget_lens_search, coloredShortcutRes)
+                views.setInt(R.id.widget_voice_search, "setColorFilter", iconTint)
+                
+                views.setImageViewResource(R.id.widget_lens_search, shortcutIconRes)
+                views.setInt(R.id.widget_lens_search, "setColorFilter", iconTint)
             }
 
             // Shortcut visibility

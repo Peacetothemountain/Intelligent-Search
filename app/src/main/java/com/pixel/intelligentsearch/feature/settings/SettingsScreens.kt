@@ -2072,23 +2072,24 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             val t = (i.toFloat() / numParticles + phase / (2f * Math.PI.toFloat())) % 1f
                             val x = t * width
                             
-                            val waveAmp = height / 3.5f
+                            val waveAmp = height / 2.5f
                             val yOffset1 = Math.sin((t * 2f * Math.PI + phase).toDouble()).toFloat() * waveAmp
-                            val yOffset2 = Math.cos((t * 4f * Math.PI - phase * 1.5f).toDouble()).toFloat() * (waveAmp / 2f)
+                            val yOffset2 = Math.cos((t * 3f * Math.PI - phase).toDouble()).toFloat() * (waveAmp / 2f)
                             
                             val centerY = height / 2f + yOffset1 + yOffset2
 
-                            val alphaEdge = if (t < 0.1f) t * 10f else if (t > 0.9f) (1f - t) * 10f else 1f
-                            val twinkle = (Math.sin((t * 30f * Math.PI + phase * 6f).toDouble()).toFloat() + 1f) / 2f
-                            val radius = (1.5.dp.toPx() + 2.5.dp.toPx() * twinkle) * alphaEdge
+                            val alphaEdge = if (t < 0.2f) t * 5f else if (t > 0.8f) (1f - t) * 5f else 1f
+                            val twinkle = (Math.sin((t * 40f * Math.PI + phase * 8f).toDouble()).toFloat() + 1f) / 2f
+                            val radius = (0.5.dp.toPx() + 1.dp.toPx() * twinkle) * alphaEdge
                             
+                            val baseAlpha = 0.4f
                             val color = if (localSubtheme == "Custom") {
-                                accentColor.copy(alpha = 0.8f * alphaEdge * twinkle)
+                                accentColor.copy(alpha = baseAlpha * alphaEdge * twinkle)
                             } else if (previewIsMaterialYou && localSubtheme == "Material") {
                                 val dynamicColors = listOf(matPrimary, matSecondary, matTertiary, matError)
-                                dynamicColors[i % dynamicColors.size].copy(alpha = 0.8f * alphaEdge * twinkle)
+                                dynamicColors[i % dynamicColors.size].copy(alpha = baseAlpha * alphaEdge * twinkle)
                             } else {
-                                geminiColors[i % geminiColors.size].copy(alpha = 0.8f * alphaEdge * twinkle)
+                                geminiColors[i % geminiColors.size].copy(alpha = baseAlpha * alphaEdge * twinkle)
                             }
 
                             drawCircle(
@@ -2098,7 +2099,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             )
                             
                             drawCircle(
-                                color = color.copy(alpha = 0.35f * alphaEdge * twinkle),
+                                color = color.copy(alpha = (baseAlpha / 2f) * alphaEdge * twinkle),
                                 radius = radius * 2.5f,
                                 center = androidx.compose.ui.geometry.Offset(x, centerY)
                             )
@@ -2115,6 +2116,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     } else androidx.compose.ui.graphics.Color.Transparent
                     
+                    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
                     val previewPillColorAlpha = if (previewIsMaterialYou) {
                         if (localSubtheme == "Custom") {
                             androidx.compose.ui.graphics.Color(0xFF1C1B1F).copy(alpha = alphaInt)
@@ -2124,13 +2126,29 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             androidx.compose.ui.graphics.Color(0xFF1C1B1F).copy(alpha = alphaInt)
                         }
                     } else {
-                        androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = alphaInt)
+                        when (localSubtheme) {
+                            "Light" -> androidx.compose.ui.graphics.Color.White.copy(alpha = alphaInt)
+                            "Dark" -> androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = alphaInt)
+                            "Custom" -> accentColor.copy(alpha = alphaInt)
+                            else -> if (isSystemDark) androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = alphaInt) else androidx.compose.ui.graphics.Color.White.copy(alpha = alphaInt)
+                        }
                     }
                     
                     val previewIconTint = if (localSubtheme == "Custom") {
-                        androidx.compose.ui.graphics.Color.White
+                        val luminance = (0.299 * accentColor.red + 0.587 * accentColor.green + 0.114 * accentColor.blue)
+                        if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
                     } else if (previewIsMaterialYou && localSubtheme == "Material") {
                         MaterialTheme.colorScheme.onSurfaceVariant
+                    } else if (!previewIsMaterialYou) {
+                        when (localSubtheme) {
+                            "Light" -> androidx.compose.ui.graphics.Color(0xFF5F6368)
+                            "Dark" -> androidx.compose.ui.graphics.Color(0xFF9AA0A6)
+                            "Custom" -> {
+                                val luminance = (0.299 * accentColor.red + 0.587 * accentColor.green + 0.114 * accentColor.blue)
+                                if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+                            }
+                            else -> if (isSystemDark) androidx.compose.ui.graphics.Color(0xFF9AA0A6) else androidx.compose.ui.graphics.Color(0xFF5F6368)
+                        }
                     } else {
                         androidx.compose.ui.graphics.Color.White
                     }

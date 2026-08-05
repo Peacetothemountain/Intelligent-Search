@@ -3841,19 +3841,19 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
             // Initial positioning
             x = boundsWidth * listOf(0.15f, 0.40f, 0.65f, 0.85f)[index % 4]
             if (index % 2 == 0) {
-                y = boundsHeight - (sizePx / 2f)
-                vy = -(1200f + Math.random().toFloat() * 800f)
+                y = boundsHeight - sizePx
+                vy = -(1500f + Math.random().toFloat() * 1000f)
             } else {
-                y = boundsHeight * 0.4f
+                y = boundsHeight * 0.2f
                 vy = 0f
             }
-            vx = (if (Math.random() > 0.5) 1f else -1f) * (200f + Math.random().toFloat() * 300f)
+            vx = (if (Math.random() > 0.5) 1f else -1f) * (200f + Math.random().toFloat() * 400f)
             
             launch { alpha.animateTo(1f, tween(300)) }
 
-            val gravity = 3000f 
-            val restitution = 0.8f 
-            val wallRestitution = 0.9f
+            val gravity = 3500f 
+            val restitution = 0.75f 
+            val wallRestitution = 0.85f
             
             var lastTime = androidx.compose.runtime.withFrameNanos { it }
             while (true) {
@@ -3870,18 +3870,23 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
                 
                 var bounced = false
                 
-                val maxY = boundsHeight - sizePx / 2f
+                val maxY = boundsHeight - sizePx
                 if (y > maxY) {
                     y = maxY
                     if (vy > 0) {
                         vy = -vy * restitution
                         bounced = true
-                        if (kotlin.math.abs(vy) < 200f) vy = -(600f + Math.random().toFloat() * 400f)
+                        
+                        // Stop micro-bouncing (settle on floor)
+                        if (kotlin.math.abs(vy) < 60f) {
+                            vy = 0f
+                            bounced = false // too small to feel
+                        }
                     }
                 }
                 
-                val minX = sizePx / 2f
-                val maxX = boundsWidth - sizePx / 2f
+                val minX = sizePx
+                val maxX = boundsWidth - sizePx
                 if (x < minX) {
                     x = minX
                     if (vx < 0) {
@@ -3896,8 +3901,30 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
                     }
                 }
                 
+                // Floor friction
+                if (y == maxY) {
+                    vx *= (1f - 2f * safeDt) 
+                }
+                
                 if (bounced) {
                     engine.hapticEventFlow.tryEmit(Unit)
+                }
+                
+                // Respawn if fully settled
+                if (y == maxY && vy == 0f && kotlin.math.abs(vx) < 5f) {
+                    delay(1500)
+                    // Reset position
+                    x = sizePx + Math.random().toFloat() * (boundsWidth - 2 * sizePx)
+                    if (Math.random() > 0.5) {
+                        y = boundsHeight - sizePx
+                        vy = -(1500f + Math.random().toFloat() * 1200f)
+                    } else {
+                        y = boundsHeight * 0.1f
+                        vy = 0f
+                    }
+                    vx = (if (Math.random() > 0.5) 1f else -1f) * (300f + Math.random().toFloat() * 500f)
+                    
+                    lastTime = androidx.compose.runtime.withFrameNanos { it } // avoid dt spike
                 }
             }
         }

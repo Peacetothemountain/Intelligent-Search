@@ -2263,7 +2263,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .background(if (isSystem) MaterialTheme.colorScheme.surfaceVariant else androidx.compose.ui.graphics.Color.Transparent)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(if (isSystem) MaterialTheme.colorScheme.surfaceVariant else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
                             .bouncyClickable { localThemeStyle = "System Default" },
                         contentAlignment = Alignment.Center
                     ) {
@@ -2273,7 +2274,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .background(if (!isSystem) MaterialTheme.colorScheme.surfaceVariant else androidx.compose.ui.graphics.Color.Transparent)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(if (!isSystem) MaterialTheme.colorScheme.surfaceVariant else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
                             .bouncyClickable { localThemeStyle = "Material You (Minimal)" },
                         contentAlignment = Alignment.Center
                     ) {

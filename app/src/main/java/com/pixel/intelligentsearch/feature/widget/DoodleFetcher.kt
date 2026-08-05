@@ -13,7 +13,16 @@ import java.util.Calendar
 
 object DoodleFetcher {
 
+    private var cachedDoodle: Bitmap? = null
+    private var lastFetchTime: Long = 0
+    private const val CACHE_EXPIRATION_MS = 60 * 60 * 1000L // 1 hour
+
     suspend fun fetchCurrentDoodleBitmap(): Bitmap? = withContext(Dispatchers.IO) {
+        val currentTime = System.currentTimeMillis()
+        if (cachedDoodle != null && (currentTime - lastFetchTime) < CACHE_EXPIRATION_MS) {
+            return@withContext cachedDoodle
+        }
+
         try {
             val calendar = Calendar.getInstance()
             val year = calendar.get(Calendar.YEAR)
@@ -38,12 +47,15 @@ object DoodleFetcher {
                     imageConnection.doInput = true
                     imageConnection.connect()
                     
-                    return@withContext BitmapFactory.decodeStream(imageConnection.inputStream)
+                    val bitmap = BitmapFactory.decodeStream(imageConnection.inputStream)
+                    cachedDoodle = bitmap
+                    lastFetchTime = System.currentTimeMillis()
+                    return@withContext bitmap
                 }
             }
         } catch (e: Exception) {
             Log.e("DoodleFetcher", "Error fetching doodle", e)
         }
-        return@withContext null
+        return@withContext cachedDoodle
     }
 }

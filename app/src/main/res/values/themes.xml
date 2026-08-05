@@ -10,6 +10,7 @@
         <item name="android:windowAnimationStyle">@style/Theme.IntelligentSearch.Animation</item>
     </style>
     <style name="Theme.IntelligentSearch.Overlay" parent="Theme.IntelligentSearch">
+        <item name="android:windowShowWallpaper">true</item>
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:colorBackground">@android:color/transparent</item>

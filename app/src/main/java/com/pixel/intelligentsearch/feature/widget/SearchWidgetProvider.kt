@@ -116,9 +116,9 @@ class SearchWidgetProvider : AppWidgetProvider() {
             android.graphics.Color.TRANSPARENT
         }
 
-        // Inner pill: deepest neutral surface (near-black on dark, near-white on light)
+        // Inner pill: Material Black
         val pillColor = if (isMaterialYou) {
-            0xFF1F1F1F.toInt()
+            0xFF1A1A1A.toInt()
         } else {
             if (isDark) 0xFF303134.toInt() else 0xFFFFFFFF.toInt()
         }

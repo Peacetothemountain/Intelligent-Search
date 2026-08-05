@@ -392,6 +392,15 @@ fun SettingsScreensHub(
                 }
             }
 
+            val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
+            val sharedMorphAnimation = remember(morphAnimationEnabled) {
+                movableContentOf {
+                    if (morphAnimationEnabled) {
+                        MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+                    }
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -406,10 +415,10 @@ fun SettingsScreensHub(
                     popExitTransition = { androidx.compose.animation.slideOutHorizontally(targetOffsetX = { it }) }
                 ) {
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Main> { MainSettingsScreen(prefs, onNavigate, onBack, context, exoPlayer, showTutorial) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.Appearance> { AppearanceScreen(prefs, onBack) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchSources> { SearchSourcesScreen(prefs, onNavigate, onBack) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior> { SearchBehaviorScreen(prefs, onBack) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal> { LaunchPortalScreen(prefs, onBack) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.Appearance> { AppearanceScreen(prefs, onBack, sharedMorphAnimation) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchSources> { SearchSourcesScreen(prefs, onNavigate, onBack, sharedMorphAnimation) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior> { SearchBehaviorScreen(prefs, onBack, sharedMorphAnimation) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal> { LaunchPortalScreen(prefs, onBack, sharedMorphAnimation) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.AppSearch> { AppSearchScreen(prefs, onNavigate, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.SearchPills> { SearchPillsScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.WebSearch> { WebSearchScreen(prefs, onBack) }
@@ -913,7 +922,7 @@ fun MainSettingsScreen(
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
+fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit, morphAnimation: @Composable () -> Unit) {
     val context = LocalContext.current
     var iconPacks by remember { mutableStateOf(listOf("System Default")) }
     
@@ -922,7 +931,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+        morphAnimation()
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -950,6 +959,16 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     icon = Icons.Default.Layers,
                     isChecked = enableSearchOverlay,
                     onCheckedChange = { enableSearchOverlay = it },
+                    showDivider = true
+                )
+
+                var morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
+                SettingsRowToggle(
+                    title = "Morph Animation",
+                    subtitle = "Dynamic background animation",
+                    icon = Icons.Default.AutoAwesome,
+                    isChecked = morphAnimationEnabled,
+                    onCheckedChange = { morphAnimationEnabled = it },
                     showDivider = true
                 )
 
@@ -1007,10 +1026,10 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 // -----------------------------------------------------------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit, onBack: () -> Unit) {
+fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit, onBack: () -> Unit, morphAnimation: @Composable () -> Unit) {
     val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+        morphAnimation()
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -1554,9 +1573,9 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
+fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit, morphAnimation: @Composable () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+        morphAnimation()
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -1978,6 +1997,27 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localActionIcon by remember { mutableStateOf(prefs.getString("widget_action_icon", "Search") ?: "Search") }
     var localShortcut by remember { mutableStateOf(prefs.getString("widget_shortcut", "Google Lens") ?: "Google Lens") }
 
+    LaunchedEffect(
+        localShowGIcon, localShowDoodle, localThemeStyle, localSubtheme,
+        localMaterialGIconTheme, localHue, localSaturation, localOpacity,
+        localShowVoice, localActionIcon, localShortcut
+    ) {
+        prefs.edit()
+            .putBoolean("widget_show_g_icon", localShowGIcon)
+            .putBoolean("widget_show_doodle", localShowDoodle)
+            .putString("widget.theme.style", localThemeStyle)
+            .putString("widget_subtheme", localSubtheme)
+            .putString("widget_material_g_icon", localMaterialGIconTheme)
+            .putInt("widget_custom_hue", localHue.toInt())
+            .putInt("widget_custom_saturation", localSaturation.toInt())
+            .putInt("search.background.transparency", localOpacity.toInt())
+            .putBoolean("widget_show_voice", localShowVoice)
+            .putString("widget_action_icon", localActionIcon)
+            .putString("widget_shortcut", localShortcut)
+            .apply()
+        updateWidgets(context)
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -2002,23 +2042,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         Text("Reset", color = MaterialTheme.colorScheme.onSurface)
                     }
                     androidx.compose.material3.TextButton(onClick = {
-                        prefs.edit()
-                            .putBoolean("widget_show_g_icon", localShowGIcon)
-                            .putBoolean("widget_show_doodle", localShowDoodle)
-                            .putString("widget.theme.style", localThemeStyle)
-                            .putString("widget_subtheme", localSubtheme)
-                            .putString("widget_material_g_icon", localMaterialGIconTheme)
-                            .putInt("widget_custom_hue", localHue.toInt())
-                            .putInt("widget_custom_saturation", localSaturation.toInt())
-                            .putInt("search.background.transparency", localOpacity.toInt())
-                            .putBoolean("widget_show_voice", localShowVoice)
-                            .putString("widget_action_icon", localActionIcon)
-                            .putString("widget_shortcut", localShortcut)
-                            .apply()
-                        updateWidgets(context)
                         onBack()
                     }) {
-                        Text("Apply", color = MaterialTheme.colorScheme.primary)
+                        Text("Save", color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             )
@@ -2383,7 +2409,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         val dynColor = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor((localOpacity * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
                         val bgModifier = if (opt == "Custom") {
                             if (isSel) {
-                                Modifier.waterBackground(dynColor, RoundedCornerShape(32.dp))
+                                Modifier.background(dynColor, RoundedCornerShape(32.dp))
                             } else {
                                 Modifier.background(
                                     brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
@@ -2424,7 +2450,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         val dynColor = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor((localOpacity * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
                         val bgModifier = if (opt == "Custom") {
                             if (isSel) {
-                                Modifier.waterBackground(dynColor, RoundedCornerShape(32.dp))
+                                Modifier.background(dynColor, RoundedCornerShape(32.dp))
                             } else {
                                 Modifier.background(
                                     brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
@@ -3468,10 +3494,10 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 // -----------------------------------------------------------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
+fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit, morphAnimation: @Composable () -> Unit) {
     val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+        morphAnimation()
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -3752,13 +3778,13 @@ private fun BouncingMaterialShape(
 
             launch { morphProgress.animateTo(1f, tween(1000, easing = FastOutSlowInEasing)) }
 
-            yOffset.animateTo(0f, tween(3000, easing = LinearOutSlowInEasing))
+            yOffset.animateTo(0f, tween(2500, easing = LinearOutSlowInEasing))
 
             currentIndex = (currentIndex + 1) % shapes.size
             morphProgress.snapTo(0f)
             morph = Morph(shapes[currentIndex], shapes[(currentIndex + 1) % shapes.size])
 
-            yOffset.animateTo(1f, tween(3000, easing = FastOutLinearInEasing))
+            yOffset.animateTo(1f, tween(2500, easing = FastOutLinearInEasing))
         }
     }
 

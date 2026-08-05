@@ -188,6 +188,18 @@ fun rememberBooleanPreference(
         state.value = currentValue
     }
 
+    androidx.compose.runtime.DisposableEffect(prefs, key) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
+            if (changedKey == key) {
+                state.value = sharedPreferences.getBoolean(key, defaultValue)
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+
     return object : MutableState<Boolean> {
         override var value: Boolean
             get() = state.value
@@ -238,6 +250,18 @@ fun rememberIntPreference(
         state.value = currentValue
     }
 
+    androidx.compose.runtime.DisposableEffect(prefs, key) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
+            if (changedKey == key) {
+                state.value = sharedPreferences.getInt(key, defaultValue)
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+
     return object : MutableState<Int> {
         override var value: Int
             get() = state.value
@@ -286,6 +310,18 @@ fun rememberStringPreference(
     val state = remember { mutableStateOf(currentValue) }
     LaunchedEffect(currentValue) {
         state.value = currentValue
+    }
+
+    androidx.compose.runtime.DisposableEffect(prefs, key) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
+            if (changedKey == key) {
+                state.value = sharedPreferences.getString(key, defaultValue) ?: defaultValue
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
     }
 
     return object : MutableState<String> {

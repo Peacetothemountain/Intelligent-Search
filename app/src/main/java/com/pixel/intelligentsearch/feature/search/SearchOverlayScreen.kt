@@ -1158,11 +1158,11 @@ fun SearchOverlayScreen(
             
             val targetHeight = screenHeight - 32.dp
             val initialHeight = 56.dp
-            val currentHeight = initialHeight + (targetHeight - initialHeight) * morphProgress
+            val currentHeight = initialHeight + (targetHeight - initialHeight) * morphProgress.coerceAtMost(1f)
             
             val targetWidth = screenWidth - 32.dp
             val initialWidth = screenWidth - 64.dp
-            val currentWidth = initialWidth + (targetWidth - initialWidth) * morphProgress
+            val currentWidth = initialWidth + (targetWidth - initialWidth) * morphProgress.coerceAtMost(1f)
             
             val currentCornerRadius = 28.dp - (4.dp * morphProgress)
             val verticalPadding = (16 * morphProgress).dp

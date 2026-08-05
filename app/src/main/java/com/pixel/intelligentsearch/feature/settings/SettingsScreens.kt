@@ -429,19 +429,15 @@ fun SettingsScreensHub(
             }
 
             val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
-            val sharedMorphAnimation = remember(morphAnimationEnabled) {
-                movableContentOf {
-                    if (morphAnimationEnabled) {
-                        MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
-                    }
-                }
-            }
 
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .then(if (showTutorial) Modifier.blur(24.dp) else Modifier)
             ) {
+                if (morphAnimationEnabled) {
+                    MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+                }
                 NavHost(
                     navController = navController,
                     startDestination = startRoute,
@@ -451,10 +447,10 @@ fun SettingsScreensHub(
                     popExitTransition = { androidx.compose.animation.slideOutHorizontally(targetOffsetX = { it }) }
                 ) {
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Main> { MainSettingsScreen(prefs, onNavigate, onBack, context, exoPlayer, showTutorial) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.Appearance> { AppearanceScreen(prefs, onBack, sharedMorphAnimation) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchSources> { SearchSourcesScreen(prefs, onNavigate, onBack, sharedMorphAnimation) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior> { SearchBehaviorScreen(prefs, onBack, sharedMorphAnimation) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal> { LaunchPortalScreen(prefs, onBack, sharedMorphAnimation) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.Appearance> { AppearanceScreen(prefs, onBack) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchSources> { SearchSourcesScreen(prefs, onNavigate, onBack) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior> { SearchBehaviorScreen(prefs, onBack) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal> { LaunchPortalScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.AppSearch> { AppSearchScreen(prefs, onNavigate, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.SearchPills> { SearchPillsScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.WebSearch> { WebSearchScreen(prefs, onBack) }
@@ -958,7 +954,7 @@ fun MainSettingsScreen(
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit, morphAnimation: @Composable () -> Unit) {
+fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     var iconPacks by remember { mutableStateOf(listOf("System Default")) }
     
@@ -966,8 +962,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit, morphAnimatio
         // Icon packs loading removed
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        morphAnimation()
+    Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -1062,10 +1057,9 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit, morphAnimatio
 // -----------------------------------------------------------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit, onBack: () -> Unit, morphAnimation: @Composable () -> Unit) {
+fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        morphAnimation()
+    Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -1609,9 +1603,8 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit, morphAnimation: @Composable () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        morphAnimation()
+fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -3530,10 +3523,9 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 // -----------------------------------------------------------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit, morphAnimation: @Composable () -> Unit) {
+fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        morphAnimation()
+    Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -3872,6 +3864,7 @@ private fun triggerCrispHapticThump(context: android.content.Context, view: andr
     } catch (e: Exception) {
     }
 }
+
 
 
 

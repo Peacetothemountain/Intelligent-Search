@@ -105,6 +105,8 @@ val LocalSettingsState = staticCompositionLocalOf<com.pixel.intelligentsearch.co
     null
 }
 
+val LocalAnimationTime = staticCompositionLocalOf<Long> { 0L }
+
 // --- State Helpers ---
 @SuppressLint("UnrememberedMutableState")
 @Composable
@@ -349,9 +351,16 @@ fun SettingsScreensHub(
 ) {
     val viewModel: SettingsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     val settingsState by viewModel.settingsState.collectAsStateWithLifecycle()
+    
+    val animationTime by androidx.compose.runtime.produceState(0L) {
+        while (true) {
+            androidx.compose.runtime.withFrameMillis { value = it }
+        }
+    }
     CompositionLocalProvider(
         LocalSettingsViewModel provides viewModel,
-        LocalSettingsState provides settingsState
+        LocalSettingsState provides settingsState,
+        LocalAnimationTime provides animationTime
     ) {
         val navController = androidx.navigation.compose.rememberNavController()
         
@@ -435,9 +444,7 @@ fun SettingsScreensHub(
                     .fillMaxSize()
                     .then(if (showTutorial) Modifier.blur(24.dp) else Modifier)
             ) {
-                if (morphAnimationEnabled) {
-                    MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
-                }
+                
                 NavHost(
                     navController = navController,
                     startDestination = startRoute,
@@ -962,7 +969,11 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         // Icon packs loading removed
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
+        if (morphAnimationEnabled) {
+            MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+        }
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -1059,7 +1070,11 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 @Composable
 fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
+        if (morphAnimationEnabled) {
+            MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+        }
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -1604,7 +1619,11 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
+        if (morphAnimationEnabled) {
+            MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+        }
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -3525,7 +3544,11 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 @Composable
 fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
+        if (morphAnimationEnabled) {
+            MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+        }
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -3785,6 +3808,7 @@ private fun BouncingMaterialShape(
     val squishY = remember { Animatable(1f) }
     val rotation = remember { Animatable(0f) }
     val alpha = remember { Animatable(0f) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
     LaunchedEffect(Unit) {
         launch { rotation.animateTo(360f, infiniteRepeatable(tween(8000 + startDelayMillis.toInt(), easing = LinearEasing), RepeatMode.Restart)) }
@@ -3793,7 +3817,9 @@ private fun BouncingMaterialShape(
         
         var currentIndex = 0
         while (true) {
-            triggerCrispHapticThump(context, view)
+            if (lifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                triggerCrispHapticThump(context, view)
+            }
 
             launch {
                 squishY.snapTo(0.4f)

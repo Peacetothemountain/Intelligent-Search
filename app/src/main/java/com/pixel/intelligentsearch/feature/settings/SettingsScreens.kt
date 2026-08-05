@@ -992,9 +992,6 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
-        if (morphAnimationEnabled) {
-            MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
-        }
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -1010,10 +1007,14 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
             SettingsCard {
                 var enableSearchOverlay by rememberBooleanPreference(prefs, "search_overlay_enabled", true) { updateWidgets(context) }
                 SettingsRowToggle(
@@ -1079,6 +1080,19 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 )
             }
             
+        
+            }
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f) 
+                    .clipToBounds() 
+            ) {
+                if (morphAnimationEnabled) {
+                    MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+                }
+            }
         }
     }
 }
@@ -1093,9 +1107,6 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
     val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
-        if (morphAnimationEnabled) {
-            MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
-        }
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -1111,10 +1122,14 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
             SettingsCard {
                 var searchApps by rememberBooleanPreference(prefs, "search.apps", false)
                 SettingsRowToggle(
@@ -1243,6 +1258,19 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                     },
                     showDivider = false
                 )
+            }
+        
+            }
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f) 
+                    .clipToBounds() 
+            ) {
+                if (morphAnimationEnabled) {
+                    MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+                }
             }
         }
     }
@@ -1642,9 +1670,6 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
-        if (morphAnimationEnabled) {
-            MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
-        }
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -1657,9 +1682,17 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         }
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
             SettingsCard {
                 var bottomSearch by rememberBooleanPreference(prefs, "settings.bottom.search", true)
                 SettingsRowToggle(
@@ -1706,6 +1739,19 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onCheckedChange = { smartClipboard = it },
                     showDivider = false
                 )
+            }
+        
+            }
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f) 
+                    .clipToBounds() 
+            ) {
+                if (morphAnimationEnabled) {
+                    MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+                }
             }
         }
     }
@@ -3567,9 +3613,6 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
-        if (morphAnimationEnabled) {
-            MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
-        }
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -3585,10 +3628,14 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
             SettingsCard {
                 SettingsRow(
                     title = "Search Tile",
@@ -3651,6 +3698,19 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     },
                     showDivider = false
                 )
+            }
+        
+            }
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f) 
+                    .clipToBounds() 
+            ) {
+                if (morphAnimationEnabled) {
+                    MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+                }
             }
         }
     }

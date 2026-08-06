@@ -2379,7 +2379,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         androidx.compose.ui.graphics.Brush.linearGradient(listOf(previewRimColorAlpha, previewRimColorAlpha))
                     }
                     
-                    val previewPillColorAlpha = androidx.compose.ui.graphics.Color(0xFF121212).copy(alpha = alphaInt)
+                    val previewPillColorAlpha = androidx.compose.ui.graphics.Color(0xFF121212)
                     
                     Row(
                         modifier = Modifier

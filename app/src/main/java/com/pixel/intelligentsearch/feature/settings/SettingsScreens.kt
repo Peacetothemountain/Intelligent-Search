@@ -2413,7 +2413,16 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         androidx.compose.ui.graphics.Brush.linearGradient(listOf(previewRimColorAlpha, previewRimColorAlpha))
                     }
                     
-                    val previewPillColorAlpha = androidx.compose.ui.graphics.Color(0xFF121212)
+                    val previewPillColorAlpha = if (previewIsMaterialYou) {
+                        androidx.compose.ui.graphics.Color(0xFF121212).copy(alpha = alphaInt)
+                    } else {
+                        when (localSubtheme) {
+                            "Light" -> androidx.compose.ui.graphics.Color.White.copy(alpha = alphaInt)
+                            "Dark" -> androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = alphaInt)
+                            "Custom" -> accentColor.copy(alpha = alphaInt)
+                            else -> if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = alphaInt) else androidx.compose.ui.graphics.Color.White.copy(alpha = alphaInt)
+                        }
+                    }
                     
                     Row(
                         modifier = Modifier

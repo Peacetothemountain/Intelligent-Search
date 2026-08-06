@@ -1153,7 +1153,9 @@ fun SearchOverlayScreen(
         }
 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-            AnimatedMatrixBackground()
+            if (prefs.getBoolean("matrix_animation_enabled", false)) {
+                AnimatedMatrixBackground()
+            }
             
             val surfaceAlpha = if (settingsState.showWallpaper) ((100 - settingsState.backgroundTransparency) / 100f).coerceIn(0f, 1f) else 1f
             

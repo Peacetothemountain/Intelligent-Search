@@ -1130,11 +1130,21 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     showDivider = true
                 )
 
-                var morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
+                var matrixAnimationEnabled by rememberBooleanPreference(prefs, "matrix_animation_enabled", false) {}
                 SettingsRowToggle(
                     title = "Enable Matrix Animation on Search Overlay Page",
                     subtitle = "(Enable Search Overpay Page Animation.)",
                     icon = Icons.Default.AutoAwesome,
+                    isChecked = matrixAnimationEnabled,
+                    onCheckedChange = { matrixAnimationEnabled = it },
+                    showDivider = true
+                )
+
+                var morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
+                SettingsRowToggle(
+                    title = "Enable Material Morph Animation",
+                    subtitle = "(Enable Material Expressive Boucing Shapes.)",
+                    icon = Icons.Default.Animation,
                     isChecked = morphAnimationEnabled,
                     onCheckedChange = { morphAnimationEnabled = it },
                     showDivider = true

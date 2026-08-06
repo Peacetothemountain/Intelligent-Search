@@ -2698,8 +2698,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     ),
                                     shape = RoundedCornerShape(8.dp)
                                 )) {
-                                    Slider(
-                                        value = localHue,
+                                    Android17Slider(
+                            showTrack = false,
+                            value = localHue,
                                         onValueChange = { 
                                             localHue = it 
                                             localCustomColorInt = android.graphics.Color.HSVToColor(floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
@@ -2732,8 +2733,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     ),
                                     shape = RoundedCornerShape(8.dp)
                                 )) {
-                                    Slider(
-                                        value = localSaturation,
+                                    Android17Slider(
+                            showTrack = false,
+                            value = localSaturation,
                                         onValueChange = { 
                                             localSaturation = it 
                                             localCustomColorInt = android.graphics.Color.HSVToColor(floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
@@ -4057,6 +4059,7 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
         }
     }
 }
+
 
 
 

@@ -3787,8 +3787,6 @@ class MorphAnimationEngine(val coroutineScope: CoroutineScope) {
     val shapePool = generate40MaterialShapes()
 
     val bouncers = List(4) { BouncerState(it, this) }
-
-    val hapticEventFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 4)
 }
 
 class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
@@ -3847,16 +3845,19 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
             x = boundsWidth * listOf(0.15f, 0.40f, 0.65f, 0.85f)[index % 4]
             if (index % 2 == 0) {
                 y = boundsHeight - sizePx
-                vy = -(1500f + Math.random().toFloat() * 1000f)
+                // Scale velocity by height so it always stays visibly on screen and never shoots too high
+                vy = -(boundsHeight * 1.5f + Math.random().toFloat() * boundsHeight * 0.3f)
             } else {
                 y = boundsHeight * 0.2f
                 vy = 0f
             }
-            vx = (if (Math.random() > 0.5) 1f else -1f) * (200f + Math.random().toFloat() * 400f)
+            // Scale horizontal velocity to screen width so it travels organically left/right
+            vx = (if (Math.random() > 0.5) 1f else -1f) * (boundsWidth * 0.2f + Math.random().toFloat() * boundsWidth * 0.4f)
             
             launch { alpha.animateTo(1f, tween(300)) }
 
-            val gravity = 3500f 
+            // Scale gravity with screen height to keep the arc looking correct regardless of the bounds
+            val gravity = boundsHeight * 1.5f 
             val restitution = 0.82f // realistic bouncy ball
             val wallRestitution = 0.85f
             
@@ -3881,23 +3882,24 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
                 x += vx * safeDt
                 y += vy * safeDt
                 
-                var bounced = false
                 var touchingGround = false
                 
                 val maxY = boundsHeight - sizePx
+                val minY = sizePx // ceiling
                 if (y >= maxY) {
                     y = maxY
                     touchingGround = true
                     if (vy > 0) {
                         vy = -vy * restitution
-                        // Prevent micro-vibrations going infinitely (Zeno's paradox for physics engines), 
-                        // but do not artificially stop if it's visually bounding. 
-                        // If it's incredibly tiny, just zero it out naturally.
+                        // Prevent micro-vibrations going infinitely (Zeno's paradox for physics engines)
                         if (kotlin.math.abs(vy) < 15f) {
                             vy = 0f
-                        } else {
-                            bounced = true
                         }
+                    }
+                } else if (y <= minY) {
+                    y = minY
+                    if (vy < 0) {
+                        vy = -vy * restitution
                     }
                 }
                 
@@ -3907,13 +3909,11 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
                     x = minX
                     if (vx < 0) {
                         vx = -vx * wallRestitution
-                        bounced = true
                     }
                 } else if (x >= maxX) {
                     x = maxX
                     if (vx > 0) {
                         vx = -vx * wallRestitution
-                        bounced = true
                     }
                 }
                 
@@ -3929,10 +3929,6 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
                         if (vx > 0) vx = 0f
                     }
                 }
-                
-                if (bounced) {
-                    engine.hapticEventFlow.tryEmit(Unit)
-                }
             }
         }
     }
@@ -3944,14 +3940,6 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
     val view = LocalView.current
-
-    LaunchedEffect(engine, lifecycleOwner) {
-        engine.hapticEventFlow.collect {
-            if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-                triggerCrispHapticThump(context, view)
-            }
-        }
-    }
 
     BoxWithConstraints(modifier = modifier) {
         val width = constraints.maxWidth.toFloat()
@@ -3988,24 +3976,7 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     }
 }
 
-private fun triggerCrispHapticThump(context: Context, view: android.view.View) {
-    try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-            if (vibratorManager.defaultVibrator.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_THUD)) {
-                vibratorManager.defaultVibrator.vibrate(
-                    VibrationEffect.startComposition().addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.45f).compose()
-                )
-                return
-            }
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            view.performHapticFeedback(android.view.HapticFeedbackConstants.GESTURE_END)
-        } else {
-            view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-        }
-    } catch (e: Exception) { }
-}
+
 
 
 

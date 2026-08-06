@@ -56,7 +56,7 @@ import androidx.compose.ui.graphics.ShaderBrush
 import android.annotation.SuppressLint
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.animation.AnimatedVisibility
 
 
@@ -465,7 +465,7 @@ fun SettingsScreensHub(
     onBackToLauncher: () -> Unit,
     context: Context
 ) {
-    val viewModel: SettingsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    val viewModel: SettingsViewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel()
     val settingsState by viewModel.settingsState.collectAsStateWithLifecycle()
     
     val animationTime by androidx.compose.runtime.produceState(0L) {

@@ -118,11 +118,11 @@ class SearchWidgetProvider : AppWidgetProvider() {
             android.graphics.Color.TRANSPARENT
         }
 
-        val isBarBlack = isMaterialYou && subthemeStr == "Custom" && (actualCustomColor and 0xFFFFFF) == 0x000000
+
 
         // Inner pill: Material Black for Material You, System Design uses specific colors based on subtheme
         val pillColor = if (isMaterialYou) {
-            if (isBarBlack) 0xFFFFFFFF.toInt() else 0xFF000000.toInt()
+            0xFF303134.toInt()
         } else {
             when (subthemeStr) {
                 "Light" -> 0xFFFFFFFF.toInt()
@@ -171,11 +171,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 }
             }
             else -> {
-                if (subthemeStr == "Custom") {
-                    customIconTint
-                } else {
-                    if (isDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
-                }
+                android.graphics.Color.WHITE
             }
         }
         
@@ -234,16 +230,9 @@ class SearchWidgetProvider : AppWidgetProvider() {
                     views.setInt(R.id.widget_sound_icon, "setColorFilter", iconTint)
                 } else {
                     views.setInt(R.id.widget_g_logo, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                    // If bar is black, override standard tinting and make icons black so they are visible on the white pill
-                    if (isBarBlack) {
-                        views.setInt(R.id.widget_voice_search, "setColorFilter", android.graphics.Color.BLACK)
-                        views.setInt(R.id.widget_lens_search, "setColorFilter", android.graphics.Color.BLACK)
-                        views.setInt(R.id.widget_sound_icon, "setColorFilter", android.graphics.Color.BLACK)
-                    } else {
-                        views.setInt(R.id.widget_voice_search, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                        views.setInt(R.id.widget_lens_search, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                        views.setInt(R.id.widget_sound_icon, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                    }
+                    views.setInt(R.id.widget_voice_search, "setColorFilter", android.graphics.Color.TRANSPARENT)
+                    views.setInt(R.id.widget_lens_search, "setColorFilter", android.graphics.Color.TRANSPARENT)
+                    views.setInt(R.id.widget_sound_icon, "setColorFilter", android.graphics.Color.TRANSPARENT)
                 }
 
             } else {

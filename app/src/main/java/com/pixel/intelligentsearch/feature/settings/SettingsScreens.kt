@@ -2242,11 +2242,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localActionIcon by remember { mutableStateOf(prefs.getString("widget_action_icon", "Search") ?: "Search") }
     var localShortcut by remember { mutableStateOf(prefs.getString("widget_shortcut", "Google Lens") ?: "Google Lens") }
 
+    var isInitialSetup by remember { mutableStateOf(true) }
+
     LaunchedEffect(
         localShowGIcon, localShowDoodle, localThemeStyle, localSubtheme,
         localMaterialGIconTheme, localHue, localSaturation, localLightness, localOpacity,
         localShowVoice, localActionIcon, localShortcut, localCustomColorInt
     ) {
+        if (isInitialSetup) {
+            isInitialSetup = false
+            return@LaunchedEffect
+        }
         prefs.edit()
             .putBoolean("widget_show_g_icon", localShowGIcon)
             .putBoolean("widget_show_doodle", localShowDoodle)
@@ -2268,6 +2274,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
                 title = { Text("Widget Customization", style = MaterialTheme.typography.titleLarge) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
@@ -2707,13 +2714,13 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         // Hue
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.Palette, contentDescription = "Hue", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+                            Icon(Icons.Default.Palette, contentDescription = "Hue", tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Hue", fontSize = 16.sp)
+                                    Text("Hue", fontSize = 16.sp, color = androidx.compose.ui.graphics.Color.White)
                                     Spacer(modifier = Modifier.weight(1f))
-                                    Text("${localHue.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${localHue.toInt()}%", fontSize = 14.sp, color = androidx.compose.ui.graphics.Color.White)
                                 }
                                 Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
                                     brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
@@ -2747,13 +2754,13 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         
                         // Saturation
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.WaterDrop, contentDescription = "Saturation", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+                            Icon(Icons.Default.WaterDrop, contentDescription = "Saturation", tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Saturation", fontSize = 16.sp)
+                                    Text("Saturation", fontSize = 16.sp, color = androidx.compose.ui.graphics.Color.White)
                                     Spacer(modifier = Modifier.weight(1f))
-                                    Text("${localSaturation.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${localSaturation.toInt()}%", fontSize = 14.sp, color = androidx.compose.ui.graphics.Color.White)
                                 }
                                 Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
                                     brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
@@ -2782,13 +2789,13 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         
                         // Opacity
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.Contrast, contentDescription = "Opacity", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+                            Icon(Icons.Default.Contrast, contentDescription = "Opacity", tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Opacity", fontSize = 16.sp)
+                                    Text("Opacity", fontSize = 16.sp, color = androidx.compose.ui.graphics.Color.White)
                                     Spacer(modifier = Modifier.weight(1f))
-                                    Text("${localOpacity.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${localOpacity.toInt()}%", fontSize = 14.sp, color = androidx.compose.ui.graphics.Color.White)
                                 }
                                 Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
                                     brush = androidx.compose.ui.graphics.Brush.horizontalGradient(

@@ -120,11 +120,16 @@ class SearchWidgetProvider : AppWidgetProvider() {
 
         val isBarBlack = isMaterialYou && subthemeStr == "Custom" && (actualCustomColor and 0xFFFFFF) == 0x000000
 
-        // Inner pill: Material Black, unless the bar itself is perfectly black (then White)
+        // Inner pill: Material Black for Material You, System Design uses specific colors based on subtheme
         val pillColor = if (isMaterialYou) {
             if (isBarBlack) 0xFFFFFFFF.toInt() else 0xFF000000.toInt()
         } else {
-            if (isDark) 0xFF303134.toInt() else 0xFFFFFFFF.toInt()
+            when (subthemeStr) {
+                "Light" -> 0xFFFFFFFF.toInt()
+                "Dark" -> 0xFF303134.toInt()
+                "Custom" -> actualCustomColor
+                else -> if (isDark) 0xFF303134.toInt() else 0xFFFFFFFF.toInt()
+            }
         }
 
         // Circle button: slightly lighter than pill

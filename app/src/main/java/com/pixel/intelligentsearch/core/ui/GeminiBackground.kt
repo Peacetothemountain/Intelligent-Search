@@ -132,7 +132,7 @@ private const val APP_WIDE_STARDUST_SHADER = """
         
         // PERFORMANCE BOOST: 16-bit half precision calculation for Android 17 GPU speeds
         half finalAlpha = half(ambientWave + (stardust * stardustMask * 0.8));
-        finalAlpha = clamp(finalAlpha, 0.0h, 1.0h);
+        finalAlpha = clamp(finalAlpha, 0.0, 1.0);
         
         return half4(targetColor.rgb, targetColor.a * finalAlpha);
     }
@@ -224,4 +224,5 @@ fun GeminiAppBackgroundContainer(
         content()
     }
 }
+
 

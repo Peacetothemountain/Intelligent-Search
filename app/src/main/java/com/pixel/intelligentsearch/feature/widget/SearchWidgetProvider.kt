@@ -122,7 +122,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
 
         // Inner pill: Material Black for Material You, System Design uses specific colors based on subtheme
         val pillColor = if (isMaterialYou) {
-            0xFF1F1F1F.toInt()
+            0xFF121212.toInt()
         } else {
             when (subthemeStr) {
                 "Light" -> 0xFFFFFFFF.toInt()

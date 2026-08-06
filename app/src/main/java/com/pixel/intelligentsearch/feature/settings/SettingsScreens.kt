@@ -2404,7 +2404,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
                     
                     val previewPillColorAlpha = if (previewIsMaterialYou) {
-                        androidx.compose.ui.graphics.Color(0xFF1F1F1F).copy(alpha = alphaInt)
+                        androidx.compose.ui.graphics.Color(0xFF121212).copy(alpha = alphaInt)
                     } else {
                         when (localSubtheme) {
                             "Light" -> androidx.compose.ui.graphics.Color.White.copy(alpha = alphaInt)

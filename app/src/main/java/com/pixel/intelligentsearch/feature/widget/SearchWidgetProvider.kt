@@ -104,14 +104,14 @@ class SearchWidgetProvider : AppWidgetProvider() {
             prefs.getInt("widget_custom_lightness", 100) / 100f
         )))
         
-        val actualCustomColor = customColorInt  // Outer accent rim: system_accent2 (secondary tonal, matches wallpaper teal/color)
+        val actualCustomColor = customColorInt  // Outer accent rim: system_accent1 (primary tonal)
         val rimColor = if (isMaterialYou) {
             if (subthemeStr == "Custom") {
                 actualCustomColor
             } else {
                 context.getColor(
-                    if (isDark) android.R.color.system_accent2_700
-                    else android.R.color.system_accent2_200
+                    if (isDark) android.R.color.system_accent1_800
+                    else android.R.color.system_accent1_200
                 )
             }
         } else {

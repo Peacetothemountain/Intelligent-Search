@@ -34,7 +34,7 @@ fun Modifier.bouncyClickable(
         label = "bouncy_click"
     )
 
-    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val view = androidx.compose.ui.platform.LocalView.current
 
     this
         .graphicsLayer {
@@ -49,11 +49,11 @@ fun Modifier.bouncyClickable(
                 bounded = true
             ),
             onLongClick = onLongClick?.let { {
-                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
                 it()
             } },
             onClick = {
-                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 onClick()
             }
         )

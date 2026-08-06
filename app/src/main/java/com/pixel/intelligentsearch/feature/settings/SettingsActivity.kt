@@ -34,22 +34,35 @@ class SettingsActivity : AppCompatActivity() {
                 else -> isSystemInDarkTheme()
             }
 
+            val appTheme = when (themeMode) {
+                "Material Dark", "Material Light" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.MATERIAL
+                "Dark mode", "Dark" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.DARK
+                "Light mode", "Light" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.LIGHT
+                else -> com.pixel.intelligentsearch.core.ui.AppColorTheme.SYSTEM
+            }
+
             IntelligentSearchTheme(darkTheme = darkTheme) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                com.pixel.intelligentsearch.core.ui.GeminiAppBackgroundContainer(
+                    appDesign = com.pixel.intelligentsearch.core.ui.AppDesignTheme.SYSTEM,
+                    appTheme = appTheme,
+                    customColor = null
                 ) {
-                    val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-                    androidx.compose.runtime.CompositionLocalProvider(
-                        com.pixel.intelligentsearch.feature.settings.LocalSettingsViewModel provides settingsViewModel,
-                        com.pixel.intelligentsearch.feature.settings.LocalSettingsState provides settingsState
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = androidx.compose.ui.graphics.Color.Transparent
                     ) {
-                        SettingsScreensHub(
-                            initialScreen = screen,
-                            prefs = prefs,
-                            onBackToLauncher = { finish() },
-                            context = this@SettingsActivity
-                        )
+                        val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+                        androidx.compose.runtime.CompositionLocalProvider(
+                            com.pixel.intelligentsearch.feature.settings.LocalSettingsViewModel provides settingsViewModel,
+                            com.pixel.intelligentsearch.feature.settings.LocalSettingsState provides settingsState
+                        ) {
+                            SettingsScreensHub(
+                                initialScreen = screen,
+                                prefs = prefs,
+                                onBackToLauncher = { finish() },
+                                context = this@SettingsActivity
+                            )
+                        }
                     }
                 }
             }

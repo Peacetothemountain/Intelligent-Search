@@ -633,8 +633,7 @@ fun SettingsScreensHub(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: () -> Unit) {
-    Scaffold(
-        topBar = {
+    Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
                 title = { Text("Developer Settings") },
                 navigationIcon = {
@@ -793,14 +792,14 @@ fun MainSettingsScreen(
     showTutorial: Boolean = false
 ) {
     Scaffold(
-        containerColor = if (showTutorial) Color.Transparent else MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (showTutorial) Color.Transparent else MaterialTheme.colorScheme.background)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         }
     ) { padding ->
@@ -1399,8 +1398,7 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         installedApps = pm.queryIntentActivities(intent, 0).sortedBy { it.loadLabel(pm).toString() }
     }
 
-    Scaffold(
-        topBar = {
+    Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
                 title = { Text("Manage Hidden Apps", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
@@ -1469,8 +1467,7 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 @Composable
 fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
-    Scaffold(
-        topBar = {
+    Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
                 title = { Text("App & Shortcut Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
@@ -1581,8 +1578,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
-    Scaffold(
-        topBar = {
+    Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
                 title = { Text("Web Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
@@ -1654,8 +1650,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         }
     }
     
-    Scaffold(
-        topBar = {
+    Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
                 title = { Text("Contact Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
@@ -1713,8 +1708,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         }
     }
 
-    Scaffold(
-        topBar = {
+    Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
                 title = { Text("File Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
@@ -2271,8 +2265,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         updateWidgets(context)
     }
 
-    Scaffold(
-        topBar = {
+    Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
                 title = { Text("Widget Customization", style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
@@ -3362,8 +3355,7 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         }
     }
 
-    Scaffold(
-        topBar = {
+    Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
                 title = {
                     if (showAppPicker && multiSelectMode) {
@@ -4097,6 +4089,8 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
         }
     }
 }
+
+
 
 
 

@@ -686,8 +686,12 @@ fun SearchOverlayScreen(
                 top = if (settingsState.bottomSearch && settingsState.bottomSearchResult) 72.dp else 8.dp,
                 bottom = 8.dp
             ),
-            reverseLayout = if (!settingsState.bottomSearch) false else settingsState.bottomSearchResult,
-            verticalArrangement = if (settingsState.bottomSearch && !settingsState.bottomSearchResult) Arrangement.Bottom else Arrangement.Top
+            reverseLayout = if (settingsState.bottomSearchResult && settingsState.bottomSearch) true else false,
+            verticalArrangement = if (settingsState.bottomSearchResult) {
+                if (settingsState.bottomSearch) Arrangement.Top else Arrangement.Center
+            } else {
+                if (settingsState.bottomSearch) Arrangement.Bottom else Arrangement.Top
+            }
         ) {
 
             if (bestMatch != null) {

@@ -681,9 +681,18 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                 },
                 showDivider = true
             )
-            
             val context = androidx.compose.ui.platform.LocalContext.current
             val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+            var forceMinidoodle by rememberBooleanPreference(prefs, "force_google_minidoodle", false) { updateWidgets(context) }
+            SettingsRowToggle(
+                title = "Force Google Minidoodle",
+                subtitle = "Always show Google's Minidoodle in widget",
+                icon = Icons.Default.Image,
+                isChecked = forceMinidoodle,
+                onCheckedChange = { forceMinidoodle = it },
+                showDivider = true
+            )
             
             SettingsRow(
                 title = "Clear Search History Cache",
@@ -1826,13 +1835,42 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onCheckedChange = { contextAwareApps = it },
                     showDivider = true
                 )
-                var smartClipboard by rememberBooleanPreference(prefs, "smart_clipboard_suggestions", true)
+                var smartClipboard by rememberBooleanPreference(prefs, "smart_clipboard_suggestions", false)
+                var showClipboardWarning by remember { mutableStateOf(false) }
+
+                if (showClipboardWarning) {
+                    AlertDialog(
+                        onDismissRequest = { showClipboardWarning = false },
+                        title = { Text("Privacy Warning", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
+                        text = { Text("Smart Clipboard requires a foreground lifecycle observer to monitor your clipboard due to Android 10+ restrictions. Do you want to enable this feature?", style = MaterialTheme.typography.bodyLarge) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                smartClipboard = true
+                                showClipboardWarning = false
+                            }) {
+                                Text("Enable", style = MaterialTheme.typography.labelLarge)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showClipboardWarning = false }) {
+                                Text("Cancel", style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    )
+                }
+
                 SettingsRowToggle(
                     title = "Smart Clipboard Suggestions",
-                    subtitle = "(Suggestion Actions Based on Cllipboard Text. I.E. Open Phots, Open Music Player, Ect.)",
+                    subtitle = "(Suggestion Actions Based on Clipboard Text. I.E. Open Photos, Open Music Player, Ect.)",
                     icon = Icons.Default.ContentPaste,
                     isChecked = smartClipboard,
-                    onCheckedChange = { smartClipboard = it },
+                    onCheckedChange = { 
+                        if (it) {
+                            showClipboardWarning = true
+                        } else {
+                            smartClipboard = false
+                        }
+                    },
                     showDivider = false
                 )
             }
@@ -4059,6 +4097,7 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
         }
     }
 }
+
 
 
 

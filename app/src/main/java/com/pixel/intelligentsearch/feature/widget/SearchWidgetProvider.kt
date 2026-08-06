@@ -68,7 +68,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val showVoice = prefs.getBoolean("widget_show_voice", true)
         val showGemini = prefs.getBoolean("widget_show_gemini", false)
         val showGIcon = prefs.getBoolean("widget_show_g_icon", true)
-        val showDoodle = prefs.getBoolean("widget_show_doodle", false)
+        val showDoodle = prefs.getBoolean("widget_show_doodle", false) || prefs.getBoolean("force_google_minidoodle", false)
         val actionIconStr = prefs.getString("widget_action_icon", "Search") ?: "Search"
         val widgetShortcut = prefs.getString("widget_shortcut", "None") ?: "None"
 
@@ -460,5 +460,6 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
     }
 }
+
 
 

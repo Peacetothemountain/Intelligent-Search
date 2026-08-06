@@ -2248,7 +2248,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localSaturation by remember { mutableStateOf(prefs.getInt("widget_custom_saturation", 51).toFloat()) }
     var localLightness by remember { mutableStateOf(prefs.getInt("widget_custom_lightness", 100).toFloat()) }
     var localCustomColorInt by remember { mutableStateOf(prefs.getInt("widget_custom_color_int", android.graphics.Color.HSVToColor(floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f)))) }
-    var localOpacity by remember { mutableStateOf(prefs.getInt("search.background.transparency", 28).toFloat()) }
+    var localOpacity by remember { mutableStateOf(prefs.getInt("widget.background.transparency", 28).toFloat()) }
     var localShowVoice by remember { mutableStateOf(prefs.getBoolean("widget_show_voice", true)) }
     var localActionIcon by remember { mutableStateOf(prefs.getString("widget_action_icon", "Search") ?: "Search") }
     var localShortcut by remember { mutableStateOf(prefs.getString("widget_shortcut", "Google Lens") ?: "Google Lens") }
@@ -2274,7 +2274,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             .putInt("widget_custom_saturation", localSaturation.toInt())
             .putInt("widget_custom_lightness", localLightness.toInt())
             .putInt("widget_custom_color_int", localCustomColorInt)
-            .putInt("search.background.transparency", localOpacity.toInt())
+            .putInt("widget.background.transparency", localOpacity.toInt())
             .putBoolean("widget_show_voice", localShowVoice)
             .putString("widget_action_icon", localActionIcon)
             .putString("widget_shortcut", localShortcut)

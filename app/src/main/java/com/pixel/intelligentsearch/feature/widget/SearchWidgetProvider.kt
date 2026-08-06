@@ -136,7 +136,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val circleColor = pillColor
 
         // Apply widget transparency setting to the background colors (0 = solid, 100 = invisible)
-        val transparency = prefs.getInt("search.background.transparency", 30)
+        val transparency = prefs.getInt("widget.background.transparency", 28)
         val alphaInt = (255 * (100 - transparency) / 100).coerceIn(0, 255)
         
         // Use opaque colors for the filter to completely overwrite the grey base

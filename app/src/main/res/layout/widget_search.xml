@@ -111,7 +111,7 @@
             </LinearLayout>
         </FrameLayout>
 
-        <!-- Circle AI button -->
+        <!-- Circle Gemini button -->
         <FrameLayout
             android:id="@+id/widget_sound_search"
             android:layout_width="52dp"
@@ -134,7 +134,7 @@
                 android:layout_gravity="center"
                 android:src="@drawable/ic_search_ai_colored"
                 android:scaleType="fitCenter"
-                android:contentDescription="AI Search" />
+                android:contentDescription="Gemini Search" />
 
         </FrameLayout>
 

@@ -198,7 +198,7 @@ private fun Modifier.appWideGeminiShader(color: Color): Modifier {
 /**
  * GeminiAppBackgroundContainer
  * 
- * Instructions for Antigravity: 
+ * Instructions for Developers: 
  * Wrap the `NavHost` inside this Composable in your MainActivity. Make sure the child 
  * screens inside the NavHost use `Color.Transparent` as their background color so the 
  * flowing Stardust is visible behind them!

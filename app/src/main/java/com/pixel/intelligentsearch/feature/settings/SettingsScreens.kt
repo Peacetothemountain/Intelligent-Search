@@ -458,7 +458,7 @@ fun SettingsScreensHub(
                 }
             }
 
-            val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
+            val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
 
             Box(
                 modifier = Modifier
@@ -991,7 +991,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
+        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -1026,7 +1026,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     showDivider = true
                 )
 
-                var morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
+                var morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
                 SettingsRowToggle(
                     title = "Morph Animation",
                     subtitle = "Dynamic background animation",
@@ -1106,7 +1106,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
+        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -1669,7 +1669,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 @Composable
 fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
+        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -3612,7 +3612,7 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", true) {}
+        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
         Scaffold(
             containerColor = Color.Transparent,
         topBar = {
@@ -3822,9 +3822,8 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
     }
 
     init {
-        val startDelay = listOf(0L, 150L, 350L, 500L)[index % 4]
         engine.coroutineScope.launch {
-            rotation.animateTo(360f, infiniteRepeatable(tween(8000 + startDelay.toInt(), easing = LinearEasing)))
+            rotation.animateTo(360f, infiniteRepeatable(tween(8000, easing = LinearEasing)))
         }
         
         // Morph loop
@@ -3839,7 +3838,6 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
         }
         
         engine.coroutineScope.launch {
-            delay(startDelay)
             
             while (boundsWidth == 0f || boundsHeight == 0f) {
                 delay(16)

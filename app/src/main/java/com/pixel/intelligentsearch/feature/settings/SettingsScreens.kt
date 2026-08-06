@@ -565,10 +565,10 @@ fun SettingsScreensHub(
                 NavHost(
                     navController = navController,
                     startDestination = startRoute,
-                    enterTransition = { androidx.compose.animation.slideInHorizontally(initialOffsetX = { it }) },
-                    exitTransition = { androidx.compose.animation.slideOutHorizontally(targetOffsetX = { -it / 3 }) },
-                    popEnterTransition = { androidx.compose.animation.slideInHorizontally(initialOffsetX = { -it / 3 }) },
-                    popExitTransition = { androidx.compose.animation.slideOutHorizontally(targetOffsetX = { it }) }
+                    enterTransition = { androidx.compose.animation.slideInHorizontally(initialOffsetX = { it }) + androidx.compose.animation.fadeIn() },
+                    exitTransition = { androidx.compose.animation.slideOutHorizontally(targetOffsetX = { -it / 3 }) + androidx.compose.animation.fadeOut() },
+                    popEnterTransition = { androidx.compose.animation.slideInHorizontally(initialOffsetX = { -it / 3 }) + androidx.compose.animation.fadeIn() },
+                    popExitTransition = { androidx.compose.animation.slideOutHorizontally(targetOffsetX = { it }) + androidx.compose.animation.fadeOut() }
                 ) {
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Main> { MainSettingsScreen(prefs, onNavigate, onBack, context, exoPlayer, showTutorial) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Appearance> { AppearanceScreen(prefs, onBack) }

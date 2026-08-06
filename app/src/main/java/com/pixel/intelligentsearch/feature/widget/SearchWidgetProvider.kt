@@ -98,11 +98,13 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         val subthemeStr = prefs.getString("widget_subtheme", "System") ?: "System"
-        val customHue = prefs.getInt("widget_custom_hue", 277).toFloat()
-        val customSaturation = prefs.getInt("widget_custom_saturation", 67).toFloat()
-        val actualCustomColor = android.graphics.Color.HSVToColor(floatArrayOf(customHue, customSaturation / 100f, 1f))
-
-        // Outer accent rim: system_accent2 (secondary tonal, matches wallpaper teal/color)
+        val customColorInt = prefs.getInt("widget_custom_color_int", android.graphics.Color.HSVToColor(floatArrayOf(
+            prefs.getInt("widget_custom_hue", 277).toFloat(),
+            prefs.getInt("widget_custom_saturation", 51) / 100f,
+            prefs.getInt("widget_custom_lightness", 100) / 100f
+        )))
+        
+        val actualCustomColor = customColorInt  // Outer accent rim: system_accent2 (secondary tonal, matches wallpaper teal/color)
         val rimColor = if (isMaterialYou) {
             if (subthemeStr == "Custom") {
                 actualCustomColor
@@ -116,9 +118,11 @@ class SearchWidgetProvider : AppWidgetProvider() {
             android.graphics.Color.TRANSPARENT
         }
 
-        // Inner pill: Material Black
+        val isBarBlack = isMaterialYou && subthemeStr == "Custom" && (actualCustomColor and 0xFFFFFF) == 0x000000
+
+        // Inner pill: Material Black, unless the bar itself is perfectly black (then White)
         val pillColor = if (isMaterialYou) {
-            0xFF1A1A1A.toInt()
+            if (isBarBlack) 0xFFFFFFFF.toInt() else 0xFF000000.toInt()
         } else {
             if (isDark) 0xFF303134.toInt() else 0xFFFFFFFF.toInt()
         }
@@ -130,20 +134,18 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val transparency = prefs.getInt("search.background.transparency", 30)
         val alphaInt = (255 * (100 - transparency) / 100).coerceIn(0, 255)
         
-        val rimColorAlpha = android.graphics.Color.argb(
-            alphaInt,
+        // Use opaque colors for the filter to completely overwrite the grey base
+        val rimColorOpaque = android.graphics.Color.rgb(
             android.graphics.Color.red(rimColor),
             android.graphics.Color.green(rimColor),
             android.graphics.Color.blue(rimColor)
         )
-        val pillColorAlpha = android.graphics.Color.argb(
-            alphaInt,
+        val pillColorOpaque = android.graphics.Color.rgb(
             android.graphics.Color.red(pillColor),
             android.graphics.Color.green(pillColor),
             android.graphics.Color.blue(pillColor)
         )
-        val circleColorAlpha = android.graphics.Color.argb(
-            alphaInt,
+        val circleColorOpaque = android.graphics.Color.rgb(
             android.graphics.Color.red(circleColor),
             android.graphics.Color.green(circleColor),
             android.graphics.Color.blue(circleColor)
@@ -199,11 +201,16 @@ class SearchWidgetProvider : AppWidgetProvider() {
             val layoutId = if (isMaterialYou) R.layout.widget_search else R.layout.widget_search_colorful
             val views = RemoteViews(context.packageName, layoutId)
 
-            // Apply Material You colors with transparency
+            // Apply Material You colors with transparency using setImageAlpha
             if (isMaterialYou) {
-                views.setInt(R.id.widget_outer_background, "setColorFilter", rimColorAlpha)
-                views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorAlpha)
-                views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorAlpha)
+                views.setInt(R.id.widget_outer_background, "setColorFilter", rimColorOpaque)
+                views.setInt(R.id.widget_outer_background, "setImageAlpha", alphaInt)
+                
+                views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorOpaque)
+                views.setInt(R.id.widget_pill_background, "setImageAlpha", alphaInt)
+                
+                views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorOpaque)
+                views.setInt(R.id.widget_sound_background, "setImageAlpha", alphaInt)
                 
                 views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
                 if (showDoodle && doodleBitmap != null) {
@@ -222,17 +229,28 @@ class SearchWidgetProvider : AppWidgetProvider() {
                     views.setInt(R.id.widget_sound_icon, "setColorFilter", iconTint)
                 } else {
                     views.setInt(R.id.widget_g_logo, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                    views.setInt(R.id.widget_voice_search, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                    views.setInt(R.id.widget_lens_search, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                    views.setInt(R.id.widget_sound_icon, "setColorFilter", android.graphics.Color.TRANSPARENT)
+                    // If bar is black, override standard tinting and make icons black so they are visible on the white pill
+                    if (isBarBlack) {
+                        views.setInt(R.id.widget_voice_search, "setColorFilter", android.graphics.Color.BLACK)
+                        views.setInt(R.id.widget_lens_search, "setColorFilter", android.graphics.Color.BLACK)
+                        views.setInt(R.id.widget_sound_icon, "setColorFilter", android.graphics.Color.BLACK)
+                    } else {
+                        views.setInt(R.id.widget_voice_search, "setColorFilter", android.graphics.Color.TRANSPARENT)
+                        views.setInt(R.id.widget_lens_search, "setColorFilter", android.graphics.Color.TRANSPARENT)
+                        views.setInt(R.id.widget_sound_icon, "setColorFilter", android.graphics.Color.TRANSPARENT)
+                    }
                 }
 
             } else {
-                // In Colorful mode, do not tint the outer rim transparent drawable,
-                // but tint the pill backgrounds white/dark grey.
-                views.setInt(R.id.widget_outer_background, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorAlpha)
-                views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorAlpha)
+                // In Colorful mode, the outer rim should be completely hidden so the native grey drawable doesn't bleed through
+                // and alter the perceived brightness of the custom inner pill.
+                views.setViewVisibility(R.id.widget_outer_background, View.GONE)
+                
+                views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorOpaque)
+                views.setInt(R.id.widget_pill_background, "setImageAlpha", alphaInt)
+                
+                views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorOpaque)
+                views.setInt(R.id.widget_sound_background, "setImageAlpha", alphaInt)
                 
                 views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
                 if (showDoodle && doodleBitmap != null) {
@@ -442,4 +460,5 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
     }
 }
+
 

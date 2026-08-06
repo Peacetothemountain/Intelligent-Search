@@ -2367,12 +2367,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     } else androidx.compose.ui.graphics.Color.Transparent
                     
-                    // Override icons to Black if the bar itself is fully black
-                    val isBarBlack = previewIsMaterialYou && localSubtheme == "Custom" && (localCustomColorInt and 0xFFFFFF) == 0x000000
-                    val finalPreviewIconTint = if (isBarBlack) {
-                        androidx.compose.ui.graphics.Color.Black
-                    } else if (previewIsMaterialYou && localMaterialGIconTheme == "Material G Icon") {
+                    val finalPreviewIconTint = if (previewIsMaterialYou && localMaterialGIconTheme == "Material G Icon") {
                         androidx.compose.ui.graphics.Color.Unspecified
+                    } else if (previewIsMaterialYou) {
+                        androidx.compose.ui.graphics.Color.White
                     } else {
                         val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
                         val previewIconTint = if (!previewIsMaterialYou) {

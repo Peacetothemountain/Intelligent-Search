@@ -3861,12 +3861,14 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
                 // v = sqrt(2 * g * h) where h is the desired apex height relative to bounds
                 val targetApex = boundsHeight * (0.6f + Math.random().toFloat() * 0.3f)
                 vy = -kotlin.math.sqrt(2f * gravity * targetApex)
+                // Shoot from bottom and arc immediately
+                vx = (if (Math.random() > 0.5) 1f else -1f) * (deviceWidth * 0.1f + Math.random().toFloat() * deviceWidth * 0.15f)
             } else {
-                y = boundsHeight * 0.2f
+                y = 0f
                 vy = 0f
+                // Fall straight down initially
+                vx = 0f
             }
-            // Scale horizontal velocity organically relative to the device width
-            vx = (if (Math.random() > 0.5) 1f else -1f) * (deviceWidth * 0.1f + Math.random().toFloat() * deviceWidth * 0.15f)
             
             launch { alpha.animateTo(1f, tween(300)) }
             
@@ -3900,6 +3902,9 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
                         // Prevent micro-vibrations going infinitely (Zeno's paradox for physics engines)
                         if (kotlin.math.abs(vy) < 15f) {
                             vy = 0f
+                        } else if (vx == 0f) {
+                            // "bounces before arcing away": kick horizontal velocity on the first ground impact
+                            vx = (if (Math.random() > 0.5) 1f else -1f) * (deviceWidth * 0.08f + Math.random().toFloat() * deviceWidth * 0.12f)
                         }
                     }
                 } else if (y <= minY) {

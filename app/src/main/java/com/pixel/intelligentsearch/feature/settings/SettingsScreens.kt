@@ -3803,16 +3803,20 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
     var vy = 0f
     var boundsWidth = 0f
     var boundsHeight = 0f
+    var deviceWidth = 0f
+    var deviceHeight = 0f
     var sizePx = 0f
     var mass = 1f
     
-    fun updateBounds(width: Float, height: Float) {
+    fun updateBounds(width: Float, height: Float, dWidth: Float, dHeight: Float) {
         boundsWidth = width
         boundsHeight = height
+        deviceWidth = dWidth
+        deviceHeight = dHeight
         // "None are smaller though. Some are a medium size bigger."
         // Base is 0.04f. Multipliers: 1.0, 1.2, 1.4, 1.6
         val sizeMultiplier = 1.0f + (index % 4) * 0.2f
-        sizePx = width * 0.04f * sizeMultiplier
+        sizePx = dWidth * 0.04f * sizeMultiplier
         // Mass scales with 2D area (radius squared)
         mass = sizeMultiplier * sizeMultiplier
     }
@@ -3843,26 +3847,28 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine) {
             
             // Initial positioning
             x = boundsWidth * listOf(0.15f, 0.40f, 0.65f, 0.85f)[index % 4]
+            
+            // Physics constraints based on the real device screen size
+            val gravity = deviceHeight * 0.8f 
+            val restitution = 0.82f // realistic bouncy ball
+            val wallRestitution = 0.85f
+            val airDragCoeff = 0.8f // scales air resistance
+            val groundFrictionCoeff = 2.5f // scales friction when touching the floor
+
             if (index % 2 == 0) {
                 y = boundsHeight - sizePx
-                // Scale velocity by height so it always stays visibly on screen and never shoots too high
-                vy = -(boundsHeight * 1.5f + Math.random().toFloat() * boundsHeight * 0.3f)
+                // Cap the velocity so it reaches a height inside the bounds, but uses device physics
+                // v = sqrt(2 * g * h) where h is the desired apex height relative to bounds
+                val targetApex = boundsHeight * (0.6f + Math.random().toFloat() * 0.3f)
+                vy = -kotlin.math.sqrt(2f * gravity * targetApex)
             } else {
                 y = boundsHeight * 0.2f
                 vy = 0f
             }
-            // Scale horizontal velocity to screen width so it travels organically left/right
-            vx = (if (Math.random() > 0.5) 1f else -1f) * (boundsWidth * 0.2f + Math.random().toFloat() * boundsWidth * 0.4f)
+            // Scale horizontal velocity organically relative to the device width
+            vx = (if (Math.random() > 0.5) 1f else -1f) * (deviceWidth * 0.1f + Math.random().toFloat() * deviceWidth * 0.15f)
             
             launch { alpha.animateTo(1f, tween(300)) }
-
-            // Scale gravity with screen height to keep the arc looking correct regardless of the bounds
-            val gravity = boundsHeight * 1.5f 
-            val restitution = 0.82f // realistic bouncy ball
-            val wallRestitution = 0.85f
-            
-            val airDragCoeff = 0.8f // scales air resistance
-            val groundFrictionCoeff = 2.5f // scales friction when touching the floor
             
             var lastTime = androidx.compose.runtime.withFrameNanos { it }
             while (true) {
@@ -3941,12 +3947,17 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val view = LocalView.current
 
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val deviceWidth = configuration.screenWidthDp * density.density
+    val deviceHeight = configuration.screenHeightDp * density.density
+
     BoxWithConstraints(modifier = modifier) {
         val width = constraints.maxWidth.toFloat()
         val height = constraints.maxHeight.toFloat()
 
-        LaunchedEffect(width, height) {
-            engine.bouncers.forEach { it.updateBounds(width, height) }
+        LaunchedEffect(width, height, deviceWidth, deviceHeight) {
+            engine.bouncers.forEach { it.updateBounds(width, height, deviceWidth, deviceHeight) }
         }
 
         val baseAccentColor = MaterialTheme.colorScheme.primary

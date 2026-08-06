@@ -120,17 +120,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
 
 
 
-        // Inner pill: Material Black for Material You, System Design uses specific colors based on subtheme
-        val pillColor = if (isMaterialYou) {
-            0xFF121212.toInt()
-        } else {
-            when (subthemeStr) {
-                "Light" -> 0xFFFFFFFF.toInt()
-                "Dark" -> 0xFF303134.toInt()
-                "Custom" -> actualCustomColor
-                else -> if (isDark) 0xFF303134.toInt() else 0xFFFFFFFF.toInt()
-            }
-        }
+        val pillColor = 0xFF121212.toInt()
 
         // Circle button: slightly lighter than pill
         val circleColor = pillColor
@@ -160,19 +150,10 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val customColorLuminance = (0.299 * android.graphics.Color.red(actualCustomColor) + 0.587 * android.graphics.Color.green(actualCustomColor) + 0.114 * android.graphics.Color.blue(actualCustomColor)) / 255
         val customIconTint = if (customColorLuminance > 0.5) android.graphics.Color.BLACK else android.graphics.Color.WHITE
 
-        // Determine Icon Tint
-        val iconTint = when {
-            !isMaterialYou -> {
-                when (subthemeStr) {
-                    "Light" -> android.graphics.Color.BLACK
-                    "System" -> if (!isDark) android.graphics.Color.BLACK else android.graphics.Color.WHITE
-                    "Custom" -> customIconTint
-                    else -> android.graphics.Color.WHITE
-                }
-            }
-            else -> {
-                android.graphics.Color.WHITE
-            }
+        val iconTint = if (isMaterialYou && materialGIconTheme == "Material G Icon") {
+            android.graphics.Color.TRANSPARENT // Managed by drawable
+        } else {
+            android.graphics.Color.WHITE
         }
         
         // Determine Material G Icon Theme

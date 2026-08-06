@@ -2369,32 +2369,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     
                     val finalPreviewIconTint = if (previewIsMaterialYou && localMaterialGIconTheme == "Material G Icon") {
                         androidx.compose.ui.graphics.Color.Unspecified
-                    } else if (previewIsMaterialYou) {
-                        androidx.compose.ui.graphics.Color.White
                     } else {
-                        val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
-                        val previewIconTint = if (!previewIsMaterialYou) {
-                            // System Design
-                            when (localSubtheme) {
-                                "System" -> MaterialTheme.colorScheme.onSurfaceVariant // Material 3 Color
-                                "Dark" -> androidx.compose.ui.graphics.Color.White
-                                "Light" -> androidx.compose.ui.graphics.Color(0xFF5F6368)
-                                "Custom" -> {
-                                    val luminance = (0.299 * accentColor.red + 0.587 * accentColor.green + 0.114 * accentColor.blue)
-                                    if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
-                                }
-                                else -> if (isSystemDark) androidx.compose.ui.graphics.Color(0xFF9AA0A6) else androidx.compose.ui.graphics.Color(0xFF5F6368)
-                            }
-                        } else {
-                            // Material Design
-                            when (localMaterialGIconTheme) {
-                                "System G Icon" -> androidx.compose.ui.graphics.Color.White
-                                "Material G Icon" -> MaterialTheme.colorScheme.onSurfaceVariant // Material 3 Color
-                                "Accented G Icon" -> accentColor
-                                else -> androidx.compose.ui.graphics.Color.White
-                            }
-                        }
-                        previewIconTint
+                        androidx.compose.ui.graphics.Color.White
                     }
                     
                     val rimBrush = if (previewIsMaterialYou && localSubtheme == "Custom") {
@@ -2403,16 +2379,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         androidx.compose.ui.graphics.Brush.linearGradient(listOf(previewRimColorAlpha, previewRimColorAlpha))
                     }
                     
-                    val previewPillColorAlpha = if (previewIsMaterialYou) {
-                        androidx.compose.ui.graphics.Color(0xFF121212).copy(alpha = alphaInt)
-                    } else {
-                        when (localSubtheme) {
-                            "Light" -> androidx.compose.ui.graphics.Color.White.copy(alpha = alphaInt)
-                            "Dark" -> androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = alphaInt)
-                            "Custom" -> accentColor.copy(alpha = alphaInt)
-                            else -> if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = alphaInt) else androidx.compose.ui.graphics.Color.White.copy(alpha = alphaInt)
-                        }
-                    }
+                    val previewPillColorAlpha = androidx.compose.ui.graphics.Color(0xFF121212).copy(alpha = alphaInt)
                     
                     Row(
                         modifier = Modifier

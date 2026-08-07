@@ -1031,7 +1031,7 @@ fun SearchOverlayScreen(
             
             if (settingsState.searchContacts && filteredContacts.isNotEmpty()) {
                 item(key = "contacts_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                items(filteredContacts, key = { "contact_${it.lookupUri}" }) { contact ->
+                items(filteredContacts, key = { "contact_${it.lookupUri}_${it.phoneNumber}" }) { contact ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

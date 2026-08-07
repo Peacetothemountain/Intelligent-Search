@@ -2212,12 +2212,12 @@ private fun WidgetCustomizationCard(content: @Composable ColumnScope.() -> Unit)
             .fillMaxWidth()
             .border(
                 1.dp,
-                androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f),
+                androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                 RoundedCornerShape(24.dp)
             ),
         shape = RoundedCornerShape(24.dp),
         colors = androidx.compose.material3.CardDefaults.cardColors(
-            containerColor = androidx.compose.ui.graphics.Color(0xFF1F1F1F)
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
         ),
         elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
@@ -2360,8 +2360,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val matSecondary = MaterialTheme.colorScheme.secondary
                     val matTertiary = MaterialTheme.colorScheme.tertiary
                     val matError = MaterialTheme.colorScheme.error
+                    val matSurfaceVariant = MaterialTheme.colorScheme.surfaceVariant
 
-                    val activeColor = remember(previewIsMaterialYou, localSubtheme, localCustomColorInt, matPrimary, alphaInt) {
+                    val activeColor = remember(previewIsMaterialYou, localSubtheme, localCustomColorInt, matPrimary, matSurfaceVariant, alphaInt) {
                         if (localSubtheme == "Custom") {
                             val hsv = FloatArray(3)
                             android.graphics.Color.colorToHSV(localCustomColorInt, hsv)
@@ -2372,7 +2373,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 )
                             )
                         } else if (!previewIsMaterialYou) {
-                            androidx.compose.ui.graphics.Color(0xFFF8F9FA)
+                            matSurfaceVariant
                         } else {
                             matPrimary
                         }

@@ -1120,6 +1120,17 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
             SettingsCard {
+                var themeMode by rememberStringPreference(prefs, "night.mode", "System")
+                SettingsDropdownRow(
+                    title = "App Theme",
+                    subtitle = themeMode,
+                    icon = Icons.Default.BrightnessMedium,
+                    options = listOf("System", "Material Dark", "Material Light"),
+                    selectedOption = themeMode,
+                    onOptionSelected = { themeMode = it },
+                    showDivider = true
+                )
+
                 var enableSearchOverlay by rememberBooleanPreference(prefs, "search_overlay_enabled", true) { updateWidgets(context) }
                 SettingsRowToggle(
                     title = "Enable Search Overlay Page",

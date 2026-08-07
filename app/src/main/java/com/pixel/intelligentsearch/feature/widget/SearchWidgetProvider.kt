@@ -28,7 +28,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
             val isHidden = intent.action == "com.pixel.intelligentsearch.ACTION_HIDE_WIDGET"
             val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
             val widgetThemeStyle = prefs.getString("widget.theme.style", "System Default")
-            val isMaterialYou = true
+            val isMaterialYou = widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
             val layoutId = if (isMaterialYou) R.layout.widget_search else R.layout.widget_search_colorful
 
             for (appWidgetId in appWidgetIds) {
@@ -47,28 +47,19 @@ class SearchWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        val pendingResult = goAsync()
-        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val doodleBitmap = DoodleFetcher.fetchCurrentDoodleBitmap()
-                updateWidgetsSync(context, appWidgetManager, appWidgetIds, doodleBitmap)
-            } finally {
-                pendingResult.finish()
-            }
-        }
+        updateWidgetsSync(context, appWidgetManager, appWidgetIds)
     }
 
     private fun updateWidgetsSync(
         context: Context,
         appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray,
-        doodleBitmap: android.graphics.Bitmap?
+        appWidgetIds: IntArray
     ) {
         val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
         val showVoice = prefs.getBoolean("widget_show_voice", true)
         val showGemini = prefs.getBoolean("widget_show_gemini", false)
         val showGIcon = prefs.getBoolean("widget_show_g_icon", true)
-        val showDoodle = prefs.getBoolean("widget_show_doodle", false)
+        val showDoodle = prefs.getBoolean("widget_show_doodle", false) || prefs.getBoolean("force_google_minidoodle", false)
         val actionIconStr = prefs.getString("widget_action_icon", "Search") ?: "Search"
         val widgetShortcut = prefs.getString("widget_shortcut", "None") ?: "None"
 
@@ -81,7 +72,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
 
         // ————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
         val widgetThemeStyle = prefs.getString("widget.theme.style", "System Default")
-        val isMaterialYou = true
+        val isMaterialYou = widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
         
         val shortcutIconRes = when (widgetShortcut) {
             "Live" -> R.drawable.ic_gemini
@@ -98,56 +89,59 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         val subthemeStr = prefs.getString("widget_subtheme", "System") ?: "System"
-        val customHue = prefs.getInt("widget_custom_hue", 277).toFloat()
-        val customSaturation = prefs.getInt("widget_custom_saturation", 67).toFloat()
-        val actualCustomColor = android.graphics.Color.HSVToColor(floatArrayOf(customHue, customSaturation / 100f, 1f))
-
-        // Outer accent rim: system_accent2 (secondary tonal, matches wallpaper teal/color)
+        val customColorInt = prefs.getInt("widget_custom_color_int", android.graphics.Color.HSVToColor(floatArrayOf(
+            prefs.getInt("widget_custom_hue", 277).toFloat(),
+            prefs.getInt("widget_custom_saturation", 51) / 100f,
+            prefs.getInt("widget_custom_lightness", 100) / 100f
+        )))
+        
+        val actualCustomColor = customColorInt  // Outer accent rim: system_accent1 (primary tonal)
         val rimColor = if (isMaterialYou) {
             if (subthemeStr == "Custom") {
                 actualCustomColor
             } else {
                 context.getColor(
-                    if (isDark) android.R.color.system_accent2_700
-                    else android.R.color.system_accent2_200
+                    if (isDark) android.R.color.system_accent1_800
+                    else android.R.color.system_accent1_200
                 )
             }
         } else {
             android.graphics.Color.TRANSPARENT
         }
 
-        // Inner pill: deepest neutral surface (near-black on dark, near-white on light)
+
+
+        // Inner pill: Material Black for Material You, System Design uses specific colors based on subtheme
         val pillColor = if (isMaterialYou) {
-            context.getColor(
-                // Use a much darker neutral color instead of the bright accent color
-                if (isDark) android.R.color.system_neutral1_900
-                else android.R.color.system_neutral1_100
-            )
+            0xFF121212.toInt()
         } else {
-            if (isDark) 0xFF303134.toInt() else 0xFFFFFFFF.toInt()
+            when (subthemeStr) {
+                "Light" -> 0xFFF8F9FA.toInt()
+                "Dark" -> 0xFF303134.toInt()
+                "Custom" -> actualCustomColor
+                else -> if (isDark) 0xFF303134.toInt() else 0xFFF8F9FA.toInt()
+            }
         }
 
         // Circle button: slightly lighter than pill
         val circleColor = pillColor
 
         // Apply widget transparency setting to the background colors (0 = solid, 100 = invisible)
-        val transparency = prefs.getInt("search.background.transparency", 30)
-        val alphaInt = (255 * (100 - transparency) / 100).coerceIn(0, 255)
+        val transparency = prefs.getInt("widget.background.transparency", 28)
+        val alphaInt = if (subthemeStr == "Custom") { (255 * (100 - transparency) / 100).coerceIn(0, 255) } else { 255 }
         
-        val rimColorAlpha = android.graphics.Color.argb(
-            alphaInt,
+        // Use opaque colors for the filter to completely overwrite the grey base
+        val rimColorOpaque = android.graphics.Color.rgb(
             android.graphics.Color.red(rimColor),
             android.graphics.Color.green(rimColor),
             android.graphics.Color.blue(rimColor)
         )
-        val pillColorAlpha = android.graphics.Color.argb(
-            alphaInt,
+        val pillColorOpaque = android.graphics.Color.rgb(
             android.graphics.Color.red(pillColor),
             android.graphics.Color.green(pillColor),
             android.graphics.Color.blue(pillColor)
         )
-        val circleColorAlpha = android.graphics.Color.argb(
-            alphaInt,
+        val circleColorOpaque = android.graphics.Color.rgb(
             android.graphics.Color.red(circleColor),
             android.graphics.Color.green(circleColor),
             android.graphics.Color.blue(circleColor)
@@ -168,11 +162,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 }
             }
             else -> {
-                if (subthemeStr == "Custom") {
-                    customIconTint
-                } else {
-                    if (isDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
-                }
+                android.graphics.Color.WHITE
             }
         }
         
@@ -203,18 +193,16 @@ class SearchWidgetProvider : AppWidgetProvider() {
             val layoutId = if (isMaterialYou) R.layout.widget_search else R.layout.widget_search_colorful
             val views = RemoteViews(context.packageName, layoutId)
 
-            // Apply Material You colors with transparency
+            // Apply Material You colors with transparency using setImageAlpha
             if (isMaterialYou) {
-                views.setInt(R.id.widget_outer_background, "setColorFilter", rimColorAlpha)
-                views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorAlpha)
-                views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorAlpha)
+                views.setInt(R.id.widget_outer_background, "setColorFilter", rimColorOpaque)
+                views.setInt(R.id.widget_outer_background, "setImageAlpha", alphaInt)
                 
-                views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
-                if (showDoodle && doodleBitmap != null) {
-                    views.setImageViewBitmap(R.id.widget_g_logo, doodleBitmap)
-                } else {
-                    views.setImageViewResource(R.id.widget_g_logo, gIconRes)
-                }
+                views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorOpaque)
+                
+                views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorOpaque)
+                
+                bindDoodle(context, views, showDoodle, prefs.getBoolean("force_google_minidoodle", false), showGIcon, gIconRes, iconTint, materialGIconTheme)
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic)
                 views.setImageViewResource(R.id.widget_lens_search, shortcutIconRes)
                 views.setImageViewResource(R.id.widget_sound_icon, actionIconRes)
@@ -232,25 +220,17 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 }
 
             } else {
-                // In Colorful mode, do not tint the outer rim transparent drawable,
-                // but tint the pill backgrounds white/dark grey.
-                views.setInt(R.id.widget_outer_background, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorAlpha)
-                views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorAlpha)
+                // In Colorful mode, the outer rim should be completely hidden so the native grey drawable doesn't bleed through
+                // and alter the perceived brightness of the custom inner pill.
+                views.setViewVisibility(R.id.widget_outer_background, View.GONE)
                 
-                views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
-                if (showDoodle && doodleBitmap != null) {
-                    views.setImageViewBitmap(R.id.widget_g_logo, doodleBitmap)
-                    views.setInt(R.id.widget_g_logo, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                } else {
-                    views.setImageViewResource(R.id.widget_g_logo, gIconRes)
-                    if (materialGIconTheme == "Accented G Icon") {
-                        views.setInt(R.id.widget_g_logo, "setColorFilter", iconTint)
-                    } else {
-                        // Remove color filter if previously set
-                        views.setInt(R.id.widget_g_logo, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                    }
-                }
+                views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorOpaque)
+                views.setInt(R.id.widget_pill_background, "setImageAlpha", alphaInt)
+                
+                views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorOpaque)
+                views.setInt(R.id.widget_sound_background, "setImageAlpha", alphaInt)
+                
+                bindDoodle(context, views, showDoodle, prefs.getBoolean("force_google_minidoodle", false), showGIcon, gIconRes, iconTint, "Colorful")
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic_original)
                 views.setInt(R.id.widget_voice_search, "setColorFilter", iconTint)
                 
@@ -440,10 +420,59 @@ class SearchWidgetProvider : AppWidgetProvider() {
             return defaultIntent()
         }
 
+          private fun bindDoodle(
+            context: Context, 
+            views: RemoteViews, 
+            showDoodle: Boolean, 
+            forceRandom: Boolean, 
+            showGIcon: Boolean, 
+            gIconRes: Int, 
+            iconTint: Int,
+            materialGIconTheme: String
+        ) {
+            if (showDoodle) {
+                val holiday = com.pixel.intelligentsearch.feature.widget.doodle.DoodleManager.getCurrentHolidayDoodle(forceRandom)
+                if (holiday != null) {
+                    views.setViewVisibility(R.id.widget_g_logo, View.GONE)
+                    views.setViewVisibility(R.id.widget_doodle_container, View.VISIBLE)
+                    // Clear old doodles
+                    views.removeAllViews(R.id.widget_doodle_container)
+                    
+                    // Add the statically compiled flipper layout for this holiday
+                    val frameView = RemoteViews(context.packageName, holiday.layoutResId)
+                    views.addView(R.id.widget_doodle_container, frameView)
+                    
+                    val searchIntent = Intent(Intent.ACTION_VIEW, Uri.parse(holiday.searchUrl)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    val pendingIntent = PendingIntent.getActivity(
+                        context, 0, searchIntent, 
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+                    views.setOnClickPendingIntent(R.id.widget_doodle_container, pendingIntent)
+                    return
+                }
+            }
+            
+            // Fallback: No doodle to show
+            views.setViewVisibility(R.id.widget_doodle_container, View.GONE)
+            views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
+            views.setImageViewResource(R.id.widget_g_logo, gIconRes)
+            if (materialGIconTheme == "Accented G Icon" || materialGIconTheme == "Colorful") {
+                if (materialGIconTheme == "Accented G Icon") {
+                    views.setInt(R.id.widget_g_logo, "setColorFilter", iconTint)
+                }
+            } else {
+                views.setInt(R.id.widget_g_logo, "setColorFilter", android.graphics.Color.TRANSPARENT)
+            }
+        }
+
         fun getNowPlayingIntent(context: Context): Intent {
             return context.packageManager.getLaunchIntentForPackage("com.google.android.apps.pixel.nowplaying")
                 ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.pixel.nowplaying")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         }
     }
 }
+
+
 

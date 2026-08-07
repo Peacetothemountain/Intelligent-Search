@@ -34,7 +34,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.platform.LocalConfiguration
@@ -42,6 +42,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
@@ -687,7 +688,7 @@ fun SearchOverlayScreen(
                 bottom = 8.dp
             ),
             reverseLayout = if (!settingsState.bottomSearch) false else settingsState.bottomSearchResult,
-            verticalArrangement = if (settingsState.bottomSearch && !settingsState.bottomSearchResult) Arrangement.Bottom else Arrangement.Top
+            verticalArrangement = if (settingsState.bottomSearch) Arrangement.Bottom else Arrangement.Top
         ) {
 
             if (bestMatch != null) {
@@ -786,8 +787,12 @@ fun SearchOverlayScreen(
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(modifier = Modifier.size(40.dp).background(Color(0xFF3B3B46), RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                                    Icon(imageVector = Icons.Default.InsertDriveFile, contentDescription = null, tint = Color.White)
+                                if (settingsState.filesThumbnails) {
+                                    FileIconThumbnail(match.uri, match.mimeType)
+                                } else {
+                                    Box(modifier = Modifier.size(40.dp).background(Color(0xFF3B3B46), RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                                        Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = Color.White)
+                                    }
                                 }
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column {
@@ -828,7 +833,7 @@ fun SearchOverlayScreen(
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Text(text = recentQuery, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp, fontFamily = GoogleSansFlex)
                                 Spacer(modifier = Modifier.weight(1f))
-                                Icon(imageVector = Icons.Default.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                             }
                         }
                     )
@@ -895,7 +900,7 @@ fun SearchOverlayScreen(
                             Spacer(modifier = Modifier.width(16.dp))
                             Text(text = suggestion, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp, fontFamily = GoogleSansFlex)
                             Spacer(modifier = Modifier.weight(1f))
-                            Icon(imageVector = Icons.Default.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -1026,7 +1031,7 @@ fun SearchOverlayScreen(
             
             if (settingsState.searchContacts && filteredContacts.isNotEmpty()) {
                 item(key = "contacts_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                items(filteredContacts, key = { "contact_${it.lookupUri}" }) { contact ->
+                items(filteredContacts, key = { "contact_${it.lookupUri}_${it.phoneNumber}" }) { contact ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1072,7 +1077,7 @@ fun SearchOverlayScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(modifier = Modifier.size(40.dp).background(Color(0xFF3B3B46), RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.Default.InsertDriveFile, contentDescription = null, tint = Color.White)
+                            Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = Color.White)
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -1148,7 +1153,9 @@ fun SearchOverlayScreen(
         }
 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-            AnimatedMatrixBackground()
+            if (prefs.getBoolean("matrix_animation_enabled", false)) {
+                AnimatedMatrixBackground()
+            }
             
             val surfaceAlpha = if (settingsState.showWallpaper) ((100 - settingsState.backgroundTransparency) / 100f).coerceIn(0f, 1f) else 1f
             
@@ -1166,6 +1173,14 @@ fun SearchOverlayScreen(
             
             val currentCornerRadius = 28.dp - (4.dp * morphProgress)
             val verticalPadding = (16 * morphProgress).dp
+
+            val searchBarAlpha = morphProgress
+            val quickAppPanelAlpha = (morphProgress - 0.2f).coerceIn(0f, 0.8f) / 0.8f
+            val searchResultsAlpha = (morphProgress - 0.4f).coerceIn(0f, 0.6f) / 0.6f
+            
+            val searchBarOffset = (1f - searchBarAlpha) * 40f
+            val quickAppPanelOffset = (1f - quickAppPanelAlpha) * 40f
+            val searchResultsOffset = (1f - searchResultsAlpha) * 40f
 
             Box(
                 modifier = Modifier
@@ -1194,13 +1209,13 @@ fun SearchOverlayScreen(
                 ) {
                     if (!settingsState.bottomSearch) {
                         Spacer(modifier = Modifier.fillMaxHeight(0.2f))
-                        searchBarContent()
-                        quickAppPanelContent()
-                        Box(modifier = Modifier.weight(1f).graphicsLayer { alpha = morphProgress }) { searchResultsContent() }
+                        Box(modifier = Modifier.graphicsLayer { alpha = searchBarAlpha; translationY = searchBarOffset }) { searchBarContent() }
+                        Box(modifier = Modifier.graphicsLayer { alpha = quickAppPanelAlpha; translationY = quickAppPanelOffset }) { quickAppPanelContent() }
+                        Box(modifier = Modifier.weight(1f).graphicsLayer { alpha = searchResultsAlpha; translationY = searchResultsOffset }) { searchResultsContent() }
                     } else {
-                        Box(modifier = Modifier.weight(1f).graphicsLayer { alpha = morphProgress }) { searchResultsContent() }
-                        quickAppPanelContent()
-                        searchBarContent()
+                        Box(modifier = Modifier.weight(1f).graphicsLayer { alpha = searchResultsAlpha; translationY = -searchResultsOffset }) { searchResultsContent() }
+                        Box(modifier = Modifier.graphicsLayer { alpha = quickAppPanelAlpha; translationY = -quickAppPanelOffset }) { quickAppPanelContent() }
+                        Box(modifier = Modifier.graphicsLayer { alpha = searchBarAlpha; translationY = -searchBarOffset }) { searchBarContent() }
                     }
                 }
             }
@@ -1219,6 +1234,52 @@ fun SearchOverlayScreen(
             } // Close the Box
         }
     }
+
+@Composable
+fun FileIconThumbnail(uri: String, mimeType: String) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var bitmap by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+
+    androidx.compose.runtime.LaunchedEffect(uri) {
+        if (mimeType.startsWith("image/") || mimeType.startsWith("video/")) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val bmp = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        val parsedUri = android.net.Uri.parse(uri)
+                        val id = android.content.ContentUris.parseId(parsedUri)
+                        val specificUri = if (mimeType.startsWith("image/")) {
+                            android.content.ContentUris.withAppendedId(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+                        } else {
+                            android.content.ContentUris.withAppendedId(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
+                        }
+                        context.contentResolver.loadThumbnail(specificUri, android.util.Size(96, 96), null)
+                    } else null
+                    
+                    if (bmp != null) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            bitmap = bmp.asImageBitmap()
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Ignore, fallback to standard icon
+                }
+            }
+        }
+    }
+
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap!!,
+            contentDescription = null,
+            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+        )
+    } else {
+        Box(modifier = Modifier.size(40.dp).background(Color(0xFF3B3B46), RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+            Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = Color.White)
+        }
+    }
+}
 
 
 

@@ -25,10 +25,10 @@
         android:layout_height="match_parent"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="3dp"
-        android:paddingEnd="3dp"
-        android:paddingTop="3dp"
-        android:paddingBottom="3dp">
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp">
 
         <!-- Search pill -->
         <FrameLayout
@@ -64,6 +64,12 @@
                     android:src="@drawable/ic_g_logo"
                     android:scaleType="fitCenter"
                     android:contentDescription="Google" />
+                
+                <FrameLayout
+                    android:id="@+id/widget_doodle_container"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_gravity="center_vertical" />
 
                 <!-- Spacer -->
                 <TextView
@@ -111,7 +117,7 @@
             </LinearLayout>
         </FrameLayout>
 
-        <!-- Circle AI button -->
+        <!-- Circle Gemini button -->
         <FrameLayout
             android:id="@+id/widget_sound_search"
             android:layout_width="52dp"
@@ -134,7 +140,7 @@
                 android:layout_gravity="center"
                 android:src="@drawable/ic_search_ai_colored"
                 android:scaleType="fitCenter"
-                android:contentDescription="AI Search" />
+                android:contentDescription="Gemini Search" />
 
         </FrameLayout>
 

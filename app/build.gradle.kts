@@ -15,8 +15,8 @@ android {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
         targetSdk = 37
-        versionCode = 62
-        versionName = "5.0 Release"
+        versionCode = 64
+        versionName = "7.5"
     }
 
     signingConfigs {
@@ -118,6 +118,9 @@ dependencies {
 
   // Lottie for Animations
   implementation("com.airbnb.android:lottie-compose:6.7.1")
+
+  // Graphics Shapes for Material Morph Animations
+  implementation("androidx.graphics:graphics-shapes:1.0.1")
 }
 
 

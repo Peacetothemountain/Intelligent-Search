@@ -31,8 +31,13 @@
         <package android:name="com.google.android.apps.pixel.nowplaying" />
     </queries>
 
-    <!-- Application level uses the primary launcher icon -->
-    <application android:allowBackup="true" android:fullBackupContent="true" android:name=".App"
+    <application
+        android:name=".App"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+
+        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher"
         android:label="Intelligent Search"

@@ -53,7 +53,7 @@ fun Modifier.bouncyClickable(
                 it()
             } },
             onClick = {
-                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 onClick()
             }
         )

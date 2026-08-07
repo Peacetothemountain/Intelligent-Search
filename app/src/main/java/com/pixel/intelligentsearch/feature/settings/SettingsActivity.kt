@@ -10,7 +10,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.settings.SettingsScreensHub
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
@@ -34,25 +34,51 @@ class SettingsActivity : AppCompatActivity() {
                 else -> isSystemInDarkTheme()
             }
 
+            val appTheme = when (themeMode) {
+                "Material Dark", "Material Light" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.MATERIAL
+                "Dark mode", "Dark" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.DARK
+                "Light mode", "Light" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.LIGHT
+                else -> com.pixel.intelligentsearch.core.ui.AppColorTheme.SYSTEM
+            }
+
             IntelligentSearchTheme(darkTheme = darkTheme) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                com.pixel.intelligentsearch.core.ui.GeminiAppBackgroundContainer(
+                    appDesign = com.pixel.intelligentsearch.core.ui.AppDesignTheme.SYSTEM,
+                    appTheme = appTheme,
+                    customColor = null
                 ) {
-                    val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-                    androidx.compose.runtime.CompositionLocalProvider(
-                        com.pixel.intelligentsearch.feature.settings.LocalSettingsViewModel provides settingsViewModel,
-                        com.pixel.intelligentsearch.feature.settings.LocalSettingsState provides settingsState
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = androidx.compose.ui.graphics.Color.Transparent
                     ) {
-                        SettingsScreensHub(
-                            initialScreen = screen,
-                            prefs = prefs,
-                            onBackToLauncher = { finish() },
-                            context = this@SettingsActivity
-                        )
+                        val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+                        androidx.compose.runtime.CompositionLocalProvider(
+                            com.pixel.intelligentsearch.feature.settings.LocalSettingsViewModel provides settingsViewModel,
+                            com.pixel.intelligentsearch.feature.settings.LocalSettingsState provides settingsState
+                        ) {
+                            SettingsScreensHub(
+                                initialScreen = screen,
+                                prefs = prefs,
+                                onBackToLauncher = { finish() },
+                                context = this@SettingsActivity
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        
+        // Force widget update when leaving settings
+        val updateIntent = android.content.Intent(this, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
+            action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
+            val ids = android.appwidget.AppWidgetManager.getInstance(this@SettingsActivity)
+                .getAppWidgetIds(android.content.ComponentName(this@SettingsActivity, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java))
+            putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+        }
+        sendBroadcast(updateIntent)
     }
 }

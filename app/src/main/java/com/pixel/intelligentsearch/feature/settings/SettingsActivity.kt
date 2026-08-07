@@ -68,4 +68,17 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
     }
+
+    override fun onPause() {
+        super.onPause()
+        
+        // Force widget update when leaving settings
+        val updateIntent = android.content.Intent(this, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
+            action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
+            val ids = android.appwidget.AppWidgetManager.getInstance(this@SettingsActivity)
+                .getAppWidgetIds(android.content.ComponentName(this@SettingsActivity, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java))
+            putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+        }
+        sendBroadcast(updateIntent)
+    }
 }

@@ -1408,7 +1408,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
 // -----------------------------------------------------------------------------------------
 // MANAGE HIDDEN APPS SCREEN
 // -----------------------------------------------------------------------------------------
-data class AppItemData(val packageName: String, val label: String, val icon: android.graphics.drawable.Drawable?)
+data class AppItemData(val packageName: String, val label: String, val resolveInfo: android.content.pm.ResolveInfo)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1429,7 +1429,7 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 AppItemData(
                     packageName = it.activityInfo.packageName,
                     label = it.loadLabel(pm).toString(),
-                    icon = try { it.loadIcon(pm) } catch (e: Exception) { null }
+                    resolveInfo = it
                 )
             }.sortedBy { it.label }
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
@@ -1439,52 +1439,74 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
 
     Scaffold(containerColor = Color.Transparent, topBar = {
-            TopAppBar(
-                title = { 
-                    if (isSearching) {
+        TopAppBar(
+            title = {
+                androidx.compose.foundation.layout.Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Manage Hidden Apps", 
+                        style = MaterialTheme.typography.headlineSmall, 
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = isSearching,
+                        enter = androidx.compose.animation.expandHorizontally(expandFrom = Alignment.End) + androidx.compose.animation.fadeIn(),
+                        exit = androidx.compose.animation.shrinkHorizontally(shrinkTowards = Alignment.End) + androidx.compose.animation.fadeOut(),
+                        modifier = Modifier.weight(1f).padding(start = 8.dp)
+                    ) {
                         androidx.compose.material3.Surface(
-                              shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-                              color = MaterialTheme.colorScheme.surfaceVariant,
-                              contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                              modifier = Modifier.fillMaxWidth().padding(end = 16.dp)
-                          ) {
-                              androidx.compose.material3.TextField(
-                                  value = searchQuery,
-                                  onValueChange = { searchQuery = it },
-                                  modifier = Modifier.fillMaxWidth(),
-                                  placeholder = { Text("Search apps...") },
-                                  singleLine = true,
-                                  colors = androidx.compose.material3.TextFieldDefaults.colors(
-                                      focusedContainerColor = Color.Transparent,
-                                      unfocusedContainerColor = Color.Transparent,
-                                      focusedIndicatorColor = Color.Transparent,
-                                      unfocusedIndicatorColor = Color.Transparent
-                                  )
-                              )
-                          }
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            androidx.compose.material3.TextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("Search apps...") },
+                                singleLine = true,
+                                colors = androidx.compose.material3.TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent
+                                )
+                            )
+                        }
+                    }
+                }
+            },
+            navigationIcon = {
+                IconButton(onClick = {
+                    if (isSearching) {
+                        isSearching = false
+                        searchQuery = ""
                     } else {
-                        Text("Manage Hidden Apps", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) 
+                        onBack()
                     }
-                },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        if (isSearching) {
-                            isSearching = false
-                            searchQuery = ""
-                        } else {
-                            onBack()
-                        }
-                    }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
-                },
-                actions = {
-                    if (!isSearching) {
-                        IconButton(onClick = { isSearching = true }) {
-                            Icon(Icons.Outlined.Search, contentDescription = "Search")
-                        }
+                }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+            },
+            actions = {
+                IconButton(onClick = { 
+                    if (isSearching) {
+                        isSearching = false
+                        searchQuery = ""
+                    } else {
+                        isSearching = true 
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-            )
+                }) {
+                    Icon(if (isSearching) Icons.Outlined.Close else Icons.Outlined.Search, contentDescription = "Search")
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+        )
         }
     ) { padding ->
         Card(
@@ -1504,11 +1526,18 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 items(filteredApps.size) { index ->
                     val app = filteredApps[index]
                     val isHidden = hiddenApps.contains(app.packageName)
+                    var appIcon by remember(app.packageName) { mutableStateOf<android.graphics.drawable.Drawable?>(null) }
+                    
+                    LaunchedEffect(app.packageName) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            appIcon = app.resolveInfo.loadIcon(context.packageManager)
+                        }
+                    }
                     
                     SettingsRowToggle(
                         title = app.label,
                         subtitle = app.packageName,
-                        icon = app.icon ?: Icons.Outlined.Apps,
+                        icon = appIcon ?: Icons.Outlined.Apps,
                         isChecked = isHidden,
                         onCheckedChange = { hide ->
                             val newSet = hiddenApps.toMutableSet()

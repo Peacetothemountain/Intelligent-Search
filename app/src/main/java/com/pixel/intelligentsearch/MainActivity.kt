@@ -152,6 +152,16 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        
+        // Force widget update when leaving the home screen app
+        val updateIntent = Intent(this, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
+            action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
+            val ids = android.appwidget.AppWidgetManager.getInstance(this@MainActivity)
+                .getAppWidgetIds(android.content.ComponentName(this@MainActivity, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java))
+            putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+        }
+        sendBroadcast(updateIntent)
+        
         if (!isFinishing) {
             finish()
         }

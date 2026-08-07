@@ -202,18 +202,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 
                 views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorOpaque)
                 
-                if (showDoodle) {
-                    views.setViewVisibility(R.id.widget_g_logo, View.GONE)
-                    views.setViewVisibility(R.id.widget_doodle_flipper, View.VISIBLE)
-                    val doodleIntent = Intent(context, com.pixel.intelligentsearch.feature.widget.doodle.DoodleWidgetService::class.java).apply {
-                        data = Uri.parse(this.toUri(Intent.URI_INTENT_SCHEME))
-                    }
-                    views.setRemoteAdapter(R.id.widget_doodle_flipper, doodleIntent)
-                } else {
-                    views.setViewVisibility(R.id.widget_doodle_flipper, View.GONE)
-                    views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
-                    views.setImageViewResource(R.id.widget_g_logo, gIconRes)
-                }
+                bindDoodle(context, views, showDoodle, prefs.getBoolean("force_google_minidoodle", false), showGIcon, gIconRes, iconTint, materialGIconTheme)
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic)
                 views.setImageViewResource(R.id.widget_lens_search, shortcutIconRes)
                 views.setImageViewResource(R.id.widget_sound_icon, actionIconRes)
@@ -241,24 +230,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorOpaque)
                 views.setInt(R.id.widget_sound_background, "setImageAlpha", alphaInt)
                 
-                if (showDoodle) {
-                    views.setViewVisibility(R.id.widget_g_logo, View.GONE)
-                    views.setViewVisibility(R.id.widget_doodle_flipper, View.VISIBLE)
-                    val doodleIntent = Intent(context, com.pixel.intelligentsearch.feature.widget.doodle.DoodleWidgetService::class.java).apply {
-                        data = Uri.parse(this.toUri(Intent.URI_INTENT_SCHEME))
-                    }
-                    views.setRemoteAdapter(R.id.widget_doodle_flipper, doodleIntent)
-                } else {
-                    views.setViewVisibility(R.id.widget_doodle_flipper, View.GONE)
-                    views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
-                    views.setImageViewResource(R.id.widget_g_logo, gIconRes)
-                    if (materialGIconTheme == "Accented G Icon") {
-                        views.setInt(R.id.widget_g_logo, "setColorFilter", iconTint)
-                    } else {
-                        // Remove color filter if previously set
-                        views.setInt(R.id.widget_g_logo, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                    }
-                }
+                bindDoodle(context, views, showDoodle, prefs.getBoolean("force_google_minidoodle", false), showGIcon, gIconRes, iconTint, "Colorful")
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic_original)
                 views.setInt(R.id.widget_voice_search, "setColorFilter", iconTint)
                 
@@ -446,6 +418,53 @@ class SearchWidgetProvider : AppWidgetProvider() {
             }
             
             return defaultIntent()
+        }
+
+          private fun bindDoodle(
+            context: Context, 
+            views: RemoteViews, 
+            showDoodle: Boolean, 
+            forceRandom: Boolean, 
+            showGIcon: Boolean, 
+            gIconRes: Int, 
+            iconTint: Int,
+            materialGIconTheme: String
+        ) {
+            if (showDoodle) {
+                val holiday = com.pixel.intelligentsearch.feature.widget.doodle.DoodleManager.getCurrentHolidayDoodle(forceRandom)
+                if (holiday != null) {
+                    views.setViewVisibility(R.id.widget_g_logo, View.GONE)
+                    views.setViewVisibility(R.id.widget_doodle_container, View.VISIBLE)
+                    // Clear old doodles
+                    views.removeAllViews(R.id.widget_doodle_container)
+                    
+                    // Add the statically compiled flipper layout for this holiday
+                    val frameView = RemoteViews(context.packageName, holiday.layoutResId)
+                    views.addView(R.id.widget_doodle_container, frameView)
+                    
+                    val searchIntent = Intent(Intent.ACTION_VIEW, Uri.parse(holiday.searchUrl)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    val pendingIntent = PendingIntent.getActivity(
+                        context, 0, searchIntent, 
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+                    views.setOnClickPendingIntent(R.id.widget_doodle_container, pendingIntent)
+                    return
+                }
+            }
+            
+            // Fallback: No doodle to show
+            views.setViewVisibility(R.id.widget_doodle_container, View.GONE)
+            views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
+            views.setImageViewResource(R.id.widget_g_logo, gIconRes)
+            if (materialGIconTheme == "Accented G Icon" || materialGIconTheme == "Colorful") {
+                if (materialGIconTheme == "Accented G Icon") {
+                    views.setInt(R.id.widget_g_logo, "setColorFilter", iconTint)
+                }
+            } else {
+                views.setInt(R.id.widget_g_logo, "setColorFilter", android.graphics.Color.TRANSPARENT)
+            }
         }
 
         fun getNowPlayingIntent(context: Context): Intent {

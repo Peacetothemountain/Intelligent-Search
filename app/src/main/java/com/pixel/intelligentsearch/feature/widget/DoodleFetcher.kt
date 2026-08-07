@@ -6,10 +6,9 @@ import android.graphics.BitmapFactory
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.Calendar
+import java.util.regex.Pattern
 
 object DoodleFetcher {
 
@@ -24,42 +23,31 @@ object DoodleFetcher {
         }
 
         try {
-            val calendar = Calendar.getInstance()
-            var year = calendar.get(Calendar.YEAR)
-            var month = calendar.get(Calendar.MONTH) + 1
+            val url = URL("https://doodles.google/")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
             
-            for (i in 0..3) {
-                val url = URL("https://www.google.com/doodles/json/$year/$month")
-                val connection = url.openConnection() as HttpURLConnection
-                connection.requestMethod = "GET"
+            if (connection.responseCode == 200) {
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
                 
-                if (connection.responseCode == 200) {
-                    val response = connection.inputStream.bufferedReader().use { it.readText() }
-                    val jsonArray = JSONArray(response)
-                    
-                    if (jsonArray.length() > 0) {
-                        val latestDoodle = jsonArray.getJSONObject(0)
-                        var imageUrl = latestDoodle.getString("url")
-                        if (imageUrl.startsWith("//")) {
-                            imageUrl = "https:$imageUrl"
-                        }
-                        
-                        val imageConnection = URL(imageUrl).openConnection() as HttpURLConnection
-                        imageConnection.doInput = true
-                        imageConnection.connect()
-                        
-                        val bitmap = BitmapFactory.decodeStream(imageConnection.inputStream)
-                        cachedDoodle = bitmap
-                        lastFetchTime = System.currentTimeMillis()
-                        return@withContext bitmap
+                // Find the first image URL in the format //www.google.com/logos/doodles/...
+                val pattern = Pattern.compile("img src=\"(//www\\.google\\.com/logos/doodles/[^\"]+)\"")
+                val matcher = pattern.matcher(response)
+                
+                if (matcher.find()) {
+                    var imageUrl = matcher.group(1) ?: return@withContext cachedDoodle
+                    if (imageUrl.startsWith("//")) {
+                        imageUrl = "https:$imageUrl"
                     }
-                }
-                
-                // Go to previous month
-                month--
-                if (month == 0) {
-                    month = 12
-                    year--
+                    
+                    val imageConnection = URL(imageUrl).openConnection() as HttpURLConnection
+                    imageConnection.doInput = true
+                    imageConnection.connect()
+                    
+                    val bitmap = BitmapFactory.decodeStream(imageConnection.inputStream)
+                    cachedDoodle = bitmap
+                    lastFetchTime = System.currentTimeMillis()
+                    return@withContext bitmap
                 }
             }
         } catch (e: Exception) {

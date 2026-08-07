@@ -137,7 +137,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
 
         // Apply widget transparency setting to the background colors (0 = solid, 100 = invisible)
         val transparency = prefs.getInt("widget.background.transparency", 28)
-        val alphaInt = (255 * (100 - transparency) / 100).coerceIn(0, 255)
+        val alphaInt = if (subthemeStr == "Custom") { (255 * (100 - transparency) / 100).coerceIn(0, 255) } else { 255 }
         
         // Use opaque colors for the filter to completely overwrite the grey base
         val rimColorOpaque = android.graphics.Color.rgb(

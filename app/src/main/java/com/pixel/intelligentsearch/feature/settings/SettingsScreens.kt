@@ -1421,6 +1421,7 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var searchQuery by remember { mutableStateOf("") }
     
     LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(400)
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val pm = context.packageManager
             val intent = android.content.Intent(android.content.Intent.ACTION_MAIN, null).apply { addCategory(android.content.Intent.CATEGORY_LAUNCHER) }
@@ -1441,19 +1442,26 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             TopAppBar(
                 title = { 
                     if (isSearching) {
-                        androidx.compose.material3.TextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Search apps...") },
-                            singleLine = true,
-                            colors = androidx.compose.material3.TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            )
-                        )
+                        androidx.compose.material3.Surface(
+                              shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                              color = MaterialTheme.colorScheme.surfaceVariant,
+                              contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                              modifier = Modifier.fillMaxWidth().padding(end = 16.dp)
+                          ) {
+                              androidx.compose.material3.TextField(
+                                  value = searchQuery,
+                                  onValueChange = { searchQuery = it },
+                                  modifier = Modifier.fillMaxWidth(),
+                                  placeholder = { Text("Search apps...") },
+                                  singleLine = true,
+                                  colors = androidx.compose.material3.TextFieldDefaults.colors(
+                                      focusedContainerColor = Color.Transparent,
+                                      unfocusedContainerColor = Color.Transparent,
+                                      focusedIndicatorColor = Color.Transparent,
+                                      unfocusedIndicatorColor = Color.Transparent
+                                  )
+                              )
+                          }
                     } else {
                         Text("Manage Hidden Apps", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) 
                     }
@@ -2407,7 +2415,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             android.graphics.Color.colorToHSV(localCustomColorInt, hsv)
                             androidx.compose.ui.graphics.Color(
                                 android.graphics.Color.HSVToColor(
-                                    (alphaInt * 255).toInt(), 
+                                    255, 
                                     floatArrayOf(hsv[0], hsv[1], 1f)
                                 )
                             )
@@ -2427,9 +2435,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         if (localSubtheme == "Custom") {
                             accentColor.copy(alpha = alphaInt)
                         } else if (localSubtheme == "Material") {
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = alphaInt)
+                            MaterialTheme.colorScheme.primaryContainer
                         } else {
-                            androidx.compose.ui.graphics.Color(0xFF6C63FF).copy(alpha = alphaInt)
+                            androidx.compose.ui.graphics.Color(0xFF6C63FF)
                         }
                     } else androidx.compose.ui.graphics.Color.Transparent
                     
@@ -3421,6 +3429,7 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
     LaunchedEffect(showAppPicker) {
         if (showAppPicker && installedApps.isEmpty()) {
+
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val intent = android.content.Intent(android.content.Intent.ACTION_MAIN, null).apply {
                     addCategory(android.content.Intent.CATEGORY_LAUNCHER)

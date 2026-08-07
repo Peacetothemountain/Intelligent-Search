@@ -688,8 +688,8 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
 
             var forceMinidoodle by rememberBooleanPreference(prefs, "force_google_minidoodle", false) { updateWidgets(context) }
             SettingsRowToggle(
-                title = "Force Google Minidoodle",
-                subtitle = "Always show Google's Minidoodle in widget",
+                title = "Searchbox effects",
+                subtitle = "Show Doodles on search widget",
                 icon = Icons.Outlined.Image,
                 isChecked = forceMinidoodle,
                 onCheckedChange = { forceMinidoodle = it },

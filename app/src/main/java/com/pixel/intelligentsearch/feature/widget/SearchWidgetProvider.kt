@@ -47,22 +47,13 @@ class SearchWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        val pendingResult = goAsync()
-        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val doodleBitmap = DoodleFetcher.fetchCurrentDoodleBitmap()
-                updateWidgetsSync(context, appWidgetManager, appWidgetIds, doodleBitmap)
-            } finally {
-                pendingResult.finish()
-            }
-        }
+        updateWidgetsSync(context, appWidgetManager, appWidgetIds)
     }
 
     private fun updateWidgetsSync(
         context: Context,
         appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray,
-        doodleBitmap: android.graphics.Bitmap?
+        appWidgetIds: IntArray
     ) {
         val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
         val showVoice = prefs.getBoolean("widget_show_voice", true)
@@ -125,10 +116,10 @@ class SearchWidgetProvider : AppWidgetProvider() {
             0xFF121212.toInt()
         } else {
             when (subthemeStr) {
-                "Light" -> 0xFFFFFFFF.toInt()
+                "Light" -> 0xFFF8F9FA.toInt()
                 "Dark" -> 0xFF303134.toInt()
                 "Custom" -> actualCustomColor
-                else -> if (isDark) 0xFF303134.toInt() else 0xFFFFFFFF.toInt()
+                else -> if (isDark) 0xFF303134.toInt() else 0xFFF8F9FA.toInt()
             }
         }
 
@@ -211,10 +202,16 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 
                 views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorOpaque)
                 
-                views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
-                if (showDoodle && doodleBitmap != null) {
-                    views.setImageViewBitmap(R.id.widget_g_logo, doodleBitmap)
+                if (showDoodle) {
+                    views.setViewVisibility(R.id.widget_g_logo, View.GONE)
+                    views.setViewVisibility(R.id.widget_doodle_flipper, View.VISIBLE)
+                    val doodleIntent = Intent(context, com.pixel.intelligentsearch.feature.widget.doodle.DoodleWidgetService::class.java).apply {
+                        data = Uri.parse(this.toUri(Intent.URI_INTENT_SCHEME))
+                    }
+                    views.setRemoteAdapter(R.id.widget_doodle_flipper, doodleIntent)
                 } else {
+                    views.setViewVisibility(R.id.widget_doodle_flipper, View.GONE)
+                    views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
                     views.setImageViewResource(R.id.widget_g_logo, gIconRes)
                 }
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic)
@@ -244,11 +241,16 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorOpaque)
                 views.setInt(R.id.widget_sound_background, "setImageAlpha", alphaInt)
                 
-                views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
-                if (showDoodle && doodleBitmap != null) {
-                    views.setImageViewBitmap(R.id.widget_g_logo, doodleBitmap)
-                    views.setInt(R.id.widget_g_logo, "setColorFilter", android.graphics.Color.TRANSPARENT)
+                if (showDoodle) {
+                    views.setViewVisibility(R.id.widget_g_logo, View.GONE)
+                    views.setViewVisibility(R.id.widget_doodle_flipper, View.VISIBLE)
+                    val doodleIntent = Intent(context, com.pixel.intelligentsearch.feature.widget.doodle.DoodleWidgetService::class.java).apply {
+                        data = Uri.parse(this.toUri(Intent.URI_INTENT_SCHEME))
+                    }
+                    views.setRemoteAdapter(R.id.widget_doodle_flipper, doodleIntent)
                 } else {
+                    views.setViewVisibility(R.id.widget_doodle_flipper, View.GONE)
+                    views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
                     views.setImageViewResource(R.id.widget_g_logo, gIconRes)
                     if (materialGIconTheme == "Accented G Icon") {
                         views.setInt(R.id.widget_g_logo, "setColorFilter", iconTint)

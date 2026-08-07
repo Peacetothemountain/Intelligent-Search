@@ -64,6 +64,13 @@
                     android:src="@drawable/ic_g_logo"
                     android:scaleType="fitCenter"
                     android:contentDescription="Google" />
+                
+                <AdapterViewFlipper
+                    android:id="@+id/widget_doodle_flipper"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:autoStart="true"
+                    android:flipInterval="100" />
 
                 <!-- Spacer -->
                 <TextView

@@ -2393,7 +2393,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     .fillMaxWidth()
                     .height(180.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(androidx.compose.ui.graphics.Color(0xFF1C1B1F)),
+                    .background(MaterialTheme.colorScheme.background),
                 contentAlignment = Alignment.Center
             ) {
                     val alphaInt = (255 * (100 - localOpacity.toInt()) / 100).coerceIn(0, 255) / 255f
@@ -2481,10 +2481,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         androidx.compose.ui.graphics.Color(0xFF121212)
                     } else {
                         when (localSubtheme) {
-                            "Light" -> androidx.compose.ui.graphics.Color.White.copy(alpha = alphaInt)
-                            "Dark" -> androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = alphaInt)
+                            "Light" -> androidx.compose.ui.graphics.Color(0xFFF8F9FA)
+                            "Dark" -> androidx.compose.ui.graphics.Color(0xFF303134)
                             "Custom" -> accentColor.copy(alpha = alphaInt)
-                            else -> if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = alphaInt) else androidx.compose.ui.graphics.Color.White.copy(alpha = alphaInt)
+                            else -> if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFF303134) else androidx.compose.ui.graphics.Color(0xFFF8F9FA)
                         }
                     }
                     

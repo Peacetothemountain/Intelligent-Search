@@ -1245,8 +1245,16 @@ fun FileIconThumbnail(uri: String, mimeType: String) {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
                     val bmp = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                        context.contentResolver.loadThumbnail(android.net.Uri.parse(uri), android.util.Size(96, 96), null)
+                        val parsedUri = android.net.Uri.parse(uri)
+                        val id = android.content.ContentUris.parseId(parsedUri)
+                        val specificUri = if (mimeType.startsWith("image/")) {
+                            android.content.ContentUris.withAppendedId(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+                        } else {
+                            android.content.ContentUris.withAppendedId(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
+                        }
+                        context.contentResolver.loadThumbnail(specificUri, android.util.Size(96, 96), null)
                     } else null
+                    
                     if (bmp != null) {
                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                             bitmap = bmp.asImageBitmap()

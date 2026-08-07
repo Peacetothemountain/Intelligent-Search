@@ -819,7 +819,7 @@ fun MainSettingsScreen(
             SettingsCard {
                 SettingsRow(
                     title = "Apperence",
-                    subtitle = "(Theme, Wallpaper, Material Design layouts.)",
+                    subtitle = "Theme, Wallpaper, Material Design layouts.",
                     icon = Icons.Default.Palette,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.Appearance) },
                     showDivider = true,
@@ -827,7 +827,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Search Shortcuts",
-                    subtitle = "(Apps, Contacts, Files, Ect.)",
+                    subtitle = "Apps, Contacts, Files, Ect.",
                     icon = Icons.AutoMirrored.Filled.ManageSearch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchSources) },
                     showDivider = true,
@@ -835,7 +835,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Search Behavior",
-                    subtitle = "(Custom Search Over Display Settings.)",
+                    subtitle = "Custom Search Over Display Settings.",
                     icon = Icons.Default.Settings,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior) },
                     showDivider = true,
@@ -843,7 +843,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Widget Custimization",
-                    subtitle = "(Custimize widget colors, themes, and Actions.)",
+                    subtitle = "Custimize widget colors, themes, and Actions.",
                     icon = Icons.Default.Widgets,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization) },
                     showDivider = true,
@@ -861,7 +861,7 @@ fun MainSettingsScreen(
             SettingsCard {
                 SettingsRow(
                     title = "Default Digital Assistant",
-                    subtitle = "(Mange Android Assistant Settings.)",
+                    subtitle = "Mange Android Assistant Settings.",
                     icon = Icons.Default.Assistant,
                     onClick = {
                         val intent = Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS)
@@ -884,7 +884,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Google Activity",
-                    subtitle = "(View and mange your Google Activity.)",
+                    subtitle = "View and mange your Google Activity.",
                     icon = Icons.Default.History,
                     onClick = {
                         val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity"))
@@ -904,7 +904,7 @@ fun MainSettingsScreen(
                 }
                 SettingsRow(
                     title = "Browser History",
-                    subtitle = "(View your Chrome/Webpage History.)",
+                    subtitle = "View your Chrome/Webpage History.",
                     icon = Icons.Default.HistoryEdu,
                     onClick = {
                         val intent = when (searchEngine) {
@@ -1133,7 +1133,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var matrixAnimationEnabled by rememberBooleanPreference(prefs, "matrix_animation_enabled", false) {}
                 SettingsRowToggle(
                     title = "Enable Matrix Animation on Search Overlay Page",
-                    subtitle = "(Enable Search Overpay Page Animation.)",
+                    subtitle = "Enable Search Overpay Page Animation.",
                     icon = Icons.Default.AutoAwesome,
                     isChecked = matrixAnimationEnabled,
                     onCheckedChange = { matrixAnimationEnabled = it },
@@ -1143,7 +1143,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
                 SettingsRowToggle(
                     title = "Enable Material Morph Animation",
-                    subtitle = "(Enable Material Expressive Boucing Shapes.)",
+                    subtitle = "Enable Material Expressive Boucing Shapes.",
                     icon = Icons.Default.Animation,
                     isChecked = morphAnimationEnabled,
                     onCheckedChange = { morphAnimationEnabled = it },
@@ -1155,7 +1155,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var showWall by rememberBooleanPreference(prefs, "search.background.show.wall", true) { updateWidgets(context) }
                 SettingsRowToggle(
                     title = "Show Wallpaper",
-                    subtitle = "(Show User's wallpaper in Search Overlay Page.)",
+                    subtitle = "Show User's wallpaper in Search Overlay Page.",
                     icon = Icons.Default.Wallpaper,
                     isChecked = showWall,
                     onCheckedChange = { showWall = it },
@@ -1248,7 +1248,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 var searchApps by rememberBooleanPreference(prefs, "search.apps", false)
                 SettingsRowToggle(
                     title = "Apps",
-                    subtitle = "(Search Installed Applications.)",
+                    subtitle = "Search Installed Applications.",
                     icon = Icons.Default.Apps,
                     isChecked = searchApps,
                     onCheckedChange = { searchApps = it },
@@ -1259,7 +1259,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 var searchWeb by rememberBooleanPreference(prefs, "search.web", false)
                 SettingsRowToggle(
                     title = "Web",
-                    subtitle = "(View Search Suggestions from websites)",
+                    subtitle = "View Search Suggestions from websites",
                     icon = Icons.Default.Language,
                     isChecked = searchWeb,
                     onCheckedChange = { searchWeb = it },
@@ -1279,7 +1279,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 }
                 SettingsRowToggle(
                     title = "Contacts",
-                    subtitle = "(Search Contacts.)",
+                    subtitle = "Search Contacts.",
                     icon = Icons.Default.Contacts,
                     isChecked = searchContacts,
                     onCheckedChange = { isChecked -> 
@@ -1311,7 +1311,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 }
                 SettingsRowToggle(
                     title = "Files",
-                    subtitle = "(Search Local Files.)",
+                    subtitle = "Search Local Files.",
                     icon = Icons.Default.Folder,
                     isChecked = searchFiles,
                     onCheckedChange = { isChecked -> 
@@ -1336,7 +1336,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 var searchCalc by rememberBooleanPreference(prefs, "search.calculator", false)
                 SettingsRowToggle(
                     title = "Calculator",
-                    subtitle = "(Calculate Mathamatical Equations Inside Search Bar.)",
+                    subtitle = "Calculate Mathamatical Equations Inside Search Bar.",
                     icon = Icons.Default.Calculate,
                     isChecked = searchCalc,
                     onCheckedChange = { searchCalc = it },
@@ -1356,7 +1356,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 }
                 SettingsRowToggle(
                     title = "Calendar",
-                    subtitle = "(Show Calendar Events.)",
+                    subtitle = "Show Calendar Events.",
                     icon = Icons.Default.Event,
                     isChecked = searchCalendar,
                     onCheckedChange = { isChecked -> 
@@ -1499,14 +1499,14 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
             SettingsCard {
                 SettingsRow(
                     title = "Application Search",
-                    subtitle = "(Custimize Quick Launch Apps in the Search Overlay Screen.)",
+                    subtitle = "Custimize Quick Launch Apps in the Search Overlay Screen.",
                     icon = Icons.Default.ViewCarousel,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchPills) },
                     showDivider = true
                 )
                 SettingsRow(
                     title = "Manage Hidden Apps",
-                    subtitle = "(Search Apps to Dynamically Hide From Search.)",
+                    subtitle = "Search Apps to Dynamically Hide From Search.",
                     icon = Icons.Default.VisibilityOff,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.ManageHiddenApps) },
                     showDivider = true
@@ -1514,7 +1514,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                 var fuzzySearch by rememberBooleanPreference(prefs, "app.fuzzy.search", false)
                 SettingsRowToggle(
                     title = "Fuzzy Search",
-                    subtitle = "(Allow Typos When Searching for Apps.)",
+                    subtitle = "Allow Typos When Searching for Apps.",
                     icon = Icons.Default.Spellcheck,
                     isChecked = fuzzySearch,
                     onCheckedChange = { fuzzySearch = it },
@@ -1523,7 +1523,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                 var appAnimation by rememberBooleanPreference(prefs, "app.animation", true)
                 SettingsRowToggle(
                     title = "App Animations",
-                    subtitle = "(Use Dynamic Animations When Launching Apps from Search Overlay Page.)",
+                    subtitle = "Use Dynamic Animations When Launching Apps from Search Overlay Page.",
                     icon = Icons.Default.Animation,
                     isChecked = appAnimation,
                     onCheckedChange = { appAnimation = it },
@@ -1807,7 +1807,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var bottomSearch by rememberBooleanPreference(prefs, "settings.bottom.search", true)
                 SettingsRowToggle(
                     title = "Botton Searchbar",
-                    subtitle = "(Position Search Bar at Botton of Search Overlay Page.)",
+                    subtitle = "Position Search Bar at Botton of Search Overlay Page.",
                     icon = Icons.Default.VerticalAlignBottom,
                     isChecked = bottomSearch,
                     onCheckedChange = { bottomSearch = it },
@@ -1816,7 +1816,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var bottomResult by rememberBooleanPreference(prefs, "settings.bottom.search.result", false)
                 SettingsRowToggle(
                     title = "Bottom Search Results",
-                    subtitle = "(Order List from Botton Up depending on Search Bar Placement.)",
+                    subtitle = "Order List from Botton Up depending on Search Bar Placement.",
                     icon = Icons.Default.AlignVerticalBottom,
                     isChecked = bottomResult,
                     onCheckedChange = { bottomResult = it },
@@ -1825,7 +1825,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 var compactList by rememberBooleanPreference(prefs, "quick.search.horizontal", false)
                 SettingsRowToggle(
                     title = "Quick App Pannel",
-                    subtitle = "(Quickly Launch Apps Slected from Search Sorce Apps.)",
+                    subtitle = "Quickly Launch Apps Slected from Search Sorce Apps.",
                     icon = Icons.Default.ViewCompact,
                     isChecked = compactList,
                     onCheckedChange = { compactList = it },
@@ -1834,7 +1834,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var contextAwareApps by rememberBooleanPreference(prefs, "context_aware_quick_apps", false)
                 SettingsRowToggle(
                     title = "Context Aware Quick Apps",
-                    subtitle = "(Dynamic chosen Apps Based on User's App Opening Cycles.)",
+                    subtitle = "Dynamic chosen Apps Based on User's App Opening Cycles.",
                     icon = Icons.Default.AccessTime,
                     isChecked = contextAwareApps,
                     onCheckedChange = { contextAwareApps = it },
@@ -1866,7 +1866,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                 SettingsRowToggle(
                     title = "Smart Clipboard Suggestions",
-                    subtitle = "(Suggestion Actions Based on Clipboard Text. I.E. Open Photos, Open Music Player, Ect.)",
+                    subtitle = "Suggestion Actions Based on Clipboard Text. I.E. Open Photos, Open Music Player, Ect.",
                     icon = Icons.Default.ContentPaste,
                     isChecked = smartClipboard,
                     onCheckedChange = { 

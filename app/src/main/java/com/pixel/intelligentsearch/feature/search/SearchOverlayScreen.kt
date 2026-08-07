@@ -787,8 +787,12 @@ fun SearchOverlayScreen(
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(modifier = Modifier.size(40.dp).background(Color(0xFF3B3B46), RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                                    Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = Color.White)
+                                if (settingsState.filesThumbnails) {
+                                    FileIconThumbnail(match.uri, match.mimeType)
+                                } else {
+                                    Box(modifier = Modifier.size(40.dp).background(Color(0xFF3B3B46), RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                                        Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = Color.White)
+                                    }
                                 }
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column {
@@ -1230,6 +1234,44 @@ fun SearchOverlayScreen(
             } // Close the Box
         }
     }
+
+@Composable
+fun FileIconThumbnail(uri: String, mimeType: String) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var bitmap by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+
+    androidx.compose.runtime.LaunchedEffect(uri) {
+        if (mimeType.startsWith("image/") || mimeType.startsWith("video/")) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val bmp = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        context.contentResolver.loadThumbnail(android.net.Uri.parse(uri), android.util.Size(96, 96), null)
+                    } else null
+                    if (bmp != null) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            bitmap = bmp.asImageBitmap()
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Ignore, fallback to standard icon
+                }
+            }
+        }
+    }
+
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap!!,
+            contentDescription = null,
+            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+        )
+    } else {
+        Box(modifier = Modifier.size(40.dp).background(Color(0xFF3B3B46), RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+            Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = Color.White)
+        }
+    }
+}
 
 
 

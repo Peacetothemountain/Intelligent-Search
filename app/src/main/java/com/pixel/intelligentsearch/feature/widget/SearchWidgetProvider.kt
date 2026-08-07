@@ -208,10 +208,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setInt(R.id.widget_outer_background, "setImageAlpha", alphaInt)
                 
                 views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorOpaque)
-                views.setInt(R.id.widget_pill_background, "setImageAlpha", alphaInt)
                 
                 views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorOpaque)
-                views.setInt(R.id.widget_sound_background, "setImageAlpha", alphaInt)
                 
                 views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
                 if (showDoodle && doodleBitmap != null) {

@@ -1120,12 +1120,12 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
             SettingsCard {
-                var themeMode by rememberStringPreference(prefs, "night.mode", "System")
+                var themeMode by rememberStringPreference(prefs, "night.mode", "Material Dark")
                 SettingsDropdownRow(
                     title = "App Theme",
                     subtitle = themeMode,
                     icon = Icons.Default.BrightnessMedium,
-                    options = listOf("System", "Material Dark", "Material Light"),
+                    options = listOf("Material Dark", "Material Light"),
                     selectedOption = themeMode,
                     onOptionSelected = { themeMode = it },
                     showDivider = true
@@ -1414,9 +1414,14 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var installedApps by remember { mutableStateOf<List<ResolveInfo>>(emptyList()) }
     
     LaunchedEffect(Unit) {
-        val pm = context.packageManager
-        val intent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
-        installedApps = pm.queryIntentActivities(intent, 0).sortedBy { it.loadLabel(pm).toString() }
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val pm = context.packageManager
+            val intent = android.content.Intent(android.content.Intent.ACTION_MAIN, null).apply { addCategory(android.content.Intent.CATEGORY_LAUNCHER) }
+            val apps = pm.queryIntentActivities(intent, 0).sortedBy { it.loadLabel(pm).toString() }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                installedApps = apps
+            }
+        }
     }
 
     Scaffold(containerColor = Color.Transparent, topBar = {
@@ -2425,7 +2430,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
                     
                     val previewPillColorAlpha = if (previewIsMaterialYou) {
-                        androidx.compose.ui.graphics.Color(0xFF121212).copy(alpha = alphaInt)
+                        androidx.compose.ui.graphics.Color(0xFF121212)
                     } else {
                         when (localSubtheme) {
                             "Light" -> androidx.compose.ui.graphics.Color.White.copy(alpha = alphaInt)
@@ -2651,7 +2656,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     val luminance = (0.299 * dynColor.red + 0.587 * dynColor.green + 0.114 * dynColor.blue)
                                     if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
                                 } else MaterialTheme.colorScheme.onPrimaryContainer
-                            } else MaterialTheme.colorScheme.onSurfaceVariant
+                            } else if (opt == "Custom") {
+                                androidx.compose.ui.graphics.Color.White
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                             Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor)
                         }
                     }
@@ -2691,7 +2700,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     val luminance = (0.299 * dynColor.red + 0.587 * dynColor.green + 0.114 * dynColor.blue)
                                     if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
                                 } else MaterialTheme.colorScheme.onPrimaryContainer
-                            } else MaterialTheme.colorScheme.onSurfaceVariant
+                            } else if (opt == "Custom") {
+                                androidx.compose.ui.graphics.Color.White
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                             Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor)
                         }
                     }

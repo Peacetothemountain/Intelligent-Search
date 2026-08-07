@@ -687,12 +687,8 @@ fun SearchOverlayScreen(
                 top = if (settingsState.bottomSearch && settingsState.bottomSearchResult) 72.dp else 8.dp,
                 bottom = 8.dp
             ),
-            reverseLayout = if (settingsState.bottomSearchResult && settingsState.bottomSearch) true else false,
-            verticalArrangement = if (settingsState.bottomSearchResult) {
-                if (settingsState.bottomSearch) Arrangement.Top else Arrangement.Center
-            } else {
-                if (settingsState.bottomSearch) Arrangement.Bottom else Arrangement.Top
-            }
+            reverseLayout = if (!settingsState.bottomSearch) false else settingsState.bottomSearchResult,
+            verticalArrangement = if (settingsState.bottomSearch) Arrangement.Bottom else Arrangement.Top
         ) {
 
             if (bestMatch != null) {
@@ -1165,14 +1161,22 @@ fun SearchOverlayScreen(
             
             val targetHeight = screenHeight - 32.dp
             val initialHeight = 56.dp
-            val currentHeight = initialHeight + (targetHeight - initialHeight) * morphProgress.coerceAtMost(1f)
+            val currentHeight = initialHeight + (targetHeight - initialHeight) * morphProgress
             
             val targetWidth = screenWidth - 32.dp
             val initialWidth = screenWidth - 64.dp
-            val currentWidth = initialWidth + (targetWidth - initialWidth) * morphProgress.coerceAtMost(1f)
+            val currentWidth = initialWidth + (targetWidth - initialWidth) * morphProgress
             
             val currentCornerRadius = 28.dp - (4.dp * morphProgress)
             val verticalPadding = (16 * morphProgress).dp
+
+            val searchBarAlpha = morphProgress
+            val quickAppPanelAlpha = (morphProgress - 0.2f).coerceIn(0f, 0.8f) / 0.8f
+            val searchResultsAlpha = (morphProgress - 0.4f).coerceIn(0f, 0.6f) / 0.6f
+            
+            val searchBarOffset = (1f - searchBarAlpha) * 40f
+            val quickAppPanelOffset = (1f - quickAppPanelAlpha) * 40f
+            val searchResultsOffset = (1f - searchResultsAlpha) * 40f
 
             Box(
                 modifier = Modifier
@@ -1201,13 +1205,13 @@ fun SearchOverlayScreen(
                 ) {
                     if (!settingsState.bottomSearch) {
                         Spacer(modifier = Modifier.fillMaxHeight(0.2f))
-                        searchBarContent()
-                        quickAppPanelContent()
-                        Box(modifier = Modifier.weight(1f).graphicsLayer { alpha = morphProgress }) { searchResultsContent() }
+                        Box(modifier = Modifier.graphicsLayer { alpha = searchBarAlpha; translationY = searchBarOffset }) { searchBarContent() }
+                        Box(modifier = Modifier.graphicsLayer { alpha = quickAppPanelAlpha; translationY = quickAppPanelOffset }) { quickAppPanelContent() }
+                        Box(modifier = Modifier.weight(1f).graphicsLayer { alpha = searchResultsAlpha; translationY = searchResultsOffset }) { searchResultsContent() }
                     } else {
-                        Box(modifier = Modifier.weight(1f).graphicsLayer { alpha = morphProgress }) { searchResultsContent() }
-                        quickAppPanelContent()
-                        searchBarContent()
+                        Box(modifier = Modifier.weight(1f).graphicsLayer { alpha = searchResultsAlpha; translationY = -searchResultsOffset }) { searchResultsContent() }
+                        Box(modifier = Modifier.graphicsLayer { alpha = quickAppPanelAlpha; translationY = -quickAppPanelOffset }) { quickAppPanelContent() }
+                        Box(modifier = Modifier.graphicsLayer { alpha = searchBarAlpha; translationY = -searchBarOffset }) { searchBarContent() }
                     }
                 }
             }

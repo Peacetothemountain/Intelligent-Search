@@ -73,8 +73,11 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.animation.core.*
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.*
+
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.outlined.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -638,7 +641,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                 title = { Text("Developer Settings") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -663,7 +666,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Force Tutorial Mode",
                 subtitle = "When checked, the tutorial will play every time the app opens",
-                icon = Icons.Default.Warning,
+                icon = Icons.Outlined.Warning,
                 isChecked = forceTutorial,
                 onCheckedChange = { forceTutorial = it }
             )
@@ -671,7 +674,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRow(
                 title = "Reset Tutorial Progress",
                 subtitle = "Mark tutorial as incomplete and restart step guide",
-                icon = Icons.Default.Refresh,
+                icon = Icons.Outlined.Refresh,
                 onClick = {
                     prefs.edit()
                         .putInt("tutorial_step", 0)
@@ -687,7 +690,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Force Google Minidoodle",
                 subtitle = "Always show Google's Minidoodle in widget",
-                icon = Icons.Default.Image,
+                icon = Icons.Outlined.Image,
                 isChecked = forceMinidoodle,
                 onCheckedChange = { forceMinidoodle = it },
                 showDivider = true
@@ -696,7 +699,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRow(
                 title = "Clear Search History Cache",
                 subtitle = "Reset and clear all saved recent queries",
-                icon = Icons.Default.Delete,
+                icon = Icons.Outlined.Delete,
                 onClick = {
                     scope.launch {
                         com.pixel.intelligentsearch.core.data.IntelligentSearchDatabase.getDatabase(context).historyDao().clearHistory()
@@ -710,7 +713,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Simulate Web Latency",
                 subtitle = "Adds a 2-second artificial delay to search suggestions",
-                icon = Icons.Default.HourglassEmpty,
+                icon = Icons.Outlined.HourglassEmpty,
                 isChecked = simulateLatency,
                 onCheckedChange = { simulateLatency = it },
                 showDivider = true
@@ -720,7 +723,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Mock Large Dataset",
                 subtitle = "Injects 50 mock contacts and files into search lists",
-                icon = Icons.Default.Layers,
+                icon = Icons.Outlined.Layers,
                 isChecked = mockLargeDataset,
                 onCheckedChange = { mockLargeDataset = it },
                 showDivider = true
@@ -730,7 +733,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Enable Verbose Logging",
                 subtitle = "Print query logs and load frame times in Logcat",
-                icon = Icons.Default.Code,
+                icon = Icons.Outlined.Code,
                 isChecked = verboseLogging,
                 onCheckedChange = { verboseLogging = it },
                 showDivider = true
@@ -741,7 +744,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Show Performance HUD",
                 subtitle = "Render search latency and results count at the top of overlay",
-                icon = Icons.Default.Speed,
+                icon = Icons.Outlined.Speed,
                 isChecked = showPerfStats,
                 onCheckedChange = { showPerfStats = it },
                 showDivider = true
@@ -751,7 +754,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Mock Trending Queries",
                 subtitle = "Force mock trending query topics when the search bar is empty",
-                icon = Icons.AutoMirrored.Filled.TrendingUp,
+                icon = Icons.AutoMirrored.Outlined.TrendingUp,
                 isChecked = mockZeroState,
                 onCheckedChange = { mockZeroState = it },
                 showDivider = true
@@ -761,7 +764,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Force Search API Error",
                 subtitle = "Simulate suggestion fetch failure and display error banner",
-                icon = Icons.Default.BugReport,
+                icon = Icons.Outlined.BugReport,
                 isChecked = forceSearchError,
                 onCheckedChange = { forceSearchError = it },
                 showDivider = true
@@ -770,7 +773,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRow(
                 title = "Disable Debug Mode",
                 subtitle = "Turn off developer settings and exit",
-                icon = Icons.Default.Close,
+                icon = Icons.Outlined.Close,
                 onClick = onDisableDebug,
                 showDivider = false
             )
@@ -797,7 +800,7 @@ fun MainSettingsScreen(
             TopAppBar(
                 title = { Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
@@ -820,7 +823,7 @@ fun MainSettingsScreen(
                 SettingsRow(
                     title = "Apperence",
                     subtitle = "Theme, Wallpaper, Material Design layouts.",
-                    icon = Icons.Default.Palette,
+                    icon = Icons.Outlined.Palette,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.Appearance) },
                     showDivider = true,
 
@@ -828,7 +831,7 @@ fun MainSettingsScreen(
                 SettingsRow(
                     title = "Search Shortcuts",
                     subtitle = "Apps, Contacts, Files, Ect.",
-                    icon = Icons.AutoMirrored.Filled.ManageSearch,
+                    icon = Icons.AutoMirrored.Outlined.ManageSearch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchSources) },
                     showDivider = true,
 
@@ -836,7 +839,7 @@ fun MainSettingsScreen(
                 SettingsRow(
                     title = "Search Behavior",
                     subtitle = "Custom Search Over Display Settings.",
-                    icon = Icons.Default.Settings,
+                    icon = Icons.Outlined.Settings,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior) },
                     showDivider = true,
 
@@ -844,7 +847,7 @@ fun MainSettingsScreen(
                 SettingsRow(
                     title = "Widget Custimization",
                     subtitle = "Custimize widget colors, themes, and Actions.",
-                    icon = Icons.Default.Widgets,
+                    icon = Icons.Outlined.Widgets,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization) },
                     showDivider = true,
 
@@ -852,7 +855,7 @@ fun MainSettingsScreen(
                 SettingsRow(
                     title = "Launch Portal",
                     subtitle = "Quick Search Tile and App Shortcuts",
-                    icon = Icons.AutoMirrored.Filled.Launch,
+                    icon = Icons.AutoMirrored.Outlined.Launch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal) },
                     showDivider = false,
                 )
@@ -862,7 +865,7 @@ fun MainSettingsScreen(
                 SettingsRow(
                     title = "Default Digital Assistant",
                     subtitle = "Mange Android Assistant Settings.",
-                    icon = Icons.Default.Assistant,
+                    icon = Icons.Outlined.Assistant,
                     onClick = {
                         val intent = Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS)
                         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -885,7 +888,7 @@ fun MainSettingsScreen(
                 SettingsRow(
                     title = "Google Activity",
                     subtitle = "View and mange your Google Activity.",
-                    icon = Icons.Default.History,
+                    icon = Icons.Outlined.History,
                     onClick = {
                         val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity"))
                         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -905,7 +908,7 @@ fun MainSettingsScreen(
                 SettingsRow(
                     title = "Browser History",
                     subtitle = "View your Chrome/Webpage History.",
-                    icon = Icons.Default.HistoryEdu,
+                    icon = Icons.Outlined.HistoryEdu,
                     onClick = {
                         val intent = when (searchEngine) {
                             "Google" -> {
@@ -945,7 +948,7 @@ fun MainSettingsScreen(
                     SettingsRow(
                         title = "Debug",
                         subtitle = "Developer tools and experiments",
-                        icon = Icons.Default.BugReport,
+                        icon = Icons.Outlined.BugReport,
                         onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.Debug) },
                         showDivider = false
                     )
@@ -1102,7 +1105,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             TopAppBar(
                 title = { Text("Apperence", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
             )
         }
@@ -1124,7 +1127,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsDropdownRow(
                     title = "App Theme",
                     subtitle = themeMode,
-                    icon = Icons.Default.BrightnessMedium,
+                    icon = Icons.Outlined.BrightnessMedium,
                     options = listOf("Material Dark", "Material Light"),
                     selectedOption = themeMode,
                     onOptionSelected = { themeMode = it },
@@ -1135,7 +1138,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Enable Search Overlay Page",
                     subtitle = "If off, widget opens native Google Search app directly.",
-                    icon = Icons.Default.Layers,
+                    icon = Icons.Outlined.Layers,
                     isChecked = enableSearchOverlay,
                     onCheckedChange = { enableSearchOverlay = it },
                     showDivider = true
@@ -1145,7 +1148,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Enable Matrix Animation on Search Overlay Page",
                     subtitle = "Enable Search Overpay Page Animation.",
-                    icon = Icons.Default.AutoAwesome,
+                    icon = Icons.Outlined.AutoAwesome,
                     isChecked = matrixAnimationEnabled,
                     onCheckedChange = { matrixAnimationEnabled = it },
                     showDivider = true
@@ -1155,7 +1158,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Enable Material Morph Animation",
                     subtitle = "Enable Material Expressive Boucing Shapes.",
-                    icon = Icons.Default.Animation,
+                    icon = Icons.Outlined.Animation,
                     isChecked = morphAnimationEnabled,
                     onCheckedChange = { morphAnimationEnabled = it },
                     showDivider = true
@@ -1167,7 +1170,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Show Wallpaper",
                     subtitle = "Show User's wallpaper in Search Overlay Page.",
-                    icon = Icons.Default.Wallpaper,
+                    icon = Icons.Outlined.Wallpaper,
                     isChecked = showWall,
                     onCheckedChange = { showWall = it },
                     showDivider = true
@@ -1182,7 +1185,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     value = blur.toFloat(),
                     onValueChange = { blur = it.toInt() },
                     valueRange = 0f..100f,
-                    icon = Icons.Default.BlurOn,
+                    icon = Icons.Outlined.BlurOn,
                     showDivider = true
                 )
                 
@@ -1191,7 +1194,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     value = transparency.toFloat(),
                     onValueChange = { transparency = it.toInt() },
                     valueRange = 0f..100f,
-                    icon = Icons.Default.Opacity,
+                    icon = Icons.Outlined.Opacity,
                     showDivider = true
                 )
                 
@@ -1200,7 +1203,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     value = pillOpacity.toFloat(),
                     onValueChange = { pillOpacity = it.toInt() },
                     valueRange = 0f..100f,
-                    icon = Icons.Default.Visibility,
+                    icon = Icons.Outlined.Visibility,
                     showDivider = false
                 )
             }
@@ -1238,7 +1241,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
             TopAppBar(
                 title = { Text("Search Sources", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
             )
         }
@@ -1260,7 +1263,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 SettingsRowToggle(
                     title = "Apps",
                     subtitle = "Search Installed Applications.",
-                    icon = Icons.Default.Apps,
+                    icon = Icons.Outlined.Apps,
                     isChecked = searchApps,
                     onCheckedChange = { searchApps = it },
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.AppSearch) },
@@ -1271,7 +1274,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 SettingsRowToggle(
                     title = "Web",
                     subtitle = "View Search Suggestions from websites",
-                    icon = Icons.Default.Language,
+                    icon = Icons.Outlined.Language,
                     isChecked = searchWeb,
                     onCheckedChange = { searchWeb = it },
                     showDivider = true
@@ -1291,7 +1294,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 SettingsRowToggle(
                     title = "Contacts",
                     subtitle = "Search Contacts.",
-                    icon = Icons.Default.Contacts,
+                    icon = Icons.Outlined.Contacts,
                     isChecked = searchContacts,
                     onCheckedChange = { isChecked -> 
                         if (isChecked) {
@@ -1323,7 +1326,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 SettingsRowToggle(
                     title = "Files",
                     subtitle = "Search Local Files.",
-                    icon = Icons.Default.Folder,
+                    icon = Icons.Outlined.Folder,
                     isChecked = searchFiles,
                     onCheckedChange = { isChecked -> 
                         if (isChecked) {
@@ -1348,7 +1351,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 SettingsRowToggle(
                     title = "Calculator",
                     subtitle = "Calculate Mathamatical Equations Inside Search Bar.",
-                    icon = Icons.Default.Calculate,
+                    icon = Icons.Outlined.Calculate,
                     isChecked = searchCalc,
                     onCheckedChange = { searchCalc = it },
                     showDivider = true
@@ -1368,7 +1371,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 SettingsRowToggle(
                     title = "Calendar",
                     subtitle = "Show Calendar Events.",
-                    icon = Icons.Default.Event,
+                    icon = Icons.Outlined.Event,
                     isChecked = searchCalendar,
                     onCheckedChange = { isChecked -> 
                         if (isChecked) {
@@ -1405,19 +1408,29 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
 // -----------------------------------------------------------------------------------------
 // MANAGE HIDDEN APPS SCREEN
 // -----------------------------------------------------------------------------------------
+data class AppItemData(val packageName: String, val label: String, val icon: android.graphics.drawable.Drawable?)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     val viewModel = LocalSettingsViewModel.current
     var hiddenApps by remember { mutableStateOf(prefs.getStringSet("hidden_apps", emptySet()) ?: emptySet()) }
-    var installedApps by remember { mutableStateOf<List<ResolveInfo>>(emptyList()) }
+    var installedApps by remember { mutableStateOf<List<AppItemData>>(emptyList()) }
+    var isSearching by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
     
     LaunchedEffect(Unit) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val pm = context.packageManager
             val intent = android.content.Intent(android.content.Intent.ACTION_MAIN, null).apply { addCategory(android.content.Intent.CATEGORY_LAUNCHER) }
-            val apps = pm.queryIntentActivities(intent, 0).sortedBy { it.loadLabel(pm).toString() }
+            val apps = pm.queryIntentActivities(intent, 0).map { 
+                AppItemData(
+                    packageName = it.activityInfo.packageName,
+                    label = it.loadLabel(pm).toString(),
+                    icon = try { it.loadIcon(pm) } catch (e: Exception) { null }
+                )
+            }.sortedBy { it.label }
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                 installedApps = apps
             }
@@ -1426,9 +1439,41 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
     Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
-                title = { Text("Manage Hidden Apps", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+                title = { 
+                    if (isSearching) {
+                        androidx.compose.material3.TextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Search apps...") },
+                            singleLine = true,
+                            colors = androidx.compose.material3.TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            )
+                        )
+                    } else {
+                        Text("Manage Hidden Apps", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) 
+                    }
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = {
+                        if (isSearching) {
+                            isSearching = false
+                            searchQuery = ""
+                        } else {
+                            onBack()
+                        }
+                    }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                },
+                actions = {
+                    if (!isSearching) {
+                        IconButton(onClick = { isSearching = true }) {
+                            Icon(Icons.Outlined.Search, contentDescription = "Search")
+                        }
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
@@ -1442,35 +1487,29 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             androidx.compose.foundation.lazy.LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(vertical = 8.dp)
             ) {
-                items(installedApps.size) { index ->
-                    val resolveInfo = installedApps[index]
-                    val packageName = resolveInfo.activityInfo.packageName
-                    val label = resolveInfo.loadLabel(context.packageManager).toString()
-                    val isHidden = hiddenApps.contains(packageName)
-                    
-                    var appIcon by remember(packageName) { mutableStateOf<Any>(Icons.Default.Apps) }
-                    LaunchedEffect(packageName) {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            try {
-                                val drawable = resolveInfo.loadIcon(context.packageManager)
-                                appIcon = drawable
-                            } catch (e: Exception) { }
-                        }
-                    }
+                val filteredApps = if (searchQuery.isBlank()) {
+                    installedApps
+                } else {
+                    installedApps.filter { it.label.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
+                }
+
+                items(filteredApps.size) { index ->
+                    val app = filteredApps[index]
+                    val isHidden = hiddenApps.contains(app.packageName)
                     
                     SettingsRowToggle(
-                        title = label,
-                        subtitle = packageName,
-                        icon = appIcon,
+                        title = app.label,
+                        subtitle = app.packageName,
+                        icon = app.icon ?: Icons.Outlined.Apps,
                         isChecked = isHidden,
                         onCheckedChange = { hide ->
                             val newSet = hiddenApps.toMutableSet()
-                            if (hide) newSet.add(packageName) else newSet.remove(packageName)
+                            if (hide) newSet.add(app.packageName) else newSet.remove(app.packageName)
                             hiddenApps = newSet
                             prefs.edit().putStringSet("hidden_apps", newSet).apply()
                             viewModel?.updateSetting(SettingsManager.HIDDEN_APPS, newSet)
                         },
-                        showDivider = index < installedApps.size - 1
+                        showDivider = index < filteredApps.size - 1
                     )
                 }
                 if (installedApps.isEmpty()) {
@@ -1498,7 +1537,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
             TopAppBar(
                 title = { Text("App & Shortcut Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
             )
         }
@@ -1516,14 +1555,14 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                 SettingsRow(
                     title = "Application Search",
                     subtitle = "Custimize Quick Launch Apps in the Search Overlay Screen.",
-                    icon = Icons.Default.ViewCarousel,
+                    icon = Icons.Outlined.ViewCarousel,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchPills) },
                     showDivider = true
                 )
                 SettingsRow(
                     title = "Manage Hidden Apps",
                     subtitle = "Search Apps to Dynamically Hide From Search.",
-                    icon = Icons.Default.VisibilityOff,
+                    icon = Icons.Outlined.VisibilityOff,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.ManageHiddenApps) },
                     showDivider = true
                 )
@@ -1531,7 +1570,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                 SettingsRowToggle(
                     title = "Fuzzy Search",
                     subtitle = "Allow Typos When Searching for Apps.",
-                    icon = Icons.Default.Spellcheck,
+                    icon = Icons.Outlined.Spellcheck,
                     isChecked = fuzzySearch,
                     onCheckedChange = { fuzzySearch = it },
                     showDivider = true
@@ -1540,7 +1579,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                 SettingsRowToggle(
                     title = "App Animations",
                     subtitle = "Use Dynamic Animations When Launching Apps from Search Overlay Page.",
-                    icon = Icons.Default.Animation,
+                    icon = Icons.Outlined.Animation,
                     isChecked = appAnimation,
                     onCheckedChange = { appAnimation = it },
                     showDivider = false
@@ -1553,7 +1592,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                 SettingsRowToggle(
                     title = "Shortcuts",
                     subtitle = "Manage shortcuts for 20 apps",
-                    icon = Icons.AutoMirrored.Filled.ListAlt,
+                    icon = Icons.AutoMirrored.Outlined.ListAlt,
                     isChecked = searchShortcuts,
                     onCheckedChange = { searchShortcuts = it },
                     showDivider = true
@@ -1609,7 +1648,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             TopAppBar(
                 title = { Text("Web Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
             )
         }
@@ -1623,7 +1662,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsDropdownRow(
                     title = "Primary Search App",
                     subtitle = searchEngine,
-                    icon = Icons.Default.Search,
+                    icon = Icons.Outlined.Search,
                     options = listOf("Google", "DuckDuckGo", "Bing", "Custom"),
                     selectedOption = searchEngine,
                     onOptionSelected = { searchEngine = it },
@@ -1645,7 +1684,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Web Suggestions",
                     subtitle = "Show search suggestions as you type",
-                    icon = Icons.Default.ChatBubbleOutline,
+                    icon = Icons.Outlined.ChatBubbleOutline,
                     isChecked = webSuggestions,
                     onCheckedChange = { webSuggestions = it },
                     showDivider = true
@@ -1681,7 +1720,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             TopAppBar(
                 title = { Text("Contact Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
             )
         }
@@ -1694,7 +1733,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRow(
                     title = "Contact Menu",
                     subtitle = "Opens Contact Picker",
-                    icon = Icons.Default.Contacts,
+                    icon = Icons.Outlined.Contacts,
                     onClick = { launcher.launch(null) },
                     showDivider = true
                 )
@@ -1702,7 +1741,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Direct Call",
                     subtitle = "Tap contact to call directly",
-                    icon = Icons.Default.Call,
+                    icon = Icons.Outlined.Call,
                     isChecked = directCall,
                     onCheckedChange = { directCall = it },
                     showDivider = true
@@ -1739,7 +1778,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             TopAppBar(
                 title = { Text("File Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
             )
         }
@@ -1752,7 +1791,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRow(
                     title = "Select Indexing Directory",
                     subtitle = prefs.getString("search.files.uri", "None Selected") ?: "None Selected",
-                    icon = Icons.Default.FolderOpen,
+                    icon = Icons.Outlined.FolderOpen,
                     onClick = { launcher.launch(null) },
                     showDivider = true
                 )
@@ -1760,7 +1799,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Show Hidden Files",
                     subtitle = "Include files starting with a dot",
-                    icon = Icons.Default.Visibility,
+                    icon = Icons.Outlined.Visibility,
                     isChecked = hiddenFiles,
                     onCheckedChange = { hiddenFiles = it },
                     showDivider = true
@@ -1769,7 +1808,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Show Thumbnails",
                     subtitle = "Show image and video thumbnails",
-                    icon = Icons.Default.Image,
+                    icon = Icons.Outlined.Image,
                     isChecked = thumbnails,
                     onCheckedChange = { thumbnails = it },
                     showDivider = true
@@ -1802,7 +1841,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             TopAppBar(
                 title = { Text("Search Behavior", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
             )
         }
@@ -1824,7 +1863,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Botton Searchbar",
                     subtitle = "Position Search Bar at Botton of Search Overlay Page.",
-                    icon = Icons.Default.VerticalAlignBottom,
+                    icon = Icons.Outlined.VerticalAlignBottom,
                     isChecked = bottomSearch,
                     onCheckedChange = { bottomSearch = it },
                     showDivider = true
@@ -1833,7 +1872,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Bottom Search Results",
                     subtitle = "Order List from Botton Up depending on Search Bar Placement.",
-                    icon = Icons.Default.AlignVerticalBottom,
+                    icon = Icons.Outlined.AlignVerticalBottom,
                     isChecked = bottomResult,
                     onCheckedChange = { bottomResult = it },
                     showDivider = true
@@ -1842,7 +1881,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Quick App Pannel",
                     subtitle = "Quickly Launch Apps Slected from Search Sorce Apps.",
-                    icon = Icons.Default.ViewCompact,
+                    icon = Icons.Outlined.ViewCompact,
                     isChecked = compactList,
                     onCheckedChange = { compactList = it },
                     showDivider = true
@@ -1851,7 +1890,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Context Aware Quick Apps",
                     subtitle = "Dynamic chosen Apps Based on User's App Opening Cycles.",
-                    icon = Icons.Default.AccessTime,
+                    icon = Icons.Outlined.AccessTime,
                     isChecked = contextAwareApps,
                     onCheckedChange = { contextAwareApps = it },
                     showDivider = true
@@ -1883,7 +1922,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Smart Clipboard Suggestions",
                     subtitle = "Suggestion Actions Based on Clipboard Text. I.E. Open Photos, Open Music Player, Ect.",
-                    icon = Icons.Default.ContentPaste,
+                    icon = Icons.Outlined.ContentPaste,
                     isChecked = smartClipboard,
                     onCheckedChange = { 
                         if (it) {
@@ -2032,7 +2071,7 @@ fun SettingsDropdownRow(
                 Text(text = subtitle, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Icon(
-                imageVector = Icons.Default.ArrowDropDown,
+                imageVector = Icons.Outlined.ArrowDropDown,
                 contentDescription = "Dropdown",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -3418,7 +3457,7 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             onBack()
                         }
                     }) {
-                        Icon(if (showAppPicker && multiSelectMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(if (showAppPicker && multiSelectMode) Icons.Outlined.Close else Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
@@ -3440,11 +3479,11 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 showAppPicker = false
                             }
                         }) {
-                            Icon(Icons.Default.Check, contentDescription = "Add Selected")
+                            Icon(Icons.Outlined.Check, contentDescription = "Add Selected")
                         }
                     } else if (!showAppPicker) {
                         IconButton(onClick = { showAppPicker = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "Add Pill")
+                            Icon(Icons.Outlined.Add, contentDescription = "Add Pill")
                         }
                     }
                 }
@@ -3480,7 +3519,7 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("Search apps...") },
                         singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = "Search") },
                         shape = RoundedCornerShape(24.dp),
                         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -3502,9 +3541,9 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         val isSelected = selectedApps.contains(packageName)
                         val appIcon = remember(packageName) {
                             try {
-                                packageInfo.applicationInfo?.loadIcon(context.packageManager) ?: Icons.Default.Apps
+                                packageInfo.applicationInfo?.loadIcon(context.packageManager) ?: Icons.Outlined.Apps
                             } catch (e: Exception) {
-                                Icons.Default.Apps
+                                Icons.Outlined.Apps
                             }
                         }
                         androidx.compose.foundation.layout.Box(
@@ -3653,7 +3692,7 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             )
                                         }
                                         Icon(
-                                            imageVector = Icons.Default.DragHandle,
+                                            imageVector = Icons.Outlined.DragHandle,
                                             contentDescription = "Drag to reorder",
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                             modifier = Modifier.pointerInput(packageName) {
@@ -3737,7 +3776,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             TopAppBar(
                 title = { Text("Launch Portal", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
             )
         }
@@ -3758,7 +3797,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRow(
                     title = "Search Tile",
                     subtitle = "Add to quick settings notification panel",
-                    icon = Icons.Default.ViewAgenda,
+                    icon = Icons.Outlined.ViewAgenda,
                     onClick = {
                         if (android.os.Build.VERSION.SDK_INT >= 33) {
                             try {
@@ -3786,7 +3825,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRow(
                     title = "Home Screen Shortcut",
                     subtitle = "Add app icon to home screen",
-                    icon = Icons.Default.AddHome,
+                    icon = Icons.Outlined.AddHome,
                     onClick = {
                         val shortcutManager = context.getSystemService(ShortcutManager::class.java)
                         if (shortcutManager != null && shortcutManager.isRequestPinShortcutSupported) {

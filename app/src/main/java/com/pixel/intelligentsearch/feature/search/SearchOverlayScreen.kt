@@ -296,9 +296,7 @@ fun SearchOverlayScreen(
     // Animatable for the overlay expansion progress: 0f = collapsed pill, 1f = fully expanded
     val overlayProgressAnim = remember { Animatable(if (isFromBackSwipe) 1f else 0f) }
     
-    val emphasizedEasing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)
-    val rawMorphProgress = emphasizedEasing.transform(overlayProgressAnim.value)
-    val morphProgress = rawMorphProgress.coerceIn(0f, 1f)
+    val morphProgress = overlayProgressAnim.value.coerceIn(0f, 1f)
 
     LaunchedEffect(isOpening) {
         if (isOpening) {
@@ -306,8 +304,8 @@ fun SearchOverlayScreen(
                 overlayProgressAnim.animateTo(
                     targetValue = 1f,
                     animationSpec = spring(
-                        dampingRatio = 0.84f,
-                        stiffness = 220f
+                        dampingRatio = 0.86f,
+                        stiffness = 180f
                     )
                 )
             } else {
@@ -317,8 +315,8 @@ fun SearchOverlayScreen(
             overlayProgressAnim.animateTo(
                 targetValue = 0f,
                 animationSpec = spring(
-                    dampingRatio = 0.85f,
-                    stiffness = 300f
+                    dampingRatio = 0.88f,
+                    stiffness = 140f
                 )
             )
             val act = context as? android.app.Activity
@@ -1173,17 +1171,20 @@ fun SearchOverlayScreen(
                             val target = if (overlayProgressAnim.value > commitThreshold) 1f else 0f
                             overlayProgressAnim.animateTo(
                                 targetValue = target,
-                                animationSpec = spring(dampingRatio = 0.88f, stiffness = 180f)
+                                animationSpec = spring(dampingRatio = 0.88f, stiffness = 140f)
                             )
                             if (target == 0f) {
                                 val act = (context as? android.app.Activity)
-                                act?.finish()
+                                if (act != null && !act.isFinishing) {
+                                    act.finish()
+                                    act.overridePendingTransition(0, 0)
+                                }
                             }
                         }
                     },
                     onDragCancel = {
                         coroutineScope.launch {
-                            overlayProgressAnim.animateTo(1f, spring(0.88f, 180f))
+                            overlayProgressAnim.animateTo(1f, spring(0.88f, 140f))
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->

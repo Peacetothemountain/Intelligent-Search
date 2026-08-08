@@ -219,42 +219,71 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setColorStateList(R.id.widget_voice_search, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
             }
 
-            // Bind 3 shortcuts
-            val shortcuts = listOf(
-                Triple(R.id.widget_lens_search, shortcut1Str, 2001),
-                Triple(R.id.widget_shortcut_2, shortcut2Str, 2002),
-                Triple(R.id.widget_shortcut_3, shortcut3Str, 2003)
+            // Bind 4 ordered shortcut and microphone slots
+            val slotOrderStr = prefs.getString("widget_shortcut_order", "shortcut1,mic,shortcut2,shortcut3") ?: "shortcut1,mic,shortcut2,shortcut3"
+            val slotOrder = slotOrderStr.split(",").filter { it.isNotBlank() }
+
+            val viewIdTargets = listOf(
+                R.id.widget_voice_search,
+                R.id.widget_lens_search,
+                R.id.widget_shortcut_2,
+                R.id.widget_shortcut_3
             )
 
-            for ((viewId, shortcutStr, reqCodeOffset) in shortcuts) {
-                val isVisible = shortcutStr != "None"
-                views.setViewVisibility(viewId, if (isVisible) View.VISIBLE else View.GONE)
-
-                if (isVisible) {
-                    val iconRes = getShortcutIconRes(shortcutStr, isMaterialYou)
-                    views.setImageViewResource(viewId, iconRes)
-
-                    if (isMaterialYou) {
-                        if (materialGIconTheme == "Accented G Icon") {
-                            views.setColorStateList(viewId, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
-                        } else {
-                            views.setColorStateList(viewId, "setImageTintList", null)
+            val activeItems = mutableListOf<Triple<String, Int, Intent>>()
+            for (key in slotOrder) {
+                when (key) {
+                    "mic" -> {
+                        if (showVoice) {
+                            val micIcon = if (isMaterialYou) R.drawable.ic_mic else R.drawable.ic_mic_original
+                            activeItems.add(Triple("mic", micIcon, getVoiceSearchIntent(context)))
                         }
-                    } else {
-                        views.setColorStateList(viewId, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
                     }
-
-                    val shortcutPI = PendingIntent.getActivity(
-                        context, appWidgetId + reqCodeOffset,
-                        getShortcutIntent(context, shortcutStr),
-                        PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
-                    views.setOnClickPendingIntent(viewId, shortcutPI)
+                    "shortcut1" -> {
+                        if (shortcut1Str != "None") {
+                            activeItems.add(Triple("shortcut1", getShortcutIconRes(shortcut1Str, isMaterialYou), getShortcutIntent(context, shortcut1Str)))
+                        }
+                    }
+                    "shortcut2" -> {
+                        if (shortcut2Str != "None") {
+                            activeItems.add(Triple("shortcut2", getShortcutIconRes(shortcut2Str, isMaterialYou), getShortcutIntent(context, shortcut2Str)))
+                        }
+                    }
+                    "shortcut3" -> {
+                        if (shortcut3Str != "None") {
+                            activeItems.add(Triple("shortcut3", getShortcutIconRes(shortcut3Str, isMaterialYou), getShortcutIntent(context, shortcut3Str)))
+                        }
+                    }
                 }
             }
 
-            // Standalone Voice search view is hidden because Voice Search is integrated as a shortcut slot
-            views.setViewVisibility(R.id.widget_voice_search, View.GONE)
+            for (i in 0 until 4) {
+                val targetViewId = viewIdTargets[i]
+                if (i < activeItems.size) {
+                    val item = activeItems[i]
+                    views.setViewVisibility(targetViewId, View.VISIBLE)
+                    views.setImageViewResource(targetViewId, item.second)
+
+                    if (isMaterialYou) {
+                        if (materialGIconTheme == "Accented G Icon") {
+                            views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
+                        } else {
+                            views.setColorStateList(targetViewId, "setImageTintList", null)
+                        }
+                    } else {
+                        views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
+                    }
+
+                    val pi = PendingIntent.getActivity(
+                        context, appWidgetId + 2000 + i,
+                        item.third,
+                        PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+                    views.setOnClickPendingIntent(targetViewId, pi)
+                } else {
+                    views.setViewVisibility(targetViewId, View.GONE)
+                }
+            }
 
             // Tap pill -> main search
             val enableSearchOverlay = prefs.getBoolean("search_overlay_enabled", true)

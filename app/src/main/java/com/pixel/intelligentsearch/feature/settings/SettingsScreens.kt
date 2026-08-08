@@ -2312,7 +2312,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     
     val shortcutOptions = listOf(
         "None" to Icons.Default.Close,
-        "Voice Search" to Icons.Default.Mic,
         "Google Lens" to ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_camera),
         "Live" to Icons.Default.AutoAwesome,
         "Translate (text)" to Icons.Default.Translate,
@@ -2340,8 +2339,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localShowVoice by remember { mutableStateOf(prefs.getBoolean("widget_show_voice", true)) }
     var localActionIcon by remember { mutableStateOf(prefs.getString("widget_action_icon", "Search") ?: "Search") }
     var localShortcut1 by remember { mutableStateOf(prefs.getString("widget_shortcut_1", prefs.getString("widget_shortcut", "Google Lens")) ?: "Google Lens") }
-    var localShortcut2 by remember { mutableStateOf(prefs.getString("widget_shortcut_2", "Voice Search") ?: "Voice Search") }
+    var localShortcut2 by remember { mutableStateOf(prefs.getString("widget_shortcut_2", "None") ?: "None") }
     var localShortcut3 by remember { mutableStateOf(prefs.getString("widget_shortcut_3", "None") ?: "None") }
+    val defaultSlotOrder = "shortcut1,mic,shortcut2,shortcut3"
+    var localSlotOrderStr by remember { mutableStateOf(prefs.getString("widget_shortcut_order", defaultSlotOrder) ?: defaultSlotOrder) }
     var activeShortcutSlot by remember { mutableIntStateOf(1) }
 
     var isInitialSetup by remember { mutableStateOf(true) }
@@ -2349,7 +2350,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     LaunchedEffect(
         localShowGIcon, localThemeStyle, localSubtheme,
         localMaterialGIconTheme, localHue, localSaturation, localLightness, localOpacity, localLockBlack,
-        localShowVoice, localActionIcon, localShortcut1, localShortcut2, localShortcut3, localCustomColorInt
+        localShowVoice, localActionIcon, localShortcut1, localShortcut2, localShortcut3, localSlotOrderStr, localCustomColorInt
     ) {
         if (isInitialSetup) {
             isInitialSetup = false
@@ -2372,6 +2373,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             .putString("widget_shortcut_1", localShortcut1)
             .putString("widget_shortcut_2", localShortcut2)
             .putString("widget_shortcut_3", localShortcut3)
+            .putString("widget_shortcut_order", localSlotOrderStr)
             .putString("widget_shortcut", localShortcut1)
             .apply()
         updateWidgets(context)
@@ -2584,28 +2586,76 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             
                             Spacer(Modifier.weight(1f))
                             
-                            val activeShortcuts = listOf(localShortcut1, localShortcut2, localShortcut3).filter { it != "None" }
-                            activeShortcuts.forEachIndexed { idx, sc ->
-                                val shortcutRes = when (sc) {
-                                    "Voice Search" -> com.pixel.intelligentsearch.R.drawable.ic_mic
-                                    "Live" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
-                                    "Translate (text)" -> com.pixel.intelligentsearch.R.drawable.ic_translate
-                                    "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_document_scanner
-                                    "Weather" -> com.pixel.intelligentsearch.R.drawable.ic_weather
-                                    "Sports" -> com.pixel.intelligentsearch.R.drawable.ic_sports
-                                    "Dictionary" -> com.pixel.intelligentsearch.R.drawable.ic_dictionary
-                                    "Homework" -> com.pixel.intelligentsearch.R.drawable.ic_homework
-                                    "Finance" -> com.pixel.intelligentsearch.R.drawable.ic_finance
-                                    "Saved" -> com.pixel.intelligentsearch.R.drawable.ic_saved
-                                    "News" -> com.pixel.intelligentsearch.R.drawable.ic_news
-                                    else -> com.pixel.intelligentsearch.R.drawable.ic_camera
+                            val slotOrder = localSlotOrderStr.split(",").filter { it.isNotBlank() }
+                            val previewActiveItems = mutableListOf<Pair<String, Int>>()
+                            slotOrder.forEach { key ->
+                                when (key) {
+                                    "mic" -> {
+                                        if (localShowVoice) {
+                                            previewActiveItems.add("Microphone" to com.pixel.intelligentsearch.R.drawable.ic_mic)
+                                        }
+                                    }
+                                    "shortcut1" -> {
+                                        if (localShortcut1 != "None") {
+                                            previewActiveItems.add(localShortcut1 to (when (localShortcut1) {
+                                                "Live" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
+                                                "Translate (text)" -> com.pixel.intelligentsearch.R.drawable.ic_translate
+                                                "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_document_scanner
+                                                "Weather" -> com.pixel.intelligentsearch.R.drawable.ic_weather
+                                                "Sports" -> com.pixel.intelligentsearch.R.drawable.ic_sports
+                                                "Dictionary" -> com.pixel.intelligentsearch.R.drawable.ic_dictionary
+                                                "Homework" -> com.pixel.intelligentsearch.R.drawable.ic_homework
+                                                "Finance" -> com.pixel.intelligentsearch.R.drawable.ic_finance
+                                                "Saved" -> com.pixel.intelligentsearch.R.drawable.ic_saved
+                                                "News" -> com.pixel.intelligentsearch.R.drawable.ic_news
+                                                else -> com.pixel.intelligentsearch.R.drawable.ic_camera
+                                            }))
+                                        }
+                                    }
+                                    "shortcut2" -> {
+                                        if (localShortcut2 != "None") {
+                                            previewActiveItems.add(localShortcut2 to (when (localShortcut2) {
+                                                "Live" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
+                                                "Translate (text)" -> com.pixel.intelligentsearch.R.drawable.ic_translate
+                                                "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_document_scanner
+                                                "Weather" -> com.pixel.intelligentsearch.R.drawable.ic_weather
+                                                "Sports" -> com.pixel.intelligentsearch.R.drawable.ic_sports
+                                                "Dictionary" -> com.pixel.intelligentsearch.R.drawable.ic_dictionary
+                                                "Homework" -> com.pixel.intelligentsearch.R.drawable.ic_homework
+                                                "Finance" -> com.pixel.intelligentsearch.R.drawable.ic_finance
+                                                "Saved" -> com.pixel.intelligentsearch.R.drawable.ic_saved
+                                                "News" -> com.pixel.intelligentsearch.R.drawable.ic_news
+                                                else -> com.pixel.intelligentsearch.R.drawable.ic_camera
+                                            }))
+                                        }
+                                    }
+                                    "shortcut3" -> {
+                                        if (localShortcut3 != "None") {
+                                            previewActiveItems.add(localShortcut3 to (when (localShortcut3) {
+                                                "Live" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
+                                                "Translate (text)" -> com.pixel.intelligentsearch.R.drawable.ic_translate
+                                                "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_document_scanner
+                                                "Weather" -> com.pixel.intelligentsearch.R.drawable.ic_weather
+                                                "Sports" -> com.pixel.intelligentsearch.R.drawable.ic_sports
+                                                "Dictionary" -> com.pixel.intelligentsearch.R.drawable.ic_dictionary
+                                                "Homework" -> com.pixel.intelligentsearch.R.drawable.ic_homework
+                                                "Finance" -> com.pixel.intelligentsearch.R.drawable.ic_finance
+                                                "Saved" -> com.pixel.intelligentsearch.R.drawable.ic_saved
+                                                "News" -> com.pixel.intelligentsearch.R.drawable.ic_news
+                                                else -> com.pixel.intelligentsearch.R.drawable.ic_camera
+                                            }))
+                                        }
+                                    }
                                 }
+                            }
+
+                            previewActiveItems.forEachIndexed { idx, item ->
                                 if (idx > 0) {
                                     Spacer(modifier = Modifier.width(16.dp))
                                 }
                                 Icon(
-                                    painter = androidx.compose.ui.res.painterResource(id = shortcutRes),
-                                    contentDescription = sc,
+                                    painter = androidx.compose.ui.res.painterResource(id = item.second),
+                                    contentDescription = item.first,
                                     tint = finalPreviewIconTint,
                                     modifier = Modifier.size(24.dp)
                                 )
@@ -3026,9 +3076,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     )
                 }
             }
-                Text("WIDGET SHORTCUTS (UP TO 3)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp))
+                Text("WIDGET SHORTCUTS & MICROPHONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp))
                 
-                var draggingShortcutSlot by remember { mutableStateOf<Int?>(null) }
+                var draggingShortcutSlotIndex by remember { mutableStateOf<Int?>(null) }
                 var shortcutDragOffset by remember { mutableFloatStateOf(0f) }
                 val coroutineScope = rememberCoroutineScope()
                 val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -3039,16 +3089,29 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    val slotsList = listOf(1, 2, 3)
-                    slotsList.forEach { slotNum ->
-                        val currentVal = when (slotNum) {
-                            1 -> localShortcut1
-                            2 -> localShortcut2
+                    val currentOrderList = localSlotOrderStr.split(",").filter { it.isNotBlank() }
+                    currentOrderList.forEachIndexed { index, slotKey ->
+                        val isDragging = draggingShortcutSlotIndex == index
+                        val swipeOffsetX = remember { androidx.compose.animation.core.Animatable(0f) }
+
+                        val cardTitle = when (slotKey) {
+                            "mic" -> "Microphone Slot:"
+                            "shortcut1" -> "Shortcut Slot: 1"
+                            "shortcut2" -> "Shortcut Slot: 2"
+                            else -> "Shortcut Slot: 3"
+                        }
+
+                        val cardSubtext = when (slotKey) {
+                            "mic" -> if (localShowVoice) "Voice Search" else "None"
+                            "shortcut1" -> localShortcut1
+                            "shortcut2" -> localShortcut2
                             else -> localShortcut3
                         }
-                        val isDragging = draggingShortcutSlot == slotNum
-                        
-                        val swipeOffsetX = remember { androidx.compose.animation.core.Animatable(0f) }
+
+                        val cardIcon = when (slotKey) {
+                            "mic" -> if (localShowVoice) Icons.Default.Mic else Icons.Default.Close
+                            else -> shortcutOptions.find { it.first == cardSubtext }?.second ?: Icons.Default.Close
+                        }
 
                         val cardModifier = if (isDragging) {
                             Modifier
@@ -3061,17 +3124,18 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         Surface(
                             modifier = cardModifier
                                 .fillMaxWidth()
-                                .pointerInput(slotNum, isDragging) {
+                                .pointerInput(slotKey, isDragging) {
                                     if (!isDragging) {
                                         detectHorizontalDragGestures(
                                             onDragEnd = {
                                                 coroutineScope.launch {
                                                     if (kotlin.math.abs(swipeOffsetX.value) > 200f) {
                                                         haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                                        when (slotNum) {
-                                                            1 -> localShortcut1 = "None"
-                                                            2 -> localShortcut2 = "None"
-                                                            3 -> localShortcut3 = "None"
+                                                        when (slotKey) {
+                                                            "mic" -> localShowVoice = false
+                                                            "shortcut1" -> localShortcut1 = "None"
+                                                            "shortcut2" -> localShortcut2 = "None"
+                                                            "shortcut3" -> localShortcut3 = "None"
                                                         }
                                                     }
                                                     swipeOffsetX.animateTo(
@@ -3111,27 +3175,38 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { activeShortcutSlot = slotNum; showShortcutSheet = true }
+                                    .clickable {
+                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                        if (slotKey == "mic") {
+                                            localShowVoice = !localShowVoice
+                                        } else {
+                                            activeShortcutSlot = when (slotKey) {
+                                                "shortcut1" -> 1
+                                                "shortcut2" -> 2
+                                                else -> 3
+                                            }
+                                            showShortcutSheet = true
+                                        }
+                                    }
                                     .padding(horizontal = 20.dp, vertical = 16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val iconVector = shortcutOptions.find { it.first == currentVal }?.second ?: Icons.Default.Close
                                 Icon(
-                                    imageVector = iconVector,
-                                    contentDescription = currentVal,
+                                    imageVector = cardIcon,
+                                    contentDescription = cardSubtext,
                                     modifier = Modifier.size(24.dp),
-                                    tint = if (currentVal == "None") MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+                                    tint = if (cardSubtext == "None") MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
                                 )
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Shortcut Slot: $slotNum",
+                                        text = cardTitle,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = currentVal,
+                                        text = cardSubtext,
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -3143,56 +3218,44 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     modifier = Modifier
                                         .padding(start = 12.dp)
                                         .size(24.dp)
-                                        .pointerInput(slotNum) {
+                                        .pointerInput(index) {
                                             detectVerticalDragGestures(
                                                 onDragStart = {
                                                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                                    draggingShortcutSlot = slotNum
+                                                    draggingShortcutSlotIndex = index
                                                     shortcutDragOffset = 0f
                                                 },
                                                 onDragEnd = {
-                                                    draggingShortcutSlot = null
+                                                    draggingShortcutSlotIndex = null
                                                     shortcutDragOffset = 0f
                                                 },
                                                 onDragCancel = {
-                                                    draggingShortcutSlot = null
+                                                    draggingShortcutSlotIndex = null
                                                     shortcutDragOffset = 0f
                                                 },
                                                 onVerticalDrag = { change, dragAmount ->
                                                     change.consume()
                                                     shortcutDragOffset += dragAmount
-                                                    val currentDragSlot = draggingShortcutSlot ?: return@detectVerticalDragGestures
+                                                    val currentIdx = draggingShortcutSlotIndex ?: return@detectVerticalDragGestures
                                                     
-                                                    if (shortcutDragOffset > 120f) {
+                                                    if (shortcutDragOffset > 120f && currentIdx < currentOrderList.size - 1) {
                                                         haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                                        if (currentDragSlot == 1) {
-                                                            val temp = localShortcut1
-                                                            localShortcut1 = localShortcut2
-                                                            localShortcut2 = temp
-                                                            draggingShortcutSlot = 2
-                                                            shortcutDragOffset = 0f
-                                                        } else if (currentDragSlot == 2) {
-                                                            val temp = localShortcut2
-                                                            localShortcut2 = localShortcut3
-                                                            localShortcut3 = temp
-                                                            draggingShortcutSlot = 3
-                                                            shortcutDragOffset = 0f
-                                                        }
-                                                    } else if (shortcutDragOffset < -120f) {
+                                                        val listCopy = currentOrderList.toMutableList()
+                                                        val temp = listCopy[currentIdx]
+                                                        listCopy[currentIdx] = listCopy[currentIdx + 1]
+                                                        listCopy[currentIdx + 1] = temp
+                                                        localSlotOrderStr = listCopy.joinToString(",")
+                                                        draggingShortcutSlotIndex = currentIdx + 1
+                                                        shortcutDragOffset = 0f
+                                                    } else if (shortcutDragOffset < -120f && currentIdx > 0) {
                                                         haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                                        if (currentDragSlot == 3) {
-                                                            val temp = localShortcut3
-                                                            localShortcut3 = localShortcut2
-                                                            localShortcut2 = temp
-                                                            draggingShortcutSlot = 2
-                                                            shortcutDragOffset = 0f
-                                                        } else if (currentDragSlot == 2) {
-                                                            val temp = localShortcut2
-                                                            localShortcut2 = localShortcut1
-                                                            localShortcut1 = temp
-                                                            draggingShortcutSlot = 1
-                                                            shortcutDragOffset = 0f
-                                                        }
+                                                        val listCopy = currentOrderList.toMutableList()
+                                                        val temp = listCopy[currentIdx]
+                                                        listCopy[currentIdx] = listCopy[currentIdx - 1]
+                                                        listCopy[currentIdx - 1] = temp
+                                                        localSlotOrderStr = listCopy.joinToString(",")
+                                                        draggingShortcutSlotIndex = currentIdx - 1
+                                                        shortcutDragOffset = 0f
                                                     }
                                                 }
                                             )

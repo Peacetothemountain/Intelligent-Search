@@ -135,20 +135,20 @@ fun SearchSettingsItem(onClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier.size(48.dp).background(Color(0xFF3C3C45), CircleShape),
+            modifier = Modifier.size(48.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = "Search Settings",
-                tint = Color.White,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp)
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "Search",
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -170,7 +170,7 @@ fun ShortcutRow(iconRes: Int, title: String, onClick: () -> Unit) {
         Spacer(modifier = Modifier.width(16.dp))
         Text(
             text = title,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             fontFamily = GoogleSansFlex
@@ -300,7 +300,7 @@ fun SearchOverlayScreen(
                 targetValue = 1f,
                 animationSpec = spring(
                     dampingRatio = 0.75f,
-                    stiffness = 800f
+                    stiffness = 1200f
                 )
             )
         } else {
@@ -372,7 +372,7 @@ fun SearchOverlayScreen(
             performClickHaptic(hapticContext)
             if (!showTutorial) {
                 try {
-                    delay(150)
+                    delay(50)
                     focusRequester.requestFocus()
                     keyboardController?.show()
                 } catch (e: Exception) {}
@@ -404,7 +404,7 @@ fun SearchOverlayScreen(
                 viewModel.loadInitialData()
                 try {
                     coroutineScope.launch {
-                        delay(150)
+                        delay(50)
                         focusRequester.requestFocus()
                         keyboardController?.show()
                     }
@@ -546,9 +546,9 @@ fun SearchOverlayScreen(
                         }
                     },
                     modifier = Modifier.weight(1f).focusRequester(focusRequester),
-                    textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 22.sp, fontFamily = GoogleSansFlex),
+                    textStyle = androidx.compose.ui.text.TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 22.sp, fontFamily = GoogleSansFlex),
                     singleLine = true,
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.White),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
                     keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
                         keyboardController?.hide()
@@ -585,8 +585,8 @@ fun SearchOverlayScreen(
                     }),
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.CenterStart) {
-                            if (uiState.query.isEmpty()) {
-                                Text("Search...", color = Color(0xFFA09EB0), fontSize = 22.sp, fontFamily = GoogleSansFlex)
+                             if (uiState.query.isEmpty()) {
+                                 Text("Search...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 22.sp, fontFamily = GoogleSansFlex)
                             } else if (bestMatchText != null && bestMatchText.startsWith(uiState.query, ignoreCase = true)) {
                                 val builder = androidx.compose.ui.text.AnnotatedString.Builder()
                                 builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent))
@@ -616,7 +616,7 @@ fun SearchOverlayScreen(
                         .tutorialTarget(2, prefs)
                         .padding(12.dp)
                 ) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Settings", tint = Color.White)
+                    Icon(Icons.Default.MoreVert, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -720,7 +720,7 @@ fun SearchOverlayScreen(
 
             if (bestMatch != null) {
                 item(key = "top_hit_label") {
-                    Text("Top Hit", color = Color(0xFFA09EB0), fontSize = 14.sp, fontFamily = GoogleSansFlex, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+                    Text("Top Hit", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp, fontFamily = GoogleSansFlex, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
                 }
                 item(key = "top_hit_content") {
                     when (val match = bestMatch) {
@@ -740,13 +740,13 @@ fun SearchOverlayScreen(
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(modifier = Modifier.size(40.dp).background(Color(0xFF3B3B46), CircleShape), contentAlignment = Alignment.Center) {
-                                    Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = Color.White)
+                                Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape), contentAlignment = Alignment.Center) {
+                                    Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column {
-                                    Text(match.name, color = Color.White, fontSize = 16.sp, fontFamily = GoogleSansFlex)
-                                    Text(match.phoneNumber, color = Color(0xFFA09EB0), fontSize = 12.sp, fontFamily = GoogleSansFlex)
+                                    Text(match.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
+                                    Text(match.phoneNumber, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
                                 }
                             }
                         }
@@ -778,8 +778,8 @@ fun SearchOverlayScreen(
                                         }
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Column {
-                                            Text(match.name, color = Color.White, fontSize = 20.sp, fontFamily = GoogleSansFlex, fontWeight = FontWeight.Medium)
-                                            Text("App", color = Color(0xFFA09EB0), fontSize = 14.sp, fontFamily = GoogleSansFlex)
+                                            Text(match.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontFamily = GoogleSansFlex, fontWeight = FontWeight.Medium)
+                                            Text("App", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontFamily = GoogleSansFlex)
                                         }
                                     }
                                     if (match.actions.isNotEmpty()) {
@@ -802,8 +802,8 @@ fun SearchOverlayScreen(
                                                             try { context.startActivity(intent); closeOverlay() } catch (e2: Exception) {}
                                                         }
                                                     },
-                                                    label = { Text(action.title, color = Color.White, fontFamily = GoogleSansFlex) },
-                                                    colors = AssistChipDefaults.assistChipColors(containerColor = Color.White.copy(alpha = 0.1f), labelColor = Color.White),
+                                                    label = { Text(action.title, color = MaterialTheme.colorScheme.onPrimaryContainer, fontFamily = GoogleSansFlex) },
+                                                    colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.primaryContainer, labelColor = MaterialTheme.colorScheme.onPrimaryContainer),
                                                     border = null,
                                                     shape = RoundedCornerShape(32.dp)
                                                 )
@@ -835,24 +835,24 @@ fun SearchOverlayScreen(
                                 if (settingsState.filesThumbnails) {
                                     FileIconThumbnail(match.uri, match.mimeType)
                                 } else {
-                                    Box(modifier = Modifier.size(40.dp).background(Color(0xFF3B3B46), RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                                        Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = Color.White)
+                                    Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                                        Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column {
-                                    Text(match.name, color = Color.White, fontSize = 16.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(match.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }
                     }
                 }
-                item(key = "top_hit_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                item(key = "top_hit_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             if (uiState.query.isEmpty() && uiState.recentSearches.isNotEmpty()) {
                 item(key = "recent_label") {
-                    Text("Recent", color = Color(0xFFA09EB0), fontSize = 12.sp, fontFamily = GoogleSansFlex, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    Text("Recent", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 }
                 itemsIndexed(uiState.recentSearches, key = { index, query -> "recent_${query}_$index" }) { index, recentQuery ->
                     val dismissState = rememberSwipeToDismissBoxState()
@@ -893,13 +893,13 @@ fun SearchOverlayScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = verticalPad),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(modifier = Modifier.size(24.dp).background(Color(0xFF4285F4).copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
-                            Text(event.startTime.split(":").first(), color = Color(0xFF4285F4), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Box(modifier = Modifier.size(24.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
+                            Text(event.startTime.split(":").first(), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
-                            Text(event.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium, fontFamily = GoogleSansFlex)
-                            Text(event.startTime, color = Color(0xFFA09EB0), fontSize = 12.sp, fontFamily = GoogleSansFlex)
+                            Text(event.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium, fontFamily = GoogleSansFlex)
+                            Text(event.startTime, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
                         }
                     }
                 }
@@ -918,9 +918,9 @@ fun SearchOverlayScreen(
                         }.padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.MoreVert, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.MoreVert, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
                         Spacer(modifier = Modifier.width(16.dp))
-                        Text(shortcut.shortLabel, color = Color.White, fontSize = 16.sp, fontFamily = GoogleSansFlex)
+                        Text(shortcut.shortLabel, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
                     }
                 }
                 item(key = "shortcuts_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
@@ -960,9 +960,9 @@ fun SearchOverlayScreen(
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(imageVector = Icons.Default.Calculate, contentDescription = null, tint = Color.Green, modifier = Modifier.size(24.dp))
+                        Icon(imageVector = Icons.Default.Calculate, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                         Spacer(modifier = Modifier.width(16.dp))
-                        Text(text = uiState.mathResult ?: "", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = GoogleSansFlex)
+                        Text(text = uiState.mathResult ?: "", color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = GoogleSansFlex)
                     }
                 }
                 item(key = "math_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
@@ -980,8 +980,8 @@ fun SearchOverlayScreen(
                     val tint = when (instantAnswer.iconType) {
                         "weather" -> Color(0xFFFFD54F)
                         "time" -> Color(0xFF64B5F6)
-                        "conversion" -> Color.Green
-                        else -> Color.White
+                        "conversion" -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurface
                     }
                     
                     Box(
@@ -989,7 +989,7 @@ fun SearchOverlayScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                             .clip(RoundedCornerShape(32.dp))
-                            .background(Color.White.copy(alpha = 0.05f))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                             .padding(20.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -998,14 +998,14 @@ fun SearchOverlayScreen(
                             Column {
                                 Text(
                                     text = instantAnswer.title,
-                                    color = Color.White,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontSize = 24.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = GoogleSansFlex
                                 )
                                 Text(
                                     text = instantAnswer.subtitle,
-                                    color = Color(0xFFA09EB0),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 14.sp,
                                     fontFamily = GoogleSansFlex
                                 )
@@ -1093,13 +1093,13 @@ fun SearchOverlayScreen(
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(modifier = Modifier.size(40.dp).background(Color(0xFF3B3B46), CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = Color.White)
+                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape), contentAlignment = Alignment.Center) {
+                            Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
-                            Text(contact.name, color = Color.White, fontSize = 16.sp, fontFamily = GoogleSansFlex)
-                            Text(contact.phoneNumber, color = Color(0xFFA09EB0), fontSize = 12.sp, fontFamily = GoogleSansFlex)
+                            Text(contact.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
+                            Text(contact.phoneNumber, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
                         }
                     }
                 }
@@ -1122,13 +1122,13 @@ fun SearchOverlayScreen(
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(modifier = Modifier.size(40.dp).background(Color(0xFF3B3B46), RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = Color.White)
+                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                            Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(file.name, color = Color.White, fontSize = 16.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(file.mimeType, color = Color(0xFFA09EB0), fontSize = 12.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(file.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(file.mimeType, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -1221,8 +1221,8 @@ fun SearchOverlayScreen(
             val verticalPadding = (16 * morphProgress).dp
 
             val searchBarAlpha = morphProgress
-            val quickAppPanelAlpha = (morphProgress - 0.2f).coerceIn(0f, 0.8f) / 0.8f
-            val searchResultsAlpha = (morphProgress - 0.4f).coerceIn(0f, 0.6f) / 0.6f
+            val quickAppPanelAlpha = (morphProgress - 0.1f).coerceIn(0f, 0.9f) / 0.9f
+            val searchResultsAlpha = (morphProgress - 0.2f).coerceIn(0f, 0.8f) / 0.8f
             
             val searchBarOffset = (1f - searchBarAlpha) * 40f
             val quickAppPanelOffset = (1f - quickAppPanelAlpha) * 40f
@@ -1238,7 +1238,7 @@ fun SearchOverlayScreen(
                         if (settingsState.bottomSearch) {
                             Modifier
                                 .background(MaterialTheme.colorScheme.surface.copy(alpha = surfaceAlpha))
-                                .border(1.dp, Color(0xFF3C3C45).copy(alpha = morphProgress), RoundedCornerShape(currentCornerRadius))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = morphProgress), RoundedCornerShape(currentCornerRadius))
                         } else {
                             Modifier.background(Color.Transparent)
                         }
@@ -1321,8 +1321,8 @@ fun FileIconThumbnail(uri: String, mimeType: String) {
             contentScale = androidx.compose.ui.layout.ContentScale.Crop
         )
     } else {
-        Box(modifier = Modifier.size(40.dp).background(Color(0xFF3B3B46), RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-            Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = Color.White)
+        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+            Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

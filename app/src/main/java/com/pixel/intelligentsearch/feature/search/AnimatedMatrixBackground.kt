@@ -17,12 +17,17 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.material3.MaterialTheme
 import kotlin.math.PI
 import kotlin.math.sin
 
 @Composable
 fun AnimatedMatrixBackground(modifier: Modifier = Modifier) {
     val infiniteTransition = rememberInfiniteTransition(label = "matrix")
+    
+    val background = MaterialTheme.colorScheme.background
+    val isDark = (0.299f * background.red + 0.587f * background.green + 0.114f * background.blue) < 0.5f
+    val baseColor = if (isDark) Color(0x60A09EB0) else Color(0x35000000)
     
     val phase by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -42,7 +47,6 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier) {
         val cols = (width / spacing).toInt() + 1
         val rows = (height / spacing).toInt() + 1
         val sparkleSize = 4.5f
-        val baseColor = Color(0x60A09EB0)
         
         // Pre-calculate positions to eliminate per-frame math overhead on cold boots
         val points = mutableListOf<Pair<Offset, Float>>()

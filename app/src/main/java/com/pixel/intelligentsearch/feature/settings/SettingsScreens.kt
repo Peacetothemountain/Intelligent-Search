@@ -15,6 +15,8 @@ import androidx.compose.ui.draw.clipToBounds
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.feature.widget.SearchTileService
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
+import com.pixel.intelligentsearch.core.data.SystemDataProvider
+import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.App
 import com.pixel.intelligentsearch.feature.search.getAppName
 import com.pixel.intelligentsearch.feature.search.AnimatedMatrixBackground
@@ -1123,7 +1125,9 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
             SettingsCard {
-                var rawThemeMode by rememberStringPreference(prefs, "night.mode", "Material Dark")
+                val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+                val defaultThemeValue = if (isSystemDark) "Material Dark" else "Material Light"
+                var rawThemeMode by rememberStringPreference(prefs, "night.mode", defaultThemeValue)
                 val themeMode = if (rawThemeMode == "System") "Material Dark" else rawThemeMode
                 SettingsDropdownRow(
                     title = "App Theme",
@@ -1412,30 +1416,20 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
 // -----------------------------------------------------------------------------------------
 // MANAGE HIDDEN APPS SCREEN
 // -----------------------------------------------------------------------------------------
-data class AppItemData(val packageName: String, val label: String, val resolveInfo: android.content.pm.ResolveInfo)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     val viewModel = LocalSettingsViewModel.current
     var hiddenApps by remember { mutableStateOf(prefs.getStringSet("hidden_apps", emptySet()) ?: emptySet()) }
-    var installedApps by remember { mutableStateOf<List<AppItemData>>(emptyList()) }
+    var installedApps by remember { mutableStateOf<List<AppItem>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(400)
+        kotlinx.coroutines.delay(100)
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val pm = context.packageManager
-            val intent = android.content.Intent(android.content.Intent.ACTION_MAIN, null).apply { addCategory(android.content.Intent.CATEGORY_LAUNCHER) }
-            val apps = pm.queryIntentActivities(intent, 0).map { 
-                AppItemData(
-                    packageName = it.activityInfo.packageName,
-                    label = it.loadLabel(pm).toString(),
-                    resolveInfo = it
-                )
-            }.sortedBy { it.label }
+            val apps = SystemDataProvider.getAllApps(context).sortedBy { it.name }
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                 installedApps = apps
             }
@@ -1468,34 +1462,38 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
                             color = MaterialTheme.colorScheme.surfaceVariant,
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
                         ) {
-                            androidx.compose.material3.TextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                placeholder = { Text("Search apps...") },
-                                singleLine = true,
-                                colors = androidx.compose.material3.TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent
+                            androidx.compose.foundation.layout.Box(
+                                contentAlignment = Alignment.CenterStart,
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
+                            ) {
+                                if (searchQuery.isEmpty()) {
+                                    Text(
+                                        "Search apps...", 
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        fontSize = 14.sp
+                                    )
+                                }
+                                androidx.compose.foundation.text.BasicTextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 14.sp
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
                                 )
-                            )
+                            }
                         }
                     }
                 }
             },
             navigationIcon = {
-                IconButton(onClick = {
-                    if (isSearching) {
-                        isSearching = false
-                        searchQuery = ""
-                    } else {
-                        onBack()
-                    }
-                }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
             },
             actions = {
                 IconButton(onClick = { 
@@ -1524,24 +1522,20 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 val filteredApps = if (searchQuery.isBlank()) {
                     installedApps
                 } else {
-                    installedApps.filter { it.label.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
+                    installedApps.filter { it.name.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
                 }
 
-                items(filteredApps.size) { index ->
+                items(
+                    count = filteredApps.size,
+                    key = { index -> filteredApps[index].packageName }
+                ) { index ->
                     val app = filteredApps[index]
                     val isHidden = hiddenApps.contains(app.packageName)
-                    var appIcon by remember(app.packageName) { mutableStateOf<android.graphics.drawable.Drawable?>(null) }
-                    
-                    LaunchedEffect(app.packageName) {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            appIcon = app.resolveInfo.loadIcon(context.packageManager)
-                        }
-                    }
                     
                     SettingsRowToggle(
-                        title = app.label,
+                        title = app.name,
                         subtitle = app.packageName,
-                        icon = appIcon ?: Icons.Outlined.Apps,
+                        icon = app.icon,
                         isChecked = isHidden,
                         onCheckedChange = { hide ->
                             val newSet = hiddenApps.toMutableSet()
@@ -2349,6 +2343,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localLightness by remember { mutableStateOf(prefs.getInt("widget_custom_lightness", 100).toFloat()) }
     var localCustomColorInt by remember { mutableStateOf(prefs.getInt("widget_custom_color_int", android.graphics.Color.HSVToColor(floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f)))) }
     var localOpacity by remember { mutableStateOf(prefs.getInt("widget.background.transparency", 28).toFloat()) }
+    var localLockBlack by remember { mutableStateOf(prefs.getBoolean("widget_material_lock_black", true)) }
     var localShowVoice by remember { mutableStateOf(prefs.getBoolean("widget_show_voice", true)) }
     var localActionIcon by remember { mutableStateOf(prefs.getString("widget_action_icon", "Search") ?: "Search") }
     var localShortcut by remember { mutableStateOf(prefs.getString("widget_shortcut", "Google Lens") ?: "Google Lens") }
@@ -2357,7 +2352,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
     LaunchedEffect(
         localShowGIcon, localShowDoodle, localThemeStyle, localSubtheme,
-        localMaterialGIconTheme, localHue, localSaturation, localLightness, localOpacity,
+        localMaterialGIconTheme, localHue, localSaturation, localLightness, localOpacity, localLockBlack,
         localShowVoice, localActionIcon, localShortcut, localCustomColorInt
     ) {
         if (isInitialSetup) {
@@ -2375,6 +2370,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             .putInt("widget_custom_lightness", localLightness.toInt())
             .putInt("widget_custom_color_int", localCustomColorInt)
             .putInt("widget.background.transparency", localOpacity.toInt())
+            .putBoolean("widget_material_lock_black", localLockBlack)
             .putBoolean("widget_show_voice", localShowVoice)
             .putString("widget_action_icon", localActionIcon)
             .putString("widget_shortcut", localShortcut)
@@ -2403,6 +2399,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         localLightness = 100f
                         localCustomColorInt = android.graphics.Color.HSVToColor(floatArrayOf(277f, 0.51f, 1f))
                         localOpacity = 28f
+                        localLockBlack = true
                         localShowVoice = true
                         localActionIcon = "Search"
                         localShortcut = "Google Lens"
@@ -2481,7 +2478,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     } else androidx.compose.ui.graphics.Color.Transparent
                     
-                    val finalPreviewIconTint = if (previewIsMaterialYou && localMaterialGIconTheme == "Material G Icon") {
+                    val finalPreviewIconTint = if (localMaterialGIconTheme == "Accented G Icon") {
+                        accentColor
+                    } else if (previewIsMaterialYou && localMaterialGIconTheme == "Material G Icon") {
                         androidx.compose.ui.graphics.Color.Unspecified
                     } else if (previewIsMaterialYou) {
                         androidx.compose.ui.graphics.Color.White
@@ -2518,7 +2517,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
                     
                     val previewPillColorAlpha = if (previewIsMaterialYou) {
-                        androidx.compose.ui.graphics.Color(0xFF121212)
+                        if (localLockBlack) {
+                            androidx.compose.ui.graphics.Color(0xFF121212)
+                        } else {
+                            accentColor.copy(alpha = alphaInt)
+                        }
                     } else {
                         when (localSubtheme) {
                             "Light" -> androidx.compose.ui.graphics.Color(0xFFF8F9FA)
@@ -2549,14 +2552,23 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (localShowGIcon) {
-                                val gIconTint = if (!previewIsMaterialYou && localSubtheme == "System") {
-                                    finalPreviewIconTint
-                                } else if (previewIsMaterialYou && localMaterialGIconTheme != "System G Icon") {
-                                    finalPreviewIconTint
-                                } else {
-                                    androidx.compose.ui.graphics.Color.Unspecified
+                                val gIconTint = when (localMaterialGIconTheme) {
+                                    "System G Icon" -> androidx.compose.ui.graphics.Color.Unspecified
+                                    "Accented G Icon" -> accentColor
+                                    "Material G Icon" -> {
+                                        if (previewIsMaterialYou) androidx.compose.ui.graphics.Color.Unspecified else finalPreviewIconTint
+                                    }
+                                    else -> androidx.compose.ui.graphics.Color.Unspecified
                                 }
-                                val useOriginalGIcon = !previewIsMaterialYou && localSubtheme != "System"
+                                val useOriginalGIcon = if (previewIsMaterialYou) {
+                                    localMaterialGIconTheme == "System G Icon"
+                                } else {
+                                    if (localSubtheme == "Custom") {
+                                        localMaterialGIconTheme == "System G Icon"
+                                    } else {
+                                        localSubtheme != "System"
+                                    }
+                                }
                                 ComposeGIcon(
                                     modifier = Modifier.size(24.dp),
                                     primaryColor = MaterialTheme.colorScheme.primary,
@@ -2686,7 +2698,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(24.dp))
                             .background(if (isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
-                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "System Default" },
+                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "System Default"; localSubtheme = "System" },
                         contentAlignment = Alignment.Center
                     ) {
                         Text("System Design", style = MaterialTheme.typography.labelLarge, color = if (isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -2697,7 +2709,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(24.dp))
                             .background(if (!isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
-                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "Material You (Minimal)" },
+                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "Material You (Minimal)"; localSubtheme = "Material" },
                         contentAlignment = Alignment.Center
                     ) {
                         Text("Material Design", style = MaterialTheme.typography.labelLarge, color = if (!isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -2716,7 +2728,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val systemOpts = listOf("System", "Light", "Dark", "Custom")
                     systemOpts.forEach { opt ->
                         val isSel = localSubtheme == opt
-                        val dynColor = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor((localOpacity * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
+                        val dynColor = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(((100 - localOpacity) * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
                         val bgModifier = if (opt == "Custom") {
                             if (isSel) {
                                 Modifier.background(dynColor, RoundedCornerShape(32.dp))
@@ -2761,7 +2773,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val matOpts = listOf("Material", "Custom")
                     matOpts.forEach { opt ->
                         val isSel = localSubtheme == opt
-                        val dynColor = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor((localOpacity * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
+                        val dynColor = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(((100 - localOpacity) * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
                         val bgModifier = if (opt == "Custom") {
                             if (isSel) {
                                 Modifier.background(dynColor, RoundedCornerShape(32.dp))
@@ -2804,7 +2816,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 }
             }
 
-            if (localThemeStyle == "Material You (Minimal)" && localSubtheme == "Custom") {
+            if (localSubtheme == "Custom") {
                 // Material G Icon Row
                 SettingsCard {
                     Row(
@@ -2964,6 +2976,32 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             Text(customColorHex, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.weight(1f))
                             Icon(Icons.Default.Edit, contentDescription = "Edit Hex", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                        }
+                        
+                        if (localThemeStyle == "Material You (Minimal)") {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .clickable { localLockBlack = !localLockBlack }
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Lock Pill & Circle to Black", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Force dark inner elements in Material Design", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                }
+                                androidx.compose.material3.Switch(
+                                    checked = localLockBlack,
+                                    onCheckedChange = { localLockBlack = it },
+                                    colors = androidx.compose.material3.SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
                         }
                     }
                 }

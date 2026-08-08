@@ -109,11 +109,11 @@ class SearchWidgetProvider : AppWidgetProvider() {
             android.graphics.Color.TRANSPARENT
         }
 
-
+        val lockBlack = prefs.getBoolean("widget_material_lock_black", true)
 
         // Inner pill: Material Black for Material You, System Design uses specific colors based on subtheme
         val pillColor = if (isMaterialYou) {
-            0xFF121212.toInt()
+            if (lockBlack) 0xFF121212.toInt() else actualCustomColor
         } else {
             when (subthemeStr) {
                 "Light" -> 0xFFF8F9FA.toInt()
@@ -168,6 +168,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
         
         // Determine Material G Icon Theme
         val materialGIconTheme = prefs.getString("widget_material_g_icon", "Material G Icon") ?: "Material G Icon"
+        val accentIconTint = if (materialGIconTheme == "Accented G Icon") actualCustomColor else iconTint
+
         val gIconRes = when {
             !isMaterialYou -> {
                 if (materialGIconTheme == "Accented G Icon") R.drawable.ic_g_logo else R.drawable.ic_g_logo_colored
@@ -199,19 +201,21 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setInt(R.id.widget_outer_background, "setImageAlpha", alphaInt)
                 
                 views.setColorStateList(R.id.widget_pill_background, "setImageTintList", android.content.res.ColorStateList.valueOf(pillColorOpaque))
+                views.setInt(R.id.widget_pill_background, "setImageAlpha", if (lockBlack) 255 else alphaInt)
                 
                 views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
+                views.setInt(R.id.widget_sound_background, "setImageAlpha", if (lockBlack) 255 else alphaInt)
                 
-                bindDoodle(context, views, showDoodle, prefs.getBoolean("force_google_minidoodle", false), showGIcon, gIconRes, iconTint, materialGIconTheme)
+                bindDoodle(context, views, showDoodle, prefs.getBoolean("force_google_minidoodle", false), showGIcon, gIconRes, accentIconTint, materialGIconTheme)
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic)
                 views.setImageViewResource(R.id.widget_lens_search, shortcutIconRes)
                 views.setImageViewResource(R.id.widget_sound_icon, actionIconRes)
                 
                 if (materialGIconTheme == "Accented G Icon") {
-                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
-                    views.setColorStateList(R.id.widget_voice_search, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
-                    views.setColorStateList(R.id.widget_lens_search, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
-                    views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
+                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
+                    views.setColorStateList(R.id.widget_voice_search, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
+                    views.setColorStateList(R.id.widget_lens_search, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
+                    views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
                 } else {
                     views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
                     views.setColorStateList(R.id.widget_voice_search, "setImageTintList", null)
@@ -230,12 +234,12 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
                 views.setInt(R.id.widget_sound_background, "setImageAlpha", alphaInt)
                 
-                bindDoodle(context, views, showDoodle, prefs.getBoolean("force_google_minidoodle", false), showGIcon, gIconRes, iconTint, "Colorful")
+                bindDoodle(context, views, showDoodle, prefs.getBoolean("force_google_minidoodle", false), showGIcon, gIconRes, accentIconTint, materialGIconTheme)
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic_original)
-                views.setColorStateList(R.id.widget_voice_search, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
+                views.setColorStateList(R.id.widget_voice_search, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
                 
                 views.setImageViewResource(R.id.widget_lens_search, shortcutIconRes)
-                views.setColorStateList(R.id.widget_lens_search, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
+                views.setColorStateList(R.id.widget_lens_search, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
             }
 
             // Shortcut visibility

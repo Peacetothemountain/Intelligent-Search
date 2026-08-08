@@ -116,8 +116,10 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             }
         }
         .map { preferences ->
+            val isSystemDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+            val defaultTheme = if (isSystemDark) "Material Dark" else "Material Light"
             IntelligentSearchSettings(
-                theme = preferences[THEME] ?: "system",
+                theme = preferences[THEME] ?: defaultTheme,
                 searchApps = preferences[SEARCH_APPS] ?: false,
                 searchContacts = preferences[SEARCH_CONTACTS] ?: false,
                 searchFiles = preferences[SEARCH_FILES] ?: false,

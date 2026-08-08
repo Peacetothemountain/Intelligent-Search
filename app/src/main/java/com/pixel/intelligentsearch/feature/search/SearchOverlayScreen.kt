@@ -312,11 +312,13 @@ fun SearchOverlayScreen(
                 overlayProgressAnim.snapTo(1f)
             }
         } else {
+            val currentVel = overlayProgressAnim.velocity
             overlayProgressAnim.animateTo(
                 targetValue = 0f,
+                initialVelocity = currentVel,
                 animationSpec = spring(
-                    dampingRatio = 0.88f,
-                    stiffness = 140f
+                    dampingRatio = 0.92f,
+                    stiffness = 250f
                 )
             )
             val act = context as? android.app.Activity
@@ -1169,9 +1171,11 @@ fun SearchOverlayScreen(
                         val commitThreshold = 0.75f
                         coroutineScope.launch {
                             val target = if (overlayProgressAnim.value > commitThreshold) 1f else 0f
+                            val currentVel = overlayProgressAnim.velocity
                             overlayProgressAnim.animateTo(
                                 targetValue = target,
-                                animationSpec = spring(dampingRatio = 0.88f, stiffness = 140f)
+                                initialVelocity = currentVel,
+                                animationSpec = spring(dampingRatio = 0.92f, stiffness = 250f)
                             )
                             if (target == 0f) {
                                 val act = (context as? android.app.Activity)
@@ -1184,7 +1188,8 @@ fun SearchOverlayScreen(
                     },
                     onDragCancel = {
                         coroutineScope.launch {
-                            overlayProgressAnim.animateTo(1f, spring(0.88f, 140f))
+                            val currentVel = overlayProgressAnim.velocity
+                            overlayProgressAnim.animateTo(1f, initialVelocity = currentVel, animationSpec = spring(0.92f, 250f))
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->

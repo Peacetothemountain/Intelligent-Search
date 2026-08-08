@@ -22,6 +22,19 @@ class SettingsActivity : AppCompatActivity() {
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
         
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(
+                OVERRIDE_TRANSITION_OPEN,
+                com.pixel.intelligentsearch.R.anim.slide_in_right,
+                com.pixel.intelligentsearch.R.anim.slide_out_left
+            )
+            overrideActivityTransition(
+                OVERRIDE_TRANSITION_CLOSE,
+                com.pixel.intelligentsearch.R.anim.slide_in_left,
+                com.pixel.intelligentsearch.R.anim.slide_out_right
+            )
+        }
+        
         var appWidgetId = android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
         intent.extras?.let { extras ->
             appWidgetId = extras.getInt(
@@ -71,7 +84,6 @@ class SettingsActivity : AppCompatActivity() {
                                 prefs = prefs,
                                 onBackToLauncher = {
                                     finish()
-                                    overridePendingTransition(com.pixel.intelligentsearch.R.anim.slide_in_left, com.pixel.intelligentsearch.R.anim.slide_out_right)
                                 },
                                 context = this@SettingsActivity
                             )

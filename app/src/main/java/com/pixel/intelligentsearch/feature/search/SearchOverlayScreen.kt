@@ -323,7 +323,6 @@ fun SearchOverlayScreen(
             )
             val act = context as? android.app.Activity
             act?.finish()
-            act?.overridePendingTransition(0, 0)
         }
     }
     val overlayProgress = overlayProgressAnim.value
@@ -406,7 +405,6 @@ fun SearchOverlayScreen(
                 val act = context as? android.app.Activity
                 if (act != null && !act.isFinishing) {
                     act.finish()
-                    act.overridePendingTransition(0, 0)
                 }
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
@@ -1178,7 +1176,6 @@ fun SearchOverlayScreen(
                             if (target == 0f) {
                                 val act = (context as? android.app.Activity)
                                 act?.finish()
-                                act?.overridePendingTransition(0, 0)
                             }
                         }
                     },
@@ -1248,12 +1245,6 @@ fun SearchOverlayScreen(
 
             Box(
                 modifier = Modifier
-                    .graphicsLayer {
-                        alpha = morphProgress.coerceIn(0f, 1f)
-                        val scale = 0.90f + (0.10f * morphProgress)
-                        scaleX = scale
-                        scaleY = scale
-                    }
                     .width(currentWidth)
                     .height(currentHeight)
                     .padding(bottom = verticalPadding)

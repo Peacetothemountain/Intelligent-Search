@@ -37,6 +37,19 @@ open class MainActivity : AppCompatActivity() {
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
         
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(
+                OVERRIDE_TRANSITION_OPEN,
+                R.anim.slide_in_right,
+                R.anim.slide_out_left
+            )
+            overrideActivityTransition(
+                OVERRIDE_TRANSITION_CLOSE,
+                R.anim.slide_in_left,
+                R.anim.slide_out_right
+            )
+        }
+
         if (handleIntent(intent)) return
 
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -75,7 +88,6 @@ open class MainActivity : AppCompatActivity() {
                                     startActivity(Intent(this@MainActivity, SettingsActivity::class.java).apply {
                                         putExtra("extra_screen", route)
                                     })
-                                    overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
                                 },
                                 onLaunchApp = { packageName ->
                                     val launchIntent = packageManager.getLaunchIntentForPackage(packageName)

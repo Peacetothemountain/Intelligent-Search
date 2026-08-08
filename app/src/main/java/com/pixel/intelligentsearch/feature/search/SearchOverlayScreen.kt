@@ -316,11 +316,13 @@ fun SearchOverlayScreen(
             overlayProgressAnim.animateTo(
                 targetValue = 0f,
                 animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessLow
+                    dampingRatio = 0.85f,
+                    stiffness = 800f
                 )
             )
-            (context as? android.app.Activity)?.finish()
+            val act = context as? android.app.Activity
+            act?.finish()
+            act?.overridePendingTransition(0, 0)
         }
     }
     val overlayProgress = overlayProgressAnim.value
@@ -341,7 +343,13 @@ fun SearchOverlayScreen(
 
     val closeOverlay = {
         keyboardController?.hide()
-        (context as? android.app.Activity)?.finish()
+        if (transitionState.targetState) {
+            transitionState.targetState = false
+        } else {
+            val act = context as? android.app.Activity
+            act?.finish()
+            act?.overridePendingTransition(0, 0)
+        }
     }
 
     val launchWebSearch: (String) -> Unit = { searchQuery ->
@@ -1170,7 +1178,9 @@ fun SearchOverlayScreen(
                                 animationSpec = spring(dampingRatio = 0.75f, stiffness = 800f)
                             )
                             if (target == 0f) {
-                                (context as? android.app.Activity)?.finish()
+                                val act = (context as? android.app.Activity)
+                                act?.finish()
+                                act?.overridePendingTransition(0, 0)
                             }
                         }
                     },
@@ -1239,6 +1249,12 @@ fun SearchOverlayScreen(
 
             Box(
                 modifier = Modifier
+                    .graphicsLayer {
+                        alpha = morphProgress.coerceIn(0f, 1f)
+                        val scale = 0.90f + (0.10f * morphProgress)
+                        scaleX = scale
+                        scaleY = scale
+                    }
                     .width(currentWidth)
                     .height(currentHeight)
                     .padding(bottom = verticalPadding)

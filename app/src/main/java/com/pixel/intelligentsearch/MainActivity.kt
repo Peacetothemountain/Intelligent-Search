@@ -75,6 +75,7 @@ open class MainActivity : AppCompatActivity() {
                                     startActivity(Intent(this@MainActivity, SettingsActivity::class.java).apply {
                                         putExtra("extra_screen", route)
                                     })
+                                    overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
                                 },
                                 onLaunchApp = { packageName ->
                                     val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
@@ -169,6 +170,7 @@ open class MainActivity : AppCompatActivity() {
 
     override fun finish() {
         super.finish()
+        overridePendingTransition(0, 0)
     }
 
 }

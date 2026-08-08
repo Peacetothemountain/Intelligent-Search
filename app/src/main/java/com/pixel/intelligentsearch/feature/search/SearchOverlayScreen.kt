@@ -57,6 +57,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -391,7 +392,7 @@ fun SearchOverlayScreen(
             performClickHaptic(hapticContext)
             if (!showTutorial) {
                 try {
-                    delay(50)
+                    delay(220)
                     focusRequester.requestFocus()
                     keyboardController?.show()
                 } catch (e: Exception) {}
@@ -1234,34 +1235,39 @@ fun SearchOverlayScreen(
             
             val targetHeight = screenHeight - 32.dp
             val initialHeight = 56.dp
-            val currentHeight = initialHeight + (targetHeight - initialHeight) * morphProgress
             
             val targetWidth = screenWidth - 32.dp
             val initialWidth = screenWidth - 64.dp
-            val currentWidth = initialWidth + (targetWidth - initialWidth) * morphProgress
-            
-            val currentCornerRadius = 28.dp - (4.dp * morphProgress)
-            val verticalPadding = (16 * morphProgress).dp
 
             val searchBarAlpha = morphProgress
             val quickAppPanelAlpha = (morphProgress - 0.1f).coerceIn(0f, 0.9f) / 0.9f
             val searchResultsAlpha = (morphProgress - 0.2f).coerceIn(0f, 0.8f) / 0.8f
-            
+
             val searchBarOffset = (1f - searchBarAlpha) * 40f
             val quickAppPanelOffset = (1f - quickAppPanelAlpha) * 40f
             val searchResultsOffset = (1f - searchResultsAlpha) * 40f
 
             Box(
                 modifier = Modifier
-                    .width(currentWidth)
-                    .height(currentHeight)
-                    .padding(bottom = verticalPadding)
-                    .clip(RoundedCornerShape(currentCornerRadius))
+                    .width(targetWidth)
+                    .height(targetHeight)
+                    .padding(bottom = 16.dp)
+                    .graphicsLayer {
+                        val progress = morphProgress.coerceIn(0.001f, 1f)
+                        val currentW = initialWidth.toPx() + (targetWidth.toPx() - initialWidth.toPx()) * progress
+                        val currentH = initialHeight.toPx() + (targetHeight.toPx() - initialHeight.toPx()) * progress
+                        
+                        scaleX = currentW / targetWidth.toPx()
+                        scaleY = currentH / targetHeight.toPx()
+                        transformOrigin = TransformOrigin(0.5f, 1.0f)
+                        alpha = progress
+                    }
+                    .clip(RoundedCornerShape(24.dp))
                     .then(
                         if (settingsState.bottomSearch) {
                             Modifier
                                 .background(MaterialTheme.colorScheme.surface.copy(alpha = surfaceAlpha))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = morphProgress), RoundedCornerShape(currentCornerRadius))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = morphProgress), RoundedCornerShape(24.dp))
                         } else {
                             Modifier.background(Color.Transparent)
                         }

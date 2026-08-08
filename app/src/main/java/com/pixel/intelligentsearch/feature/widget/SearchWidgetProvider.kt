@@ -231,7 +231,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(viewId, if (isVisible) View.VISIBLE else View.GONE)
 
                 if (isVisible) {
-                    val iconRes = getShortcutIconRes(shortcutStr)
+                    val iconRes = getShortcutIconRes(shortcutStr, isMaterialYou)
                     views.setImageViewResource(viewId, iconRes)
 
                     if (isMaterialYou) {
@@ -253,8 +253,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 }
             }
 
-            // Voice search visibility
-            views.setViewVisibility(R.id.widget_voice_search, if (showVoice) View.VISIBLE else View.GONE)
+            // Standalone Voice search view is hidden because Voice Search is integrated as a shortcut slot
+            views.setViewVisibility(R.id.widget_voice_search, View.GONE)
 
             // Tap pill -> main search
             val enableSearchOverlay = prefs.getBoolean("search_overlay_enabled", true)
@@ -326,8 +326,9 @@ class SearchWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        fun getShortcutIconRes(shortcut: String): Int {
+        fun getShortcutIconRes(shortcut: String, isMaterialYou: Boolean = true): Int {
             return when (shortcut) {
+                "Voice Search" -> if (isMaterialYou) R.drawable.ic_mic else R.drawable.ic_mic_original
                 "Google Lens" -> R.drawable.ic_camera
                 "Live" -> R.drawable.ic_gemini
                 "Translate (text)" -> R.drawable.ic_translate
@@ -372,6 +373,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
         
         fun getShortcutIntent(context: Context, shortcut: String): Intent {
             return when (shortcut) {
+                "Voice Search" -> getVoiceSearchIntent(context)
                 "Live" -> getGeminiSearchIntent(context)
                 "Translate (text)" -> context.packageManager.getLaunchIntentForPackage("com.google.android.apps.translate") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://translate.google.com")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
                 "Translate (camera)" -> getLensTranslateIntent(context)

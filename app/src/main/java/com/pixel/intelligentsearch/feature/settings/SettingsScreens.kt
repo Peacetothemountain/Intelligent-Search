@@ -2312,6 +2312,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     
     val shortcutOptions = listOf(
         "None" to Icons.Default.Close,
+        "Voice Search" to Icons.Default.Mic,
         "Google Lens" to ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_camera),
         "Live" to Icons.Default.AutoAwesome,
         "Translate (text)" to Icons.Default.Translate,
@@ -2339,7 +2340,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localShowVoice by remember { mutableStateOf(prefs.getBoolean("widget_show_voice", true)) }
     var localActionIcon by remember { mutableStateOf(prefs.getString("widget_action_icon", "Search") ?: "Search") }
     var localShortcut1 by remember { mutableStateOf(prefs.getString("widget_shortcut_1", prefs.getString("widget_shortcut", "Google Lens")) ?: "Google Lens") }
-    var localShortcut2 by remember { mutableStateOf(prefs.getString("widget_shortcut_2", "None") ?: "None") }
+    var localShortcut2 by remember { mutableStateOf(prefs.getString("widget_shortcut_2", "Voice Search") ?: "Voice Search") }
     var localShortcut3 by remember { mutableStateOf(prefs.getString("widget_shortcut_3", "None") ?: "None") }
     var activeShortcutSlot by remember { mutableIntStateOf(1) }
 
@@ -2401,7 +2402,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         localShowVoice = true
                         localActionIcon = "Search"
                         localShortcut1 = "Google Lens"
-                        localShortcut2 = "None"
+                        localShortcut2 = "Voice Search"
                         localShortcut3 = "None"
                     }) {
                         Text("Reset", color = MaterialTheme.colorScheme.onSurface)
@@ -2586,6 +2587,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             val activeShortcuts = listOf(localShortcut1, localShortcut2, localShortcut3).filter { it != "None" }
                             activeShortcuts.forEachIndexed { idx, sc ->
                                 val shortcutRes = when (sc) {
+                                    "Voice Search" -> com.pixel.intelligentsearch.R.drawable.ic_mic
                                     "Live" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
                                     "Translate (text)" -> com.pixel.intelligentsearch.R.drawable.ic_translate
                                     "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_document_scanner
@@ -2606,17 +2608,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     contentDescription = sc,
                                     tint = finalPreviewIconTint,
                                     modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            if (activeShortcuts.isNotEmpty() && localShowVoice) {
-                                Spacer(modifier = Modifier.width(16.dp))
-                            }
-                            if (localShowVoice) {
-                                Icon(
-                                    painter = androidx.compose.ui.res.painterResource(id = com.pixel.intelligentsearch.R.drawable.ic_mic),
-                                    contentDescription = "Mic",
-                                    modifier = Modifier.size(24.dp),
-                                    tint = finalPreviewIconTint
                                 )
                             }
                         }
@@ -3003,27 +2994,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 }
             }
 
-            Text("WIDGET ACTIONS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
-
-            // Actions Card
-            SettingsCard {
-                SettingsRowToggle(
-                    title = "Voice Search Icon",
-                    subtitle = "Show Voice Search Icon on Search Bar Widget.",
-                    icon = Icons.Default.Mic,
-                    isChecked = localShowVoice,
-                    onCheckedChange = { localShowVoice = it },
-                    showDivider = true
-                )
-                val customSat = localSaturation / 100f
-                val alphaInt = (255 * (100 - localOpacity.toInt()) / 100).coerceIn(0, 255) / 255f
-                val dynamicAccentColor = if (localSubtheme == "Custom") {
-                    androidx.compose.ui.graphics.Color(localCustomColorInt)
-                } else {
-                    MaterialTheme.colorScheme.primary
-                }
-                val isMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
-                if (isMaterialYou) {
+            val isMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
+            if (isMaterialYou) {
+                Text("WIDGET ACTIONS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+                SettingsCard {
                     SettingsDropdownRow(
                         title = "Widget Action Icon",
                         subtitle = localActionIcon,
@@ -3043,7 +3017,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         options = listOf("None", "Search", "Gemini", "Now Playing"),
                         selectedOption = localActionIcon,
                         onOptionSelected = { localActionIcon = it },
-                        showDivider = true,
+                        showDivider = false,
                         optionIcons = mapOf(
                             "Search" to com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored,
                             "Gemini" to com.pixel.intelligentsearch.R.drawable.ic_gemini,
@@ -3051,6 +3025,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         )
                     )
                 }
+            }
                 Text("WIDGET SHORTCUTS (UP TO 3)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp))
                 
                 var draggingShortcutSlot by remember { mutableStateOf<Int?>(null) }
@@ -3227,7 +3202,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     }
                 }
-            }
 
             if (showShortcutSheet) {
                 ModalBottomSheet(onDismissRequest = { showShortcutSheet = false }) {

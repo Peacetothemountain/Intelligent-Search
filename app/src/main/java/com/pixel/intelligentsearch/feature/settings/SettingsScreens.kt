@@ -106,6 +106,7 @@ import androidx.compose.ui.BiasAlignment
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -3047,141 +3048,173 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         "Now Playing" to com.pixel.intelligentsearch.R.drawable.ic_music
                     )
                 )
-                Text("WIDGET SHORTCUTS (UP TO 3)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
+                Text("WIDGET SHORTCUTS (UP TO 3)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp))
                 
                 var draggingShortcutSlot by remember { mutableStateOf<Int?>(null) }
                 var shortcutDragOffset by remember { mutableFloatStateOf(0f) }
+                val coroutineScope = rememberCoroutineScope()
 
-                SettingsCard {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     val slotsList = listOf(1, 2, 3)
-                    slotsList.forEachIndexed { index, slotNum ->
+                    slotsList.forEach { slotNum ->
                         val currentVal = when (slotNum) {
                             1 -> localShortcut1
                             2 -> localShortcut2
                             else -> localShortcut3
                         }
                         val isDragging = draggingShortcutSlot == slotNum
-                        val draggingModifier = if (isDragging) {
-                            Modifier.zIndex(1f).graphicsLayer {
-                                translationY = shortcutDragOffset
-                            }
-                        } else {
+                        
+                        val swipeOffsetX = remember { androidx.compose.animation.core.Animatable(0f) }
+
+                        val cardModifier = if (isDragging) {
                             Modifier
+                                .zIndex(2f)
+                                .graphicsLayer { translationY = shortcutDragOffset }
+                        } else {
+                            Modifier.graphicsLayer { translationX = swipeOffsetX.value }
                         }
 
-                        if (index > 0) {
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                        }
-
-                        Box(modifier = draggingModifier) {
-                            val dismissState = rememberSwipeToDismissBoxState(
-                                positionalThreshold = { it * 0.5f }
-                            )
-                            LaunchedEffect(dismissState.currentValue) {
-                                if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
-                                    when (slotNum) {
-                                        1 -> localShortcut1 = "None"
-                                        2 -> localShortcut2 = "None"
-                                        3 -> localShortcut3 = "None"
-                                    }
-                                }
-                            }
-
-                            SwipeToDismissBox(
-                                state = dismissState,
-                                enableDismissFromStartToEnd = !isDragging,
-                                enableDismissFromEndToStart = !isDragging,
-                                backgroundContent = {
-                                    val color = MaterialTheme.colorScheme.errorContainer
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(color)
-                                            .padding(horizontal = 20.dp),
-                                        contentAlignment = if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "Set to None",
-                                            tint = MaterialTheme.colorScheme.onErrorContainer
-                                        )
-                                    }
-                                }
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(MaterialTheme.colorScheme.surface)
-                                        .clickable { activeShortcutSlot = slotNum; showShortcutSheet = true }
-                                        .padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    val iconVector = shortcutOptions.find { it.first == currentVal }?.second ?: Icons.Default.AddCircleOutline
-                                    Icon(iconVector, contentDescription = currentVal, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text("Shortcut Slot: $slotNum", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                                        Text(currentVal, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                    Icon(
-                                        imageVector = Icons.Outlined.DragHandle,
-                                        contentDescription = "Drag to reorder",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier
-                                            .padding(start = 8.dp)
-                                            .pointerInput(slotNum) {
-                                                detectVerticalDragGestures(
-                                                    onDragStart = {
-                                                        draggingShortcutSlot = slotNum
-                                                        shortcutDragOffset = 0f
-                                                    },
-                                                    onDragEnd = {
-                                                        draggingShortcutSlot = null
-                                                        shortcutDragOffset = 0f
-                                                    },
-                                                    onDragCancel = {
-                                                        draggingShortcutSlot = null
-                                                        shortcutDragOffset = 0f
-                                                    },
-                                                    onVerticalDrag = { change, dragAmount ->
-                                                        change.consume()
-                                                        shortcutDragOffset += dragAmount
-                                                        val currentDragSlot = draggingShortcutSlot ?: return@detectVerticalDragGestures
-                                                        
-                                                        if (shortcutDragOffset > 60f) {
-                                                            if (currentDragSlot == 1) {
-                                                                val temp = localShortcut1
-                                                                localShortcut1 = localShortcut2
-                                                                localShortcut2 = temp
-                                                                draggingShortcutSlot = 2
-                                                                shortcutDragOffset = 0f
-                                                            } else if (currentDragSlot == 2) {
-                                                                val temp = localShortcut2
-                                                                localShortcut2 = localShortcut3
-                                                                localShortcut3 = temp
-                                                                draggingShortcutSlot = 3
-                                                                shortcutDragOffset = 0f
-                                                            }
-                                                        } else if (shortcutDragOffset < -60f) {
-                                                            if (currentDragSlot == 3) {
-                                                                val temp = localShortcut3
-                                                                localShortcut3 = localShortcut2
-                                                                localShortcut2 = temp
-                                                                draggingShortcutSlot = 2
-                                                                shortcutDragOffset = 0f
-                                                            } else if (currentDragSlot == 2) {
-                                                                val temp = localShortcut2
-                                                                localShortcut2 = localShortcut1
-                                                                localShortcut1 = temp
-                                                                draggingShortcutSlot = 1
-                                                                shortcutDragOffset = 0f
-                                                            }
+                        Surface(
+                            modifier = cardModifier
+                                .fillMaxWidth()
+                                .pointerInput(slotNum, isDragging) {
+                                    if (!isDragging) {
+                                        detectHorizontalDragGestures(
+                                            onDragEnd = {
+                                                coroutineScope.launch {
+                                                    if (kotlin.math.abs(swipeOffsetX.value) > 200f) {
+                                                        when (slotNum) {
+                                                            1 -> localShortcut1 = "None"
+                                                            2 -> localShortcut2 = "None"
+                                                            3 -> localShortcut3 = "None"
                                                         }
                                                     }
-                                                )
+                                                    swipeOffsetX.animateTo(
+                                                        targetValue = 0f,
+                                                        animationSpec = androidx.compose.animation.core.spring(
+                                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                                                        )
+                                                    )
+                                                }
+                                            },
+                                            onDragCancel = {
+                                                coroutineScope.launch {
+                                                    swipeOffsetX.animateTo(
+                                                        targetValue = 0f,
+                                                        animationSpec = androidx.compose.animation.core.spring(
+                                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                                                        )
+                                                    )
+                                                }
+                                            },
+                                            onHorizontalDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, dragAmount: Float ->
+                                                change.consume()
+                                                coroutineScope.launch {
+                                                    swipeOffsetX.snapTo(swipeOffsetX.value + dragAmount)
+                                                }
                                             }
+                                        )
+                                    }
+                                },
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            tonalElevation = if (isDragging) 8.dp else 2.dp,
+                            shadowElevation = if (isDragging) 4.dp else 0.dp
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { activeShortcutSlot = slotNum; showShortcutSheet = true }
+                                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val iconVector = shortcutOptions.find { it.first == currentVal }?.second ?: Icons.Default.Close
+                                Icon(
+                                    imageVector = iconVector,
+                                    contentDescription = currentVal,
+                                    modifier = Modifier.size(24.dp),
+                                    tint = if (currentVal == "None") MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Shortcut Slot: $slotNum",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = currentVal,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+                                Icon(
+                                    imageVector = Icons.Outlined.DragHandle,
+                                    contentDescription = "Drag to reorder",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .padding(start = 12.dp)
+                                        .size(24.dp)
+                                        .pointerInput(slotNum) {
+                                            detectVerticalDragGestures(
+                                                onDragStart = {
+                                                    draggingShortcutSlot = slotNum
+                                                    shortcutDragOffset = 0f
+                                                },
+                                                onDragEnd = {
+                                                    draggingShortcutSlot = null
+                                                    shortcutDragOffset = 0f
+                                                },
+                                                onDragCancel = {
+                                                    draggingShortcutSlot = null
+                                                    shortcutDragOffset = 0f
+                                                },
+                                                onVerticalDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    shortcutDragOffset += dragAmount
+                                                    val currentDragSlot = draggingShortcutSlot ?: return@detectVerticalDragGestures
+                                                    
+                                                    if (shortcutDragOffset > 80f) {
+                                                        if (currentDragSlot == 1) {
+                                                            val temp = localShortcut1
+                                                            localShortcut1 = localShortcut2
+                                                            localShortcut2 = temp
+                                                            draggingShortcutSlot = 2
+                                                            shortcutDragOffset = 0f
+                                                        } else if (currentDragSlot == 2) {
+                                                            val temp = localShortcut2
+                                                            localShortcut2 = localShortcut3
+                                                            localShortcut3 = temp
+                                                            draggingShortcutSlot = 3
+                                                            shortcutDragOffset = 0f
+                                                        }
+                                                    } else if (shortcutDragOffset < -80f) {
+                                                        if (currentDragSlot == 3) {
+                                                            val temp = localShortcut3
+                                                            localShortcut3 = localShortcut2
+                                                            localShortcut2 = temp
+                                                            draggingShortcutSlot = 2
+                                                            shortcutDragOffset = 0f
+                                                        } else if (currentDragSlot == 2) {
+                                                            val temp = localShortcut2
+                                                            localShortcut2 = localShortcut1
+                                                            localShortcut1 = temp
+                                                            draggingShortcutSlot = 1
+                                                            shortcutDragOffset = 0f
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                        }
+                                )
                             }
                         }
                     }

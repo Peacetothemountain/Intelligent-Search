@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
 import android.app.SearchManager
 
+import androidx.activity.enableEdgeToEdge
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -34,6 +35,7 @@ open class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
         

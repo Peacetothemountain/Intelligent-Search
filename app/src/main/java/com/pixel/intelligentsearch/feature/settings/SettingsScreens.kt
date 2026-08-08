@@ -521,7 +521,7 @@ fun SettingsScreensHub(
         }
 
         val handleExitBack: () -> Unit = {
-            val backToOverlayEnabled = prefs.getBoolean("settings_back_to_search_overlay", true)
+            val backToOverlayEnabled = prefs.getBoolean("settings_back_to_search_overlay", false)
             if (backToOverlayEnabled) {
                 val intent = Intent(context, com.pixel.intelligentsearch.MainActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -1158,7 +1158,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     showDivider = true
                 )
 
-                var settingsBackToSearchOverlay by rememberBooleanPreference(prefs, "settings_back_to_search_overlay", true) {}
+                var settingsBackToSearchOverlay by rememberBooleanPreference(prefs, "settings_back_to_search_overlay", false) {}
                 SettingsRowToggle(
                     title = "Back Swipe to Enter Search Overlay Page",
                     subtitle = "Swiping Back from Settings Menu Directs to Search Overlay Screen.",
@@ -1171,7 +1171,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var enableSearchOverlay by rememberBooleanPreference(prefs, "search_overlay_enabled", true) { updateWidgets(context) }
                 SettingsRowToggle(
                     title = "Enable Search Overlay Page",
-                    subtitle = "If off, widget opens native Google Search app directly.",
+                    subtitle = "When Turned Off, Search Bar Widget Opens Native Google Search.",
                     icon = Icons.Outlined.Layers,
                     isChecked = enableSearchOverlay,
                     onCheckedChange = { enableSearchOverlay = it },

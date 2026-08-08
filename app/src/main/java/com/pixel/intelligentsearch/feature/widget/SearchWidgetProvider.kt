@@ -77,7 +77,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val shortcutIconRes = when (widgetShortcut) {
             "Live" -> R.drawable.ic_gemini
             "Translate (text)" -> R.drawable.ic_translate
-            "Translate (camera)" -> R.drawable.ic_camera
+            "Translate (camera)" -> R.drawable.ic_document_scanner
             "Weather" -> R.drawable.ic_weather
             "Sports" -> R.drawable.ic_sports
             "Dictionary" -> R.drawable.ic_dictionary

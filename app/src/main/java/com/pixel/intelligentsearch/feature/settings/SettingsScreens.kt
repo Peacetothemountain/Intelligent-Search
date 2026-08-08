@@ -1126,7 +1126,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var themeMode by rememberStringPreference(prefs, "night.mode", "Material Dark")
                 SettingsDropdownRow(
                     title = "App Theme",
-                    subtitle = themeMode,
+                    subtitle = null,
                     icon = Icons.Outlined.BrightnessMedium,
                     options = listOf("Material Dark", "Material Light"),
                     selectedOption = themeMode,
@@ -1166,7 +1166,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
 
                 
-                var showWall by rememberBooleanPreference(prefs, "search.background.show.wall", true) { updateWidgets(context) }
+                var showWall by rememberBooleanPreference(prefs, "search.background.show.wall", false) { updateWidgets(context) }
                 SettingsRowToggle(
                     title = "Show Wallpaper",
                     subtitle = "Show User's wallpaper in Search Overlay Page.",
@@ -1176,9 +1176,9 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     showDivider = true
                 )
                 
-                var blur by rememberIntPreference(prefs, "search.background.blur", 30) { updateWidgets(context) }
-                var transparency by rememberIntPreference(prefs, "search.background.transparency", 30) { updateWidgets(context) }
-                var pillOpacity by rememberIntPreference(prefs, "search.pill.opacity", 40) { updateWidgets(context) }
+                var blur by rememberIntPreference(prefs, "search.background.blur", 50) { updateWidgets(context) }
+                var transparency by rememberIntPreference(prefs, "search.background.transparency", 50) { updateWidgets(context) }
+                var pillOpacity by rememberIntPreference(prefs, "search.pill.opacity", 50) { updateWidgets(context) }
 
                 SettingsSliderRow(
                     title = "Background Blur",
@@ -1186,7 +1186,8 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onValueChange = { blur = it.toInt() },
                     valueRange = 0f..100f,
                     icon = Icons.Outlined.BlurOn,
-                    showDivider = true
+                    showDivider = true,
+                    steps = 9
                 )
                 
                 SettingsSliderRow(
@@ -1195,7 +1196,8 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onValueChange = { transparency = it.toInt() },
                     valueRange = 0f..100f,
                     icon = Icons.Outlined.Opacity,
-                    showDivider = true
+                    showDivider = true,
+                    steps = 9
                 )
                 
                 SettingsSliderRow(
@@ -1203,8 +1205,9 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     value = pillOpacity.toFloat(),
                     onValueChange = { pillOpacity = it.toInt() },
                     valueRange = 0f..100f,
-                    icon = Icons.Outlined.Visibility,
-                    showDivider = false
+                    icon = Icons.Outlined.BrightnessMedium,
+                    showDivider = false,
+                    steps = 9
                 )
             }
             
@@ -1273,7 +1276,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 var searchWeb by rememberBooleanPreference(prefs, "search.web", false)
                 SettingsRowToggle(
                     title = "Web",
-                    subtitle = "View Search Suggestions from websites",
+                    subtitle = "View Search Suggestions from Websites",
                     icon = Icons.Outlined.Language,
                     isChecked = searchWeb,
                     onCheckedChange = { searchWeb = it },
@@ -1637,7 +1640,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                 
                 var recentShortcuts by rememberBooleanPreference(prefs, "shortcut.recent", true)
                 SettingsRowToggle(
-                    title = "Include recent shortcuts",
+                    title = "Include Recent Shortcuts",
                     subtitle = "Show recently used shortcuts as suggestions",
                     icon = null,
                     isChecked = recentShortcuts,
@@ -1651,7 +1654,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                 var searchPills by rememberStringPreference(prefs, "search.pills", "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files")
                 var shortcutResultsCount by rememberIntPreference(prefs, "shortcut_results_count", 6)
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("Max shortcuts suggestions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text("Max Shortcuts Suggestions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text("$shortcutResultsCount", modifier = Modifier.padding(end = 16.dp), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Android17Slider(
@@ -1777,7 +1780,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var directCall by rememberBooleanPreference(prefs, "contact_direct_call", false)
                 SettingsRowToggle(
                     title = "Direct Call",
-                    subtitle = "Tap contact to call directly",
+                    subtitle = "Tap Contact to Call Directly.",
                     icon = Icons.Outlined.Call,
                     isChecked = directCall,
                     onCheckedChange = { directCall = it },
@@ -1835,7 +1838,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var hiddenFiles by rememberBooleanPreference(prefs, "search.files.hidden.files", false)
                 SettingsRowToggle(
                     title = "Show Hidden Files",
-                    subtitle = "Include files starting with a dot",
+                    subtitle = "Include Files Hidden from Android Index.",
                     icon = Icons.Outlined.Visibility,
                     isChecked = hiddenFiles,
                     onCheckedChange = { hiddenFiles = it },
@@ -1844,7 +1847,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var thumbnails by rememberBooleanPreference(prefs, "search.files.thumbnails", true)
                 SettingsRowToggle(
                     title = "Show Thumbnails",
-                    subtitle = "Show image and video thumbnails",
+                    subtitle = "Show Images and Video Thumbnails.",
                     icon = Icons.Outlined.Image,
                     isChecked = thumbnails,
                     onCheckedChange = { thumbnails = it },
@@ -2069,7 +2072,7 @@ fun SettingsRow(
 @Composable
 fun SettingsDropdownRow(
     title: String,
-    subtitle: String,
+    subtitle: String? = null,
     icon: ImageVector? = null,
     iconContent: (@Composable () -> Unit)? = null,
     options: List<String>,
@@ -2105,7 +2108,9 @@ fun SettingsDropdownRow(
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = title, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                Text(text = subtitle, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (subtitle != null) {
+                    Text(text = subtitle, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             Icon(
                 imageVector = Icons.Outlined.ArrowDropDown,
@@ -2246,7 +2251,8 @@ fun SettingsSliderRow(
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
     icon: ImageVector,
-    showDivider: Boolean
+    showDivider: Boolean,
+    steps: Int = 0
 ) {
     Column {
         Row(
@@ -2268,7 +2274,8 @@ fun SettingsSliderRow(
                     value = value,
                     onValueChange = onValueChange,
                     valueRange = valueRange,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    steps = steps
                 )
             }
         }
@@ -2382,7 +2389,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
+                    val view = androidx.compose.ui.platform.LocalView.current
                     androidx.compose.material3.TextButton(onClick = {
+                        view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                         localShowGIcon = true
                         localShowDoodle = false
                         localThemeStyle = "Material Design"
@@ -2400,7 +2409,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         Text("Reset", color = MaterialTheme.colorScheme.onSurface)
                     }
                     androidx.compose.material3.TextButton(onClick = {
-                        onBack()
+                        view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                        android.widget.Toast.makeText(context, "Settings Saved", android.widget.Toast.LENGTH_SHORT).show()
                     }) {
                         Text("Save", color = MaterialTheme.colorScheme.onSurface)
                     }
@@ -2564,7 +2574,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 val shortcutRes = when (localShortcut) {
                                     "Live" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
                                     "Translate (text)" -> com.pixel.intelligentsearch.R.drawable.ic_translate
-                                    "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_camera
+                                    "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_document_scanner
                                     "Weather" -> com.pixel.intelligentsearch.R.drawable.ic_weather
                                     "Sports" -> com.pixel.intelligentsearch.R.drawable.ic_sports
                                     "Dictionary" -> com.pixel.intelligentsearch.R.drawable.ic_dictionary
@@ -2623,7 +2633,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             SettingsCard {
                 SettingsRowToggle(
                     title = "Display G Icon",
-                    subtitle = "Show Google logo in search bar",
+                    subtitle = "Show Google Logo on Search Bar Widget.",
                     icon = null,
                     customIcon = {
                         if (localThemeStyle == "System Default") {
@@ -2652,7 +2662,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 )
                 SettingsRowToggle(
                     title = "G Icon Doodle",
-                    subtitle = "Show special event doodles",
+                    subtitle = "Show Holiday and Special Event Doodle Animations.",
                     icon = Icons.Default.Brush,
                     isChecked = localShowDoodle,
                     onCheckedChange = { localShowDoodle = it },
@@ -2964,7 +2974,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             SettingsCard {
                 SettingsRowToggle(
                     title = "Voice Search Icon",
-                    subtitle = "Show voice search icon in the widget",
+                    subtitle = "Show Voice Search Icon on Search Bar Widget.",
                     icon = Icons.Default.Mic,
                     isChecked = localShowVoice,
                     onCheckedChange = { localShowVoice = it },

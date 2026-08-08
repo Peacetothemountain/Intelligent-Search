@@ -65,11 +65,7 @@
                     android:scaleType="fitCenter"
                     android:contentDescription="Google" />
                 
-                <FrameLayout
-                    android:id="@+id/widget_doodle_container"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:layout_gravity="center_vertical" />
+
 
                 <!-- Spacer -->
                 <TextView
@@ -89,15 +85,41 @@
                     android:clickable="true"
                     android:focusable="true" />
 
-                <!-- Google Lens -->
+                <!-- Shortcut 1 (Lens Search) -->
                 <ImageView
                     android:id="@+id/widget_lens_search"
                     android:layout_width="32dp"
                     android:layout_height="32dp"
-                    android:layout_marginStart="32dp"
+                    android:layout_marginStart="16dp"
                     android:src="@drawable/ic_camera"
                     android:scaleType="fitCenter"
-                    android:contentDescription="Google Lens"
+                    android:contentDescription="Shortcut 1"
+                    android:clickable="true"
+                    android:focusable="true" />
+
+                <!-- Shortcut 2 -->
+                <ImageView
+                    android:id="@+id/widget_shortcut_2"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_marginStart="16dp"
+                    android:src="@drawable/ic_camera"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone"
+                    android:contentDescription="Shortcut 2"
+                    android:clickable="true"
+                    android:focusable="true" />
+
+                <!-- Shortcut 3 -->
+                <ImageView
+                    android:id="@+id/widget_shortcut_3"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_marginStart="16dp"
+                    android:src="@drawable/ic_camera"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone"
+                    android:contentDescription="Shortcut 3"
                     android:clickable="true"
                     android:focusable="true" />
 
@@ -108,7 +130,7 @@
                     android:layout_height="22dp"
                     android:src="@drawable/ic_gemini"
                     android:scaleType="fitCenter"
-                    android:layout_marginStart="18dp"
+                    android:layout_marginStart="16dp"
                     android:visibility="gone"
                     android:contentDescription="Gemini"
                     android:clickable="true"

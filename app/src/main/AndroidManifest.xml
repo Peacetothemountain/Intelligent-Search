@@ -52,7 +52,6 @@
             android:roundIcon="@mipmap/ic_launcher_round"
             android:theme="@style/Theme.IntelligentSearch.Overlay.Widget"
             android:windowSoftInputMode="stateAlwaysHidden|adjustResize"
-            android:taskAffinity=".Overlay"
             android:launchMode="singleTask"
             android:excludeFromRecents="true"
             android:exported="false">
@@ -66,7 +65,6 @@
             android:label="Search"
             android:theme="@style/Theme.IntelligentSearch.Overlay.Launcher"
             android:windowSoftInputMode="stateAlwaysHidden|adjustResize"
-            android:taskAffinity=".Overlay"
             android:launchMode="singleTask"
             android:excludeFromRecents="true"
             android:exported="true">
@@ -82,13 +80,15 @@
                 <action android:name="android.intent.action.ASSIST" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <meta-data
+                android:name="android.app.searchable"
+                android:resource="@xml/searchable" />
         </activity>
 
         <activity
             android:name="com.pixel.intelligentsearch.feature.widget.WidgetActivity"
             android:theme="@style/Theme.IntelligentSearch.Overlay.Widget"
             android:windowSoftInputMode="stateAlwaysHidden|adjustResize"
-            android:taskAffinity=".Overlay"
             android:launchMode="singleTask"
             android:excludeFromRecents="true"
             android:exported="false" />
@@ -102,6 +102,18 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.APPLICATION_PREFERENCES" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.search.action.SEARCH_SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MANAGE_SEARCH_PREFERENCES" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <meta-data
                 android:name="android.app.shortcuts"
@@ -126,22 +138,6 @@
                 android:resource="@xml/search_widget_info" />
         </receiver>
 
-        <receiver
-            android:name="com.pixel.intelligentsearch.feature.widget.doodle.DoodleWidgetProvider"
-            android:label="HyperRealistic Doodle"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/doodle_widget_info" />
-        </receiver>
-        
-        <service
-            android:name="com.pixel.intelligentsearch.feature.widget.doodle.DoodleWidgetService"
-            android:permission="android.permission.BIND_REMOTEVIEWS"
-            android:exported="false" />
 
 
         <service android:name=".feature.widget.SearchTileService"

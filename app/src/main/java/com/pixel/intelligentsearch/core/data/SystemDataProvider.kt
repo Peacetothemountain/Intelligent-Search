@@ -317,7 +317,7 @@ object SystemDataProvider {
             var ch = 0
 
             fun nextChar() {
-                ch = if (++pos < str.length) str[pos].toInt() else -1
+                ch = if (++pos < str.length) str[pos].code else -1
             }
 
             fun eat(charToEat: Int): Boolean {

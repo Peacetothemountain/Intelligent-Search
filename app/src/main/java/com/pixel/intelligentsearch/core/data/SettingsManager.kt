@@ -22,10 +22,10 @@ data class IntelligentSearchSettings(
     val searchCalculator: Boolean = false,
     val searchCalendar: Boolean = false,
     val searchShortcuts: Boolean = false,
-    val backgroundBlur: Int = 30,
-    val showWallpaper: Boolean = true,
-    val backgroundTransparency: Int = 30,
-    val pillOpacity: Int = 40,
+    val backgroundBlur: Int = 50,
+    val showWallpaper: Boolean = false,
+    val backgroundTransparency: Int = 50,
+    val pillOpacity: Int = 50,
     val searchEngine: String = "Google",
     val customSearchEngineUrl: String = "",
     val filesHiddenFiles: Boolean = false,
@@ -116,8 +116,10 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             }
         }
         .map { preferences ->
+            val isSystemDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+            val defaultTheme = if (isSystemDark) "Material Dark" else "Material Light"
             IntelligentSearchSettings(
-                theme = preferences[THEME] ?: "system",
+                theme = preferences[THEME] ?: defaultTheme,
                 searchApps = preferences[SEARCH_APPS] ?: false,
                 searchContacts = preferences[SEARCH_CONTACTS] ?: false,
                 searchFiles = preferences[SEARCH_FILES] ?: false,
@@ -125,10 +127,10 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 searchCalculator = preferences[SEARCH_CALCULATOR] ?: false,
                 searchCalendar = preferences[SEARCH_CALENDAR] ?: false,
                 searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: false,
-                backgroundBlur = preferences[BACKGROUND_BLUR] ?: 30,
-                showWallpaper = preferences[SHOW_WALLPAPER] ?: true,
-                backgroundTransparency = preferences[BACKGROUND_TRANSPARENCY] ?: 30,
-                pillOpacity = preferences[PILL_OPACITY] ?: 40,
+                backgroundBlur = preferences[BACKGROUND_BLUR] ?: 50,
+                showWallpaper = preferences[SHOW_WALLPAPER] ?: false,
+                backgroundTransparency = preferences[BACKGROUND_TRANSPARENCY] ?: 50,
+                pillOpacity = preferences[PILL_OPACITY] ?: 50,
                 searchEngine = preferences[SEARCH_ENGINE] ?: "Google",
                 customSearchEngineUrl = preferences[CUSTOM_SEARCH_ENGINE_URL] ?: "",
                 filesHiddenFiles = preferences[FILES_HIDDEN_FILES] ?: false,

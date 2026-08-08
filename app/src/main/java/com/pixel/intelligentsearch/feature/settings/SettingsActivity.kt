@@ -22,6 +22,29 @@ class SettingsActivity : AppCompatActivity() {
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
         
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(
+                OVERRIDE_TRANSITION_OPEN,
+                com.pixel.intelligentsearch.R.anim.slide_in_right,
+                com.pixel.intelligentsearch.R.anim.slide_out_left
+            )
+            overrideActivityTransition(
+                OVERRIDE_TRANSITION_CLOSE,
+                com.pixel.intelligentsearch.R.anim.slide_in_left,
+                com.pixel.intelligentsearch.R.anim.slide_out_right
+            )
+        }
+        
+        var appWidgetId = android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
+        intent.extras?.let { extras ->
+            appWidgetId = extras.getInt(
+                android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID,
+                android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
+            )
+        }
+        val resultValue = android.content.Intent().putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        setResult(RESULT_OK, resultValue)
+
         val screen = intent.getStringExtra("extra_screen") ?: "main"
 
         setContent {
@@ -59,7 +82,9 @@ class SettingsActivity : AppCompatActivity() {
                             SettingsScreensHub(
                                 initialScreen = screen,
                                 prefs = prefs,
-                                onBackToLauncher = { finish() },
+                                onBackToLauncher = {
+                                    finish()
+                                },
                                 context = this@SettingsActivity
                             )
                         }

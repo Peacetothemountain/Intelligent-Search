@@ -15,6 +15,8 @@ import androidx.compose.ui.draw.clipToBounds
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.feature.widget.SearchTileService
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
+import com.pixel.intelligentsearch.core.data.SystemDataProvider
+import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.App
 import com.pixel.intelligentsearch.feature.search.getAppName
 import com.pixel.intelligentsearch.feature.search.AnimatedMatrixBackground
@@ -104,6 +106,7 @@ import androidx.compose.ui.BiasAlignment
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -485,7 +488,7 @@ fun SettingsScreensHub(
         val navController = androidx.navigation.compose.rememberNavController()
         
         val exoPlayer = androidx.compose.runtime.remember {
-            val uri = androidx.media3.datasource.RawResourceDataSource.buildRawResourceUri(com.pixel.intelligentsearch.R.raw.bugdroid_video)
+            val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.bugdroid_video)
             val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
             val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
             androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
@@ -516,10 +519,38 @@ fun SettingsScreensHub(
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
             navController.navigate(route)
         }
-        val onBack: () -> Unit = {
-            if (!navController.popBackStack()) {
+
+        val handleExitBack: () -> Unit = {
+            val backToOverlayEnabled = prefs.getBoolean("settings_back_to_search_overlay", false)
+            if (backToOverlayEnabled) {
+                val intent = Intent(context, com.pixel.intelligentsearch.feature.widget.WidgetActivity::class.java).apply {
+                    putExtra("FROM_BACK_SWIPE", true)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                context.startActivity(intent)
+                onBackToLauncher()
+            } else {
                 onBackToLauncher()
             }
+        }
+
+        val onBack: () -> Unit = {
+            val currentRoute = navController.currentBackStackEntry?.destination?.route
+            val isMainScreen = currentRoute?.contains("Main") == true || (navController.previousBackStackEntry == null && initialScreen == "main")
+
+            if (navController.previousBackStackEntry != null) {
+                navController.popBackStack()
+            } else if (!isMainScreen) {
+                navController.navigate(com.pixel.intelligentsearch.core.navigation.Route.Main) {
+                    popUpTo(0) { inclusive = true }
+                }
+            } else {
+                handleExitBack()
+            }
+        }
+
+        androidx.activity.compose.BackHandler {
+            onBack()
         }
 
         val startRoute: com.pixel.intelligentsearch.core.navigation.Route = when (initialScreen) {
@@ -686,16 +717,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             val context = androidx.compose.ui.platform.LocalContext.current
             val scope = androidx.compose.runtime.rememberCoroutineScope()
 
-            var forceMinidoodle by rememberBooleanPreference(prefs, "force_google_minidoodle", false) { updateWidgets(context) }
-            SettingsRowToggle(
-                title = "Searchbox effects",
-                subtitle = "Show Doodles on search widget",
-                icon = Icons.Outlined.Image,
-                isChecked = forceMinidoodle,
-                onCheckedChange = { forceMinidoodle = it },
-                showDivider = true
-            )
-            
+
             SettingsRow(
                 title = "Clear Search History Cache",
                 subtitle = "Reset and clear all saved recent queries",
@@ -1123,21 +1145,34 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
             SettingsCard {
-                var themeMode by rememberStringPreference(prefs, "night.mode", "Material Dark")
+                val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+                val defaultThemeValue = if (isSystemDark) "Material Dark" else "Material Light"
+                var rawThemeMode by rememberStringPreference(prefs, "night.mode", defaultThemeValue)
+                val themeMode = if (rawThemeMode == "System") "Material Dark" else rawThemeMode
                 SettingsDropdownRow(
                     title = "App Theme",
                     subtitle = themeMode,
                     icon = Icons.Outlined.BrightnessMedium,
                     options = listOf("Material Dark", "Material Light"),
                     selectedOption = themeMode,
-                    onOptionSelected = { themeMode = it },
+                    onOptionSelected = { rawThemeMode = it },
+                    showDivider = true
+                )
+
+                var settingsBackToSearchOverlay by rememberBooleanPreference(prefs, "settings_back_to_search_overlay", false) {}
+                SettingsRowToggle(
+                    title = "Back Swipe to Enter Search Overlay Page",
+                    subtitle = "Swiping Back from Settings Menu Directs to Search Overlay Screen.",
+                    icon = Icons.AutoMirrored.Outlined.ArrowBack,
+                    isChecked = settingsBackToSearchOverlay,
+                    onCheckedChange = { settingsBackToSearchOverlay = it },
                     showDivider = true
                 )
 
                 var enableSearchOverlay by rememberBooleanPreference(prefs, "search_overlay_enabled", true) { updateWidgets(context) }
                 SettingsRowToggle(
                     title = "Enable Search Overlay Page",
-                    subtitle = "If off, widget opens native Google Search app directly.",
+                    subtitle = "When Turned Off, Search Bar Widget Opens Native Google Search.",
                     icon = Icons.Outlined.Layers,
                     isChecked = enableSearchOverlay,
                     onCheckedChange = { enableSearchOverlay = it },
@@ -1166,7 +1201,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
 
                 
-                var showWall by rememberBooleanPreference(prefs, "search.background.show.wall", true) { updateWidgets(context) }
+                var showWall by rememberBooleanPreference(prefs, "search.background.show.wall", false) { updateWidgets(context) }
                 SettingsRowToggle(
                     title = "Show Wallpaper",
                     subtitle = "Show User's wallpaper in Search Overlay Page.",
@@ -1176,9 +1211,9 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     showDivider = true
                 )
                 
-                var blur by rememberIntPreference(prefs, "search.background.blur", 30) { updateWidgets(context) }
-                var transparency by rememberIntPreference(prefs, "search.background.transparency", 30) { updateWidgets(context) }
-                var pillOpacity by rememberIntPreference(prefs, "search.pill.opacity", 40) { updateWidgets(context) }
+                var blur by rememberIntPreference(prefs, "search.background.blur", 50) { updateWidgets(context) }
+                var transparency by rememberIntPreference(prefs, "search.background.transparency", 50) { updateWidgets(context) }
+                var pillOpacity by rememberIntPreference(prefs, "search.pill.opacity", 50) { updateWidgets(context) }
 
                 SettingsSliderRow(
                     title = "Background Blur",
@@ -1186,7 +1221,8 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onValueChange = { blur = it.toInt() },
                     valueRange = 0f..100f,
                     icon = Icons.Outlined.BlurOn,
-                    showDivider = true
+                    showDivider = true,
+                    steps = 9
                 )
                 
                 SettingsSliderRow(
@@ -1195,7 +1231,8 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onValueChange = { transparency = it.toInt() },
                     valueRange = 0f..100f,
                     icon = Icons.Outlined.Opacity,
-                    showDivider = true
+                    showDivider = true,
+                    steps = 9
                 )
                 
                 SettingsSliderRow(
@@ -1203,8 +1240,9 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     value = pillOpacity.toFloat(),
                     onValueChange = { pillOpacity = it.toInt() },
                     valueRange = 0f..100f,
-                    icon = Icons.Outlined.Visibility,
-                    showDivider = false
+                    icon = Icons.Outlined.BrightnessMedium,
+                    showDivider = false,
+                    steps = 9
                 )
             }
             
@@ -1273,7 +1311,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 var searchWeb by rememberBooleanPreference(prefs, "search.web", false)
                 SettingsRowToggle(
                     title = "Web",
-                    subtitle = "View Search Suggestions from websites",
+                    subtitle = "View Search Suggestions from Websites",
                     icon = Icons.Outlined.Language,
                     isChecked = searchWeb,
                     onCheckedChange = { searchWeb = it },
@@ -1408,30 +1446,20 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
 // -----------------------------------------------------------------------------------------
 // MANAGE HIDDEN APPS SCREEN
 // -----------------------------------------------------------------------------------------
-data class AppItemData(val packageName: String, val label: String, val resolveInfo: android.content.pm.ResolveInfo)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     val viewModel = LocalSettingsViewModel.current
     var hiddenApps by remember { mutableStateOf(prefs.getStringSet("hidden_apps", emptySet()) ?: emptySet()) }
-    var installedApps by remember { mutableStateOf<List<AppItemData>>(emptyList()) }
+    var installedApps by remember { mutableStateOf<List<AppItem>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(400)
+        kotlinx.coroutines.delay(100)
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val pm = context.packageManager
-            val intent = android.content.Intent(android.content.Intent.ACTION_MAIN, null).apply { addCategory(android.content.Intent.CATEGORY_LAUNCHER) }
-            val apps = pm.queryIntentActivities(intent, 0).map { 
-                AppItemData(
-                    packageName = it.activityInfo.packageName,
-                    label = it.loadLabel(pm).toString(),
-                    resolveInfo = it
-                )
-            }.sortedBy { it.label }
+            val apps = SystemDataProvider.getAllApps(context).sortedBy { it.name }
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                 installedApps = apps
             }
@@ -1464,34 +1492,38 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
                             color = MaterialTheme.colorScheme.surfaceVariant,
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
                         ) {
-                            androidx.compose.material3.TextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                placeholder = { Text("Search apps...") },
-                                singleLine = true,
-                                colors = androidx.compose.material3.TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent
+                            androidx.compose.foundation.layout.Box(
+                                contentAlignment = Alignment.CenterStart,
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
+                            ) {
+                                if (searchQuery.isEmpty()) {
+                                    Text(
+                                        "Search apps...", 
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        fontSize = 14.sp
+                                    )
+                                }
+                                androidx.compose.foundation.text.BasicTextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 14.sp
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
                                 )
-                            )
+                            }
                         }
                     }
                 }
             },
             navigationIcon = {
-                IconButton(onClick = {
-                    if (isSearching) {
-                        isSearching = false
-                        searchQuery = ""
-                    } else {
-                        onBack()
-                    }
-                }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
             },
             actions = {
                 IconButton(onClick = { 
@@ -1520,24 +1552,20 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 val filteredApps = if (searchQuery.isBlank()) {
                     installedApps
                 } else {
-                    installedApps.filter { it.label.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
+                    installedApps.filter { it.name.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
                 }
 
-                items(filteredApps.size) { index ->
+                items(
+                    count = filteredApps.size,
+                    key = { index -> filteredApps[index].packageName }
+                ) { index ->
                     val app = filteredApps[index]
                     val isHidden = hiddenApps.contains(app.packageName)
-                    var appIcon by remember(app.packageName) { mutableStateOf<android.graphics.drawable.Drawable?>(null) }
-                    
-                    LaunchedEffect(app.packageName) {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            appIcon = app.resolveInfo.loadIcon(context.packageManager)
-                        }
-                    }
                     
                     SettingsRowToggle(
-                        title = app.label,
+                        title = app.name,
                         subtitle = app.packageName,
-                        icon = appIcon ?: Icons.Outlined.Apps,
+                        icon = app.icon,
                         isChecked = isHidden,
                         onCheckedChange = { hide ->
                             val newSet = hiddenApps.toMutableSet()
@@ -1637,7 +1665,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                 
                 var recentShortcuts by rememberBooleanPreference(prefs, "shortcut.recent", true)
                 SettingsRowToggle(
-                    title = "Include recent shortcuts",
+                    title = "Include Recent Shortcuts",
                     subtitle = "Show recently used shortcuts as suggestions",
                     icon = null,
                     isChecked = recentShortcuts,
@@ -1651,7 +1679,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                 var searchPills by rememberStringPreference(prefs, "search.pills", "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files")
                 var shortcutResultsCount by rememberIntPreference(prefs, "shortcut_results_count", 6)
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("Max shortcuts suggestions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text("Max Shortcuts Suggestions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text("$shortcutResultsCount", modifier = Modifier.padding(end = 16.dp), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Android17Slider(
@@ -1777,7 +1805,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var directCall by rememberBooleanPreference(prefs, "contact_direct_call", false)
                 SettingsRowToggle(
                     title = "Direct Call",
-                    subtitle = "Tap contact to call directly",
+                    subtitle = "Tap Contact to Call Directly.",
                     icon = Icons.Outlined.Call,
                     isChecked = directCall,
                     onCheckedChange = { directCall = it },
@@ -1835,7 +1863,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var hiddenFiles by rememberBooleanPreference(prefs, "search.files.hidden.files", false)
                 SettingsRowToggle(
                     title = "Show Hidden Files",
-                    subtitle = "Include files starting with a dot",
+                    subtitle = "Include Files Hidden from Android Index.",
                     icon = Icons.Outlined.Visibility,
                     isChecked = hiddenFiles,
                     onCheckedChange = { hiddenFiles = it },
@@ -1844,7 +1872,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var thumbnails by rememberBooleanPreference(prefs, "search.files.thumbnails", true)
                 SettingsRowToggle(
                     title = "Show Thumbnails",
-                    subtitle = "Show image and video thumbnails",
+                    subtitle = "Show Images and Video Thumbnails.",
                     icon = Icons.Outlined.Image,
                     isChecked = thumbnails,
                     onCheckedChange = { thumbnails = it },
@@ -1898,8 +1926,8 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             SettingsCard {
                 var bottomSearch by rememberBooleanPreference(prefs, "settings.bottom.search", true)
                 SettingsRowToggle(
-                    title = "Botton Searchbar",
-                    subtitle = "Position Search Bar at Botton of Search Overlay Page.",
+                    title = "Bottom Searchbar",
+                    subtitle = "Position Search Bar at Bottom of Search Overlay Page.",
                     icon = Icons.Outlined.VerticalAlignBottom,
                     isChecked = bottomSearch,
                     onCheckedChange = { bottomSearch = it },
@@ -1908,7 +1936,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var bottomResult by rememberBooleanPreference(prefs, "settings.bottom.search.result", false)
                 SettingsRowToggle(
                     title = "Bottom Search Results",
-                    subtitle = "Order List from Botton Up depending on Search Bar Placement.",
+                    subtitle = "Order List from Bottom Up depending on Search Bar Placement.",
                     icon = Icons.Outlined.AlignVerticalBottom,
                     isChecked = bottomResult,
                     onCheckedChange = { bottomResult = it },
@@ -2069,7 +2097,7 @@ fun SettingsRow(
 @Composable
 fun SettingsDropdownRow(
     title: String,
-    subtitle: String,
+    subtitle: String? = null,
     icon: ImageVector? = null,
     iconContent: (@Composable () -> Unit)? = null,
     options: List<String>,
@@ -2105,7 +2133,9 @@ fun SettingsDropdownRow(
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = title, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                Text(text = subtitle, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (subtitle != null) {
+                    Text(text = subtitle, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             Icon(
                 imageVector = Icons.Outlined.ArrowDropDown,
@@ -2246,7 +2276,8 @@ fun SettingsSliderRow(
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
     icon: ImageVector,
-    showDivider: Boolean
+    showDivider: Boolean,
+    steps: Int = 0
 ) {
     Column {
         Row(
@@ -2268,7 +2299,8 @@ fun SettingsSliderRow(
                     value = value,
                     onValueChange = onValueChange,
                     valueRange = valueRange,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    steps = steps
                 )
             }
         }
@@ -2332,7 +2364,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     )
 
     var localShowGIcon by remember { mutableStateOf(prefs.getBoolean("widget_show_g_icon", true)) }
-    var localShowDoodle by remember { mutableStateOf(prefs.getBoolean("widget_show_doodle", true)) }
+
     var localThemeStyle by remember { mutableStateOf(prefs.getString("widget.theme.style", "System Default") ?: "System Default") }
     var localSubtheme by remember { mutableStateOf(prefs.getString("widget_subtheme", "System") ?: "System") }
     var localMaterialGIconTheme by remember { mutableStateOf(prefs.getString("widget_material_g_icon", "Material G Icon") ?: "Material G Icon") }
@@ -2341,16 +2373,22 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localLightness by remember { mutableStateOf(prefs.getInt("widget_custom_lightness", 100).toFloat()) }
     var localCustomColorInt by remember { mutableStateOf(prefs.getInt("widget_custom_color_int", android.graphics.Color.HSVToColor(floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f)))) }
     var localOpacity by remember { mutableStateOf(prefs.getInt("widget.background.transparency", 28).toFloat()) }
+    var localLockBlack by remember { mutableStateOf(prefs.getBoolean("widget_material_lock_black", true)) }
     var localShowVoice by remember { mutableStateOf(prefs.getBoolean("widget_show_voice", true)) }
     var localActionIcon by remember { mutableStateOf(prefs.getString("widget_action_icon", "Search") ?: "Search") }
-    var localShortcut by remember { mutableStateOf(prefs.getString("widget_shortcut", "Google Lens") ?: "Google Lens") }
+    var localShortcut1 by remember { mutableStateOf(prefs.getString("widget_shortcut_1", prefs.getString("widget_shortcut", "Google Lens")) ?: "Google Lens") }
+    var localShortcut2 by remember { mutableStateOf(prefs.getString("widget_shortcut_2", "None") ?: "None") }
+    var localShortcut3 by remember { mutableStateOf(prefs.getString("widget_shortcut_3", "None") ?: "None") }
+    val defaultSlotOrder = "shortcut1,mic,shortcut2,shortcut3"
+    var localSlotOrderStr by remember { mutableStateOf(prefs.getString("widget_shortcut_order", defaultSlotOrder) ?: defaultSlotOrder) }
+    var activeShortcutSlot by remember { mutableIntStateOf(1) }
 
     var isInitialSetup by remember { mutableStateOf(true) }
 
     LaunchedEffect(
-        localShowGIcon, localShowDoodle, localThemeStyle, localSubtheme,
-        localMaterialGIconTheme, localHue, localSaturation, localLightness, localOpacity,
-        localShowVoice, localActionIcon, localShortcut, localCustomColorInt
+        localShowGIcon, localThemeStyle, localSubtheme,
+        localMaterialGIconTheme, localHue, localSaturation, localLightness, localOpacity, localLockBlack,
+        localShowVoice, localActionIcon, localShortcut1, localShortcut2, localShortcut3, localSlotOrderStr, localCustomColorInt
     ) {
         if (isInitialSetup) {
             isInitialSetup = false
@@ -2358,7 +2396,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         }
         prefs.edit()
             .putBoolean("widget_show_g_icon", localShowGIcon)
-            .putBoolean("widget_show_doodle", localShowDoodle)
+
             .putString("widget.theme.style", localThemeStyle)
             .putString("widget_subtheme", localSubtheme)
             .putString("widget_material_g_icon", localMaterialGIconTheme)
@@ -2367,9 +2405,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             .putInt("widget_custom_lightness", localLightness.toInt())
             .putInt("widget_custom_color_int", localCustomColorInt)
             .putInt("widget.background.transparency", localOpacity.toInt())
+            .putBoolean("widget_material_lock_black", localLockBlack)
             .putBoolean("widget_show_voice", localShowVoice)
             .putString("widget_action_icon", localActionIcon)
-            .putString("widget_shortcut", localShortcut)
+            .putString("widget_shortcut_1", localShortcut1)
+            .putString("widget_shortcut_2", localShortcut2)
+            .putString("widget_shortcut_3", localShortcut3)
+            .putString("widget_shortcut_order", localSlotOrderStr)
+            .putString("widget_shortcut", localShortcut1)
             .apply()
         updateWidgets(context)
     }
@@ -2382,9 +2425,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
+                    val view = androidx.compose.ui.platform.LocalView.current
                     androidx.compose.material3.TextButton(onClick = {
+                        view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                         localShowGIcon = true
-                        localShowDoodle = false
+
                         localThemeStyle = "Material Design"
                         localSubtheme = "System"
                         localMaterialGIconTheme = "Material G Icon"
@@ -2393,14 +2438,18 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         localLightness = 100f
                         localCustomColorInt = android.graphics.Color.HSVToColor(floatArrayOf(277f, 0.51f, 1f))
                         localOpacity = 28f
+                        localLockBlack = true
                         localShowVoice = true
                         localActionIcon = "Search"
-                        localShortcut = "Google Lens"
+                        localShortcut1 = "Google Lens"
+                        localShortcut2 = "Voice Search"
+                        localShortcut3 = "None"
                     }) {
                         Text("Reset", color = MaterialTheme.colorScheme.onSurface)
                     }
                     androidx.compose.material3.TextButton(onClick = {
-                        onBack()
+                        view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                        android.widget.Toast.makeText(context, "Settings Saved", android.widget.Toast.LENGTH_SHORT).show()
                     }) {
                         Text("Save", color = MaterialTheme.colorScheme.onSurface)
                     }
@@ -2470,7 +2519,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     } else androidx.compose.ui.graphics.Color.Transparent
                     
-                    val finalPreviewIconTint = if (previewIsMaterialYou && localMaterialGIconTheme == "Material G Icon") {
+                    val finalPreviewIconTint = if (localMaterialGIconTheme == "Accented G Icon") {
+                        accentColor
+                    } else if (previewIsMaterialYou && localMaterialGIconTheme == "Material G Icon") {
                         androidx.compose.ui.graphics.Color.Unspecified
                     } else if (previewIsMaterialYou) {
                         androidx.compose.ui.graphics.Color.White
@@ -2507,7 +2558,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
                     
                     val previewPillColorAlpha = if (previewIsMaterialYou) {
-                        androidx.compose.ui.graphics.Color(0xFF121212)
+                        if (localLockBlack) {
+                            androidx.compose.ui.graphics.Color(0xFF121212)
+                        } else {
+                            accentColor.copy(alpha = alphaInt)
+                        }
                     } else {
                         when (localSubtheme) {
                             "Light" -> androidx.compose.ui.graphics.Color(0xFFF8F9FA)
@@ -2538,14 +2593,23 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (localShowGIcon) {
-                                val gIconTint = if (!previewIsMaterialYou && localSubtheme == "System") {
-                                    finalPreviewIconTint
-                                } else if (previewIsMaterialYou && localMaterialGIconTheme != "System G Icon") {
-                                    finalPreviewIconTint
-                                } else {
-                                    androidx.compose.ui.graphics.Color.Unspecified
+                                val gIconTint = when (localMaterialGIconTheme) {
+                                    "System G Icon" -> androidx.compose.ui.graphics.Color.Unspecified
+                                    "Accented G Icon" -> accentColor
+                                    "Material G Icon" -> {
+                                        if (previewIsMaterialYou) androidx.compose.ui.graphics.Color.Unspecified else finalPreviewIconTint
+                                    }
+                                    else -> androidx.compose.ui.graphics.Color.Unspecified
                                 }
-                                val useOriginalGIcon = !previewIsMaterialYou && localSubtheme != "System"
+                                val useOriginalGIcon = if (previewIsMaterialYou) {
+                                    localMaterialGIconTheme == "System G Icon"
+                                } else {
+                                    if (localSubtheme == "Custom") {
+                                        localMaterialGIconTheme == "System G Icon"
+                                    } else {
+                                        localSubtheme != "System"
+                                    }
+                                }
                                 ComposeGIcon(
                                     modifier = Modifier.size(24.dp),
                                     primaryColor = MaterialTheme.colorScheme.primary,
@@ -2560,31 +2624,78 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             
                             Spacer(Modifier.weight(1f))
                             
-                            if (localShortcut != "None") {
-                                val shortcutOption = shortcutOptions.find { it.first == localShortcut }
-                                if (shortcutOption != null) {
-                                    val painter = if (localShortcut == "Google Lens") {
-                                        androidx.compose.ui.res.painterResource(id = com.pixel.intelligentsearch.R.drawable.ic_camera)
-                                    } else {
-                                        androidx.compose.ui.graphics.vector.rememberVectorPainter(shortcutOption.second)
+                            val slotOrder = localSlotOrderStr.split(",").filter { it.isNotBlank() }
+                            val previewActiveItems = mutableListOf<Pair<String, Int>>()
+                            slotOrder.forEach { key ->
+                                when (key) {
+                                    "mic" -> {
+                                        if (localShowVoice) {
+                                            previewActiveItems.add("Microphone" to com.pixel.intelligentsearch.R.drawable.ic_mic)
+                                        }
                                     }
-                                    Icon(
-                                        painter = painter,
-                                        contentDescription = localShortcut,
-                                        tint = finalPreviewIconTint,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    if (localShowVoice) {
-                                        Spacer(modifier = Modifier.width(16.dp))
+                                    "shortcut1" -> {
+                                        if (localShortcut1 != "None") {
+                                            previewActiveItems.add(localShortcut1 to (when (localShortcut1) {
+                                                "Live" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
+                                                "Translate (text)" -> com.pixel.intelligentsearch.R.drawable.ic_translate
+                                                "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_document_scanner
+                                                "Weather" -> com.pixel.intelligentsearch.R.drawable.ic_weather
+                                                "Sports" -> com.pixel.intelligentsearch.R.drawable.ic_sports
+                                                "Dictionary" -> com.pixel.intelligentsearch.R.drawable.ic_dictionary
+                                                "Homework" -> com.pixel.intelligentsearch.R.drawable.ic_homework
+                                                "Finance" -> com.pixel.intelligentsearch.R.drawable.ic_finance
+                                                "Saved" -> com.pixel.intelligentsearch.R.drawable.ic_saved
+                                                "News" -> com.pixel.intelligentsearch.R.drawable.ic_news
+                                                else -> com.pixel.intelligentsearch.R.drawable.ic_camera
+                                            }))
+                                        }
+                                    }
+                                    "shortcut2" -> {
+                                        if (localShortcut2 != "None") {
+                                            previewActiveItems.add(localShortcut2 to (when (localShortcut2) {
+                                                "Live" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
+                                                "Translate (text)" -> com.pixel.intelligentsearch.R.drawable.ic_translate
+                                                "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_document_scanner
+                                                "Weather" -> com.pixel.intelligentsearch.R.drawable.ic_weather
+                                                "Sports" -> com.pixel.intelligentsearch.R.drawable.ic_sports
+                                                "Dictionary" -> com.pixel.intelligentsearch.R.drawable.ic_dictionary
+                                                "Homework" -> com.pixel.intelligentsearch.R.drawable.ic_homework
+                                                "Finance" -> com.pixel.intelligentsearch.R.drawable.ic_finance
+                                                "Saved" -> com.pixel.intelligentsearch.R.drawable.ic_saved
+                                                "News" -> com.pixel.intelligentsearch.R.drawable.ic_news
+                                                else -> com.pixel.intelligentsearch.R.drawable.ic_camera
+                                            }))
+                                        }
+                                    }
+                                    "shortcut3" -> {
+                                        if (localShortcut3 != "None") {
+                                            previewActiveItems.add(localShortcut3 to (when (localShortcut3) {
+                                                "Live" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
+                                                "Translate (text)" -> com.pixel.intelligentsearch.R.drawable.ic_translate
+                                                "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_document_scanner
+                                                "Weather" -> com.pixel.intelligentsearch.R.drawable.ic_weather
+                                                "Sports" -> com.pixel.intelligentsearch.R.drawable.ic_sports
+                                                "Dictionary" -> com.pixel.intelligentsearch.R.drawable.ic_dictionary
+                                                "Homework" -> com.pixel.intelligentsearch.R.drawable.ic_homework
+                                                "Finance" -> com.pixel.intelligentsearch.R.drawable.ic_finance
+                                                "Saved" -> com.pixel.intelligentsearch.R.drawable.ic_saved
+                                                "News" -> com.pixel.intelligentsearch.R.drawable.ic_news
+                                                else -> com.pixel.intelligentsearch.R.drawable.ic_camera
+                                            }))
+                                        }
                                     }
                                 }
                             }
-                            if (localShowVoice) {
+
+                            previewActiveItems.forEachIndexed { idx, item ->
+                                if (idx > 0) {
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                }
                                 Icon(
-                                    painter = androidx.compose.ui.res.painterResource(id = com.pixel.intelligentsearch.R.drawable.ic_mic),
-                                    contentDescription = "Mic",
-                                    modifier = Modifier.size(24.dp),
-                                    tint = finalPreviewIconTint
+                                    painter = androidx.compose.ui.res.painterResource(id = item.second),
+                                    contentDescription = item.first,
+                                    tint = finalPreviewIconTint,
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
                         }
@@ -2618,7 +2729,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             SettingsCard {
                 SettingsRowToggle(
                     title = "Display G Icon",
-                    subtitle = "Show Google logo in search bar",
+                    subtitle = "Show Google Logo on Search Bar Widget.",
                     icon = null,
                     customIcon = {
                         if (localThemeStyle == "System Default") {
@@ -2645,14 +2756,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onCheckedChange = { localShowGIcon = it },
                     showDivider = true
                 )
-                SettingsRowToggle(
-                    title = "G Icon Doodle",
-                    subtitle = "Show special event doodles",
-                    icon = Icons.Default.Brush,
-                    isChecked = localShowDoodle,
-                    onCheckedChange = { localShowDoodle = it },
-                    showDivider = false
-                )
             }
 
             // Theme Buttons
@@ -2670,7 +2773,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(24.dp))
                             .background(if (isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
-                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "System Default" },
+                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "System Default"; localSubtheme = "System" },
                         contentAlignment = Alignment.Center
                     ) {
                         Text("System Design", style = MaterialTheme.typography.labelLarge, color = if (isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -2681,7 +2784,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(24.dp))
                             .background(if (!isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
-                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "Material You (Minimal)" },
+                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "Material You (Minimal)"; localSubtheme = "Material" },
                         contentAlignment = Alignment.Center
                     ) {
                         Text("Material Design", style = MaterialTheme.typography.labelLarge, color = if (!isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -2700,7 +2803,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val systemOpts = listOf("System", "Light", "Dark", "Custom")
                     systemOpts.forEach { opt ->
                         val isSel = localSubtheme == opt
-                        val dynColor = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor((localOpacity * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
+                        val dynColor = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(((100 - localOpacity) * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
                         val bgModifier = if (opt == "Custom") {
                             if (isSel) {
                                 Modifier.background(dynColor, RoundedCornerShape(32.dp))
@@ -2745,7 +2848,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val matOpts = listOf("Material", "Custom")
                     matOpts.forEach { opt ->
                         val isSel = localSubtheme == opt
-                        val dynColor = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor((localOpacity * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
+                        val dynColor = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(((100 - localOpacity) * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
                         val bgModifier = if (opt == "Custom") {
                             if (isSel) {
                                 Modifier.background(dynColor, RoundedCornerShape(32.dp))
@@ -2788,7 +2891,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 }
             }
 
-            if (localThemeStyle == "Material You (Minimal)" && localSubtheme == "Custom") {
+            if (localSubtheme == "Custom") {
                 // Material G Icon Row
                 SettingsCard {
                     Row(
@@ -2949,63 +3052,257 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             Spacer(modifier = Modifier.weight(1f))
                             Icon(Icons.Default.Edit, contentDescription = "Edit Hex", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                         }
+                        
+                        if (localThemeStyle == "Material You (Minimal)") {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .clickable { localLockBlack = !localLockBlack }
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Material Design Inner Pill and Circle Color State", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Force Inner Pill and Circle to be Hex #121212", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                }
+                                androidx.compose.material3.Switch(
+                                    checked = localLockBlack,
+                                    onCheckedChange = { localLockBlack = it },
+                                    colors = androidx.compose.material3.SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
             }
 
-            Text("WIDGET ACTIONS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
-
-            // Actions Card
-            SettingsCard {
-                SettingsRowToggle(
-                    title = "Voice Search Icon",
-                    subtitle = "Show voice search icon in the widget",
-                    icon = Icons.Default.Mic,
-                    isChecked = localShowVoice,
-                    onCheckedChange = { localShowVoice = it },
-                    showDivider = true
-                )
-                val customSat = localSaturation / 100f
-                val alphaInt = (255 * (100 - localOpacity.toInt()) / 100).coerceIn(0, 255) / 255f
-                val dynamicAccentColor = if (localSubtheme == "Custom") {
-                    androidx.compose.ui.graphics.Color(localCustomColorInt)
-                } else {
-                    MaterialTheme.colorScheme.primary
-                }
-                SettingsDropdownRow(
-                    title = "Widget Action Icon",
-                    subtitle = localActionIcon,
-                    iconContent = {
-                        if (localActionIcon == "None") {
-                            Icon(Icons.Default.Close, contentDescription = "None", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        } else {
-                            ComposeActionIcon(
-                                iconType = localActionIcon,
-                                modifier = Modifier.size(24.dp),
-                                primaryColor = MaterialTheme.colorScheme.primary,
-                                secondaryColor = MaterialTheme.colorScheme.secondary,
-                                tertiaryColor = MaterialTheme.colorScheme.tertiary
-                            )
-                        }
-                    },
-                    options = listOf("None", "Search", "Gemini", "Now Playing"),
-                    selectedOption = localActionIcon,
-                    onOptionSelected = { localActionIcon = it },
-                    showDivider = true,
-                    optionIcons = mapOf(
-                        "Search" to com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored,
-                        "Gemini" to com.pixel.intelligentsearch.R.drawable.ic_gemini,
-                        "Now Playing" to com.pixel.intelligentsearch.R.drawable.ic_music
+            val isMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
+            if (isMaterialYou) {
+                Text("WIDGET ACTIONS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+                SettingsCard {
+                    SettingsDropdownRow(
+                        title = "Widget Action Icon",
+                        subtitle = localActionIcon,
+                        iconContent = {
+                            if (localActionIcon == "None") {
+                                Icon(Icons.Default.Close, contentDescription = "None", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else {
+                                ComposeActionIcon(
+                                    iconType = localActionIcon,
+                                    modifier = Modifier.size(24.dp),
+                                    primaryColor = MaterialTheme.colorScheme.primary,
+                                    secondaryColor = MaterialTheme.colorScheme.secondary,
+                                    tertiaryColor = MaterialTheme.colorScheme.tertiary
+                                )
+                            }
+                        },
+                        options = listOf("None", "Search", "Gemini", "Now Playing"),
+                        selectedOption = localActionIcon,
+                        onOptionSelected = { localActionIcon = it },
+                        showDivider = false,
+                        optionIcons = mapOf(
+                            "Search" to com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored,
+                            "Gemini" to com.pixel.intelligentsearch.R.drawable.ic_gemini,
+                            "Now Playing" to com.pixel.intelligentsearch.R.drawable.ic_music
+                        )
                     )
-                )
-                SettingsRow(
-                    title = "Widget Shortcut",
-                    subtitle = localShortcut,
-                    icon = shortcutOptions.find { it.first == localShortcut }?.second ?: Icons.Default.AddCircleOutline,
-                    onClick = { showShortcutSheet = true },
-                    showDivider = false
-                )
+                }
             }
+                Text("WIDGET SHORTCUTS & MICROPHONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp))
+                
+                var draggingShortcutSlotIndex by remember { mutableStateOf<Int?>(null) }
+                var shortcutDragOffset by remember { mutableFloatStateOf(0f) }
+                val coroutineScope = rememberCoroutineScope()
+                val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    val currentOrderList = localSlotOrderStr.split(",").filter { it.isNotBlank() }
+                    currentOrderList.forEachIndexed { index, slotKey ->
+                        val isDragging = draggingShortcutSlotIndex == index
+                        val swipeOffsetX = remember { androidx.compose.animation.core.Animatable(0f) }
+
+                        val cardTitle = when (slotKey) {
+                            "mic" -> "Microphone Slot:"
+                            "shortcut1" -> "Shortcut Slot: 1"
+                            "shortcut2" -> "Shortcut Slot: 2"
+                            else -> "Shortcut Slot: 3"
+                        }
+
+                        val cardSubtext = when (slotKey) {
+                            "mic" -> if (localShowVoice) "Voice Search" else "None"
+                            "shortcut1" -> localShortcut1
+                            "shortcut2" -> localShortcut2
+                            else -> localShortcut3
+                        }
+
+                        val cardIcon = when (slotKey) {
+                            "mic" -> if (localShowVoice) Icons.Default.Mic else Icons.Default.Close
+                            else -> shortcutOptions.find { it.first == cardSubtext }?.second ?: Icons.Default.Close
+                        }
+
+                        val cardModifier = if (isDragging) {
+                            Modifier
+                                .zIndex(2f)
+                                .graphicsLayer { translationY = shortcutDragOffset }
+                        } else {
+                            Modifier.graphicsLayer { translationX = swipeOffsetX.value }
+                        }
+
+                        Surface(
+                            modifier = cardModifier
+                                .fillMaxWidth()
+                                .pointerInput(slotKey, isDragging) {
+                                    if (!isDragging) {
+                                        detectHorizontalDragGestures(
+                                            onDragEnd = {
+                                                coroutineScope.launch {
+                                                    if (kotlin.math.abs(swipeOffsetX.value) > 200f) {
+                                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                                        when (slotKey) {
+                                                            "mic" -> localShowVoice = false
+                                                            "shortcut1" -> localShortcut1 = "None"
+                                                            "shortcut2" -> localShortcut2 = "None"
+                                                            "shortcut3" -> localShortcut3 = "None"
+                                                        }
+                                                    }
+                                                    swipeOffsetX.animateTo(
+                                                        targetValue = 0f,
+                                                        animationSpec = androidx.compose.animation.core.spring(
+                                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                                                        )
+                                                    )
+                                                }
+                                            },
+                                            onDragCancel = {
+                                                coroutineScope.launch {
+                                                    swipeOffsetX.animateTo(
+                                                        targetValue = 0f,
+                                                        animationSpec = androidx.compose.animation.core.spring(
+                                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                                                        )
+                                                    )
+                                                }
+                                            },
+                                            onHorizontalDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, dragAmount: Float ->
+                                                change.consume()
+                                                coroutineScope.launch {
+                                                    swipeOffsetX.snapTo(swipeOffsetX.value + dragAmount)
+                                                }
+                                            }
+                                        )
+                                    }
+                                },
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            tonalElevation = if (isDragging) 8.dp else 2.dp,
+                            shadowElevation = if (isDragging) 4.dp else 0.dp
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                        if (slotKey == "mic") {
+                                            localShowVoice = !localShowVoice
+                                        } else {
+                                            activeShortcutSlot = when (slotKey) {
+                                                "shortcut1" -> 1
+                                                "shortcut2" -> 2
+                                                else -> 3
+                                            }
+                                            showShortcutSheet = true
+                                        }
+                                    }
+                                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = cardIcon,
+                                    contentDescription = cardSubtext,
+                                    modifier = Modifier.size(24.dp),
+                                    tint = if (cardSubtext == "None") MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = cardTitle,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = cardSubtext,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Outlined.DragHandle,
+                                    contentDescription = "Drag to reorder",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .padding(start = 12.dp)
+                                        .size(24.dp)
+                                        .pointerInput(index) {
+                                            detectVerticalDragGestures(
+                                                onDragStart = {
+                                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                                    draggingShortcutSlotIndex = index
+                                                    shortcutDragOffset = 0f
+                                                },
+                                                onDragEnd = {
+                                                    draggingShortcutSlotIndex = null
+                                                    shortcutDragOffset = 0f
+                                                },
+                                                onDragCancel = {
+                                                    draggingShortcutSlotIndex = null
+                                                    shortcutDragOffset = 0f
+                                                },
+                                                onVerticalDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    shortcutDragOffset += dragAmount
+                                                    val currentIdx = draggingShortcutSlotIndex ?: return@detectVerticalDragGestures
+                                                    
+                                                    if (shortcutDragOffset > 120f && currentIdx < currentOrderList.size - 1) {
+                                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                                        val listCopy = currentOrderList.toMutableList()
+                                                        val temp = listCopy[currentIdx]
+                                                        listCopy[currentIdx] = listCopy[currentIdx + 1]
+                                                        listCopy[currentIdx + 1] = temp
+                                                        localSlotOrderStr = listCopy.joinToString(",")
+                                                        draggingShortcutSlotIndex = currentIdx + 1
+                                                        shortcutDragOffset = 0f
+                                                    } else if (shortcutDragOffset < -120f && currentIdx > 0) {
+                                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                                        val listCopy = currentOrderList.toMutableList()
+                                                        val temp = listCopy[currentIdx]
+                                                        listCopy[currentIdx] = listCopy[currentIdx - 1]
+                                                        listCopy[currentIdx - 1] = temp
+                                                        localSlotOrderStr = listCopy.joinToString(",")
+                                                        draggingShortcutSlotIndex = currentIdx - 1
+                                                        shortcutDragOffset = 0f
+                                                    }
+                                                }
+                                            )
+                                        }
+                                )
+                            }
+                        }
+                    }
+                }
 
             if (showShortcutSheet) {
                 ModalBottomSheet(onDismissRequest = { showShortcutSheet = false }) {
@@ -3031,11 +3328,20 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         if (isCustomizable) {
                                             expandedDropdownFor = option.first
                                         } else {
-                                            localShortcut = option.first
+                                            when (activeShortcutSlot) {
+                                                1 -> localShortcut1 = option.first
+                                                2 -> localShortcut2 = option.first
+                                                3 -> localShortcut3 = option.first
+                                            }
                                             showShortcutSheet = false
                                         }
                                     }
                                 ) {
+                                    val currentShortcutSlotVal = when (activeShortcutSlot) {
+                                        1 -> localShortcut1
+                                        2 -> localShortcut2
+                                        else -> localShortcut3
+                                    }
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             imageVector = option.second,
@@ -3043,11 +3349,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             modifier = Modifier
                                                 .size(56.dp)
                                                 .background(
-                                                    if (localShortcut == option.first) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                                    if (currentShortcutSlotVal == option.first) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                                                     androidx.compose.foundation.shape.CircleShape
                                                 )
                                                 .padding(16.dp),
-                                            tint = if (localShortcut == option.first) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                            tint = if (currentShortcutSlotVal == option.first) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         if (isCustomizable) {
                                             Icon(
@@ -3066,7 +3372,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 androidx.compose.material3.DropdownMenuItem(
                                                     text = { Text("Default (Google)") },
                                                     onClick = {
-                                                        localShortcut = option.first
+                                                        when (activeShortcutSlot) {
+                                                            1 -> localShortcut1 = option.first
+                                                            2 -> localShortcut2 = option.first
+                                                            3 -> localShortcut3 = option.first
+                                                        }
                                                         showShortcutSheet = false
                                                         expandedDropdownFor = null
                                                     }
@@ -3120,8 +3430,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 val hsv = FloatArray(3)
                                 android.graphics.Color.colorToHSV(color, hsv)
                                 localHue = hsv[0]
-                                localSaturation = (hsv[1] * 100).toFloat()
-                                localLightness = (hsv[2] * 100).toFloat()
+                                localSaturation = hsv[1] * 100
+                                localLightness = hsv[2] * 100
                             } catch (e: Exception) {}
                             showHexInput = false
                         }) { Text("Save") }
@@ -3149,7 +3459,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .putString("${showCustomUrlDialogFor}_custom_type", "url")
                                 .putString("${showCustomUrlDialogFor}_custom_value", customInputValue)
                                 .apply()
-                            localShortcut = showCustomUrlDialogFor!!
+                            when (activeShortcutSlot) {
+                                1 -> localShortcut1 = showCustomUrlDialogFor!!
+                                2 -> localShortcut2 = showCustomUrlDialogFor!!
+                                3 -> localShortcut3 = showCustomUrlDialogFor!!
+                            }
                             showShortcutSheet = false
                             showCustomUrlDialogFor = null
                         }) { Text("Save") }
@@ -3177,7 +3491,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .putString("${showCustomAppDialogFor}_custom_type", "app")
                                 .putString("${showCustomAppDialogFor}_custom_value", customInputValue)
                                 .apply()
-                            localShortcut = showCustomAppDialogFor!!
+                            when (activeShortcutSlot) {
+                                1 -> localShortcut1 = showCustomAppDialogFor!!
+                                2 -> localShortcut2 = showCustomAppDialogFor!!
+                                3 -> localShortcut3 = showCustomAppDialogFor!!
+                            }
                             showShortcutSheet = false
                             showCustomAppDialogFor = null
                         }) { Text("Save") }
@@ -3652,23 +3970,19 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                         Box(modifier = draggingModifier) {
                             val elevation = if (isDragging) 8.dp else 0.dp
-                                
-                                val dismissState = rememberSwipeToDismissBoxState(
-                                    positionalThreshold = { it * 0.5f },
-                                    confirmValueChange = { dismissValue ->
-                                        if (dismissValue == SwipeToDismissBoxValue.EndToStart || dismissValue == SwipeToDismissBoxValue.StartToEnd) {
-                                            val currentList = localPillList.toMutableList()
-                                            currentList.remove(packageName)
-                                            localPillList = currentList
-                                            searchPills = currentList.joinToString(",")
-                                            viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, currentList.size)
-                                            prefs.edit().putInt("shortcut_results_count", currentList.size).apply()
-                                            true
-                                        } else {
-                                            false
-                                        }
+                                                      val dismissState = rememberSwipeToDismissBoxState(
+                                    positionalThreshold = { it * 0.5f }
+                                )
+                                LaunchedEffect(dismissState.currentValue) {
+                                    if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
+                                        val currentList = localPillList.toMutableList()
+                                        currentList.remove(packageName)
+                                        localPillList = currentList
+                                        searchPills = currentList.joinToString(",")
+                                        viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, currentList.size)
+                                        prefs.edit().putInt("shortcut_results_count", currentList.size).apply()
                                     }
-                            )
+                                }
 
                             SwipeToDismissBox(
                                 state = dismissState,

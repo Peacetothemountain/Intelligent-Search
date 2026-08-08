@@ -63,10 +63,10 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier) {
                 val cy = offset.y
                 val path = Path().apply {
                     moveTo(cx, cy - s)
-                    quadraticBezierTo(cx, cy, cx + s, cy)
-                    quadraticBezierTo(cx, cy, cx, cy + s)
-                    quadraticBezierTo(cx, cy, cx - s, cy)
-                    quadraticBezierTo(cx, cy, cx, cy - s)
+                    quadraticTo(cx, cy, cx + s, cy)
+                    quadraticTo(cx, cy, cx, cy + s)
+                    quadraticTo(cx, cy, cx - s, cy)
+                    quadraticTo(cx, cy, cx, cy - s)
                     close()
                 }
                 drawPath(

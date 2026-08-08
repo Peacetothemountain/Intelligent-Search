@@ -195,12 +195,12 @@ class SearchWidgetProvider : AppWidgetProvider() {
 
             // Apply Material You colors with transparency using setImageAlpha
             if (isMaterialYou) {
-                views.setInt(R.id.widget_outer_background, "setColorFilter", rimColorOpaque)
+                views.setColorStateList(R.id.widget_outer_background, "setImageTintList", android.content.res.ColorStateList.valueOf(rimColorOpaque))
                 views.setInt(R.id.widget_outer_background, "setImageAlpha", alphaInt)
                 
-                views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorOpaque)
+                views.setColorStateList(R.id.widget_pill_background, "setImageTintList", android.content.res.ColorStateList.valueOf(pillColorOpaque))
                 
-                views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorOpaque)
+                views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
                 
                 bindDoodle(context, views, showDoodle, prefs.getBoolean("force_google_minidoodle", false), showGIcon, gIconRes, iconTint, materialGIconTheme)
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic)
@@ -208,15 +208,15 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setImageViewResource(R.id.widget_sound_icon, actionIconRes)
                 
                 if (materialGIconTheme == "Accented G Icon") {
-                    views.setInt(R.id.widget_g_logo, "setColorFilter", iconTint)
-                    views.setInt(R.id.widget_voice_search, "setColorFilter", iconTint)
-                    views.setInt(R.id.widget_lens_search, "setColorFilter", iconTint)
-                    views.setInt(R.id.widget_sound_icon, "setColorFilter", iconTint)
+                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
+                    views.setColorStateList(R.id.widget_voice_search, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
+                    views.setColorStateList(R.id.widget_lens_search, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
+                    views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
                 } else {
-                    views.setInt(R.id.widget_g_logo, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                    views.setInt(R.id.widget_voice_search, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                    views.setInt(R.id.widget_lens_search, "setColorFilter", android.graphics.Color.TRANSPARENT)
-                    views.setInt(R.id.widget_sound_icon, "setColorFilter", android.graphics.Color.TRANSPARENT)
+                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
+                    views.setColorStateList(R.id.widget_voice_search, "setImageTintList", null)
+                    views.setColorStateList(R.id.widget_lens_search, "setImageTintList", null)
+                    views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", null)
                 }
 
             } else {
@@ -224,18 +224,18 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 // and alter the perceived brightness of the custom inner pill.
                 views.setViewVisibility(R.id.widget_outer_background, View.GONE)
                 
-                views.setInt(R.id.widget_pill_background, "setColorFilter", pillColorOpaque)
+                views.setColorStateList(R.id.widget_pill_background, "setImageTintList", android.content.res.ColorStateList.valueOf(pillColorOpaque))
                 views.setInt(R.id.widget_pill_background, "setImageAlpha", alphaInt)
                 
-                views.setInt(R.id.widget_sound_background, "setColorFilter", circleColorOpaque)
+                views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
                 views.setInt(R.id.widget_sound_background, "setImageAlpha", alphaInt)
                 
                 bindDoodle(context, views, showDoodle, prefs.getBoolean("force_google_minidoodle", false), showGIcon, gIconRes, iconTint, "Colorful")
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic_original)
-                views.setInt(R.id.widget_voice_search, "setColorFilter", iconTint)
+                views.setColorStateList(R.id.widget_voice_search, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
                 
                 views.setImageViewResource(R.id.widget_lens_search, shortcutIconRes)
-                views.setInt(R.id.widget_lens_search, "setColorFilter", iconTint)
+                views.setColorStateList(R.id.widget_lens_search, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
             }
 
             // Shortcut visibility
@@ -460,10 +460,10 @@ class SearchWidgetProvider : AppWidgetProvider() {
             views.setImageViewResource(R.id.widget_g_logo, gIconRes)
             if (materialGIconTheme == "Accented G Icon" || materialGIconTheme == "Colorful") {
                 if (materialGIconTheme == "Accented G Icon") {
-                    views.setInt(R.id.widget_g_logo, "setColorFilter", iconTint)
+                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
                 }
             } else {
-                views.setInt(R.id.widget_g_logo, "setColorFilter", android.graphics.Color.TRANSPARENT)
+                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
             }
         }
 

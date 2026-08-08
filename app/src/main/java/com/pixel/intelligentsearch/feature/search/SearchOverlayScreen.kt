@@ -59,7 +59,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -807,14 +807,12 @@ fun SearchOverlayScreen(
 
             if (uiState.query.isEmpty() && uiState.recentSearches.isNotEmpty()) {
                 items(uiState.recentSearches, key = { "recent_$it" }) { recentQuery ->
-                    val dismissState = rememberSwipeToDismissBoxState(
-                        confirmValueChange = {
-                            if (it != SwipeToDismissBoxValue.Settled) {
-                                viewModel.removeSearchHistory(recentQuery)
-                                true
-                            } else false
+                    val dismissState = rememberSwipeToDismissBoxState()
+                    LaunchedEffect(dismissState.currentValue) {
+                        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+                            viewModel.removeSearchHistory(recentQuery)
                         }
-                    )
+                    }
                     SwipeToDismissBox(
                         state = dismissState,
                         backgroundContent = { Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) },

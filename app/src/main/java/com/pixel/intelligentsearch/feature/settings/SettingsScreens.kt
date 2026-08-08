@@ -485,7 +485,7 @@ fun SettingsScreensHub(
         val navController = androidx.navigation.compose.rememberNavController()
         
         val exoPlayer = androidx.compose.runtime.remember {
-            val uri = androidx.media3.datasource.RawResourceDataSource.buildRawResourceUri(com.pixel.intelligentsearch.R.raw.bugdroid_video)
+            val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.bugdroid_video)
             val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
             val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
             androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
@@ -2561,22 +2561,27 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             Spacer(Modifier.weight(1f))
                             
                             if (localShortcut != "None") {
-                                val shortcutOption = shortcutOptions.find { it.first == localShortcut }
-                                if (shortcutOption != null) {
-                                    val painter = if (localShortcut == "Google Lens") {
-                                        androidx.compose.ui.res.painterResource(id = com.pixel.intelligentsearch.R.drawable.ic_camera)
-                                    } else {
-                                        androidx.compose.ui.graphics.vector.rememberVectorPainter(shortcutOption.second)
-                                    }
-                                    Icon(
-                                        painter = painter,
-                                        contentDescription = localShortcut,
-                                        tint = finalPreviewIconTint,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    if (localShowVoice) {
-                                        Spacer(modifier = Modifier.width(16.dp))
-                                    }
+                                val shortcutRes = when (localShortcut) {
+                                    "Live" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
+                                    "Translate (text)" -> com.pixel.intelligentsearch.R.drawable.ic_translate
+                                    "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_camera
+                                    "Weather" -> com.pixel.intelligentsearch.R.drawable.ic_weather
+                                    "Sports" -> com.pixel.intelligentsearch.R.drawable.ic_sports
+                                    "Dictionary" -> com.pixel.intelligentsearch.R.drawable.ic_dictionary
+                                    "Homework" -> com.pixel.intelligentsearch.R.drawable.ic_homework
+                                    "Finance" -> com.pixel.intelligentsearch.R.drawable.ic_finance
+                                    "Saved" -> com.pixel.intelligentsearch.R.drawable.ic_saved
+                                    "News" -> com.pixel.intelligentsearch.R.drawable.ic_news
+                                    else -> com.pixel.intelligentsearch.R.drawable.ic_camera
+                                }
+                                Icon(
+                                    painter = androidx.compose.ui.res.painterResource(id = shortcutRes),
+                                    contentDescription = localShortcut,
+                                    tint = finalPreviewIconTint,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                if (localShowVoice) {
+                                    Spacer(modifier = Modifier.width(16.dp))
                                 }
                             }
                             if (localShowVoice) {
@@ -3120,8 +3125,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 val hsv = FloatArray(3)
                                 android.graphics.Color.colorToHSV(color, hsv)
                                 localHue = hsv[0]
-                                localSaturation = (hsv[1] * 100).toFloat()
-                                localLightness = (hsv[2] * 100).toFloat()
+                                localSaturation = hsv[1] * 100
+                                localLightness = hsv[2] * 100
                             } catch (e: Exception) {}
                             showHexInput = false
                         }) { Text("Save") }
@@ -3652,23 +3657,19 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                         Box(modifier = draggingModifier) {
                             val elevation = if (isDragging) 8.dp else 0.dp
-                                
-                                val dismissState = rememberSwipeToDismissBoxState(
-                                    positionalThreshold = { it * 0.5f },
-                                    confirmValueChange = { dismissValue ->
-                                        if (dismissValue == SwipeToDismissBoxValue.EndToStart || dismissValue == SwipeToDismissBoxValue.StartToEnd) {
-                                            val currentList = localPillList.toMutableList()
-                                            currentList.remove(packageName)
-                                            localPillList = currentList
-                                            searchPills = currentList.joinToString(",")
-                                            viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, currentList.size)
-                                            prefs.edit().putInt("shortcut_results_count", currentList.size).apply()
-                                            true
-                                        } else {
-                                            false
-                                        }
+                                                      val dismissState = rememberSwipeToDismissBoxState(
+                                    positionalThreshold = { it * 0.5f }
+                                )
+                                LaunchedEffect(dismissState.currentValue) {
+                                    if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
+                                        val currentList = localPillList.toMutableList()
+                                        currentList.remove(packageName)
+                                        localPillList = currentList
+                                        searchPills = currentList.joinToString(",")
+                                        viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, currentList.size)
+                                        prefs.edit().putInt("shortcut_results_count", currentList.size).apply()
                                     }
-                            )
+                                }
 
                             SwipeToDismissBox(
                                 state = dismissState,

@@ -60,7 +60,9 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val showGemini = prefs.getBoolean("widget_show_gemini", false)
         val showGIcon = prefs.getBoolean("widget_show_g_icon", true)
         val actionIconStr = prefs.getString("widget_action_icon", "Search") ?: "Search"
-        val widgetShortcut = prefs.getString("widget_shortcut", "None") ?: "None"
+        val shortcut1Str = prefs.getString("widget_shortcut_1", prefs.getString("widget_shortcut", "Google Lens")) ?: "Google Lens"
+        val shortcut2Str = prefs.getString("widget_shortcut_2", "None") ?: "None"
+        val shortcut3Str = prefs.getString("widget_shortcut_3", "None") ?: "None"
 
         val themeMode = prefs.getString("night.mode", "System") ?: "System"
         val isDark = when (themeMode) {
@@ -69,23 +71,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
             else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
         }
 
-        // ————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
         val widgetThemeStyle = prefs.getString("widget.theme.style", "System Default")
         val isMaterialYou = widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
-        
-        val shortcutIconRes = when (widgetShortcut) {
-            "Live" -> R.drawable.ic_gemini
-            "Translate (text)" -> R.drawable.ic_translate
-            "Translate (camera)" -> R.drawable.ic_document_scanner
-            "Weather" -> R.drawable.ic_weather
-            "Sports" -> R.drawable.ic_sports
-            "Dictionary" -> R.drawable.ic_dictionary
-            "Homework" -> R.drawable.ic_homework
-            "Finance" -> R.drawable.ic_finance
-            "Saved" -> R.drawable.ic_saved
-            "News" -> R.drawable.ic_news
-            else -> R.drawable.ic_camera
-        }
 
         val subthemeStr = prefs.getString("widget_subtheme", "System") ?: "System"
         val customColorInt = prefs.getInt("widget_custom_color_int", android.graphics.Color.HSVToColor(floatArrayOf(
@@ -207,24 +194,18 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 
                 bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme)
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic)
-                views.setImageViewResource(R.id.widget_lens_search, shortcutIconRes)
-                views.setImageViewResource(R.id.widget_sound_icon, actionIconRes)
-                
                 if (materialGIconTheme == "Accented G Icon") {
                     views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
                     views.setColorStateList(R.id.widget_voice_search, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
-                    views.setColorStateList(R.id.widget_lens_search, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
                     views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
                 } else {
                     views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
                     views.setColorStateList(R.id.widget_voice_search, "setImageTintList", null)
-                    views.setColorStateList(R.id.widget_lens_search, "setImageTintList", null)
                     views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", null)
                 }
 
             } else {
-                // In Colorful mode, the outer rim should be completely hidden so the native grey drawable doesn't bleed through
-                // and alter the perceived brightness of the custom inner pill.
+                // In Colorful mode, outer rim is hidden
                 views.setViewVisibility(R.id.widget_outer_background, View.GONE)
                 
                 views.setColorStateList(R.id.widget_pill_background, "setImageTintList", android.content.res.ColorStateList.valueOf(pillColorOpaque))
@@ -236,16 +217,44 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme)
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic_original)
                 views.setColorStateList(R.id.widget_voice_search, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
-                
-                views.setImageViewResource(R.id.widget_lens_search, shortcutIconRes)
-                views.setColorStateList(R.id.widget_lens_search, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
             }
 
-            // Shortcut visibility
+            // Bind 3 shortcuts
+            val shortcuts = listOf(
+                Triple(R.id.widget_lens_search, shortcut1Str, 2001),
+                Triple(R.id.widget_shortcut_2, shortcut2Str, 2002),
+                Triple(R.id.widget_shortcut_3, shortcut3Str, 2003)
+            )
+
+            for ((viewId, shortcutStr, reqCodeOffset) in shortcuts) {
+                val isVisible = shortcutStr != "None"
+                views.setViewVisibility(viewId, if (isVisible) View.VISIBLE else View.GONE)
+
+                if (isVisible) {
+                    val iconRes = getShortcutIconRes(shortcutStr)
+                    views.setImageViewResource(viewId, iconRes)
+
+                    if (isMaterialYou) {
+                        if (materialGIconTheme == "Accented G Icon") {
+                            views.setColorStateList(viewId, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
+                        } else {
+                            views.setColorStateList(viewId, "setImageTintList", null)
+                        }
+                    } else {
+                        views.setColorStateList(viewId, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
+                    }
+
+                    val shortcutPI = PendingIntent.getActivity(
+                        context, appWidgetId + reqCodeOffset,
+                        getShortcutIntent(context, shortcutStr),
+                        PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+                    views.setOnClickPendingIntent(viewId, shortcutPI)
+                }
+            }
+
+            // Voice search visibility
             views.setViewVisibility(R.id.widget_voice_search, if (showVoice) View.VISIBLE else View.GONE)
-            views.setViewVisibility(R.id.widget_lens_search, if (widgetShortcut != "None") View.VISIBLE else View.GONE)
-            views.setViewVisibility(R.id.widget_gemini_search, if (showGemini) View.VISIBLE else View.GONE)
-            views.setViewVisibility(R.id.widget_sound_search, if (actionIconStr != "None") View.VISIBLE else View.GONE)
 
             // Tap pill -> main search
             val enableSearchOverlay = prefs.getBoolean("search_overlay_enabled", true)
@@ -274,12 +283,6 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 getVoiceSearchIntent(context),
                 PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             views.setOnClickPendingIntent(R.id.widget_voice_search, voicePI)
-
-            // Tap Shortcut
-            val shortcutPI = PendingIntent.getActivity(context, appWidgetId + 2000,
-                getShortcutIntent(context, widgetShortcut),
-                PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            views.setOnClickPendingIntent(R.id.widget_lens_search, shortcutPI)
 
             // Tap sparkle circle inside pill -> Gemini
             val geminiPI = PendingIntent.getActivity(context, appWidgetId + 2500,
@@ -320,6 +323,23 @@ class SearchWidgetProvider : AppWidgetProvider() {
             return Intent(Intent.ACTION_MAIN).apply {
                 setClassName("com.google.android.googlequicksearchbox", "com.google.android.googlequicksearchbox.VoiceSearchActivity")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        }
+
+        fun getShortcutIconRes(shortcut: String): Int {
+            return when (shortcut) {
+                "Google Lens" -> R.drawable.ic_camera
+                "Live" -> R.drawable.ic_gemini
+                "Translate (text)" -> R.drawable.ic_translate
+                "Translate (camera)" -> R.drawable.ic_document_scanner
+                "Weather" -> R.drawable.ic_weather
+                "Sports" -> R.drawable.ic_sports
+                "Dictionary" -> R.drawable.ic_dictionary
+                "Homework" -> R.drawable.ic_homework
+                "Finance" -> R.drawable.ic_finance
+                "Saved" -> R.drawable.ic_saved
+                "News" -> R.drawable.ic_news
+                else -> R.drawable.ic_camera
             }
         }
 

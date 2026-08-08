@@ -2337,14 +2337,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localLockBlack by remember { mutableStateOf(prefs.getBoolean("widget_material_lock_black", true)) }
     var localShowVoice by remember { mutableStateOf(prefs.getBoolean("widget_show_voice", true)) }
     var localActionIcon by remember { mutableStateOf(prefs.getString("widget_action_icon", "Search") ?: "Search") }
-    var localShortcut by remember { mutableStateOf(prefs.getString("widget_shortcut", "Google Lens") ?: "Google Lens") }
+    var localShortcut1 by remember { mutableStateOf(prefs.getString("widget_shortcut_1", prefs.getString("widget_shortcut", "Google Lens")) ?: "Google Lens") }
+    var localShortcut2 by remember { mutableStateOf(prefs.getString("widget_shortcut_2", "None") ?: "None") }
+    var localShortcut3 by remember { mutableStateOf(prefs.getString("widget_shortcut_3", "None") ?: "None") }
+    var activeShortcutSlot by remember { mutableIntStateOf(1) }
 
     var isInitialSetup by remember { mutableStateOf(true) }
 
     LaunchedEffect(
         localShowGIcon, localThemeStyle, localSubtheme,
         localMaterialGIconTheme, localHue, localSaturation, localLightness, localOpacity, localLockBlack,
-        localShowVoice, localActionIcon, localShortcut, localCustomColorInt
+        localShowVoice, localActionIcon, localShortcut1, localShortcut2, localShortcut3, localCustomColorInt
     ) {
         if (isInitialSetup) {
             isInitialSetup = false
@@ -2364,7 +2367,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             .putBoolean("widget_material_lock_black", localLockBlack)
             .putBoolean("widget_show_voice", localShowVoice)
             .putString("widget_action_icon", localActionIcon)
-            .putString("widget_shortcut", localShortcut)
+            .putString("widget_shortcut_1", localShortcut1)
+            .putString("widget_shortcut_2", localShortcut2)
+            .putString("widget_shortcut_3", localShortcut3)
+            .putString("widget_shortcut", localShortcut1)
             .apply()
         updateWidgets(context)
     }
@@ -2393,7 +2399,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         localLockBlack = true
                         localShowVoice = true
                         localActionIcon = "Search"
-                        localShortcut = "Google Lens"
+                        localShortcut1 = "Google Lens"
+                        localShortcut2 = "None"
+                        localShortcut3 = "None"
                     }) {
                         Text("Reset", color = MaterialTheme.colorScheme.onSurface)
                     }
@@ -2574,8 +2582,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             
                             Spacer(Modifier.weight(1f))
                             
-                            if (localShortcut != "None") {
-                                val shortcutRes = when (localShortcut) {
+                            val activeShortcuts = listOf(localShortcut1, localShortcut2, localShortcut3).filter { it != "None" }
+                            activeShortcuts.forEachIndexed { idx, sc ->
+                                val shortcutRes = when (sc) {
                                     "Live" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
                                     "Translate (text)" -> com.pixel.intelligentsearch.R.drawable.ic_translate
                                     "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_document_scanner
@@ -2588,15 +2597,18 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     "News" -> com.pixel.intelligentsearch.R.drawable.ic_news
                                     else -> com.pixel.intelligentsearch.R.drawable.ic_camera
                                 }
+                                if (idx > 0) {
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                }
                                 Icon(
                                     painter = androidx.compose.ui.res.painterResource(id = shortcutRes),
-                                    contentDescription = localShortcut,
+                                    contentDescription = sc,
                                     tint = finalPreviewIconTint,
                                     modifier = Modifier.size(24.dp)
                                 )
-                                if (localShowVoice) {
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                }
+                            }
+                            if (activeShortcuts.isNotEmpty() && localShowVoice) {
+                                Spacer(modifier = Modifier.width(16.dp))
                             }
                             if (localShowVoice) {
                                 Icon(
@@ -2973,8 +2985,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("Lock Pill & Circle to Black", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("Force dark inner elements in Material Design", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                    Text("Material Design Inner Pill and Circle Color State", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Force Inner Pill and Circle to be Hex #121212", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                                 }
                                 androidx.compose.material3.Switch(
                                     checked = localLockBlack,
@@ -3035,13 +3047,78 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         "Now Playing" to com.pixel.intelligentsearch.R.drawable.ic_music
                     )
                 )
-                SettingsRow(
-                    title = "Widget Shortcut",
-                    subtitle = localShortcut,
-                    icon = shortcutOptions.find { it.first == localShortcut }?.second ?: Icons.Default.AddCircleOutline,
-                    onClick = { showShortcutSheet = true },
-                    showDivider = false
-                )
+                Text("WIDGET SHORTCUTS (UP TO 3)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
+                
+                SettingsCard {
+                    // Slot 1
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { activeShortcutSlot = 1; showShortcutSheet = true }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val iconVector = shortcutOptions.find { it.first == localShortcut1 }?.second ?: Icons.Default.AddCircleOutline
+                        Icon(iconVector, contentDescription = localShortcut1, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Shortcut Slot 1", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                            Text(localShortcut1, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        IconButton(onClick = {
+                            val temp = localShortcut1
+                            localShortcut1 = localShortcut2
+                            localShortcut2 = temp
+                        }) {
+                            Icon(Icons.Default.SwapVert, contentDescription = "Move Down", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                    // Slot 2
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { activeShortcutSlot = 2; showShortcutSheet = true }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val iconVector = shortcutOptions.find { it.first == localShortcut2 }?.second ?: Icons.Default.AddCircleOutline
+                        Icon(iconVector, contentDescription = localShortcut2, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Shortcut Slot 2", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                            Text(localShortcut2, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        IconButton(onClick = {
+                            val temp = localShortcut2
+                            localShortcut2 = localShortcut3
+                            localShortcut3 = temp
+                        }) {
+                            Icon(Icons.Default.SwapVert, contentDescription = "Move Down", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                    // Slot 3
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { activeShortcutSlot = 3; showShortcutSheet = true }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val iconVector = shortcutOptions.find { it.first == localShortcut3 }?.second ?: Icons.Default.AddCircleOutline
+                        Icon(iconVector, contentDescription = localShortcut3, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Shortcut Slot 3", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                            Text(localShortcut3, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             }
 
             if (showShortcutSheet) {
@@ -3068,11 +3145,20 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         if (isCustomizable) {
                                             expandedDropdownFor = option.first
                                         } else {
-                                            localShortcut = option.first
+                                            when (activeShortcutSlot) {
+                                                1 -> localShortcut1 = option.first
+                                                2 -> localShortcut2 = option.first
+                                                3 -> localShortcut3 = option.first
+                                            }
                                             showShortcutSheet = false
                                         }
                                     }
                                 ) {
+                                    val currentShortcutSlotVal = when (activeShortcutSlot) {
+                                        1 -> localShortcut1
+                                        2 -> localShortcut2
+                                        else -> localShortcut3
+                                    }
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             imageVector = option.second,
@@ -3080,11 +3166,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             modifier = Modifier
                                                 .size(56.dp)
                                                 .background(
-                                                    if (localShortcut == option.first) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                                    if (currentShortcutSlotVal == option.first) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                                                     androidx.compose.foundation.shape.CircleShape
                                                 )
                                                 .padding(16.dp),
-                                            tint = if (localShortcut == option.first) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                            tint = if (currentShortcutSlotVal == option.first) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         if (isCustomizable) {
                                             Icon(
@@ -3103,7 +3189,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 androidx.compose.material3.DropdownMenuItem(
                                                     text = { Text("Default (Google)") },
                                                     onClick = {
-                                                        localShortcut = option.first
+                                                        when (activeShortcutSlot) {
+                                                            1 -> localShortcut1 = option.first
+                                                            2 -> localShortcut2 = option.first
+                                                            3 -> localShortcut3 = option.first
+                                                        }
                                                         showShortcutSheet = false
                                                         expandedDropdownFor = null
                                                     }
@@ -3186,7 +3276,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .putString("${showCustomUrlDialogFor}_custom_type", "url")
                                 .putString("${showCustomUrlDialogFor}_custom_value", customInputValue)
                                 .apply()
-                            localShortcut = showCustomUrlDialogFor!!
+                            when (activeShortcutSlot) {
+                                1 -> localShortcut1 = showCustomUrlDialogFor!!
+                                2 -> localShortcut2 = showCustomUrlDialogFor!!
+                                3 -> localShortcut3 = showCustomUrlDialogFor!!
+                            }
                             showShortcutSheet = false
                             showCustomUrlDialogFor = null
                         }) { Text("Save") }
@@ -3214,7 +3308,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .putString("${showCustomAppDialogFor}_custom_type", "app")
                                 .putString("${showCustomAppDialogFor}_custom_value", customInputValue)
                                 .apply()
-                            localShortcut = showCustomAppDialogFor!!
+                            when (activeShortcutSlot) {
+                                1 -> localShortcut1 = showCustomAppDialogFor!!
+                                2 -> localShortcut2 = showCustomAppDialogFor!!
+                                3 -> localShortcut3 = showCustomAppDialogFor!!
+                            }
                             showShortcutSheet = false
                             showCustomAppDialogFor = null
                         }) { Text("Save") }

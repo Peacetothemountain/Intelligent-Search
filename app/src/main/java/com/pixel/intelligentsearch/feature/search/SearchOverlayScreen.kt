@@ -306,8 +306,8 @@ fun SearchOverlayScreen(
                 overlayProgressAnim.animateTo(
                     targetValue = 1f,
                     animationSpec = spring(
-                        dampingRatio = 0.82f,
-                        stiffness = 450f
+                        dampingRatio = 0.84f,
+                        stiffness = 220f
                     )
                 )
             } else {
@@ -317,12 +317,13 @@ fun SearchOverlayScreen(
             overlayProgressAnim.animateTo(
                 targetValue = 0f,
                 animationSpec = spring(
-                    dampingRatio = 0.85f,
-                    stiffness = 450f
+                    dampingRatio = 0.88f,
+                    stiffness = 180f
                 )
             )
             val act = context as? android.app.Activity
             act?.finish()
+            act?.overridePendingTransition(0, 0)
         }
     }
     val overlayProgress = overlayProgressAnim.value
@@ -1167,12 +1168,12 @@ fun SearchOverlayScreen(
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
-                        val commitThreshold = 0.5f
+                        val commitThreshold = 0.75f
                         coroutineScope.launch {
                             val target = if (overlayProgressAnim.value > commitThreshold) 1f else 0f
                             overlayProgressAnim.animateTo(
                                 targetValue = target,
-                                animationSpec = spring(dampingRatio = 0.85f, stiffness = 450f)
+                                animationSpec = spring(dampingRatio = 0.88f, stiffness = 180f)
                             )
                             if (target == 0f) {
                                 val act = (context as? android.app.Activity)
@@ -1183,17 +1184,17 @@ fun SearchOverlayScreen(
                     },
                     onDragCancel = {
                         coroutineScope.launch {
-                            overlayProgressAnim.animateTo(1f, spring(0.75f, 800f))
+                            overlayProgressAnim.animateTo(1f, spring(0.88f, 180f))
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
                         change.consume()
                         coroutineScope.launch {
-                            // Dragging down increases Y (closes), dragging up decreases Y (opens)
-                            // Progress: 1f is fully open, 0f is closed.
-                            val deltaProgress = -(dragAmount / maxDragDistance)
-                            overlayProgressAnim.snapTo((overlayProgressAnim.value + deltaProgress).coerceIn(0f, 1f))
-                            if (overlayProgressAnim.value < 0.9f) {
+                            // Any vertical swipe gesture (up or down) reduces progress toward 0 (dismissing)
+                            val deltaProgress = kotlin.math.abs(dragAmount) / maxDragDistance
+                            val newProgress = (overlayProgressAnim.value - deltaProgress).coerceIn(0f, 1f)
+                            overlayProgressAnim.snapTo(newProgress)
+                            if (newProgress < 0.95f) {
                                 keyboardController?.hide()
                             }
                         }

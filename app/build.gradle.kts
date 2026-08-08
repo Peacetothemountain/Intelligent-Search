@@ -63,9 +63,9 @@ android {
 }
 
 dependencies {
-  implementation("androidx.media3:media3-exoplayer:1.3.1")
-  implementation("androidx.media3:media3-ui:1.3.1")
-  implementation("com.google.android.material:material:1.11.0")
+  implementation("androidx.media3:media3-exoplayer:1.11.0")
+  implementation("androidx.media3:media3-ui:1.11.0")
+  implementation("com.google.android.material:material:1.14.0")
   // Core
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -120,7 +120,7 @@ dependencies {
   implementation("com.airbnb.android:lottie-compose:6.7.1")
 
   // Graphics Shapes for Material Morph Animations
-  implementation("androidx.graphics:graphics-shapes:1.0.1")
+  implementation("androidx.graphics:graphics-shapes:1.1.0")
 }
 
 

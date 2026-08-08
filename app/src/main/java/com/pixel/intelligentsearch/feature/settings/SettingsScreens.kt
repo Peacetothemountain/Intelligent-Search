@@ -3022,32 +3022,35 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 } else {
                     MaterialTheme.colorScheme.primary
                 }
-                SettingsDropdownRow(
-                    title = "Widget Action Icon",
-                    subtitle = localActionIcon,
-                    iconContent = {
-                        if (localActionIcon == "None") {
-                            Icon(Icons.Default.Close, contentDescription = "None", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        } else {
-                            ComposeActionIcon(
-                                iconType = localActionIcon,
-                                modifier = Modifier.size(24.dp),
-                                primaryColor = MaterialTheme.colorScheme.primary,
-                                secondaryColor = MaterialTheme.colorScheme.secondary,
-                                tertiaryColor = MaterialTheme.colorScheme.tertiary
-                            )
-                        }
-                    },
-                    options = listOf("None", "Search", "Gemini", "Now Playing"),
-                    selectedOption = localActionIcon,
-                    onOptionSelected = { localActionIcon = it },
-                    showDivider = true,
-                    optionIcons = mapOf(
-                        "Search" to com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored,
-                        "Gemini" to com.pixel.intelligentsearch.R.drawable.ic_gemini,
-                        "Now Playing" to com.pixel.intelligentsearch.R.drawable.ic_music
+                val isMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
+                if (isMaterialYou) {
+                    SettingsDropdownRow(
+                        title = "Widget Action Icon",
+                        subtitle = localActionIcon,
+                        iconContent = {
+                            if (localActionIcon == "None") {
+                                Icon(Icons.Default.Close, contentDescription = "None", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else {
+                                ComposeActionIcon(
+                                    iconType = localActionIcon,
+                                    modifier = Modifier.size(24.dp),
+                                    primaryColor = MaterialTheme.colorScheme.primary,
+                                    secondaryColor = MaterialTheme.colorScheme.secondary,
+                                    tertiaryColor = MaterialTheme.colorScheme.tertiary
+                                )
+                            }
+                        },
+                        options = listOf("None", "Search", "Gemini", "Now Playing"),
+                        selectedOption = localActionIcon,
+                        onOptionSelected = { localActionIcon = it },
+                        showDivider = true,
+                        optionIcons = mapOf(
+                            "Search" to com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored,
+                            "Gemini" to com.pixel.intelligentsearch.R.drawable.ic_gemini,
+                            "Now Playing" to com.pixel.intelligentsearch.R.drawable.ic_music
+                        )
                     )
-                )
+                }
                 Text("WIDGET SHORTCUTS (UP TO 3)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp))
                 
                 var draggingShortcutSlot by remember { mutableStateOf<Int?>(null) }

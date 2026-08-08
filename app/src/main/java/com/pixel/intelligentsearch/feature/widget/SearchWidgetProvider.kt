@@ -290,8 +290,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             views.setOnClickPendingIntent(R.id.widget_gemini_search, geminiPI)
             
-            // Set up custom action icon (Circle Button)
-            if (actionIconStr == "None") {
+            // Set up custom action icon (Circle Button) - Material Design ONLY
+            if (!isMaterialYou || actionIconStr == "None") {
                 views.setViewVisibility(R.id.widget_sound_search, View.GONE)
             } else {
                 views.setViewVisibility(R.id.widget_sound_search, View.VISIBLE)

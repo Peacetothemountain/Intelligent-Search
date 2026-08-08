@@ -82,6 +82,16 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun AppGridItem(app: AppItem, onClick: () -> Unit) {
+    val context = LocalContext.current
+    val appIconState = remember(app.packageName) { mutableStateOf<AppIconResult?>(null) }
+    LaunchedEffect(app.packageName) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val icon = getThemedAppIcon(context, app.packageName)
+            appIconState.value = icon
+        }
+    }
+    val appIcon = appIconState.value
+
     Column(
         modifier = Modifier
             .width(80.dp)
@@ -89,11 +99,20 @@ fun AppGridItem(app: AppItem, onClick: () -> Unit) {
             .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Image(
-            bitmap = app.icon.toBitmap().asImageBitmap(),
-            contentDescription = app.name,
-            modifier = Modifier.size(48.dp)
-        )
+        if (appIcon != null) {
+            Image(
+                bitmap = appIcon.bitmap,
+                contentDescription = app.name,
+                modifier = Modifier.size(48.dp),
+                colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
+            )
+        } else {
+            Image(
+                bitmap = app.icon.toBitmap().asImageBitmap(),
+                contentDescription = app.name,
+                modifier = Modifier.size(48.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = app.name,
@@ -654,17 +673,18 @@ fun SearchOverlayScreen(
                                             context.packageManager.getLaunchIntentForPackage(packageName) ?: Intent(Intent.ACTION_GET_CONTENT).apply { type = "*/*" }
                                         }
                                         else -> {
-                                            val searchIntent = Intent(Intent.ACTION_SEARCH).apply {
-                                                setPackage(packageName)
-                                                putExtra("query", searchStr)
-                                            }
-                                            val resolved = context.packageManager.queryIntentActivities(searchIntent, 0)
-                                            if (resolved.isNotEmpty()) {
-                                                searchIntent
-                                            } else {
-                                                context.packageManager.getLaunchIntentForPackage(packageName)
-                                            }
-                                        }
+                                             val searchIntent = Intent(Intent.ACTION_SEARCH).apply {
+                                                 setPackage(packageName)
+                                                 putExtra("query", searchStr)
+                                             }
+                                             val resolved = context.packageManager.queryIntentActivities(searchIntent, 0)
+                                             val hasExportedSearch = resolved.any { it.activityInfo.exported }
+                                             if (hasExportedSearch) {
+                                                 searchIntent
+                                             } else {
+                                                 context.packageManager.getLaunchIntentForPackage(packageName)
+                                             }
+                                         }
                                     }
                                     if (intent != null) {
                                         try {
@@ -725,13 +745,31 @@ fun SearchOverlayScreen(
                             }
                         }
                         is AppItem -> {
+                            val appIconState = remember(match.packageName) { mutableStateOf<AppIconResult?>(null) }
+                            LaunchedEffect(match.packageName) {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    val icon = getThemedAppIcon(context, match.packageName)
+                                    appIconState.value = icon
+                                }
+                            }
+                            val appIcon = appIconState.value
+
                             Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                                 Column {
                                     Row(
                                         modifier = Modifier.fillMaxWidth().bouncyClickable { onLaunchApp(match.packageName) },
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Image(bitmap = match.icon.toBitmap().asImageBitmap(), contentDescription = null, modifier = Modifier.size(48.dp))
+                                        if (appIcon != null) {
+                                            Image(
+                                                bitmap = appIcon.bitmap,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(48.dp),
+                                                colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
+                                            )
+                                        } else {
+                                            Image(bitmap = match.icon.toBitmap().asImageBitmap(), contentDescription = null, modifier = Modifier.size(48.dp))
+                                        }
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Column {
                                             Text(match.name, color = Color.White, fontSize = 20.sp, fontFamily = GoogleSansFlex, fontWeight = FontWeight.Medium)

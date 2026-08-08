@@ -401,12 +401,12 @@ fun SearchOverlayScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
-                if (showTutorial) {
-                    keyboardController?.hide()
-                } else {
-                    transitionState.targetState = false
-                    keyboardController?.hide()
-                    viewModel.onQueryChanged("")
+                keyboardController?.hide()
+                viewModel.onQueryChanged("")
+                val act = context as? android.app.Activity
+                if (act != null && !act.isFinishing) {
+                    act.finish()
+                    act.overridePendingTransition(0, 0)
                 }
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
@@ -1188,14 +1188,15 @@ fun SearchOverlayScreen(
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
-                        change.consume()
-                        coroutineScope.launch {
-                            // Any vertical swipe gesture (up or down) reduces progress toward 0 (dismissing)
-                            val deltaProgress = kotlin.math.abs(dragAmount) / maxDragDistance
-                            val newProgress = (overlayProgressAnim.value - deltaProgress).coerceIn(0f, 1f)
-                            overlayProgressAnim.snapTo(newProgress)
-                            if (newProgress < 0.95f) {
-                                keyboardController?.hide()
+                        if (dragAmount > 0) {
+                            change.consume()
+                            coroutineScope.launch {
+                                val deltaProgress = dragAmount / maxDragDistance
+                                val newProgress = (overlayProgressAnim.value - deltaProgress).coerceIn(0f, 1f)
+                                overlayProgressAnim.snapTo(newProgress)
+                                if (newProgress < 0.95f) {
+                                    keyboardController?.hide()
+                                }
                             }
                         }
                     }

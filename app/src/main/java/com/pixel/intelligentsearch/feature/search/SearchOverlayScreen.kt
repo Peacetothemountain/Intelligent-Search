@@ -287,22 +287,31 @@ fun SearchOverlayScreen(
     }
     val isOpening = transitionState.targetState
     
+    val activity = context as? android.app.Activity
+    val isFromBackSwipe = remember(activity) {
+        activity?.intent?.getBooleanExtra("FROM_BACK_SWIPE", false) == true
+    }
+
     val coroutineScope = rememberCoroutineScope()
     // Animatable for the overlay expansion progress: 0f = collapsed pill, 1f = fully expanded
-    val overlayProgressAnim = remember { Animatable(0f) }
+    val overlayProgressAnim = remember { Animatable(if (isFromBackSwipe) 1f else 0f) }
     
     val emphasizedEasing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)
     val morphProgress = emphasizedEasing.transform(overlayProgressAnim.value)
 
     LaunchedEffect(isOpening) {
         if (isOpening) {
-            overlayProgressAnim.animateTo(
-                targetValue = 1f,
-                animationSpec = spring(
-                    dampingRatio = 0.75f,
-                    stiffness = 1200f
+            if (!isFromBackSwipe) {
+                overlayProgressAnim.animateTo(
+                    targetValue = 1f,
+                    animationSpec = spring(
+                        dampingRatio = 0.75f,
+                        stiffness = 1200f
+                    )
                 )
-            )
+            } else {
+                overlayProgressAnim.snapTo(1f)
+            }
         } else {
             overlayProgressAnim.animateTo(
                 targetValue = 0f,

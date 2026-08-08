@@ -523,10 +523,12 @@ fun SettingsScreensHub(
         val handleExitBack: () -> Unit = {
             val backToOverlayEnabled = prefs.getBoolean("settings_back_to_search_overlay", false)
             if (backToOverlayEnabled) {
-                val intent = Intent(context, com.pixel.intelligentsearch.MainActivity::class.java).apply {
+                val intent = Intent(context, com.pixel.intelligentsearch.feature.widget.WidgetActivity::class.java).apply {
+                    putExtra("FROM_BACK_SWIPE", true)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
                 context.startActivity(intent)
+                (context as? android.app.Activity)?.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                 onBackToLauncher()
             } else {
                 onBackToLauncher()

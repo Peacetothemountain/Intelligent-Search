@@ -71,6 +71,7 @@ class SettingsActivity : AppCompatActivity() {
                                 prefs = prefs,
                                 onBackToLauncher = {
                                     finish()
+                                    overridePendingTransition(com.pixel.intelligentsearch.R.anim.slide_in_left, com.pixel.intelligentsearch.R.anim.slide_out_right)
                                 },
                                 context = this@SettingsActivity
                             )

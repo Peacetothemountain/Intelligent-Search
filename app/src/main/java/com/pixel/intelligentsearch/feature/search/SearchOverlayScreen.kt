@@ -297,7 +297,8 @@ fun SearchOverlayScreen(
     val overlayProgressAnim = remember { Animatable(if (isFromBackSwipe) 1f else 0f) }
     
     val emphasizedEasing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)
-    val morphProgress = emphasizedEasing.transform(overlayProgressAnim.value)
+    val rawMorphProgress = emphasizedEasing.transform(overlayProgressAnim.value)
+    val morphProgress = rawMorphProgress.coerceIn(0f, 1f)
 
     LaunchedEffect(isOpening) {
         if (isOpening) {
@@ -305,8 +306,8 @@ fun SearchOverlayScreen(
                 overlayProgressAnim.animateTo(
                     targetValue = 1f,
                     animationSpec = spring(
-                        dampingRatio = 0.75f,
-                        stiffness = 1200f
+                        dampingRatio = 0.82f,
+                        stiffness = 450f
                     )
                 )
             } else {
@@ -317,7 +318,7 @@ fun SearchOverlayScreen(
                 targetValue = 0f,
                 animationSpec = spring(
                     dampingRatio = 0.85f,
-                    stiffness = 800f
+                    stiffness = 450f
                 )
             )
             val act = context as? android.app.Activity
@@ -1171,7 +1172,7 @@ fun SearchOverlayScreen(
                             val target = if (overlayProgressAnim.value > commitThreshold) 1f else 0f
                             overlayProgressAnim.animateTo(
                                 targetValue = target,
-                                animationSpec = spring(dampingRatio = 0.75f, stiffness = 800f)
+                                animationSpec = spring(dampingRatio = 0.85f, stiffness = 450f)
                             )
                             if (target == 0f) {
                                 val act = (context as? android.app.Activity)

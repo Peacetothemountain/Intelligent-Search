@@ -59,7 +59,6 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val showVoice = prefs.getBoolean("widget_show_voice", true)
         val showGemini = prefs.getBoolean("widget_show_gemini", false)
         val showGIcon = prefs.getBoolean("widget_show_g_icon", true)
-        val showDoodle = prefs.getBoolean("widget_show_doodle", false) || prefs.getBoolean("force_google_minidoodle", false)
         val actionIconStr = prefs.getString("widget_action_icon", "Search") ?: "Search"
         val widgetShortcut = prefs.getString("widget_shortcut", "None") ?: "None"
 
@@ -206,7 +205,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
                 views.setInt(R.id.widget_sound_background, "setImageAlpha", if (lockBlack) 255 else alphaInt)
                 
-                bindDoodle(context, views, showDoodle, prefs.getBoolean("force_google_minidoodle", false), showGIcon, gIconRes, accentIconTint, materialGIconTheme)
+                bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme)
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic)
                 views.setImageViewResource(R.id.widget_lens_search, shortcutIconRes)
                 views.setImageViewResource(R.id.widget_sound_icon, actionIconRes)
@@ -234,7 +233,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
                 views.setInt(R.id.widget_sound_background, "setImageAlpha", alphaInt)
                 
-                bindDoodle(context, views, showDoodle, prefs.getBoolean("force_google_minidoodle", false), showGIcon, gIconRes, accentIconTint, materialGIconTheme)
+                bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme)
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic_original)
                 views.setColorStateList(R.id.widget_voice_search, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
                 
@@ -424,42 +423,13 @@ class SearchWidgetProvider : AppWidgetProvider() {
             return defaultIntent()
         }
 
-          private fun bindDoodle(
-            context: Context, 
+          private fun bindGIcon(
             views: RemoteViews, 
-            showDoodle: Boolean, 
-            forceRandom: Boolean, 
             showGIcon: Boolean, 
             gIconRes: Int, 
             iconTint: Int,
             materialGIconTheme: String
         ) {
-            if (showDoodle) {
-                val holiday = com.pixel.intelligentsearch.feature.widget.doodle.DoodleManager.getCurrentHolidayDoodle(forceRandom)
-                if (holiday != null) {
-                    views.setViewVisibility(R.id.widget_g_logo, View.GONE)
-                    views.setViewVisibility(R.id.widget_doodle_container, View.VISIBLE)
-                    // Clear old doodles
-                    views.removeAllViews(R.id.widget_doodle_container)
-                    
-                    // Add the statically compiled flipper layout for this holiday
-                    val frameView = RemoteViews(context.packageName, holiday.layoutResId)
-                    views.addView(R.id.widget_doodle_container, frameView)
-                    
-                    val searchIntent = Intent(Intent.ACTION_VIEW, Uri.parse(holiday.searchUrl)).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    val pendingIntent = PendingIntent.getActivity(
-                        context, 0, searchIntent, 
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
-                    views.setOnClickPendingIntent(R.id.widget_doodle_container, pendingIntent)
-                    return
-                }
-            }
-            
-            // Fallback: No doodle to show
-            views.setViewVisibility(R.id.widget_doodle_container, View.GONE)
             views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
             views.setImageViewResource(R.id.widget_g_logo, gIconRes)
             if (materialGIconTheme == "Accented G Icon" || materialGIconTheme == "Colorful") {

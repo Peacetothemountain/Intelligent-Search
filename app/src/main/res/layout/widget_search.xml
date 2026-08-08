@@ -65,11 +65,7 @@
                     android:scaleType="fitCenter"
                     android:contentDescription="Google" />
                 
-                <FrameLayout
-                    android:id="@+id/widget_doodle_container"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:layout_gravity="center_vertical" />
+
 
                 <!-- Spacer -->
                 <TextView

@@ -688,16 +688,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             val context = androidx.compose.ui.platform.LocalContext.current
             val scope = androidx.compose.runtime.rememberCoroutineScope()
 
-            var forceMinidoodle by rememberBooleanPreference(prefs, "force_google_minidoodle", false) { updateWidgets(context) }
-            SettingsRowToggle(
-                title = "G Icon Doodles",
-                subtitle = "Show Holiday and Event Doodles",
-                icon = Icons.Outlined.Image,
-                isChecked = forceMinidoodle,
-                onCheckedChange = { forceMinidoodle = it },
-                showDivider = true
-            )
-            
+
             SettingsRow(
                 title = "Clear Search History Cache",
                 subtitle = "Reset and clear all saved recent queries",
@@ -1896,8 +1887,8 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             SettingsCard {
                 var bottomSearch by rememberBooleanPreference(prefs, "settings.bottom.search", true)
                 SettingsRowToggle(
-                    title = "Botton Searchbar",
-                    subtitle = "Position Search Bar at Botton of Search Overlay Page.",
+                    title = "Bottom Searchbar",
+                    subtitle = "Position Search Bar at Bottom of Search Overlay Page.",
                     icon = Icons.Outlined.VerticalAlignBottom,
                     isChecked = bottomSearch,
                     onCheckedChange = { bottomSearch = it },
@@ -1906,7 +1897,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var bottomResult by rememberBooleanPreference(prefs, "settings.bottom.search.result", false)
                 SettingsRowToggle(
                     title = "Bottom Search Results",
-                    subtitle = "Order List from Botton Up depending on Search Bar Placement.",
+                    subtitle = "Order List from Bottom Up depending on Search Bar Placement.",
                     icon = Icons.Outlined.AlignVerticalBottom,
                     isChecked = bottomResult,
                     onCheckedChange = { bottomResult = it },
@@ -2334,7 +2325,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     )
 
     var localShowGIcon by remember { mutableStateOf(prefs.getBoolean("widget_show_g_icon", true)) }
-    var localShowDoodle by remember { mutableStateOf(prefs.getBoolean("widget_show_doodle", true)) }
+
     var localThemeStyle by remember { mutableStateOf(prefs.getString("widget.theme.style", "System Default") ?: "System Default") }
     var localSubtheme by remember { mutableStateOf(prefs.getString("widget_subtheme", "System") ?: "System") }
     var localMaterialGIconTheme by remember { mutableStateOf(prefs.getString("widget_material_g_icon", "Material G Icon") ?: "Material G Icon") }
@@ -2351,7 +2342,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var isInitialSetup by remember { mutableStateOf(true) }
 
     LaunchedEffect(
-        localShowGIcon, localShowDoodle, localThemeStyle, localSubtheme,
+        localShowGIcon, localThemeStyle, localSubtheme,
         localMaterialGIconTheme, localHue, localSaturation, localLightness, localOpacity, localLockBlack,
         localShowVoice, localActionIcon, localShortcut, localCustomColorInt
     ) {
@@ -2361,7 +2352,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         }
         prefs.edit()
             .putBoolean("widget_show_g_icon", localShowGIcon)
-            .putBoolean("widget_show_doodle", localShowDoodle)
+
             .putString("widget.theme.style", localThemeStyle)
             .putString("widget_subtheme", localSubtheme)
             .putString("widget_material_g_icon", localMaterialGIconTheme)
@@ -2390,7 +2381,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     androidx.compose.material3.TextButton(onClick = {
                         view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                         localShowGIcon = true
-                        localShowDoodle = false
+
                         localThemeStyle = "Material Design"
                         localSubtheme = "System"
                         localMaterialGIconTheme = "Material G Icon"
@@ -2672,14 +2663,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     isChecked = localShowGIcon,
                     onCheckedChange = { localShowGIcon = it },
                     showDivider = true
-                )
-                SettingsRowToggle(
-                    title = "G Icon Doodle",
-                    subtitle = "Show Holiday and Special Event Doodle Animations.",
-                    icon = Icons.Default.Brush,
-                    isChecked = localShowDoodle,
-                    onCheckedChange = { localShowDoodle = it },
-                    showDivider = false
                 )
             }
 

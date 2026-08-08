@@ -69,7 +69,10 @@ class SettingsActivity : AppCompatActivity() {
                             SettingsScreensHub(
                                 initialScreen = screen,
                                 prefs = prefs,
-                                onBackToLauncher = { finish() },
+                                onBackToLauncher = {
+                                    finish()
+                                    overridePendingTransition(0, 0)
+                                },
                                 context = this@SettingsActivity
                             )
                         }

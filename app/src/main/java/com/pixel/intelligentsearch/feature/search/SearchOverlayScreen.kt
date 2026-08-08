@@ -322,7 +322,6 @@ fun SearchOverlayScreen(
             )
             val act = context as? android.app.Activity
             act?.finish()
-            act?.overridePendingTransition(0, 0)
         }
     }
     val overlayProgress = overlayProgressAnim.value
@@ -348,7 +347,6 @@ fun SearchOverlayScreen(
         } else {
             val act = context as? android.app.Activity
             act?.finish()
-            act?.overridePendingTransition(0, 0)
         }
     }
 
@@ -437,11 +435,9 @@ fun SearchOverlayScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     
-    BackHandler(enabled = true) {
+    BackHandler(enabled = showTutorial) {
         if (showTutorial) {
             // Suppress exit during tutorial
-        } else {
-            closeOverlay()
         }
     }
 

@@ -71,7 +71,6 @@ class SettingsActivity : AppCompatActivity() {
                                 prefs = prefs,
                                 onBackToLauncher = {
                                     finish()
-                                    overridePendingTransition(0, 0)
                                 },
                                 context = this@SettingsActivity
                             )

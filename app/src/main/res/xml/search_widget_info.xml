@@ -7,5 +7,4 @@
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/widget_search"
     android:resizeMode="horizontal"
-    android:configure="com.pixel.intelligentsearch.feature.settings.SettingsActivity"
     android:widgetCategory="home_screen" />

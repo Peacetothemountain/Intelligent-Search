@@ -688,8 +688,8 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
 
             var forceMinidoodle by rememberBooleanPreference(prefs, "force_google_minidoodle", false) { updateWidgets(context) }
             SettingsRowToggle(
-                title = "Searchbox effects",
-                subtitle = "Show Doodles on search widget",
+                title = "G Icon Doodles",
+                subtitle = "Show Holiday and Event Doodles",
                 icon = Icons.Outlined.Image,
                 isChecked = forceMinidoodle,
                 onCheckedChange = { forceMinidoodle = it },
@@ -1123,14 +1123,15 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
             SettingsCard {
-                var themeMode by rememberStringPreference(prefs, "night.mode", "Material Dark")
+                var rawThemeMode by rememberStringPreference(prefs, "night.mode", "Material Dark")
+                val themeMode = if (rawThemeMode == "System") "Material Dark" else rawThemeMode
                 SettingsDropdownRow(
                     title = "App Theme",
-                    subtitle = null,
+                    subtitle = themeMode,
                     icon = Icons.Outlined.BrightnessMedium,
                     options = listOf("Material Dark", "Material Light"),
                     selectedOption = themeMode,
-                    onOptionSelected = { themeMode = it },
+                    onOptionSelected = { rawThemeMode = it },
                     showDivider = true
                 )
 

@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -806,7 +807,10 @@ fun SearchOverlayScreen(
             }
 
             if (uiState.query.isEmpty() && uiState.recentSearches.isNotEmpty()) {
-                items(uiState.recentSearches, key = { "recent_$it" }) { recentQuery ->
+                item(key = "recent_label") {
+                    Text("Recent", color = Color(0xFFA09EB0), fontSize = 12.sp, fontFamily = GoogleSansFlex, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                }
+                itemsIndexed(uiState.recentSearches, key = { index, query -> "recent_${query}_$index" }) { index, recentQuery ->
                     val dismissState = rememberSwipeToDismissBoxState()
                     LaunchedEffect(dismissState.currentValue) {
                         if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
@@ -1029,7 +1033,7 @@ fun SearchOverlayScreen(
             
             if (settingsState.searchContacts && filteredContacts.isNotEmpty()) {
                 item(key = "contacts_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                items(filteredContacts, key = { "contact_${it.lookupUri}_${it.phoneNumber}" }) { contact ->
+                itemsIndexed(filteredContacts, key = { index, contact -> "contact_${contact.lookupUri}_${contact.phoneNumber}_$index" }) { index, contact ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1059,7 +1063,7 @@ fun SearchOverlayScreen(
 
             if (settingsState.searchFiles && filteredFiles.isNotEmpty()) {
                 item(key = "files_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                items(filteredFiles, key = { "file_${it.uri}" }) { file ->
+                itemsIndexed(filteredFiles, key = { index, file -> "file_${file.uri}_$index" }) { index, file ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

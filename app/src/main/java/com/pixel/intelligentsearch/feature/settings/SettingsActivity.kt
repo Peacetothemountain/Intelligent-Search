@@ -22,6 +22,16 @@ class SettingsActivity : AppCompatActivity() {
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
         
+        var appWidgetId = android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
+        intent.extras?.let { extras ->
+            appWidgetId = extras.getInt(
+                android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID,
+                android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
+            )
+        }
+        val resultValue = android.content.Intent().putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        setResult(RESULT_OK, resultValue)
+
         val screen = intent.getStringExtra("extra_screen") ?: "main"
 
         setContent {

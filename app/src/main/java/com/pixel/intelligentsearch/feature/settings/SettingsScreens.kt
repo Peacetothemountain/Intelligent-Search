@@ -3049,73 +3049,140 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 )
                 Text("WIDGET SHORTCUTS (UP TO 3)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
                 
+                var draggingShortcutSlot by remember { mutableStateOf<Int?>(null) }
+                var shortcutDragOffset by remember { mutableFloatStateOf(0f) }
+
                 SettingsCard {
-                    // Slot 1
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { activeShortcutSlot = 1; showShortcutSheet = true }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val iconVector = shortcutOptions.find { it.first == localShortcut1 }?.second ?: Icons.Default.AddCircleOutline
-                        Icon(iconVector, contentDescription = localShortcut1, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Shortcut Slot 1", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                            Text(localShortcut1, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    val slotsList = listOf(1, 2, 3)
+                    slotsList.forEachIndexed { index, slotNum ->
+                        val currentVal = when (slotNum) {
+                            1 -> localShortcut1
+                            2 -> localShortcut2
+                            else -> localShortcut3
                         }
-                        IconButton(onClick = {
-                            val temp = localShortcut1
-                            localShortcut1 = localShortcut2
-                            localShortcut2 = temp
-                        }) {
-                            Icon(Icons.Default.SwapVert, contentDescription = "Move Down", tint = MaterialTheme.colorScheme.primary)
+                        val isDragging = draggingShortcutSlot == slotNum
+                        val draggingModifier = if (isDragging) {
+                            Modifier.zIndex(1f).graphicsLayer {
+                                translationY = shortcutDragOffset
+                            }
+                        } else {
+                            Modifier
                         }
-                    }
 
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-
-                    // Slot 2
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { activeShortcutSlot = 2; showShortcutSheet = true }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val iconVector = shortcutOptions.find { it.first == localShortcut2 }?.second ?: Icons.Default.AddCircleOutline
-                        Icon(iconVector, contentDescription = localShortcut2, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Shortcut Slot 2", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                            Text(localShortcut2, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (index > 0) {
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         }
-                        IconButton(onClick = {
-                            val temp = localShortcut2
-                            localShortcut2 = localShortcut3
-                            localShortcut3 = temp
-                        }) {
-                            Icon(Icons.Default.SwapVert, contentDescription = "Move Down", tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
 
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        Box(modifier = draggingModifier) {
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                positionalThreshold = { it * 0.5f }
+                            )
+                            LaunchedEffect(dismissState.currentValue) {
+                                if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
+                                    when (slotNum) {
+                                        1 -> localShortcut1 = "None"
+                                        2 -> localShortcut2 = "None"
+                                        3 -> localShortcut3 = "None"
+                                    }
+                                }
+                            }
 
-                    // Slot 3
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { activeShortcutSlot = 3; showShortcutSheet = true }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val iconVector = shortcutOptions.find { it.first == localShortcut3 }?.second ?: Icons.Default.AddCircleOutline
-                        Icon(iconVector, contentDescription = localShortcut3, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Shortcut Slot 3", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                            Text(localShortcut3, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            SwipeToDismissBox(
+                                state = dismissState,
+                                enableDismissFromStartToEnd = !isDragging,
+                                enableDismissFromEndToStart = !isDragging,
+                                backgroundContent = {
+                                    val color = MaterialTheme.colorScheme.errorContainer
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(color)
+                                            .padding(horizontal = 20.dp),
+                                        contentAlignment = if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Set to None",
+                                            tint = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    }
+                                }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .clickable { activeShortcutSlot = slotNum; showShortcutSheet = true }
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val iconVector = shortcutOptions.find { it.first == currentVal }?.second ?: Icons.Default.AddCircleOutline
+                                    Icon(iconVector, contentDescription = currentVal, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Shortcut Slot: $slotNum", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                                        Text(currentVal, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Outlined.DragHandle,
+                                        contentDescription = "Drag to reorder",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier
+                                            .padding(start = 8.dp)
+                                            .pointerInput(slotNum) {
+                                                detectVerticalDragGestures(
+                                                    onDragStart = {
+                                                        draggingShortcutSlot = slotNum
+                                                        shortcutDragOffset = 0f
+                                                    },
+                                                    onDragEnd = {
+                                                        draggingShortcutSlot = null
+                                                        shortcutDragOffset = 0f
+                                                    },
+                                                    onDragCancel = {
+                                                        draggingShortcutSlot = null
+                                                        shortcutDragOffset = 0f
+                                                    },
+                                                    onVerticalDrag = { change, dragAmount ->
+                                                        change.consume()
+                                                        shortcutDragOffset += dragAmount
+                                                        val currentDragSlot = draggingShortcutSlot ?: return@detectVerticalDragGestures
+                                                        
+                                                        if (shortcutDragOffset > 60f) {
+                                                            if (currentDragSlot == 1) {
+                                                                val temp = localShortcut1
+                                                                localShortcut1 = localShortcut2
+                                                                localShortcut2 = temp
+                                                                draggingShortcutSlot = 2
+                                                                shortcutDragOffset = 0f
+                                                            } else if (currentDragSlot == 2) {
+                                                                val temp = localShortcut2
+                                                                localShortcut2 = localShortcut3
+                                                                localShortcut3 = temp
+                                                                draggingShortcutSlot = 3
+                                                                shortcutDragOffset = 0f
+                                                            }
+                                                        } else if (shortcutDragOffset < -60f) {
+                                                            if (currentDragSlot == 3) {
+                                                                val temp = localShortcut3
+                                                                localShortcut3 = localShortcut2
+                                                                localShortcut2 = temp
+                                                                draggingShortcutSlot = 2
+                                                                shortcutDragOffset = 0f
+                                                            } else if (currentDragSlot == 2) {
+                                                                val temp = localShortcut2
+                                                                localShortcut2 = localShortcut1
+                                                                localShortcut1 = temp
+                                                                draggingShortcutSlot = 1
+                                                                shortcutDragOffset = 0f
+                                                            }
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                    )
+                                }
+                            }
                         }
                     }
                 }

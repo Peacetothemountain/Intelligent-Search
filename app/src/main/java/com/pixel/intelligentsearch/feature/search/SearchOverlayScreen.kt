@@ -267,6 +267,18 @@ fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: S
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Suppress("DEPRECATION")
+private fun finishWithoutTransition(activity: android.app.Activity?) {
+    if (activity != null && !activity.isFinishing) {
+        activity.finish()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            activity.overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        } else {
+            activity.overridePendingTransition(0, 0)
+        }
+    }
+}
+
 @Composable
 fun SearchOverlayScreen(
     onOpenSettings: (String) -> Unit,
@@ -323,10 +335,7 @@ fun SearchOverlayScreen(
                 )
             )
             val act = context as? android.app.Activity
-            if (act != null && !act.isFinishing) {
-                act.finish()
-                act.overridePendingTransition(0, 0)
-            }
+            finishWithoutTransition(act)
         }
     }
     val overlayProgress = overlayProgressAnim.value
@@ -1180,10 +1189,7 @@ fun SearchOverlayScreen(
                             )
                             if (target == 0f) {
                                 val act = (context as? android.app.Activity)
-                                if (act != null && !act.isFinishing) {
-                                    act.finish()
-                                    act.overridePendingTransition(0, 0)
-                                }
+                                finishWithoutTransition(act)
                             }
                         }
                     },

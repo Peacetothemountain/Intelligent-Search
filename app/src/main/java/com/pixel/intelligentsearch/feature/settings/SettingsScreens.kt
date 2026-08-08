@@ -3056,6 +3056,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var draggingShortcutSlot by remember { mutableStateOf<Int?>(null) }
                 var shortcutDragOffset by remember { mutableFloatStateOf(0f) }
                 val coroutineScope = rememberCoroutineScope()
+                val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
                 Column(
                     modifier = Modifier
@@ -3091,6 +3092,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             onDragEnd = {
                                                 coroutineScope.launch {
                                                     if (kotlin.math.abs(swipeOffsetX.value) > 200f) {
+                                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                                         when (slotNum) {
                                                             1 -> localShortcut1 = "None"
                                                             2 -> localShortcut2 = "None"
@@ -3169,6 +3171,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         .pointerInput(slotNum) {
                                             detectVerticalDragGestures(
                                                 onDragStart = {
+                                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                                     draggingShortcutSlot = slotNum
                                                     shortcutDragOffset = 0f
                                                 },
@@ -3185,7 +3188,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                     shortcutDragOffset += dragAmount
                                                     val currentDragSlot = draggingShortcutSlot ?: return@detectVerticalDragGestures
                                                     
-                                                    if (shortcutDragOffset > 80f) {
+                                                    if (shortcutDragOffset > 120f) {
+                                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                                         if (currentDragSlot == 1) {
                                                             val temp = localShortcut1
                                                             localShortcut1 = localShortcut2
@@ -3199,7 +3203,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                             draggingShortcutSlot = 3
                                                             shortcutDragOffset = 0f
                                                         }
-                                                    } else if (shortcutDragOffset < -80f) {
+                                                    } else if (shortcutDragOffset < -120f) {
+                                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                                         if (currentDragSlot == 3) {
                                                             val temp = localShortcut3
                                                             localShortcut3 = localShortcut2

@@ -200,10 +200,16 @@ fun getThemedAppIcon(context: Context, packageName: String): AppIconResult? {
             return bmp
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && icon is android.graphics.drawable.AdaptiveIconDrawable) {
-            val monochrome = icon.monochrome
-            if (monochrome != null) {
-                return AppIconResult(drawableToBitmap(monochrome).asImageBitmap(), true)
+        if (icon is android.graphics.drawable.AdaptiveIconDrawable) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val monochrome = icon.monochrome
+                if (monochrome != null) {
+                    return AppIconResult(drawableToBitmap(monochrome).asImageBitmap(), true)
+                }
+            }
+            val foreground = icon.foreground
+            if (foreground != null) {
+                return AppIconResult(drawableToBitmap(foreground).asImageBitmap(), true)
             }
         }
         return AppIconResult(drawableToBitmap(icon).asImageBitmap(), false)

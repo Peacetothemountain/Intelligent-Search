@@ -10,22 +10,13 @@
         <item name="android:windowAnimationStyle">@style/Theme.IntelligentSearch.Animation</item>
     </style>
     <style name="Theme.IntelligentSearch.Overlay" parent="Theme.IntelligentSearch">
-        <item name="android:windowShowWallpaper">true</item>
-        <item name="android:windowIsTranslucent">true</item>
-        <item name="android:windowBackground">@android:color/transparent</item>
-        <item name="android:colorBackground">@android:color/transparent</item>
-        <item name="android:colorBackgroundCacheHint">@null</item>
-        <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowIsFloating">false</item>
     </style>
 
     <style name="Theme.IntelligentSearch.Overlay.Widget" parent="Theme.IntelligentSearch.Overlay">
-        <item name="android:windowBackground">@drawable/splash_pill</item>
-        <item name="android:windowSplashScreenBackground">@drawable/splash_pill</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="android:windowSplashScreenBackground">?android:attr/colorBackground</item>
     </style>
-
 
     <style name="Theme.IntelligentSearch.Overlay.Launcher" parent="Theme.IntelligentSearch.Overlay">
         <item name="android:windowSplashScreenBackground">?android:attr/colorBackground</item>

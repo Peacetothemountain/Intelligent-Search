@@ -1207,11 +1207,7 @@ fun SearchOverlayScreen(
             },
         contentAlignment = Alignment.BottomCenter
     ) {
-        if (settingsState.showWallpaper) {
-            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = (settingsState.backgroundTransparency / 100f) * 0.7f * morphProgress)))
-        } else {
-            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background.copy(alpha = morphProgress)))
-        }
+        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
             if (prefs.getBoolean("matrix_animation_enabled", false)) {

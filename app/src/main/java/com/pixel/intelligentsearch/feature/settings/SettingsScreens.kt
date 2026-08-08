@@ -519,10 +519,37 @@ fun SettingsScreensHub(
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
             navController.navigate(route)
         }
-        val onBack: () -> Unit = {
-            if (!navController.popBackStack()) {
+
+        val handleExitBack: () -> Unit = {
+            val backToOverlayEnabled = prefs.getBoolean("settings_back_to_search_overlay", true)
+            if (backToOverlayEnabled) {
+                val intent = Intent(context, com.pixel.intelligentsearch.MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                context.startActivity(intent)
+                onBackToLauncher()
+            } else {
                 onBackToLauncher()
             }
+        }
+
+        val onBack: () -> Unit = {
+            val currentRoute = navController.currentBackStackEntry?.destination?.route
+            val isMainScreen = currentRoute?.contains("Main") == true || (navController.previousBackStackEntry == null && initialScreen == "main")
+
+            if (navController.previousBackStackEntry != null) {
+                navController.popBackStack()
+            } else if (!isMainScreen) {
+                navController.navigate(com.pixel.intelligentsearch.core.navigation.Route.Main) {
+                    popUpTo(0) { inclusive = true }
+                }
+            } else {
+                handleExitBack()
+            }
+        }
+
+        androidx.activity.compose.BackHandler {
+            onBack()
         }
 
         val startRoute: com.pixel.intelligentsearch.core.navigation.Route = when (initialScreen) {
@@ -1128,6 +1155,16 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     options = listOf("Material Dark", "Material Light"),
                     selectedOption = themeMode,
                     onOptionSelected = { rawThemeMode = it },
+                    showDivider = true
+                )
+
+                var settingsBackToSearchOverlay by rememberBooleanPreference(prefs, "settings_back_to_search_overlay", true) {}
+                SettingsRowToggle(
+                    title = "Back Swipe to Enter Search Overlay Page",
+                    subtitle = "Swiping Back from Settings Menu Directs to Search Overlay Screen.",
+                    icon = Icons.AutoMirrored.Outlined.ArrowBack,
+                    isChecked = settingsBackToSearchOverlay,
+                    onCheckedChange = { settingsBackToSearchOverlay = it },
                     showDivider = true
                 )
 

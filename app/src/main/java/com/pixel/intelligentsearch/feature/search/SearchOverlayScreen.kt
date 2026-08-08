@@ -317,12 +317,15 @@ fun SearchOverlayScreen(
             overlayProgressAnim.animateTo(
                 targetValue = 0f,
                 animationSpec = spring(
-                    dampingRatio = 0.88f,
-                    stiffness = 180f
+                    dampingRatio = 0.85f,
+                    stiffness = 300f
                 )
             )
             val act = context as? android.app.Activity
-            act?.finish()
+            if (act != null && !act.isFinishing) {
+                act.finish()
+                act.overridePendingTransition(0, 0)
+            }
         }
     }
     val overlayProgress = overlayProgressAnim.value
@@ -402,9 +405,8 @@ fun SearchOverlayScreen(
             if (event == Lifecycle.Event.ON_PAUSE) {
                 keyboardController?.hide()
                 viewModel.onQueryChanged("")
-                val act = context as? android.app.Activity
-                if (act != null && !act.isFinishing) {
-                    act.finish()
+                if (transitionState.targetState) {
+                    transitionState.targetState = false
                 }
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)

@@ -25,7 +25,9 @@ private val RobinDarkColorScheme = darkColorScheme(
 private val LightColorScheme = lightColorScheme(
     primary = Purple40,
     secondary = PurpleGrey40,
-    tertiary = Pink40
+    tertiary = Pink40,
+    background = Color(0xFFF8F9FA),
+    surface = Color(0xFFF8F9FA)
 )
 
 @Composable
@@ -41,8 +43,8 @@ fun IntelligentSearchTheme(
             dynamicDarkColorScheme(context)
         } else {
             dynamicLightColorScheme(context).copy(
-                background = Color.White,
-                surface = Color.White
+                background = Color(0xFFF8F9FA),
+                surface = Color(0xFFF8F9FA)
             )
         }
     } else {

@@ -17,7 +17,7 @@ data class IntelligentSearchSettings(
     val theme: String = "system",
     val searchApps: Boolean = true,
     val searchContacts: Boolean = true,
-    val searchFiles: Boolean = true,
+    val searchFiles: Boolean = false,
     val searchWeb: Boolean = true,
     val searchCalculator: Boolean = true,
     val searchCalendar: Boolean = true,
@@ -56,7 +56,7 @@ data class IntelligentSearchSettings(
     val fileResultsCount: Int = 5,
     val shortcutResultsCount: Int = 6,
     val contextAwareQuickApps: Boolean = false,
-    val smartClipboardSuggestions: Boolean = true
+    val smartClipboardSuggestions: Boolean = false
 )
 
 @Singleton
@@ -122,7 +122,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 theme = preferences[THEME] ?: defaultTheme,
                 searchApps = preferences[SEARCH_APPS] ?: true,
                 searchContacts = preferences[SEARCH_CONTACTS] ?: true,
-                searchFiles = preferences[SEARCH_FILES] ?: true,
+                searchFiles = preferences[SEARCH_FILES] ?: false,
                 searchWeb = preferences[SEARCH_WEB] ?: true,
                 searchCalculator = preferences[SEARCH_CALCULATOR] ?: true,
                 searchCalendar = preferences[SEARCH_CALENDAR] ?: true,
@@ -161,7 +161,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 fileResultsCount = preferences[FILE_RESULTS_COUNT] ?: 5,
                 shortcutResultsCount = preferences[SHORTCUT_RESULTS_COUNT] ?: 6,
                 contextAwareQuickApps = preferences[CONTEXT_AWARE_QUICK_APPS] ?: false,
-                smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: true
+                smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: false
             )
         }
 

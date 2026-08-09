@@ -1179,7 +1179,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     showDivider = true
                 )
 
-                var matrixAnimationEnabled by rememberBooleanPreference(prefs, "matrix_animation_enabled", false) {}
+                var matrixAnimationEnabled by rememberBooleanPreference(prefs, "matrix_animation_enabled", true) {}
                 SettingsRowToggle(
                     title = "Enable Matrix Animation on Search Overlay Page",
                     subtitle = "Enable Search Overpay Page Animation.",

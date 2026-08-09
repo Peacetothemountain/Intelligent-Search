@@ -242,54 +242,47 @@ object SystemDataProvider {
 
     suspend fun getFiles(context: Context, query: String, includeHidden: Boolean): List<FileItem> = withContext(Dispatchers.IO) {
         val files = mutableListOf<FileItem>()
-        val hasStoragePermission = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            context.checkSelfPermission(android.Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED ||
-            context.checkSelfPermission(android.Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED ||
-            context.checkSelfPermission(android.Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
-        } else {
-            context.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-        }
+        if (query.isBlank()) return@withContext files
 
-        if (query.isEmpty() || !hasStoragePermission) {
-            return@withContext files
-        }
+        try {
+            val projection = arrayOf(
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.DATA,
+                MediaStore.Files.FileColumns.MIME_TYPE,
+                MediaStore.Files.FileColumns._ID
+            )
 
-        val projection = arrayOf(
-            MediaStore.Files.FileColumns.DISPLAY_NAME,
-            MediaStore.Files.FileColumns.DATA,
-            MediaStore.Files.FileColumns.MIME_TYPE,
-            MediaStore.Files.FileColumns._ID
-        )
+            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?"
+            val selectionArgs = arrayOf("%$query%")
 
-        val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?"
-        val selectionArgs = arrayOf("%$query%")
+            context.contentResolver.query(
+                MediaStore.Files.getContentUri("external"),
+                projection,
+                selection,
+                selectionArgs,
+                "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+            )?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                val dataIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATA)
+                val mimeIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.MIME_TYPE)
+                val idIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns._ID)
 
-        // Querying MediaStore.Files includes everything indexed by the system (Docs, Images, Videos, Audio, Downloads)
-        context.contentResolver.query(
-            MediaStore.Files.getContentUri("external"),
-            projection,
-            selection,
-            selectionArgs,
-            MediaStore.Files.FileColumns.DATE_MODIFIED + " DESC"
-        )?.use { cursor ->
-            val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
-            val dataIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
-            val mimeIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
-            val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
-
-            while (cursor.moveToNext() && files.size < 15) {
-                val name = cursor.getString(nameIndex) ?: continue
-                
-                // Skip hidden files if not enabled
-                if (!includeHidden && name.startsWith(".")) continue
-                
-                val path = cursor.getString(dataIndex) ?: ""
-                val mimeType = cursor.getString(mimeIndex) ?: "*/*"
-                val id = cursor.getLong(idIndex)
-                val uri = android.content.ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), id).toString()
-                
-                files.add(FileItem(name, path, mimeType, uri))
+                while (cursor.moveToNext() && files.size < 15) {
+                    if (nameIndex != -1) {
+                        val name = cursor.getString(nameIndex) ?: continue
+                        if (!includeHidden && name.startsWith(".")) continue
+                        
+                        val path = if (dataIndex != -1) cursor.getString(dataIndex) ?: "" else ""
+                        val mimeType = if (mimeIndex != -1) cursor.getString(mimeIndex) ?: "*/*" else "*/*"
+                        val id = if (idIndex != -1) cursor.getLong(idIndex) else 0L
+                        val uri = android.content.ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), id).toString()
+                        
+                        files.add(FileItem(name, path, mimeType, uri))
+                    }
+                }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
         files
     }

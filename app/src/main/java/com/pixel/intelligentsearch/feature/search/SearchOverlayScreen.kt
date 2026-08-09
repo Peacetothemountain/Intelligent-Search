@@ -743,6 +743,77 @@ fun SearchOverlayScreen(
             verticalArrangement = if (settingsState.bottomSearch) Arrangement.Bottom else Arrangement.Top
         ) {
 
+            if (settingsState.smartClipboardSuggestions && uiState.directActions.isNotEmpty()) {
+                itemsIndexed(uiState.directActions, key = { index, action -> "direct_action_${action.title}_$index" }) { _, action ->
+                    val actionIcon = when (action.iconType) {
+                        "link" -> Icons.Default.Link
+                        "phone" -> Icons.Default.Call
+                        "search" -> Icons.Default.Search
+                        "calendar" -> Icons.Default.Event
+                        "message" -> Icons.Default.Message
+                        else -> Icons.Default.ContentPaste
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f), RoundedCornerShape(32.dp))
+                            .clip(RoundedCornerShape(32.dp))
+                            .bouncyClickable {
+                                action.intent?.let { intent ->
+                                    try {
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
+                                closeOverlay()
+                            }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(MaterialTheme.colorScheme.primary, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = actionIcon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = action.title,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = GoogleSansFlex
+                            )
+                            Text(
+                                text = action.subtitle,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                                fontSize = 13.sp,
+                                fontFamily = GoogleSansFlex,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                item(key = "direct_actions_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+            }
+
             if (bestMatch != null) {
                 item(key = "top_hit_label") {
                     Text("Top Hit", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp, fontFamily = GoogleSansFlex, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))

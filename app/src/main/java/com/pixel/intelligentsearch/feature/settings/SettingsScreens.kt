@@ -3838,6 +3838,14 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             Icon(Icons.Outlined.Check, contentDescription = "Add Selected")
                         }
                     } else if (!showAppPicker) {
+                        IconButton(onClick = {
+                            val defaultPills = "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files"
+                            searchPills = defaultPills
+                            viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, 6)
+                            prefs.edit().putInt("shortcut_results_count", 6).apply()
+                        }) {
+                            Icon(Icons.Outlined.RestartAlt, contentDescription = "Reset Default Apps")
+                        }
                         IconButton(onClick = { showAppPicker = true }) {
                             Icon(Icons.Outlined.Add, contentDescription = "Add Pill")
                         }

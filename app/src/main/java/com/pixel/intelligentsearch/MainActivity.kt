@@ -10,7 +10,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.search.SearchOverlayScreen
@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
 import android.app.SearchManager
 
+import androidx.activity.enableEdgeToEdge
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -34,9 +35,23 @@ open class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
         
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(
+                OVERRIDE_TRANSITION_OPEN,
+                R.anim.slide_in_right,
+                R.anim.slide_out_left
+            )
+            overrideActivityTransition(
+                OVERRIDE_TRANSITION_CLOSE,
+                R.anim.slide_in_left,
+                R.anim.slide_out_right
+            )
+        }
+
         if (handleIntent(intent)) return
 
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -80,7 +95,11 @@ open class MainActivity : AppCompatActivity() {
                                     val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
                                     if (launchIntent != null) {
                                         if (settingsState.appAnimations) {
-                                            startActivity(launchIntent)
+                                            val dm = resources.displayMetrics
+                                            val options = android.app.ActivityOptions.makeScaleUpAnimation(
+                                                window.decorView, dm.widthPixels / 2, dm.heightPixels / 2, 0, 0
+                                            )
+                                            startActivity(launchIntent, options.toBundle())
                                         } else {
                                             val options = android.app.ActivityOptions.makeCustomAnimation(this@MainActivity, 0, 0)
                                             startActivity(launchIntent, options.toBundle())
@@ -148,6 +167,16 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        
+        // Force widget update when leaving the home screen app
+        val updateIntent = Intent(this, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
+            action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
+            val ids = android.appwidget.AppWidgetManager.getInstance(this@MainActivity)
+                .getAppWidgetIds(android.content.ComponentName(this@MainActivity, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java))
+            putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+        }
+        sendBroadcast(updateIntent)
+        
         if (!isFinishing) {
             finish()
         }
@@ -158,3 +187,9 @@ open class MainActivity : AppCompatActivity() {
     }
 
 }
+
+
+
+
+
+

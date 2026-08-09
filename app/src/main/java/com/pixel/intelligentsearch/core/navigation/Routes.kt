@@ -12,7 +12,7 @@ sealed class Route {
     @Serializable data object WebSearch : Route()
     @Serializable data object ContactSearch : Route()
     @Serializable data object FileSearch : Route()
-    @Serializable data object WidgetSettings : Route()
+    @Serializable data object WidgetCustomization : Route()
     @Serializable data object ManageHiddenApps : Route()
     @Serializable data object Debug : Route()
 }

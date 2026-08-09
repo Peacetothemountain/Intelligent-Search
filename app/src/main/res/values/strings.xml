@@ -1,3 +1,5 @@
 <resources>
     <string name="settings_shortcut_label">Settings</string>
+    <string name="app_name">Intelligent Search</string>
+    <string name="search_settings_desc">Enter Intelligent Search Settings</string>
 </resources>

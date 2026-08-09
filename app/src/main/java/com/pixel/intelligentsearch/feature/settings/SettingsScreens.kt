@@ -4077,25 +4077,20 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                         val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
                                                         val draggingItem = listState.layoutInfo.visibleItemsInfo.find { it.key == currentDraggingPackage }
                                                         if (draggingItem != null) {
-                                                            val draggingCenter = draggingItem.offset + (draggingItem.size / 2) + dragOffset
+                                                            val itemHeight = draggingItem.size.toFloat() + 32f
+                                                            val from = localPillList.indexOf(currentDraggingPackage)
                                                             
-                                                            val targetItem = listState.layoutInfo.visibleItemsInfo.find {
-                                                                it.key != currentDraggingPackage &&
-                                                                draggingCenter > it.offset &&
-                                                                draggingCenter < (it.offset + it.size)
-                                                            }
-                                                            
-                                                            if (targetItem != null && targetItem.key is String) {
-                                                                val from = localPillList.indexOf(currentDraggingPackage)
-                                                                val to = localPillList.indexOf(targetItem.key as String)
-                                                                if (from != -1 && to != -1) {
+                                                            if (from != -1) {
+                                                                if (dragOffset > itemHeight / 2f && from < localPillList.size - 1) {
                                                                     val currentList = localPillList.toMutableList()
-                                                                    currentList.removeAt(from)
-                                                                    currentList.add(to, currentDraggingPackage)
+                                                                    java.util.Collections.swap(currentList, from, from + 1)
                                                                     localPillList = currentList
-                                                                    
-                                                                    val shift = targetItem.offset - draggingItem.offset
-                                                                    dragOffset -= shift
+                                                                    dragOffset -= itemHeight
+                                                                } else if (dragOffset < -itemHeight / 2f && from > 0) {
+                                                                    val currentList = localPillList.toMutableList()
+                                                                    java.util.Collections.swap(currentList, from, from - 1)
+                                                                    localPillList = currentList
+                                                                    dragOffset += itemHeight
                                                                 }
                                                             }
                                                         }

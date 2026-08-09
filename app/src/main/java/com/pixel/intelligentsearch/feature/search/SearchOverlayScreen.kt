@@ -420,10 +420,6 @@ fun SearchOverlayScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
                 keyboardController?.hide()
-                viewModel.onQueryChanged("")
-                if (transitionState.targetState) {
-                    transitionState.targetState = false
-                }
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
                 if (forceTut) {

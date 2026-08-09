@@ -97,20 +97,22 @@ class SearchViewModel @Inject constructor(
                 if (settingsState.value.smartClipboardSuggestions) {
                     try {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        if (clipboard.hasPrimaryClip()) {
+                        if (clipboard.hasPrimaryClip() && clipboard.primaryClipDescription != null) {
                             val item = clipboard.primaryClip?.getItemAt(0)
-                            val text = item?.text?.toString()
+                            val text = item?.text?.toString() ?: item?.coerceToText(context)?.toString()
                             if (!text.isNullOrBlank()) {
-                                if (android.util.Patterns.WEB_URL.matcher(text).matches()) {
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(text))
-                                    clipboardActions.add(DirectAction("Open Link", text, "link", intent))
-                                } else if (android.util.Patterns.PHONE.matcher(text).matches()) {
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$text"))
-                                    clipboardActions.add(DirectAction("Call Number", text, "phone", intent))
+                                val trimmed = text.trim()
+                                if (android.util.Patterns.WEB_URL.matcher(trimmed).matches()) {
+                                    val url = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed else "https://$trimmed"
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                    clipboardActions.add(DirectAction("Open Link", trimmed, "link", intent))
+                                } else if (android.util.Patterns.PHONE.matcher(trimmed).matches() && trimmed.length >= 7) {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$trimmed"))
+                                    clipboardActions.add(DirectAction("Call Number", trimmed, "phone", intent))
                                 } else {
                                     val intent = android.content.Intent(android.content.Intent.ACTION_WEB_SEARCH)
-                                    intent.putExtra(android.app.SearchManager.QUERY, text)
-                                    clipboardActions.add(DirectAction("Search Copied Text", text, "search", intent))
+                                    intent.putExtra(android.app.SearchManager.QUERY, trimmed)
+                                    clipboardActions.add(DirectAction("Search Copied Text", trimmed, "search", intent))
                                 }
                             }
                         }

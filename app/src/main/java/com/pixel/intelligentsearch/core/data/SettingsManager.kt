@@ -15,13 +15,13 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "in
 
 data class IntelligentSearchSettings(
     val theme: String = "system",
-    val searchApps: Boolean = false,
-    val searchContacts: Boolean = false,
-    val searchFiles: Boolean = false,
-    val searchWeb: Boolean = false,
-    val searchCalculator: Boolean = false,
-    val searchCalendar: Boolean = false,
-    val searchShortcuts: Boolean = false,
+    val searchApps: Boolean = true,
+    val searchContacts: Boolean = true,
+    val searchFiles: Boolean = true,
+    val searchWeb: Boolean = true,
+    val searchCalculator: Boolean = true,
+    val searchCalendar: Boolean = true,
+    val searchShortcuts: Boolean = true,
     val backgroundBlur: Int = 50,
     val showWallpaper: Boolean = false,
     val backgroundTransparency: Int = 50,
@@ -120,13 +120,13 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             val defaultTheme = if (isSystemDark) "Material Dark" else "Material Light"
             IntelligentSearchSettings(
                 theme = preferences[THEME] ?: defaultTheme,
-                searchApps = preferences[SEARCH_APPS] ?: false,
-                searchContacts = preferences[SEARCH_CONTACTS] ?: false,
-                searchFiles = preferences[SEARCH_FILES] ?: false,
-                searchWeb = preferences[SEARCH_WEB] ?: false,
-                searchCalculator = preferences[SEARCH_CALCULATOR] ?: false,
-                searchCalendar = preferences[SEARCH_CALENDAR] ?: false,
-                searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: false,
+                searchApps = preferences[SEARCH_APPS] ?: true,
+                searchContacts = preferences[SEARCH_CONTACTS] ?: true,
+                searchFiles = preferences[SEARCH_FILES] ?: true,
+                searchWeb = preferences[SEARCH_WEB] ?: true,
+                searchCalculator = preferences[SEARCH_CALCULATOR] ?: true,
+                searchCalendar = preferences[SEARCH_CALENDAR] ?: true,
+                searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: true,
                 backgroundBlur = preferences[BACKGROUND_BLUR] ?: 50,
                 showWallpaper = preferences[SHOW_WALLPAPER] ?: false,
                 backgroundTransparency = preferences[BACKGROUND_TRANSPARENCY] ?: 50,
@@ -161,7 +161,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 fileResultsCount = preferences[FILE_RESULTS_COUNT] ?: 5,
                 shortcutResultsCount = preferences[SHORTCUT_RESULTS_COUNT] ?: 6,
                 contextAwareQuickApps = preferences[CONTEXT_AWARE_QUICK_APPS] ?: false,
-                smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: false
+                smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: true
             )
         }
 

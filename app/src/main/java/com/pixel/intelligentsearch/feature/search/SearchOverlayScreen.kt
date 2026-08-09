@@ -745,71 +745,83 @@ fun SearchOverlayScreen(
 
             if (settingsState.smartClipboardSuggestions && uiState.directActions.isNotEmpty()) {
                 itemsIndexed(uiState.directActions, key = { index, action -> "direct_action_${action.title}_$index" }) { _, action ->
-                    val actionIcon = when (action.iconType) {
-                        "link" -> Icons.Default.Link
-                        "phone" -> Icons.Default.Call
-                        "search" -> Icons.Default.Search
-                        "calendar" -> Icons.Default.Event
-                        "message" -> Icons.Default.Message
-                        else -> Icons.Default.ContentPaste
+                    val dismissState = rememberSwipeToDismissBoxState()
+                    LaunchedEffect(dismissState.currentValue) {
+                        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+                            viewModel.dismissDirectAction(action)
+                        }
                     }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f), RoundedCornerShape(32.dp))
-                            .clip(RoundedCornerShape(32.dp))
-                            .bouncyClickable {
-                                action.intent?.let { intent ->
-                                    try {
-                                        context.startActivity(intent)
-                                    } catch (e: Exception) {
-                                        e.printStackTrace()
-                                    }
-                                }
-                                closeOverlay()
+                    SwipeToDismissBox(
+                        state = dismissState,
+                        backgroundContent = { Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) },
+                        content = {
+                            val actionIcon = when (action.iconType) {
+                                "link" -> Icons.Default.Link
+                                "phone" -> Icons.Default.Call
+                                "search" -> Icons.Default.Search
+                                "calendar" -> Icons.Default.Event
+                                "message" -> Icons.AutoMirrored.Filled.Message
+                                else -> Icons.Default.ContentPaste
                             }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(MaterialTheme.colorScheme.primary, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = actionIcon,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f), RoundedCornerShape(32.dp))
+                                    .clip(RoundedCornerShape(32.dp))
+                                    .bouncyClickable {
+                                        action.intent?.let { intent ->
+                                            try {
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        }
+                                        closeOverlay()
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = actionIcon,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = action.title,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = GoogleSansFlex
+                                    )
+                                    Text(
+                                        text = action.subtitle,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                                        fontSize = 13.sp,
+                                        fontFamily = GoogleSansFlex,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = action.title,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = GoogleSansFlex
-                            )
-                            Text(
-                                text = action.subtitle,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                                fontSize = 13.sp,
-                                fontFamily = GoogleSansFlex,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    )
                 }
                 item(key = "direct_actions_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
@@ -985,19 +997,31 @@ fun SearchOverlayScreen(
 
             if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
                 items(uiState.calendarEvents, key = { "event_${it.title}_${it.startTime}" }) { event ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = verticalPad),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(modifier = Modifier.size(24.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
-                            Text(event.startTime.split(":").first(), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column {
-                            Text(event.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium, fontFamily = GoogleSansFlex)
-                            Text(event.startTime, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
+                    val dismissState = rememberSwipeToDismissBoxState()
+                    LaunchedEffect(dismissState.currentValue) {
+                        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+                            viewModel.dismissCalendarEvent(event)
                         }
                     }
+                    SwipeToDismissBox(
+                        state = dismissState,
+                        backgroundContent = { Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) },
+                        content = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = verticalPad),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(modifier = Modifier.size(24.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
+                                    Text(event.startTime.split(":").first(), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column {
+                                    Text(event.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium, fontFamily = GoogleSansFlex)
+                                    Text(event.startTime, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
+                                }
+                            }
+                        }
+                    )
                 }
                 item(key = "calendar_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }

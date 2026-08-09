@@ -363,6 +363,18 @@ class SearchViewModel @Inject constructor(
             historyDao.clearHistory()
         }
     }
+
+    fun dismissDirectAction(action: DirectAction) {
+        _uiState.update { state ->
+            state.copy(directActions = state.directActions.filter { it != action })
+        }
+    }
+
+    fun dismissCalendarEvent(event: CalendarEvent) {
+        _uiState.update { state ->
+            state.copy(calendarEvents = state.calendarEvents.filter { it != event })
+        }
+    }
 }
 
 

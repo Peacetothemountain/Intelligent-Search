@@ -81,6 +81,12 @@ import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 @Composable
 fun AppGridItem(app: AppItem, onClick: () -> Unit) {
     val context = LocalContext.current
@@ -386,14 +392,14 @@ fun SearchOverlayScreen(
         }
         try {
             viewModel.addSearchHistory(searchQuery)
-            context.startActivity(intent)
+            context.findActivity()?.startActivityForResult(intent, 1001)
         } catch (e: Exception) {
             val fallbackIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                 putExtra(SearchManager.QUERY, searchQuery)
             }
-            try { context.startActivity(fallbackIntent) } catch (ex: Exception) {}
+            try { context.findActivity()?.startActivityForResult(fallbackIntent, 1001) } catch (ex: Exception) {}
         }
-        closeOverlay()
+        /* closeOverlay() */
     }
 
     LaunchedEffect(transitionState.targetState) {
@@ -564,7 +570,7 @@ fun SearchOverlayScreen(
                                 delay(3000)
                                 showDebugPill = false
                                 onOpenSettings("debug")
-                                closeOverlay()
+                                /* closeOverlay() */
                             }
                         } else {
                             viewModel.onQueryChanged(newQuery)
@@ -583,7 +589,7 @@ fun SearchOverlayScreen(
                                 when (bestMatch) {
                                     is ContactItem -> {
                                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri))
-                                        try { context.startActivity(intent) } catch (e: Exception) {}
+                                        try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {}
                                     }
                                     is AppItem -> {
                                         onLaunchApp(bestMatch.packageName)
@@ -594,13 +600,13 @@ fun SearchOverlayScreen(
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             setPackage("com.google.android.apps.nbu.files")
                                         }
-                                        try { context.startActivity(intent) } catch (e: Exception) {
+                                        try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {
                                             intent.setPackage(null)
-                                            try { context.startActivity(intent) } catch(e2: Exception) {}
+                                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e2: Exception) {}
                                         }
                                     }
                                 }
-                                closeOverlay()
+                                /* closeOverlay() */
                             } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
                                 onLaunchApp(visibleApps.first().packageName)
                             } else {
@@ -719,12 +725,12 @@ fun SearchOverlayScreen(
                                     }
                                     if (intent != null) {
                                         try {
-                                            context.startActivity(intent)
+                                            context.findActivity()?.startActivityForResult(intent, 1001)
                                         } catch (e: Exception) {
                                             // Fallback if needed
                                         }
                                     }
-                                    closeOverlay()
+                                    /* closeOverlay() */
                                 }
                             }
                         }
@@ -772,12 +778,12 @@ fun SearchOverlayScreen(
                                     .bouncyClickable {
                                         action.intent?.let { intent ->
                                             try {
-                                                context.startActivity(intent)
+                                                context.findActivity()?.startActivityForResult(intent, 1001)
                                             } catch (e: Exception) {
                                                 e.printStackTrace()
                                             }
                                         }
-                                        closeOverlay()
+                                        /* closeOverlay() */
                                     }
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -842,8 +848,8 @@ fun SearchOverlayScreen(
                                         } else {
                                             Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri))
                                         }
-                                        try { context.startActivity(intent) } catch(e: Exception) {}
-                                        closeOverlay()
+                                        try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e: Exception) {}
+                                        /* closeOverlay() */
                                     }
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -903,11 +909,11 @@ fun SearchOverlayScreen(
                                                         if (action.dataUri != null) intent.data = android.net.Uri.parse(action.dataUri)
                                                         intent.setPackage(match.packageName)
                                                         try {
-                                                            context.startActivity(intent)
-                                                            closeOverlay()
+                                                            context.findActivity()?.startActivityForResult(intent, 1001)
+                                                            /* closeOverlay() */
                                                         } catch (e: Exception) {
                                                             intent.setPackage(null)
-                                                            try { context.startActivity(intent); closeOverlay() } catch (e2: Exception) {}
+                                                            try { context.findActivity()?.startActivityForResult(intent, 1001); /* closeOverlay() */ } catch (e2: Exception) {}
                                                         }
                                                     },
                                                     label = { Text(action.title, color = MaterialTheme.colorScheme.onPrimaryContainer, fontFamily = GoogleSansFlex) },
@@ -931,11 +937,11 @@ fun SearchOverlayScreen(
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             setPackage("com.google.android.apps.nbu.files")
                                         }
-                                        try { context.startActivity(intent) } catch(e: Exception) {
+                                        try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e: Exception) {
                                             intent.setPackage(null)
-                                            try { context.startActivity(intent) } catch(e2: Exception) {}
+                                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e2: Exception) {}
                                         }
-                                        closeOverlay()
+                                        /* closeOverlay() */
                                     }
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -1147,7 +1153,7 @@ fun SearchOverlayScreen(
                                         R.anim.slide_in_right,
                                         R.anim.slide_out_left
                                     )
-                                    context.startActivity(intent, options.toBundle())
+                                    context.findActivity()?.startActivityForResult(intent, 1001, options.toBundle())
                                 }
                             }
                         }
@@ -1166,8 +1172,8 @@ fun SearchOverlayScreen(
                         title = "Search with Google Lens",
                         onClick = {
                             val intent = SearchWidgetProvider.getLensSearchIntent(context)
-                            try { context.startActivity(intent) } catch (e: Exception) {}
-                            closeOverlay()
+                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {}
+                            /* closeOverlay() */
                         }
                     )
                 }
@@ -1177,8 +1183,8 @@ fun SearchOverlayScreen(
                         title = "Search with Voice",
                         onClick = {
                             val intent = SearchWidgetProvider.getVoiceSearchIntent(context)
-                            try { context.startActivity(intent) } catch (e: Exception) {}
-                            closeOverlay()
+                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {}
+                            /* closeOverlay() */
                         }
                     )
                 }
@@ -1188,8 +1194,8 @@ fun SearchOverlayScreen(
                         title = "Ask Gemini",
                         onClick = {
                             val intent = SearchWidgetProvider.getGeminiSearchIntent(context)
-                            try { context.startActivity(intent) } catch (e: Exception) {}
-                            closeOverlay()
+                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {}
+                            /* closeOverlay() */
                         }
                     )
                 }
@@ -1207,8 +1213,8 @@ fun SearchOverlayScreen(
                                 } else {
                                     Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri))
                                 }
-                                try { context.startActivity(intent) } catch(e: Exception) {}
-                                closeOverlay()
+                                try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e: Exception) {}
+                                /* closeOverlay() */
                             }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -1236,8 +1242,8 @@ fun SearchOverlayScreen(
                                     setDataAndType(Uri.parse(file.uri), file.mimeType)
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
-                                try { context.startActivity(intent) } catch(e: Exception) {}
-                                closeOverlay()
+                                try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e: Exception) {}
+                                /* closeOverlay() */
                             }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically

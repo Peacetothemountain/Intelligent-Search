@@ -4667,16 +4667,36 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             ) {
                 items(localPillList, key = { it }) { packageName ->
                     val isDragging = draggingPackage == packageName
+                    
+                    val elevation by androidx.compose.animation.core.animateDpAsState(targetValue = if (isDragging) 12.dp else 0.dp, label = "elevation")
+                    val scale by androidx.compose.animation.core.animateFloatAsState(targetValue = if (isDragging) 1.02f else 1f, label = "scale")
+                    val animatedOffset by androidx.compose.animation.core.animateFloatAsState(
+                        targetValue = if (isDragging) dragOffset else 0f,
+                        animationSpec = if (isDragging) androidx.compose.animation.core.snap() else androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
+                        label = "offset"
+                    )
+                    val bgColor by androidx.compose.animation.animateColorAsState(
+                        targetValue = if (isDragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        label = "bgColor"
+                    )
+                    
                     val draggingModifier = if (isDragging) {
                         Modifier
                             .zIndex(10f)
                             .graphicsLayer {
-                                translationY = dragOffset
-                                scaleX = 1.02f
-                                scaleY = 1.02f
+                                translationY = animatedOffset
+                                scaleX = scale
+                                scaleY = scale
                             }
                     } else {
-                        Modifier.animateItem()
+                        Modifier
+                            .animateItem()
+                            .zIndex(0f)
+                            .graphicsLayer {
+                                translationY = animatedOffset
+                                scaleX = scale
+                                scaleY = scale
+                            }
                     }
 
                     val packInfo = allPackMap[packageName] ?: Pair(packageName, null)
@@ -4688,9 +4708,9 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .shadow(if (isDragging) 12.dp else 0.dp, RoundedCornerShape(24.dp))
+                                .shadow(elevation, RoundedCornerShape(24.dp))
                                 .clip(RoundedCornerShape(24.dp))
-                                .background(if (isDragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                .background(bgColor)
                                 .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
                             color = Color.Transparent
                         ) {
@@ -4768,7 +4788,6 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 },
                                                 onDragEnd = {
                                                     draggingPackage = null
-                                                    dragOffset = 0f
                                                     storedPillString = localPillList.joinToString(",")
                                                     prefs.edit()
                                                         .putString("custom_icon_pills", storedPillString)
@@ -4777,7 +4796,6 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 },
                                                 onDragCancel = {
                                                     draggingPackage = null
-                                                    dragOffset = 0f
                                                 },
                                                 onVerticalDrag = { change, dragAmount ->
                                                     change.consume()

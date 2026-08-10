@@ -173,7 +173,7 @@ class SearchViewModel @Inject constructor(
             if (verboseLogging) android.util.Log.d("SearchDebug", "Query started: $newQuery")
             val startTime = System.currentTimeMillis()
             
-            delay(150)
+            delay(60)
             if (simulateLatency) {
                 delay(2000)
             }

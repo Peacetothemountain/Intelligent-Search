@@ -1080,6 +1080,11 @@ fun SearchOverlayScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .animateItem(
+                                    placementSpec = androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
+                                    fadeInSpec = androidx.compose.animation.core.tween(150),
+                                    fadeOutSpec = androidx.compose.animation.core.tween(150)
+                                )
                                 .padding(horizontal = 16.dp, vertical = 4.dp)
                                 .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(32.dp))
                                 .clip(RoundedCornerShape(32.dp))

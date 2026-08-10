@@ -89,9 +89,13 @@ class SearchViewModel @Inject constructor(
                 val recentApps = if (settingsState.value.contextAwareQuickApps) {
                     SystemDataProvider.getContextAwareQuickApps(context)
                 } else {
-                    SystemDataProvider.getRecentApps(context)
+                    SystemDataProvider.getRecentApps(context, settingsState.value.hiddenApps)
                 }
-                val events = SystemDataProvider.getUpcomingEvents(context)
+                val events = if (settingsState.value.searchCalendar) {
+                    SystemDataProvider.getUpcomingEvents(context)
+                } else {
+                    emptyList()
+                }
                 
                 val clipboardActions = mutableListOf<DirectAction>()
                 if (settingsState.value.smartClipboardSuggestions) {
@@ -169,11 +173,11 @@ class SearchViewModel @Inject constructor(
             return
         }
 
-        searchJob = viewModelScope.launch {
+        searchJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             if (verboseLogging) android.util.Log.d("SearchDebug", "Query started: $newQuery")
             val startTime = System.currentTimeMillis()
             
-            delay(150)
+            delay(60)
             if (simulateLatency) {
                 delay(2000)
             }
@@ -215,12 +219,14 @@ class SearchViewModel @Inject constructor(
                 if (match != null) {
                     val contactName = match.groupValues[1].trim()
                     val messageBody = match.groupValues[2].trim()
-                    // Create an SMS intent (we don't resolve contact strictly here, just pass the intent to let the system handle it, or we could resolve it if we had time)
+                    val matchingContact = SystemDataProvider.getContacts(context, contactName).firstOrNull()
+                    val recipientNumber = matchingContact?.phoneNumber ?: ""
                     val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
-                        data = android.net.Uri.parse("smsto:")
+                        data = android.net.Uri.parse("smsto:$recipientNumber")
                         putExtra("sms_body", messageBody)
                     }
-                    directActions.add(DirectAction("Message ", messageBody, "message", intent))
+                    val label = if (matchingContact != null) "Message ${matchingContact.name}" else "Message $contactName"
+                    directActions.add(DirectAction(label, messageBody, "message", intent))
                 }
             }
             
@@ -230,11 +236,13 @@ class SearchViewModel @Inject constructor(
                     .flatMap { it.value }
             } else emptyList()
 
-            val filteredApps = _uiState.value.allApps.filter { app ->
-                app.name.contains(newQuery, ignoreCase = true) || 
-                app.packageName.contains(newQuery, ignoreCase = true) ||
-                fuzzyKeywords.any { app.packageName.contains(it, ignoreCase = true) || app.name.contains(it, ignoreCase = true) }
-            }
+            val filteredApps = if (settings.searchApps) {
+                _uiState.value.allApps.filter { app ->
+                    app.name.contains(newQuery, ignoreCase = true) || 
+                    app.packageName.contains(newQuery, ignoreCase = true) ||
+                    fuzzyKeywords.any { app.packageName.contains(it, ignoreCase = true) || app.name.contains(it, ignoreCase = true) }
+                }
+            } else emptyList()
             
             coroutineScope {
                 val contactsDeferred = async {

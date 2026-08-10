@@ -87,24 +87,29 @@ open class MainActivity : AppCompatActivity() {
                         ) {
                             SearchOverlayScreen(
                                 onOpenSettings = { route ->
-                                    startActivity(Intent(this@MainActivity, SettingsActivity::class.java).apply {
+                                    val intent = Intent(this@MainActivity, SettingsActivity::class.java).apply {
                                         putExtra("extra_screen", route)
-                                    })
+                                    }
+                                    val options = android.app.ActivityOptions.makeCustomAnimation(
+                                        this@MainActivity,
+                                        R.anim.slide_in_right,
+                                        R.anim.slide_out_left
+                                    )
+                                    startActivity(intent, options.toBundle())
                                 },
                                 onLaunchApp = { packageName ->
                                     val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
                                     if (launchIntent != null) {
-                                        if (settingsState.appAnimations) {
+                                if (settingsState.appAnimations) {
                                             val dm = resources.displayMetrics
                                             val options = android.app.ActivityOptions.makeScaleUpAnimation(
                                                 window.decorView, dm.widthPixels / 2, dm.heightPixels / 2, 0, 0
                                             )
-                                            startActivity(launchIntent, options.toBundle())
+                                            startActivityForResult(launchIntent, 0, options.toBundle())
                                         } else {
                                             val options = android.app.ActivityOptions.makeCustomAnimation(this@MainActivity, 0, 0)
-                                            startActivity(launchIntent, options.toBundle())
+                                            startActivityForResult(launchIntent, 0, options.toBundle())
                                         }
-                                        finish()
                                     }
                                 },
                                 isKeyboardDisabled = false
@@ -121,20 +126,17 @@ open class MainActivity : AppCompatActivity() {
             try {
                 val lensStandalone = packageManager.getLaunchIntentForPackage("com.google.ar.lens")
                 if (lensStandalone != null) {
-                    startActivity(lensStandalone)
-                    finish()
+                    startActivityForResult(lensStandalone, 0)
                     return true
                 }
             } catch (e: Exception) {}
             
             val lensIntent = Intent().apply {
                 setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             try {
-                startActivity(lensIntent)
+                startActivityForResult(lensIntent, 0)
             } catch (ex: Exception) {}
-            finish()
             return true
         }
         
@@ -144,21 +146,18 @@ open class MainActivity : AppCompatActivity() {
                 if (lensStandalone != null) {
                     // Try to pass translation mode to standalone lens
                     lensStandalone.putExtra("lens_mode", "translate")
-                    startActivity(lensStandalone)
-                    finish()
+                    startActivityForResult(lensStandalone, 0)
                     return true
                 }
             } catch (e: Exception) {}
             
             val translateIntent = Intent().apply {
                 setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 putExtra("lens_mode", "translate")
             }
             try {
-                startActivity(translateIntent)
+                startActivityForResult(translateIntent, 0)
             } catch (ex: Exception) {}
-            finish()
             return true
         }
 
@@ -176,10 +175,6 @@ open class MainActivity : AppCompatActivity() {
             putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
         }
         sendBroadcast(updateIntent)
-        
-        if (!isFinishing) {
-            finish()
-        }
     }
 
     override fun finish() {

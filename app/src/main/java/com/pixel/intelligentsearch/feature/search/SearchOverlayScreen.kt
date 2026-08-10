@@ -81,14 +81,22 @@ import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 @Composable
 fun AppGridItem(app: AppItem, onClick: () -> Unit) {
     val context = LocalContext.current
-    val appIconState = remember(app.packageName) { mutableStateOf<AppIconResult?>(null) }
+    val appIconState = remember(app.packageName) { mutableStateOf<AppIconResult?>(getThemedAppIcon(context, app.packageName)) }
     LaunchedEffect(app.packageName) {
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val icon = getThemedAppIcon(context, app.packageName)
-            appIconState.value = icon
+        if (appIconState.value == null) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val icon = getThemedAppIcon(context, app.packageName)
+                appIconState.value = icon
+            }
         }
     }
     val appIcon = appIconState.value
@@ -181,11 +189,27 @@ fun ShortcutRow(iconRes: Int, title: String, onClick: () -> Unit) {
 
 data class AppIconResult(val bitmap: androidx.compose.ui.graphics.ImageBitmap, val isMonochrome: Boolean)
 
-fun getThemedAppIcon(context: Context, packageName: String): AppIconResult? {
+private val themedIconCache = android.util.LruCache<String, AppIconResult>(256)
+
+fun clearThemedIconCache() {
+    themedIconCache.evictAll()
+}
+
+fun getThemedAppIcon(context: Context, packageName: String, activePackOverride: String? = null): AppIconResult? {
     try {
-        val pm = context.packageManager
-        val icon = pm.getApplicationIcon(packageName)
-        
+        val activePack = activePackOverride ?: run {
+            val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+            val p = prefs.getString("active_icon_pack", null)
+            if (p != null) p else {
+                context.getSharedPreferences("intelligent_search_settings", Context.MODE_PRIVATE).getString("active_icon_pack", "system_default") ?: "system_default"
+            }
+        }
+        val cacheKey = "$activePack:$packageName"
+        val cached = themedIconCache.get(cacheKey)
+        if (cached != null) {
+            return cached
+        }
+
         fun drawableToBitmap(d: android.graphics.drawable.Drawable): android.graphics.Bitmap {
             if (d is android.graphics.drawable.BitmapDrawable && d.bitmap != null) {
                 return d.bitmap
@@ -201,19 +225,32 @@ fun getThemedAppIcon(context: Context, packageName: String): AppIconResult? {
             return bmp
         }
 
+        if (activePack != "system_default") {
+            val packDrawable = com.pixel.intelligentsearch.core.util.IconPackManager.getIconForPackage(context, activePack, packageName)
+            if (packDrawable != null) {
+                val res = AppIconResult(drawableToBitmap(packDrawable).asImageBitmap(), isMonochrome = false)
+                themedIconCache.put(cacheKey, res)
+                return res
+            }
+        }
+
+        val pm = context.packageManager
+        val icon = pm.getApplicationIcon(packageName)
+        
         if (icon is android.graphics.drawable.AdaptiveIconDrawable) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val monochrome = icon.monochrome
                 if (monochrome != null) {
-                    return AppIconResult(drawableToBitmap(monochrome).asImageBitmap(), true)
+                    val res = AppIconResult(drawableToBitmap(monochrome).asImageBitmap(), isMonochrome = true)
+                    themedIconCache.put(cacheKey, res)
+                    return res
                 }
             }
-            val foreground = icon.foreground
-            if (foreground != null) {
-                return AppIconResult(drawableToBitmap(foreground).asImageBitmap(), true)
-            }
         }
-        return AppIconResult(drawableToBitmap(icon).asImageBitmap(), false)
+
+        val res = AppIconResult(drawableToBitmap(icon).asImageBitmap(), isMonochrome = false)
+        themedIconCache.put(cacheKey, res)
+        return res
     } catch (e: Exception) {
         return null
     }
@@ -365,35 +402,68 @@ fun SearchOverlayScreen(
     }
 
     val launchWebSearch: (String) -> Unit = { searchQuery ->
-        val intent = if (settingsState.searchEngine == "Custom" && settingsState.customSearchEngineUrl.isNotEmpty()) {
-            val urlStr = settingsState.customSearchEngineUrl.replace("%s", Uri.encode(searchQuery))
-            if (urlStr.startsWith("http://", ignoreCase = true) || urlStr.startsWith("https://", ignoreCase = true)) {
-                Intent(Intent.ACTION_VIEW, Uri.parse(urlStr))
-            } else {
-                Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra(SearchManager.QUERY, searchQuery) }
-            }
-        } else if (settingsState.searchEngine == "DuckDuckGo") {
-            Intent(Intent.ACTION_VIEW, Uri.parse("https://duckduckgo.com/?q=${Uri.encode(searchQuery)}"))
-        } else if (settingsState.searchEngine == "Bing") {
-            Intent(Intent.ACTION_VIEW, Uri.parse("https://www.bing.com/search?q=${Uri.encode(searchQuery)}"))
-        } else {
-            Intent(Intent.ACTION_WEB_SEARCH).apply {
-                if (settingsState.searchEngine == "Google") {
-                    setPackage("com.google.android.googlequicksearchbox")
+        val engine = settingsState.searchEngine
+        val customUrl = settingsState.customSearchEngineUrl
+        val encodedQuery = Uri.encode(searchQuery)
+        
+        val intent = when (engine) {
+            "Custom" -> {
+                if (customUrl.isNotBlank()) {
+                    val rawUrl = if (customUrl.contains("%s")) {
+                        customUrl.replace("%s", encodedQuery)
+                    } else {
+                        "$customUrl$encodedQuery"
+                    }
+                    val fullUrl = if (rawUrl.startsWith("http://", ignoreCase = true) || rawUrl.startsWith("https://", ignoreCase = true)) {
+                        rawUrl
+                    } else {
+                        "https://$rawUrl"
+                    }
+                    Intent(Intent.ACTION_VIEW, Uri.parse(fullUrl))
+                } else {
+                    Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra(SearchManager.QUERY, searchQuery) }
                 }
-                putExtra(SearchManager.QUERY, searchQuery)
+            }
+            "DuckDuckGo" -> {
+                val ddgIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://duckduckgo.com/?q=$encodedQuery"))
+                val pm = context.packageManager
+                if (pm.resolveActivity(ddgIntent, 0) != null) {
+                    ddgIntent
+                } else {
+                    Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra(SearchManager.QUERY, searchQuery) }
+                }
+            }
+            "Bing" -> {
+                val bingIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.bing.com/search?q=$encodedQuery"))
+                val pm = context.packageManager
+                if (pm.resolveActivity(bingIntent, 0) != null) {
+                    bingIntent
+                } else {
+                    Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra(SearchManager.QUERY, searchQuery) }
+                }
+            }
+            else -> {
+                val googleIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
+                    setPackage("com.google.android.googlequicksearchbox")
+                    putExtra(SearchManager.QUERY, searchQuery)
+                }
+                val pm = context.packageManager
+                if (pm.resolveActivity(googleIntent, 0) != null) {
+                    googleIntent
+                } else {
+                    Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra(SearchManager.QUERY, searchQuery) }
+                }
             }
         }
         try {
             viewModel.addSearchHistory(searchQuery)
-            context.startActivity(intent)
+            context.findActivity()?.startActivityForResult(intent, 1001)
         } catch (e: Exception) {
             val fallbackIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                 putExtra(SearchManager.QUERY, searchQuery)
             }
-            try { context.startActivity(fallbackIntent) } catch (ex: Exception) {}
+            try { context.findActivity()?.startActivityForResult(fallbackIntent, 1001) } catch (ex: Exception) {}
         }
-        closeOverlay()
     }
 
     LaunchedEffect(transitionState.targetState) {
@@ -414,10 +484,6 @@ fun SearchOverlayScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
                 keyboardController?.hide()
-                viewModel.onQueryChanged("")
-                if (transitionState.targetState) {
-                    transitionState.targetState = false
-                }
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
                 if (forceTut) {
@@ -564,7 +630,7 @@ fun SearchOverlayScreen(
                                 delay(3000)
                                 showDebugPill = false
                                 onOpenSettings("debug")
-                                closeOverlay()
+                                /* closeOverlay() */
                             }
                         } else {
                             viewModel.onQueryChanged(newQuery)
@@ -583,7 +649,7 @@ fun SearchOverlayScreen(
                                 when (bestMatch) {
                                     is ContactItem -> {
                                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri))
-                                        try { context.startActivity(intent) } catch (e: Exception) {}
+                                        try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {}
                                     }
                                     is AppItem -> {
                                         onLaunchApp(bestMatch.packageName)
@@ -594,13 +660,13 @@ fun SearchOverlayScreen(
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             setPackage("com.google.android.apps.nbu.files")
                                         }
-                                        try { context.startActivity(intent) } catch (e: Exception) {
+                                        try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {
                                             intent.setPackage(null)
-                                            try { context.startActivity(intent) } catch(e2: Exception) {}
+                                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e2: Exception) {}
                                         }
                                     }
                                 }
-                                closeOverlay()
+                                /* closeOverlay() */
                             } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
                                 onLaunchApp(visibleApps.first().packageName)
                             } else {
@@ -669,7 +735,7 @@ fun SearchOverlayScreen(
                             val appNameState = remember(packageName) { mutableStateOf("App") }
                             LaunchedEffect(packageName) {
                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                    val icon = getThemedAppIcon(context, packageName)
+                                    val icon = getThemedAppIcon(context, packageName, activePackOverride = "system_default")
                                     val name = getAppName(context, packageName)
                                     appIconState.value = icon
                                     appNameState.value = name
@@ -719,12 +785,12 @@ fun SearchOverlayScreen(
                                     }
                                     if (intent != null) {
                                         try {
-                                            context.startActivity(intent)
+                                            context.findActivity()?.startActivityForResult(intent, 1001)
                                         } catch (e: Exception) {
                                             // Fallback if needed
                                         }
                                     }
-                                    closeOverlay()
+                                    /* closeOverlay() */
                                 }
                             }
                         }
@@ -734,7 +800,10 @@ fun SearchOverlayScreen(
 
     val searchResultsContent = @Composable {
         LazyColumn(
-            modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .animateContentSize(animationSpec = tween(180, easing = androidx.compose.animation.core.FastOutSlowInEasing)),
             contentPadding = PaddingValues(
                 top = if (settingsState.bottomSearch && settingsState.bottomSearchResult) 72.dp else 8.dp,
                 bottom = 8.dp
@@ -772,12 +841,12 @@ fun SearchOverlayScreen(
                                     .bouncyClickable {
                                         action.intent?.let { intent ->
                                             try {
-                                                context.startActivity(intent)
+                                                context.findActivity()?.startActivityForResult(intent, 1001)
                                             } catch (e: Exception) {
                                                 e.printStackTrace()
                                             }
                                         }
-                                        closeOverlay()
+                                        /* closeOverlay() */
                                     }
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -842,8 +911,8 @@ fun SearchOverlayScreen(
                                         } else {
                                             Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri))
                                         }
-                                        try { context.startActivity(intent) } catch(e: Exception) {}
-                                        closeOverlay()
+                                        try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e: Exception) {}
+                                        /* closeOverlay() */
                                     }
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -903,11 +972,11 @@ fun SearchOverlayScreen(
                                                         if (action.dataUri != null) intent.data = android.net.Uri.parse(action.dataUri)
                                                         intent.setPackage(match.packageName)
                                                         try {
-                                                            context.startActivity(intent)
-                                                            closeOverlay()
+                                                            context.findActivity()?.startActivityForResult(intent, 1001)
+                                                            /* closeOverlay() */
                                                         } catch (e: Exception) {
                                                             intent.setPackage(null)
-                                                            try { context.startActivity(intent); closeOverlay() } catch (e2: Exception) {}
+                                                            try { context.findActivity()?.startActivityForResult(intent, 1001); /* closeOverlay() */ } catch (e2: Exception) {}
                                                         }
                                                     },
                                                     label = { Text(action.title, color = MaterialTheme.colorScheme.onPrimaryContainer, fontFamily = GoogleSansFlex) },
@@ -931,11 +1000,11 @@ fun SearchOverlayScreen(
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             setPackage("com.google.android.apps.nbu.files")
                                         }
-                                        try { context.startActivity(intent) } catch(e: Exception) {
+                                        try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e: Exception) {
                                             intent.setPackage(null)
-                                            try { context.startActivity(intent) } catch(e2: Exception) {}
+                                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e2: Exception) {}
                                         }
-                                        closeOverlay()
+                                        /* closeOverlay() */
                                     }
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -958,11 +1027,11 @@ fun SearchOverlayScreen(
                 item(key = "top_hit_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
-            if (uiState.query.isEmpty() && uiState.recentSearches.isNotEmpty()) {
+            if (settingsState.searchPreviousSearches && uiState.query.isEmpty() && uiState.recentSearches.isNotEmpty()) {
                 item(key = "recent_label") {
                     Text("Recent", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 }
-                itemsIndexed(uiState.recentSearches, key = { index, query -> "recent_${query}_$index" }) { index, recentQuery ->
+                items(uiState.recentSearches, key = { "recent_$it" }) { recentQuery ->
                     val dismissState = rememberSwipeToDismissBoxState()
                     LaunchedEffect(dismissState.currentValue) {
                         if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
@@ -1048,10 +1117,15 @@ fun SearchOverlayScreen(
 
             if (settingsState.searchWeb) {
                 if (uiState.webSuggestions.isNotEmpty()) {
-                    items(uiState.webSuggestions, key = { "web_suggest_$it" }) { suggestion ->
+                    items(uiState.webSuggestions.take(settingsState.webResultsCount), key = { "web_suggest_$it" }) { suggestion ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .animateItem(
+                                    placementSpec = androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
+                                    fadeInSpec = androidx.compose.animation.core.tween(150),
+                                    fadeOutSpec = androidx.compose.animation.core.tween(150)
+                                )
                                 .padding(horizontal = 16.dp, vertical = 4.dp)
                                 .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(32.dp))
                                 .clip(RoundedCornerShape(32.dp))
@@ -1147,7 +1221,7 @@ fun SearchOverlayScreen(
                                         R.anim.slide_in_right,
                                         R.anim.slide_out_left
                                     )
-                                    context.startActivity(intent, options.toBundle())
+                                    context.findActivity()?.startActivityForResult(intent, 1001, options.toBundle())
                                 }
                             }
                         }
@@ -1166,8 +1240,8 @@ fun SearchOverlayScreen(
                         title = "Search with Google Lens",
                         onClick = {
                             val intent = SearchWidgetProvider.getLensSearchIntent(context)
-                            try { context.startActivity(intent) } catch (e: Exception) {}
-                            closeOverlay()
+                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {}
+                            /* closeOverlay() */
                         }
                     )
                 }
@@ -1177,8 +1251,8 @@ fun SearchOverlayScreen(
                         title = "Search with Voice",
                         onClick = {
                             val intent = SearchWidgetProvider.getVoiceSearchIntent(context)
-                            try { context.startActivity(intent) } catch (e: Exception) {}
-                            closeOverlay()
+                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {}
+                            /* closeOverlay() */
                         }
                     )
                 }
@@ -1188,8 +1262,8 @@ fun SearchOverlayScreen(
                         title = "Ask Gemini",
                         onClick = {
                             val intent = SearchWidgetProvider.getGeminiSearchIntent(context)
-                            try { context.startActivity(intent) } catch (e: Exception) {}
-                            closeOverlay()
+                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {}
+                            /* closeOverlay() */
                         }
                     )
                 }
@@ -1207,8 +1281,8 @@ fun SearchOverlayScreen(
                                 } else {
                                     Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri))
                                 }
-                                try { context.startActivity(intent) } catch(e: Exception) {}
-                                closeOverlay()
+                                try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e: Exception) {}
+                                /* closeOverlay() */
                             }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -1236,8 +1310,8 @@ fun SearchOverlayScreen(
                                     setDataAndType(Uri.parse(file.uri), file.mimeType)
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
-                                try { context.startActivity(intent) } catch(e: Exception) {}
-                                closeOverlay()
+                                try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e: Exception) {}
+                                /* closeOverlay() */
                             }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically

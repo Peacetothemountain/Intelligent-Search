@@ -13,7 +13,6 @@ class SearchActivity : ComponentActivity() {
         android.util.Log.d("SearchActivity", "onCreate called. Intent action: ${intent?.action}")
         val query = intent.getStringExtra(SearchManager.QUERY) ?: ""
         val mainIntent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             putExtra("query", query)
             action = this@SearchActivity.intent.action
         }

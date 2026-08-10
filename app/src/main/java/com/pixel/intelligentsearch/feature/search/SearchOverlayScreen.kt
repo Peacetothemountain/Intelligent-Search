@@ -193,10 +193,15 @@ fun clearThemedIconCache() {
     themedIconCache.evictAll()
 }
 
-fun getThemedAppIcon(context: Context, packageName: String): AppIconResult? {
+fun getThemedAppIcon(context: Context, packageName: String, activePackOverride: String? = null): AppIconResult? {
     try {
-        val prefs = context.getSharedPreferences("intelligent_search_settings", Context.MODE_PRIVATE)
-        val activePack = prefs.getString("active_icon_pack", "system_default") ?: "system_default"
+        val activePack = activePackOverride ?: run {
+            val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+            val p = prefs.getString("active_icon_pack", null)
+            if (p != null) p else {
+                context.getSharedPreferences("intelligent_search_settings", Context.MODE_PRIVATE).getString("active_icon_pack", "system_default") ?: "system_default"
+            }
+        }
         val cacheKey = "$activePack:$packageName"
         val cached = themedIconCache.get(cacheKey)
         if (cached != null) {

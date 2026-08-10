@@ -1575,7 +1575,7 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val isHidden = hiddenApps.contains(app.packageName)
                     val activePack by rememberStringPreference(prefs, "active_icon_pack", "system_default")
                     val themedIcon = remember(app.packageName, activePack) {
-                        com.pixel.intelligentsearch.feature.search.getThemedAppIcon(context, app.packageName)
+                        com.pixel.intelligentsearch.feature.search.getThemedAppIcon(context, app.packageName, activePack)
                     }
                     val displayIcon = remember(themedIcon, app.icon) {
                         if (themedIcon != null) {
@@ -3928,7 +3928,7 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         val isSelected = selectedApps.contains(packageName)
                         val activePack by rememberStringPreference(prefs, "active_icon_pack", "system_default")
                         val themedIcon = remember(packageName, activePack) {
-                            com.pixel.intelligentsearch.feature.search.getThemedAppIcon(context, packageName)
+                            com.pixel.intelligentsearch.feature.search.getThemedAppIcon(context, packageName, activePack)
                         }
                         val appIcon: Any = remember(themedIcon, packageInfo) {
                             if (themedIcon != null) {

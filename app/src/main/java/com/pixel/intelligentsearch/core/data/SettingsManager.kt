@@ -59,7 +59,8 @@ data class IntelligentSearchSettings(
     val smartClipboardSuggestions: Boolean = false,
     val activeIconPack: String = "system_default",
     val customIconPills: String = "",
-    val neverShowIconPackWarning: Boolean = false
+    val neverShowIconPackWarning: Boolean = false,
+    val searchPreviousSearches: Boolean = true
 )
 
 @Singleton
@@ -70,6 +71,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val SEARCH_CONTACTS = booleanPreferencesKey("search.contacts")
         val SEARCH_FILES = booleanPreferencesKey("search.files")
         val SEARCH_WEB = booleanPreferencesKey("search.web")
+        val SEARCH_PREVIOUS_SEARCHES = booleanPreferencesKey("search_previous_searches")
         val SEARCH_CALCULATOR = booleanPreferencesKey("search.calculator")
         val SEARCH_CALENDAR = booleanPreferencesKey("search.calendar")
         val SEARCH_SHORTCUTS = booleanPreferencesKey("search.shortcuts")
@@ -170,7 +172,8 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: false,
                 activeIconPack = preferences[ACTIVE_ICON_PACK] ?: "system_default",
                 customIconPills = preferences[CUSTOM_ICON_PILLS] ?: "",
-                neverShowIconPackWarning = preferences[NEVER_SHOW_ICON_PACK_WARNING] ?: false
+                neverShowIconPackWarning = preferences[NEVER_SHOW_ICON_PACK_WARNING] ?: false,
+                searchPreviousSearches = preferences[SEARCH_PREVIOUS_SEARCHES] ?: true
             )
         }
 

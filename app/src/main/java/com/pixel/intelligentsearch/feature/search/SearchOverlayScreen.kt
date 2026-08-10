@@ -994,7 +994,7 @@ fun SearchOverlayScreen(
                 item(key = "top_hit_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
-            if (uiState.query.isEmpty() && uiState.recentSearches.isNotEmpty()) {
+            if (settingsState.searchPreviousSearches && uiState.query.isEmpty() && uiState.recentSearches.isNotEmpty()) {
                 item(key = "recent_label") {
                     Text("Recent", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 }
@@ -1084,7 +1084,7 @@ fun SearchOverlayScreen(
 
             if (settingsState.searchWeb) {
                 if (uiState.webSuggestions.isNotEmpty()) {
-                    items(uiState.webSuggestions, key = { "web_suggest_$it" }) { suggestion ->
+                    items(uiState.webSuggestions.take(settingsState.webResultsCount), key = { "web_suggest_$it" }) { suggestion ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()

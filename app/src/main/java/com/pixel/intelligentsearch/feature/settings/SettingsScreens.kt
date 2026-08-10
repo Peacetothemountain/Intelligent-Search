@@ -276,6 +276,7 @@ fun rememberBooleanPreference(
         "force_tutorial" -> SettingsManager.FORCE_TUTORIAL
         "context_aware_quick_apps" -> SettingsManager.CONTEXT_AWARE_QUICK_APPS
         "smart_clipboard_suggestions" -> SettingsManager.SMART_CLIPBOARD_SUGGESTIONS
+        "search_previous_searches" -> SettingsManager.SEARCH_PREVIOUS_SEARCHES
         else -> null
     }
 
@@ -309,6 +310,7 @@ fun rememberBooleanPreference(
         "force_tutorial" -> settingsState?.forceTutorial ?: prefs.getBoolean(key, defaultValue)
         "context_aware_quick_apps" -> settingsState?.contextAwareQuickApps ?: prefs.getBoolean(key, defaultValue)
         "smart_clipboard_suggestions" -> settingsState?.smartClipboardSuggestions ?: prefs.getBoolean(key, defaultValue)
+        "search_previous_searches" -> settingsState?.searchPreviousSearches ?: prefs.getBoolean(key, defaultValue)
         else -> prefs.getBoolean(key, defaultValue)
     }
 
@@ -1327,6 +1329,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                     icon = Icons.Outlined.Language,
                     isChecked = searchWeb,
                     onCheckedChange = { searchWeb = it },
+                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.WebSearch) },
                     showDivider = true
                 )
                 var searchContacts by rememberBooleanPreference(prefs, "search.contacts", false)
@@ -1764,6 +1767,16 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     icon = Icons.Outlined.ChatBubbleOutline,
                     isChecked = webSuggestions,
                     onCheckedChange = { webSuggestions = it },
+                    showDivider = true
+                )
+
+                var searchPreviousSearches by rememberBooleanPreference(prefs, "search_previous_searches", true)
+                SettingsRowToggle(
+                    title = "Previous Searches",
+                    subtitle = "Show search history on search overlay",
+                    icon = Icons.Outlined.History,
+                    isChecked = searchPreviousSearches,
+                    onCheckedChange = { searchPreviousSearches = it },
                     showDivider = true
                 )
                 

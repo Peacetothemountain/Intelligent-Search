@@ -235,7 +235,9 @@ fun getThemedAppIcon(context: Context, packageName: String, activePackOverride: 
         val pm = context.packageManager
         val icon = pm.getApplicationIcon(packageName)
         
-        if (icon is android.graphics.drawable.AdaptiveIconDrawable) {
+        val prefsCustom = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val useThemedMonochrome = prefsCustom.getBoolean("themed_icons_enabled", false)
+        if (useThemedMonochrome && icon is android.graphics.drawable.AdaptiveIconDrawable) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val monochrome = icon.monochrome
                 if (monochrome != null) {
@@ -244,9 +246,6 @@ fun getThemedAppIcon(context: Context, packageName: String, activePackOverride: 
                     return res
                 }
             }
-            val res = AppIconResult(drawableToBitmap(icon).asImageBitmap(), isMonochrome = false)
-            themedIconCache.put(cacheKey, res)
-            return res
         }
 
         val res = AppIconResult(drawableToBitmap(icon).asImageBitmap(), isMonochrome = false)

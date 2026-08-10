@@ -187,11 +187,18 @@ fun ShortcutRow(iconRes: Int, title: String, onClick: () -> Unit) {
 
 data class AppIconResult(val bitmap: androidx.compose.ui.graphics.ImageBitmap, val isMonochrome: Boolean)
 
+private val themedIconCache = android.util.LruCache<String, AppIconResult>(256)
+
 fun getThemedAppIcon(context: Context, packageName: String): AppIconResult? {
     try {
-        val pm = context.packageManager
-        val icon = pm.getApplicationIcon(packageName)
-        
+        val prefs = context.getSharedPreferences("intelligent_search_settings", Context.MODE_PRIVATE)
+        val activePack = prefs.getString("active_icon_pack", "system_default") ?: "system_default"
+        val cacheKey = "$activePack:$packageName"
+        val cached = themedIconCache.get(cacheKey)
+        if (cached != null) {
+            return cached
+        }
+
         fun drawableToBitmap(d: android.graphics.drawable.Drawable): android.graphics.Bitmap {
             if (d is android.graphics.drawable.BitmapDrawable && d.bitmap != null) {
                 return d.bitmap
@@ -207,19 +214,35 @@ fun getThemedAppIcon(context: Context, packageName: String): AppIconResult? {
             return bmp
         }
 
+        if (activePack != "system_default") {
+            val packDrawable = com.pixel.intelligentsearch.core.util.IconPackManager.getIconForPackage(context, activePack, packageName)
+            if (packDrawable != null) {
+                val res = AppIconResult(drawableToBitmap(packDrawable).asImageBitmap(), isMonochrome = false)
+                themedIconCache.put(cacheKey, res)
+                return res
+            }
+        }
+
+        val pm = context.packageManager
+        val icon = pm.getApplicationIcon(packageName)
+        
         if (icon is android.graphics.drawable.AdaptiveIconDrawable) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val monochrome = icon.monochrome
                 if (monochrome != null) {
-                    return AppIconResult(drawableToBitmap(monochrome).asImageBitmap(), true)
+                    val res = AppIconResult(drawableToBitmap(monochrome).asImageBitmap(), isMonochrome = true)
+                    themedIconCache.put(cacheKey, res)
+                    return res
                 }
             }
-            val foreground = icon.foreground
-            if (foreground != null) {
-                return AppIconResult(drawableToBitmap(foreground).asImageBitmap(), true)
-            }
+            val res = AppIconResult(drawableToBitmap(icon).asImageBitmap(), isMonochrome = false)
+            themedIconCache.put(cacheKey, res)
+            return res
         }
-        return AppIconResult(drawableToBitmap(icon).asImageBitmap(), false)
+
+        val res = AppIconResult(drawableToBitmap(icon).asImageBitmap(), isMonochrome = false)
+        themedIconCache.put(cacheKey, res)
+        return res
     } catch (e: Exception) {
         return null
     }
@@ -736,7 +759,10 @@ fun SearchOverlayScreen(
 
     val searchResultsContent = @Composable {
         LazyColumn(
-            modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .animateContentSize(animationSpec = tween(180, easing = androidx.compose.animation.core.FastOutSlowInEasing)),
             contentPadding = PaddingValues(
                 top = if (settingsState.bottomSearch && settingsState.bottomSearchResult) 72.dp else 8.dp,
                 bottom = 8.dp

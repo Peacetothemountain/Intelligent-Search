@@ -56,7 +56,10 @@ data class IntelligentSearchSettings(
     val fileResultsCount: Int = 5,
     val shortcutResultsCount: Int = 6,
     val contextAwareQuickApps: Boolean = false,
-    val smartClipboardSuggestions: Boolean = false
+    val smartClipboardSuggestions: Boolean = false,
+    val activeIconPack: String = "system_default",
+    val customIconPills: String = "",
+    val neverShowIconPackWarning: Boolean = false
 )
 
 @Singleton
@@ -105,6 +108,9 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val SHORTCUT_RESULTS_COUNT = intPreferencesKey("shortcut_results_count")
         val CONTEXT_AWARE_QUICK_APPS = booleanPreferencesKey("context_aware_quick_apps")
         val SMART_CLIPBOARD_SUGGESTIONS = booleanPreferencesKey("smart_clipboard_suggestions")
+        val ACTIVE_ICON_PACK = stringPreferencesKey("active_icon_pack")
+        val CUSTOM_ICON_PILLS = stringPreferencesKey("custom_icon_pills")
+        val NEVER_SHOW_ICON_PACK_WARNING = booleanPreferencesKey("never_show_icon_pack_warning")
     }
 
     val settingsFlow: Flow<IntelligentSearchSettings> = context.dataStore.data
@@ -161,7 +167,10 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 fileResultsCount = preferences[FILE_RESULTS_COUNT] ?: 5,
                 shortcutResultsCount = preferences[SHORTCUT_RESULTS_COUNT] ?: 6,
                 contextAwareQuickApps = preferences[CONTEXT_AWARE_QUICK_APPS] ?: false,
-                smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: false
+                smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: false,
+                activeIconPack = preferences[ACTIVE_ICON_PACK] ?: "system_default",
+                customIconPills = preferences[CUSTOM_ICON_PILLS] ?: "",
+                neverShowIconPackWarning = preferences[NEVER_SHOW_ICON_PACK_WARNING] ?: false
             )
         }
 

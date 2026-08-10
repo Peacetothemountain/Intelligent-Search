@@ -47,6 +47,8 @@ import android.app.PendingIntent
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import android.net.Uri
+import android.graphics.drawable.Drawable
+import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.launch
 import android.widget.Toast
 import android.content.pm.PackageManager
@@ -566,6 +568,7 @@ fun SettingsScreensHub(
             "file_search" -> com.pixel.intelligentsearch.core.navigation.Route.FileSearch
             "widget" -> com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization
             "manage_hidden_apps" -> com.pixel.intelligentsearch.core.navigation.Route.ManageHiddenApps
+            "custom_icons" -> com.pixel.intelligentsearch.core.navigation.Route.CustomIcons
             "debug" -> com.pixel.intelligentsearch.core.navigation.Route.Debug
             else -> com.pixel.intelligentsearch.core.navigation.Route.Main
         }
@@ -605,7 +608,8 @@ fun SettingsScreensHub(
                     popExitTransition = { androidx.compose.animation.slideOutHorizontally(targetOffsetX = { it }) + androidx.compose.animation.fadeOut() }
                 ) {
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Main> { MainSettingsScreen(prefs, onNavigate, onBack, context, exoPlayer, showTutorial) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.Appearance> { AppearanceScreen(prefs, onBack) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.Appearance> { AppearanceScreen(prefs, onNavigate, onBack) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.CustomIcons> { CustomIconsScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.SearchSources> { SearchSourcesScreen(prefs, onNavigate, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior> { SearchBehaviorScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal> { LaunchPortalScreen(prefs, onBack) }
@@ -1111,157 +1115,158 @@ fun MainSettingsScreen(
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppearanceScreen(prefs: SharedPreferences, onBack: () -> Unit) {
+fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
-    var iconPacks by remember { mutableStateOf(listOf("System Default")) }
-    
-    LaunchedEffect(Unit) {
-        // Icon packs loading removed
-    }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
         Scaffold(
             containerColor = Color.Transparent,
-        topBar = {
-            TopAppBar(
-                title = { Text("Apperence", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
-                }
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
+            topBar = {
+                TopAppBar(
+                    title = { Text("Apperence", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                    }
+                )
+            }
+        ) { padding ->
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .fillMaxSize()
+                    .padding(padding)
             ) {
-            SettingsCard {
-                val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
-                val defaultThemeValue = if (isSystemDark) "Material Dark" else "Material Light"
-                var rawThemeMode by rememberStringPreference(prefs, "night.mode", defaultThemeValue)
-                val themeMode = if (rawThemeMode == "System") "Material Dark" else rawThemeMode
-                SettingsDropdownRow(
-                    title = "App Theme",
-                    subtitle = themeMode,
-                    icon = Icons.Outlined.BrightnessMedium,
-                    options = listOf("Material Dark", "Material Light"),
-                    selectedOption = themeMode,
-                    onOptionSelected = { rawThemeMode = it },
-                    showDivider = true
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    SettingsCard {
+                        val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+                        val defaultThemeValue = if (isSystemDark) "Material Dark" else "Material Light"
+                        var rawThemeMode by rememberStringPreference(prefs, "night.mode", defaultThemeValue)
+                        val themeMode = if (rawThemeMode == "System") "Material Dark" else rawThemeMode
+                        SettingsDropdownRow(
+                            title = "App Theme",
+                            subtitle = themeMode,
+                            icon = Icons.Outlined.BrightnessMedium,
+                            options = listOf("Material Dark", "Material Light"),
+                            selectedOption = themeMode,
+                            onOptionSelected = { rawThemeMode = it },
+                            showDivider = true
+                        )
 
-                var settingsBackToSearchOverlay by rememberBooleanPreference(prefs, "settings_back_to_search_overlay", false) {}
-                SettingsRowToggle(
-                    title = "Back Swipe to Enter Search Overlay Page",
-                    subtitle = "Swiping Back from Settings Menu Directs to Search Overlay Screen.",
-                    icon = Icons.AutoMirrored.Outlined.ArrowBack,
-                    isChecked = settingsBackToSearchOverlay,
-                    onCheckedChange = { settingsBackToSearchOverlay = it },
-                    showDivider = true
-                )
+                        var activeIconPack by rememberStringPreference(prefs, "active_icon_pack", "system_default")
+                        val activeIconPackLabel = remember(activeIconPack) {
+                            if (activeIconPack == "system_default") {
+                                "System Default"
+                            } else {
+                                try {
+                                    val pm = context.packageManager
+                                    val info = pm.getApplicationInfo(activeIconPack, 0)
+                                    pm.getApplicationLabel(info).toString()
+                                } catch (e: Exception) {
+                                    "Custom Pack"
+                                }
+                            }
+                        }
+                        SettingsRow(
+                            title = "Custom Icons",
+                            subtitle = activeIconPackLabel,
+                            icon = Icons.Outlined.Palette,
+                            onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.CustomIcons) },
+                            showDivider = true
+                        )
 
-                var enableSearchOverlay by rememberBooleanPreference(prefs, "search_overlay_enabled", true) { updateWidgets(context) }
-                SettingsRowToggle(
-                    title = "Enable Search Overlay Page",
-                    subtitle = "When Turned Off, Search Bar Widget Opens Native Google Search.",
-                    icon = Icons.Outlined.Layers,
-                    isChecked = enableSearchOverlay,
-                    onCheckedChange = { enableSearchOverlay = it },
-                    showDivider = true
-                )
+                        var settingsBackToSearchOverlay by rememberBooleanPreference(prefs, "settings_back_to_search_overlay", false) {}
+                        SettingsRowToggle(
+                            title = "Back Swipe to Enter Search Overlay Page",
+                            subtitle = "Swiping Back from Settings Menu Directs to Search Overlay Screen.",
+                            icon = Icons.AutoMirrored.Outlined.ArrowBack,
+                            isChecked = settingsBackToSearchOverlay,
+                            onCheckedChange = { settingsBackToSearchOverlay = it },
+                            showDivider = true
+                        )
 
-                var matrixAnimationEnabled by rememberBooleanPreference(prefs, "matrix_animation_enabled", true) {}
-                SettingsRowToggle(
-                    title = "Enable Matrix Animation on Search Overlay Page",
-                    subtitle = "Enable Search Overpay Page Animation.",
-                    icon = Icons.Outlined.AutoAwesome,
-                    isChecked = matrixAnimationEnabled,
-                    onCheckedChange = { matrixAnimationEnabled = it },
-                    showDivider = true
-                )
+                        var enableSearchOverlay by rememberBooleanPreference(prefs, "search_overlay_enabled", true) { updateWidgets(context) }
+                        SettingsRowToggle(
+                            title = "Enable Search Overlay Page",
+                            subtitle = "When Turned Off, Search Bar Widget Opens Native Google Search.",
+                            icon = Icons.Outlined.Layers,
+                            isChecked = enableSearchOverlay,
+                            onCheckedChange = { enableSearchOverlay = it },
+                            showDivider = true
+                        )
 
-                var morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
-                SettingsRowToggle(
-                    title = "Enable Material Morph Animation",
-                    subtitle = "Enable Material Expressive Boucing Shapes.",
-                    icon = Icons.Outlined.Animation,
-                    isChecked = morphAnimationEnabled,
-                    onCheckedChange = { morphAnimationEnabled = it },
-                    showDivider = true
-                )
+                        var matrixAnimationEnabled by rememberBooleanPreference(prefs, "matrix_animation_enabled", true) {}
+                        SettingsRowToggle(
+                            title = "Enable Matrix Animation on Search Overlay Page",
+                            subtitle = "Enable Search Overpay Page Animation.",
+                            icon = Icons.Outlined.AutoAwesome,
+                            isChecked = matrixAnimationEnabled,
+                            onCheckedChange = { matrixAnimationEnabled = it },
+                            showDivider = true
+                        )
 
+                        var morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
+                        SettingsRowToggle(
+                            title = "Enable Material Morph Animation",
+                            subtitle = "Enable Material Expressive Boucing Shapes.",
+                            icon = Icons.Outlined.Animation,
+                            isChecked = morphAnimationEnabled,
+                            onCheckedChange = { morphAnimationEnabled = it },
+                            showDivider = true
+                        )
 
-                
-                var showWall by rememberBooleanPreference(prefs, "search.background.show.wall", false) { updateWidgets(context) }
-                SettingsRowToggle(
-                    title = "Show Wallpaper",
-                    subtitle = "Show User's wallpaper in Search Overlay Page.",
-                    icon = Icons.Outlined.Wallpaper,
-                    isChecked = showWall,
-                    onCheckedChange = { showWall = it },
-                    showDivider = true
-                )
-                
-                var blur by rememberIntPreference(prefs, "search.background.blur", 50) { updateWidgets(context) }
-                var transparency by rememberIntPreference(prefs, "search.background.transparency", 50) { updateWidgets(context) }
-                var pillOpacity by rememberIntPreference(prefs, "search.pill.opacity", 50) { updateWidgets(context) }
+                        var showWall by rememberBooleanPreference(prefs, "search.background.show.wall", false) { updateWidgets(context) }
+                        SettingsRowToggle(
+                            title = "Show Wallpaper",
+                            subtitle = "Show User's wallpaper in Search Overlay Page.",
+                            icon = Icons.Outlined.Wallpaper,
+                            isChecked = showWall,
+                            onCheckedChange = { showWall = it },
+                            showDivider = true
+                        )
+                        
+                        var blur by rememberIntPreference(prefs, "search.background.blur", 50) { updateWidgets(context) }
+                        var transparency by rememberIntPreference(prefs, "search.background.transparency", 50) { updateWidgets(context) }
+                        var pillOpacity by rememberIntPreference(prefs, "search.pill.opacity", 50) { updateWidgets(context) }
 
-                SettingsSliderRow(
-                    title = "Background Blur",
-                    value = blur.toFloat(),
-                    onValueChange = { blur = it.toInt() },
-                    valueRange = 0f..100f,
-                    icon = Icons.Outlined.BlurOn,
-                    showDivider = true,
-                    steps = 9
-                )
-                
-                SettingsSliderRow(
-                    title = "Background Transparency",
-                    value = transparency.toFloat(),
-                    onValueChange = { transparency = it.toInt() },
-                    valueRange = 0f..100f,
-                    icon = Icons.Outlined.Opacity,
-                    showDivider = true,
-                    steps = 9
-                )
-                
-                SettingsSliderRow(
-                    title = "Search Pill Opacity",
-                    value = pillOpacity.toFloat(),
-                    onValueChange = { pillOpacity = it.toInt() },
-                    valueRange = 0f..100f,
-                    icon = Icons.Outlined.BrightnessMedium,
-                    showDivider = false,
-                    steps = 9
-                )
-            }
-            
-        
-            }
-            
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f) 
-                    .clipToBounds() 
-            ) {
-                if (morphAnimationEnabled) {
-                    MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+                        SettingsSliderRow(
+                            title = "Background Blur",
+                            value = blur.toFloat(),
+                            onValueChange = { blur = it.toInt() },
+                            valueRange = 0f..100f,
+                            icon = Icons.Outlined.BlurOn,
+                            showDivider = true,
+                            steps = 9
+                        )
+                        
+                        SettingsSliderRow(
+                            title = "Background Transparency",
+                            value = transparency.toFloat(),
+                            onValueChange = { transparency = it.toInt() },
+                            valueRange = 0f..100f,
+                            icon = Icons.Outlined.Opacity,
+                            showDivider = true,
+                            steps = 9
+                        )
+                        
+                        SettingsSliderRow(
+                            title = "Search Pill Opacity",
+                            value = pillOpacity.toFloat(),
+                            onValueChange = { pillOpacity = it.toInt() },
+                            valueRange = 0f..100f,
+                            icon = Icons.Outlined.BrightnessMedium,
+                            showDivider = false,
+                            steps = 9
+                        )
+                    }
                 }
             }
         }
     }
-}
 }
 
 // -----------------------------------------------------------------------------------------
@@ -4524,6 +4529,266 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
         }
     }
 }
+
+// -----------------------------------------------------------------------------------------
+// CUSTOM ICONS SCREEN
+// -----------------------------------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
+    val context = LocalContext.current
+    var activeIconPack by rememberStringPreference(prefs, "active_icon_pack", "system_default")
+    var neverShowWarning by rememberBooleanPreference(prefs, "never_show_icon_pack_warning", false) {}
+    var storedPillString by rememberStringPreference(prefs, "custom_icon_pills", "")
+
+    val installedPacks = remember { com.pixel.intelligentsearch.core.util.IconPackManager.getInstalledIconPacks(context) }
+    val allPackMap = remember(installedPacks) {
+        val map = mutableMapOf<String, Pair<String, Drawable?>>()
+        map["system_default"] = Pair("System Default", null)
+        installedPacks.forEach { map[it.packageName] = Pair(it.label, it.icon) }
+        map
+    }
+
+    var localPillList by remember(storedPillString, installedPacks) {
+        val storedList = storedPillString.split(",").filter { it.isNotBlank() }
+        val validPacks = listOf("system_default") + installedPacks.map { it.packageName }
+        val merged = (storedList.filter { validPacks.contains(it) } + validPacks).distinct()
+        mutableStateOf(merged)
+    }
+
+    var draggingPackage by remember { mutableStateOf<String?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val listState = rememberLazyListState()
+
+    var pendingIconPack by remember { mutableStateOf<String?>(null) }
+
+    fun activatePack(pkg: String) {
+        if (pkg == activeIconPack) return
+        if (activeIconPack != "system_default" && !neverShowWarning) {
+            pendingIconPack = pkg
+        } else {
+            activeIconPack = pkg
+            prefs.edit().putString("active_icon_pack", pkg).apply()
+            com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Custom Icons", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            if (pendingIconPack != null) {
+                AlertDialog(
+                    onDismissRequest = { pendingIconPack = null },
+                    title = { Text("Change Icon Pack", fontWeight = FontWeight.Bold) },
+                    text = { Text("Are you sure you want to change the icon pack?") },
+                    confirmButton = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    neverShowWarning = true
+                                    prefs.edit().putBoolean("never_show_icon_pack_warning", true).apply()
+                                    if (pendingIconPack != null) {
+                                        activeIconPack = pendingIconPack!!
+                                        prefs.edit().putString("active_icon_pack", pendingIconPack!!).apply()
+                                        com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
+                                        pendingIconPack = null
+                                    }
+                                }
+                            ) {
+                                Text("Never show again", fontSize = 13.sp, color = MaterialTheme.colorScheme.outline)
+                            }
+                            
+                            Row {
+                                TextButton(onClick = { pendingIconPack = null }) {
+                                    Text("Cancel")
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        if (pendingIconPack != null) {
+                                            activeIconPack = pendingIconPack!!
+                                            prefs.edit().putString("active_icon_pack", pendingIconPack!!).apply()
+                                            com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
+                                            pendingIconPack = null
+                                        }
+                                    }
+                                ) {
+                                    Text("Save")
+                                }
+                            }
+                        }
+                    },
+                    dismissButton = null
+                )
+            }
+
+            androidx.compose.foundation.lazy.LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
+            ) {
+                items(localPillList, key = { it }) { packageName ->
+                    val isDragging = draggingPackage == packageName
+                    val draggingModifier = if (isDragging) {
+                        Modifier.zIndex(1f).graphicsLayer {
+                            translationY = dragOffset
+                        }
+                    } else {
+                        Modifier.animateItem()
+                    }
+
+                    val packInfo = allPackMap[packageName] ?: Pair(packageName, null)
+                    val packLabel = packInfo.first
+                    val packIcon = packInfo.second
+                    val isSelected = activeIconPack == packageName
+
+                    Box(modifier = draggingModifier) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(if (isDragging) 8.dp else 0.dp, RoundedCornerShape(24.dp))
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
+                            color = Color.Transparent
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    if (packageName == "system_default") {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Palette,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    } else if (packIcon != null) {
+                                        Image(
+                                            bitmap = packIcon.toBitmap().asImageBitmap(),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Outlined.AppShortcut,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column {
+                                        Text(
+                                            text = packLabel,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        if (packageName == "system_default") {
+                                            Text(
+                                                text = "Default Monet dynamic icons",
+                                                color = MaterialTheme.colorScheme.outline,
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Switch(
+                                        checked = isSelected,
+                                        onCheckedChange = { checked ->
+                                            if (checked) {
+                                                activatePack(packageName)
+                                            } else {
+                                                if (activeIconPack == packageName) {
+                                                    activatePack("system_default")
+                                                }
+                                            }
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Icon(
+                                        imageVector = Icons.Outlined.DragHandle,
+                                        contentDescription = "Drag to reorder",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        modifier = Modifier.pointerInput(packageName) {
+                                            detectVerticalDragGestures(
+                                                onDragStart = {
+                                                    draggingPackage = packageName
+                                                    dragOffset = 0f
+                                                },
+                                                onDragEnd = {
+                                                    draggingPackage = null
+                                                    dragOffset = 0f
+                                                    storedPillString = localPillList.joinToString(",")
+                                                    prefs.edit().putString("custom_icon_pills", storedPillString).apply()
+                                                },
+                                                onDragCancel = {
+                                                    draggingPackage = null
+                                                    dragOffset = 0f
+                                                },
+                                                onVerticalDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    dragOffset += dragAmount
+                                                    
+                                                    val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
+                                                    val draggingItem = listState.layoutInfo.visibleItemsInfo.find { it.key == currentDraggingPackage }
+                                                    if (draggingItem != null) {
+                                                        val itemHeight = draggingItem.size.toFloat() + 32f
+                                                        val from = localPillList.indexOf(currentDraggingPackage)
+                                                        
+                                                        if (from != -1) {
+                                                            if (dragOffset > itemHeight / 2f && from < localPillList.size - 1) {
+                                                                val currentList = localPillList.toMutableList()
+                                                                java.util.Collections.swap(currentList, from, from + 1)
+                                                                localPillList = currentList
+                                                                dragOffset -= itemHeight
+                                                            } else if (dragOffset < -itemHeight / 2f && from > 0) {
+                                                                val currentList = localPillList.toMutableList()
+                                                                java.util.Collections.swap(currentList, from, from - 1)
+                                                                localPillList = currentList
+                                                                dragOffset += itemHeight
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 
 

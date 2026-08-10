@@ -87,9 +87,15 @@ open class MainActivity : AppCompatActivity() {
                         ) {
                             SearchOverlayScreen(
                                 onOpenSettings = { route ->
-                                    startActivity(Intent(this@MainActivity, SettingsActivity::class.java).apply {
+                                    val intent = Intent(this@MainActivity, SettingsActivity::class.java).apply {
                                         putExtra("extra_screen", route)
-                                    })
+                                    }
+                                    val options = android.app.ActivityOptions.makeCustomAnimation(
+                                        this@MainActivity,
+                                        R.anim.slide_in_right,
+                                        R.anim.slide_out_left
+                                    )
+                                    startActivity(intent, options.toBundle())
                                 },
                                 onLaunchApp = { packageName ->
                                     val launchIntent = packageManager.getLaunchIntentForPackage(packageName)

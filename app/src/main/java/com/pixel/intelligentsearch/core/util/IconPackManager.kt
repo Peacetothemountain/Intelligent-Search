@@ -105,7 +105,7 @@ object IconPackManager {
             val launchIntent = pm.getLaunchIntentForPackage(targetPackage)
             val mainActivity = launchIntent?.component?.className
             if (mainActivity != null) {
-                val compKey = "componentinfo{$targetPackage/$mainActivity}"
+                val compKey = "componentinfo{$targetPackage/$mainActivity}".lowercase()
                 drawableName = appFilter[compKey]
             }
 
@@ -197,9 +197,16 @@ object IconPackManager {
         var eventType = xpp.eventType
         while (eventType != XmlPullParser.END_DOCUMENT) {
             if (eventType == XmlPullParser.START_TAG && xpp.name == "item") {
-                val comp = xpp.getAttributeValue(null, "component")
-                val drawable = xpp.getAttributeValue(null, "drawable")
-                val pkg = xpp.getAttributeValue(null, "package")
+                var comp: String? = null
+                var drawable: String? = null
+                var pkg: String? = null
+                for (i in 0 until xpp.attributeCount) {
+                    when (xpp.getAttributeName(i).lowercase()) {
+                        "component" -> comp = xpp.getAttributeValue(i)
+                        "drawable" -> drawable = xpp.getAttributeValue(i)
+                        "package" -> pkg = xpp.getAttributeValue(i)
+                    }
+                }
 
                 if (!drawable.isNullOrEmpty()) {
                     if (!comp.isNullOrEmpty()) {
@@ -222,6 +229,7 @@ object IconPackManager {
     fun clearCache() {
         iconCache.evictAll()
         appFilterMapCache.clear()
+        com.pixel.intelligentsearch.feature.search.clearThemedIconCache()
     }
 }
 

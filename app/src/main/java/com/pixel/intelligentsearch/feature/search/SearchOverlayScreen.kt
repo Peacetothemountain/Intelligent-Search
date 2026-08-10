@@ -189,6 +189,10 @@ data class AppIconResult(val bitmap: androidx.compose.ui.graphics.ImageBitmap, v
 
 private val themedIconCache = android.util.LruCache<String, AppIconResult>(256)
 
+fun clearThemedIconCache() {
+    themedIconCache.evictAll()
+}
+
 fun getThemedAppIcon(context: Context, packageName: String): AppIconResult? {
     try {
         val prefs = context.getSharedPreferences("intelligent_search_settings", Context.MODE_PRIVATE)

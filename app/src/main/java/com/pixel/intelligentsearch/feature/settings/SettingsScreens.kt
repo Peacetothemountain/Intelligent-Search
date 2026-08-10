@@ -4561,20 +4561,26 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     var activeIconPack by rememberStringPreference(prefs, "active_icon_pack", "system_default")
     var neverShowWarning by rememberBooleanPreference(prefs, "never_show_icon_pack_warning", false) {}
-    var storedPillString by rememberStringPreference(prefs, "custom_icon_pills", "")
+    var storedPillString by rememberStringPreference(prefs, "custom_icon_packs_order", "")
 
     val installedPacks = remember { com.pixel.intelligentsearch.core.util.IconPackManager.getInstalledIconPacks(context) }
+    val validPackSet = remember(installedPacks) {
+        (listOf("system_default") + installedPacks.map { it.packageName }).toSet()
+    }
+
     val allPackMap = remember(installedPacks) {
-        val map = mutableMapOf<String, Pair<String, Drawable?>>()
+        val map = mutableMapOf<String, Pair<String, ImageBitmap?>>()
         map["system_default"] = Pair("System Default", null)
-        installedPacks.forEach { map[it.packageName] = Pair(it.label, it.icon) }
+        installedPacks.forEach { pack ->
+            val bitmap = try { pack.icon?.toBitmap()?.asImageBitmap() } catch (e: Exception) { null }
+            map[pack.packageName] = Pair(pack.label, bitmap)
+        }
         map
     }
 
-    var localPillList by remember(storedPillString, installedPacks) {
-        val storedList = storedPillString.split(",").filter { it.isNotBlank() }
-        val validPacks = listOf("system_default") + installedPacks.map { it.packageName }
-        val merged = (storedList.filter { validPacks.contains(it) } + validPacks).distinct()
+    var localPillList by remember(storedPillString, validPackSet) {
+        val storedList = storedPillString.split(",").filter { validPackSet.contains(it) }
+        val merged = (storedList + validPackSet).distinct().filter { validPackSet.contains(it) }
         mutableStateOf(merged)
     }
 
@@ -4670,11 +4676,13 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 items(localPillList, key = { it }) { packageName ->
                     val isDragging = draggingPackage == packageName
                     val draggingModifier = if (isDragging) {
-                        Modifier.zIndex(10f).graphicsLayer {
-                            translationY = dragOffset
-                            scaleX = 1.02f
-                            scaleY = 1.02f
-                        }
+                        Modifier
+                            .zIndex(10f)
+                            .graphicsLayer {
+                                translationY = dragOffset
+                                scaleX = 1.02f
+                                scaleY = 1.02f
+                            }
                     } else {
                         Modifier.animateItem()
                     }
@@ -4684,125 +4692,127 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val packIcon = packInfo.second
                     val isSelected = activeIconPack == packageName
 
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(draggingModifier)
-                            .shadow(if (isDragging) 12.dp else 0.dp, RoundedCornerShape(24.dp))
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(if (isDragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
-                        color = Color.Transparent
-                    ) {
-                        Row(
+                    Box(modifier = draggingModifier) {
+                        Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                                .shadow(if (isDragging) 12.dp else 0.dp, RoundedCornerShape(24.dp))
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(if (isDragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
+                            color = Color.Transparent
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                if (packageName == "system_default") {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Palette,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                } else if (packIcon != null) {
-                                    Image(
-                                        bitmap = packIcon.toBitmap().asImageBitmap(),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Outlined.AppShortcut,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column {
-                                    Text(
-                                        text = packLabel,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                     if (packageName == "system_default") {
-                                        Text(
-                                            text = "Default Monet dynamic icons",
-                                            color = MaterialTheme.colorScheme.outline,
-                                            fontSize = 12.sp
+                                        Icon(
+                                            imageVector = Icons.Outlined.Palette,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    } else if (packIcon != null) {
+                                        Image(
+                                            bitmap = packIcon,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Outlined.AppShortcut,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(32.dp)
                                         )
                                     }
-                                }
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Switch(
-                                    checked = isSelected,
-                                    onCheckedChange = { checked ->
-                                        if (checked) {
-                                            activatePack(packageName)
-                                        } else {
-                                            if (activeIconPack == packageName) {
-                                                activatePack("system_default")
-                                            }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column {
+                                        Text(
+                                            text = packLabel,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        if (packageName == "system_default") {
+                                            Text(
+                                                text = "Default Monet dynamic icons",
+                                                color = MaterialTheme.colorScheme.outline,
+                                                fontSize = 12.sp
+                                            )
                                         }
                                     }
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Icon(
-                                    imageVector = Icons.Outlined.DragHandle,
-                                    contentDescription = "Drag to reorder",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                    modifier = Modifier.pointerInput(packageName) {
-                                        detectVerticalDragGestures(
-                                            onDragStart = {
-                                                draggingPackage = packageName
-                                                dragOffset = 0f
-                                            },
-                                            onDragEnd = {
-                                                draggingPackage = null
-                                                dragOffset = 0f
-                                                storedPillString = localPillList.joinToString(",")
-                                                prefs.edit().putString("custom_icon_pills", storedPillString).apply()
-                                            },
-                                            onDragCancel = {
-                                                draggingPackage = null
-                                                dragOffset = 0f
-                                            },
-                                            onVerticalDrag = { change, dragAmount ->
-                                                change.consume()
-                                                dragOffset += dragAmount
-                                                
-                                                val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
-                                                val draggingItem = listState.layoutInfo.visibleItemsInfo.find { it.key == currentDraggingPackage }
-                                                if (draggingItem != null) {
-                                                    val itemHeight = draggingItem.size.toFloat() + 24f
-                                                    val from = localPillList.indexOf(currentDraggingPackage)
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Switch(
+                                        checked = isSelected,
+                                        onCheckedChange = { checked ->
+                                            if (checked) {
+                                                activatePack(packageName)
+                                            } else {
+                                                if (activeIconPack == packageName) {
+                                                    activatePack("system_default")
+                                                }
+                                            }
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Icon(
+                                        imageVector = Icons.Outlined.DragHandle,
+                                        contentDescription = "Drag to reorder",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        modifier = Modifier.pointerInput(Unit) {
+                                            detectVerticalDragGestures(
+                                                onDragStart = {
+                                                    draggingPackage = packageName
+                                                    dragOffset = 0f
+                                                },
+                                                onDragEnd = {
+                                                    draggingPackage = null
+                                                    dragOffset = 0f
+                                                    storedPillString = localPillList.joinToString(",")
+                                                    prefs.edit().putString("custom_icon_packs_order", storedPillString).apply()
+                                                },
+                                                onDragCancel = {
+                                                    draggingPackage = null
+                                                    dragOffset = 0f
+                                                },
+                                                onVerticalDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    dragOffset += dragAmount
                                                     
-                                                    if (from != -1) {
-                                                        if (dragOffset > itemHeight / 2f && from < localPillList.size - 1) {
-                                                            val currentList = localPillList.toMutableList()
-                                                            java.util.Collections.swap(currentList, from, from + 1)
-                                                            localPillList = currentList
-                                                            dragOffset -= itemHeight
-                                                        } else if (dragOffset < -itemHeight / 2f && from > 0) {
-                                                            val currentList = localPillList.toMutableList()
-                                                            java.util.Collections.swap(currentList, from, from - 1)
-                                                            localPillList = currentList
-                                                            dragOffset += itemHeight
+                                                    val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
+                                                    val draggingItem = listState.layoutInfo.visibleItemsInfo.find { it.key == currentDraggingPackage }
+                                                    if (draggingItem != null) {
+                                                        val spacing = listState.layoutInfo.mainAxisItemSpacing.toFloat()
+                                                        val itemHeight = draggingItem.size.toFloat() + spacing
+                                                        val from = localPillList.indexOf(currentDraggingPackage)
+                                                        
+                                                        if (from != -1) {
+                                                            if (dragOffset > itemHeight / 2f && from < localPillList.size - 1) {
+                                                                val currentList = localPillList.toMutableList()
+                                                                java.util.Collections.swap(currentList, from, from + 1)
+                                                                localPillList = currentList
+                                                                dragOffset -= itemHeight
+                                                            } else if (dragOffset < -itemHeight / 2f && from > 0) {
+                                                                val currentList = localPillList.toMutableList()
+                                                                java.util.Collections.swap(currentList, from, from - 1)
+                                                                localPillList = currentList
+                                                                dragOffset += itemHeight
+                                                            }
                                                         }
                                                     }
                                                 }
-                                            }
-                                        )
-                                    }
-                                )
+                                            )
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

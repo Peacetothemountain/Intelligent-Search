@@ -15,7 +15,7 @@ android {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
         targetSdk = 37
-        versionCode = 103
+        versionCode = 104
         versionName = "7.8"
     }
 

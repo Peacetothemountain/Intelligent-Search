@@ -1783,7 +1783,12 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 
                 var webResultsCount by rememberIntPreference(prefs, "web_results_count", 5)
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("Web Results: $webResultsCount", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Web Results: $webResultsCount",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                     Android17Slider(
                         value = webResultsCount.toFloat(),
                         onValueChange = { webResultsCount = it.toInt() },

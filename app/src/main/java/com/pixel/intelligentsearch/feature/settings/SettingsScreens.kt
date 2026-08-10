@@ -4577,7 +4577,9 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
 
     var draggingPackage by remember { mutableStateOf<String?>(null) }
-    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var dragStartItemOffset by remember { mutableFloatStateOf(0f) }
+    var dragStartIndex by remember { mutableIntStateOf(0) }
+    var absoluteDragAmount by remember { mutableFloatStateOf(0f) }
     val listState = rememberLazyListState()
 
     var pendingIconPack by remember { mutableStateOf<String?>(null) }
@@ -4670,11 +4672,6 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     
                     val elevation by androidx.compose.animation.core.animateDpAsState(targetValue = if (isDragging) 12.dp else 0.dp, label = "elevation")
                     val scale by androidx.compose.animation.core.animateFloatAsState(targetValue = if (isDragging) 1.02f else 1f, label = "scale")
-                    val animatedOffset by androidx.compose.animation.core.animateFloatAsState(
-                        targetValue = if (isDragging) dragOffset else 0f,
-                        animationSpec = if (isDragging) androidx.compose.animation.core.snap() else androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
-                        label = "offset"
-                    )
                     val bgColor by androidx.compose.animation.animateColorAsState(
                         targetValue = if (isDragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                         label = "bgColor"
@@ -4684,7 +4681,9 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         Modifier
                             .zIndex(10f)
                             .graphicsLayer {
-                                translationY = animatedOffset
+                                val currentItem = listState.layoutInfo.visibleItemsInfo.find { it.key == packageName }
+                                val currentOffset = currentItem?.offset?.toFloat() ?: dragStartItemOffset
+                                translationY = absoluteDragAmount - (currentOffset - dragStartItemOffset)
                                 scaleX = scale
                                 scaleY = scale
                             }
@@ -4693,7 +4692,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .animateItem()
                             .zIndex(0f)
                             .graphicsLayer {
-                                translationY = animatedOffset
+                                translationY = 0f
                                 scaleX = scale
                                 scaleY = scale
                             }
@@ -4784,7 +4783,10 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             detectVerticalDragGestures(
                                                 onDragStart = {
                                                     draggingPackage = currentPkg
-                                                    dragOffset = 0f
+                                                    val itemInfo = listState.layoutInfo.visibleItemsInfo.find { it.key == currentPkg }
+                                                    dragStartItemOffset = itemInfo?.offset?.toFloat() ?: 0f
+                                                    dragStartIndex = localPillList.indexOf(currentPkg)
+                                                    absoluteDragAmount = 0f
                                                 },
                                                 onDragEnd = {
                                                     draggingPackage = null
@@ -4799,7 +4801,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 },
                                                 onVerticalDrag = { change, dragAmount ->
                                                     change.consume()
-                                                    dragOffset += dragAmount
+                                                    absoluteDragAmount += dragAmount
                                                     
                                                     val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
                                                     val draggingItem = listState.layoutInfo.visibleItemsInfo.find { it.key == currentDraggingPackage }
@@ -4809,16 +4811,15 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                         val from = localPillList.indexOf(currentDraggingPackage)
                                                         
                                                         if (from != -1) {
-                                                            if (dragOffset > itemHeight / 2f && from < localPillList.size - 1) {
+                                                            val relativeDragOffset = absoluteDragAmount - (from - dragStartIndex) * itemHeight
+                                                            if (relativeDragOffset > itemHeight / 2f && from < localPillList.size - 1) {
                                                                 val currentList = localPillList.toMutableList()
                                                                 java.util.Collections.swap(currentList, from, from + 1)
                                                                 localPillList = currentList
-                                                                dragOffset -= itemHeight
-                                                            } else if (dragOffset < -itemHeight / 2f && from > 0) {
+                                                            } else if (relativeDragOffset < -itemHeight / 2f && from > 0) {
                                                                 val currentList = localPillList.toMutableList()
                                                                 java.util.Collections.swap(currentList, from, from - 1)
                                                                 localPillList = currentList
-                                                                dragOffset += itemHeight
                                                             }
                                                         }
                                                     }

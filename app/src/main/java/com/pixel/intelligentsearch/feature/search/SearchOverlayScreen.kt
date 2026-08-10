@@ -90,11 +90,13 @@ tailrec fun android.content.Context.findActivity(): android.app.Activity? = when
 @Composable
 fun AppGridItem(app: AppItem, onClick: () -> Unit) {
     val context = LocalContext.current
-    val appIconState = remember(app.packageName) { mutableStateOf<AppIconResult?>(null) }
+    val appIconState = remember(app.packageName) { mutableStateOf<AppIconResult?>(getThemedAppIcon(context, app.packageName)) }
     LaunchedEffect(app.packageName) {
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val icon = getThemedAppIcon(context, app.packageName)
-            appIconState.value = icon
+        if (appIconState.value == null) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val icon = getThemedAppIcon(context, app.packageName)
+                appIconState.value = icon
+            }
         }
     }
     val appIcon = appIconState.value
@@ -996,7 +998,7 @@ fun SearchOverlayScreen(
                 item(key = "recent_label") {
                     Text("Recent", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 }
-                itemsIndexed(uiState.recentSearches, key = { index, query -> "recent_${query}_$index" }) { index, recentQuery ->
+                items(uiState.recentSearches, key = { "recent_$it" }) { recentQuery ->
                     val dismissState = rememberSwipeToDismissBoxState()
                     LaunchedEffect(dismissState.currentValue) {
                         if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {

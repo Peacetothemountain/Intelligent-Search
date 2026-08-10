@@ -93,10 +93,8 @@ object IconPackManager {
                 null
             }
 
-            var appFilter = appFilterMapCache[iconPackPackage]
-            if (appFilter == null) {
-                appFilter = parseAppFilter(context, iconPackPackage)
-                appFilterMapCache[iconPackPackage] = appFilter
+            val appFilter = appFilterMapCache.computeIfAbsent(iconPackPackage) {
+                parseAppFilter(context, it)
             }
 
             var drawableName: String? = null

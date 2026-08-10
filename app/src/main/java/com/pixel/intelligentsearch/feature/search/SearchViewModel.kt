@@ -169,7 +169,7 @@ class SearchViewModel @Inject constructor(
             return
         }
 
-        searchJob = viewModelScope.launch {
+        searchJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             if (verboseLogging) android.util.Log.d("SearchDebug", "Query started: $newQuery")
             val startTime = System.currentTimeMillis()
             

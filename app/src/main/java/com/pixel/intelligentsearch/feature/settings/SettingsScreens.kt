@@ -3965,9 +3965,10 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var localPillList by remember(searchPills) {
                     mutableStateOf(searchPills.split(",").filter { it.isNotBlank() })
                 }
-                
-                var draggingPackage by remember { mutableStateOf<String?>(null) }
-                var dragOffset by remember { mutableFloatStateOf(0f) }
+                      var draggingPackage by remember { mutableStateOf<String?>(null) }
+                var dragStartItemOffset by remember { mutableFloatStateOf(0f) }
+                var dragStartIndex by remember { mutableIntStateOf(0) }
+                var absoluteDragAmount by remember { mutableFloatStateOf(0f) }
                 val listState = rememberLazyListState()
                 
                 androidx.compose.foundation.lazy.LazyColumn(
@@ -3981,28 +3982,37 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 ) {
                     items(localPillList, key = { it }) { packageName ->
                         val isDragging = draggingPackage == packageName
+                        val elevation by androidx.compose.animation.core.animateDpAsState(targetValue = if (isDragging) 8.dp else 0.dp, label = "elevation")
+                        val scale by androidx.compose.animation.core.animateFloatAsState(targetValue = if (isDragging) 1.02f else 1f, label = "scale")
                         val draggingModifier = if (isDragging) {
-                            Modifier.zIndex(1f).graphicsLayer {
-                                translationY = dragOffset
+                            Modifier.zIndex(10f).graphicsLayer {
+                                val currentItem = listState.layoutInfo.visibleItemsInfo.find { it.key == packageName }
+                                val currentOffset = currentItem?.offset?.toFloat() ?: dragStartItemOffset
+                                translationY = absoluteDragAmount - (currentOffset - dragStartItemOffset)
+                                scaleX = scale
+                                scaleY = scale
                             }
                         } else {
-                            Modifier.animateItem()
+                            Modifier.animateItem().zIndex(0f).graphicsLayer {
+                                translationY = 0f
+                                scaleX = scale
+                                scaleY = scale
+                            }
                         }
                         Box(modifier = draggingModifier) {
-                            val elevation = if (isDragging) 8.dp else 0.dp
-                                                      val dismissState = rememberSwipeToDismissBoxState(
-                                    positionalThreshold = { it * 0.5f }
-                                )
-                                LaunchedEffect(dismissState.currentValue) {
-                                    if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
-                                        val currentList = localPillList.toMutableList()
-                                        currentList.remove(packageName)
-                                        localPillList = currentList
-                                        searchPills = currentList.joinToString(",")
-                                        viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, currentList.size)
-                                        prefs.edit().putInt("shortcut_results_count", currentList.size).apply()
-                                    }
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                positionalThreshold = { it * 0.5f }
+                            )
+                            LaunchedEffect(dismissState.currentValue) {
+                                if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
+                                    val currentList = localPillList.toMutableList()
+                                    currentList.remove(packageName)
+                                    localPillList = currentList
+                                    searchPills = currentList.joinToString(",")
+                                    viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, currentList.size)
+                                    prefs.edit().putInt("shortcut_results_count", currentList.size).apply()
                                 }
+                            }
 
                             SwipeToDismissBox(
                                 state = dismissState,
@@ -4071,38 +4081,45 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 detectVerticalDragGestures(
                                                     onDragStart = {
                                                         draggingPackage = packageName
-                                                        dragOffset = 0f
+                                                        val itemInfo = listState.layoutInfo.visibleItemsInfo.find { it.key == packageName }
+                                                        dragStartItemOffset = itemInfo?.offset?.toFloat() ?: 0f
+                                                        dragStartIndex = localPillList.indexOf(packageName)
+                                                        absoluteDragAmount = 0f
                                                     },
                                                     onDragEnd = {
                                                         draggingPackage = null
-                                                        dragOffset = 0f
                                                         searchPills = localPillList.joinToString(",")
                                                     },
                                                     onDragCancel = {
                                                         draggingPackage = null
-                                                        dragOffset = 0f
                                                     },
                                                     onVerticalDrag = { change, dragAmount ->
                                                         change.consume()
-                                                        dragOffset += dragAmount
+                                                        absoluteDragAmount += dragAmount
                                                         
                                                         val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
                                                         val draggingItem = listState.layoutInfo.visibleItemsInfo.find { it.key == currentDraggingPackage }
                                                         if (draggingItem != null) {
-                                                            val itemHeight = draggingItem.size.toFloat() + 32f
+                                                            val spacing = listState.layoutInfo.mainAxisItemSpacing.toFloat()
+                                                            val itemHeight = draggingItem.size.toFloat() + spacing
                                                             val from = localPillList.indexOf(currentDraggingPackage)
                                                             
                                                             if (from != -1) {
-                                                                if (dragOffset > itemHeight / 2f && from < localPillList.size - 1) {
+                                                                val relativeDragOffset = absoluteDragAmount - (from - dragStartIndex) * itemHeight
+                                                                if (relativeDragOffset > itemHeight / 2f && from < localPillList.size - 1) {
                                                                     val currentList = localPillList.toMutableList()
                                                                     java.util.Collections.swap(currentList, from, from + 1)
                                                                     localPillList = currentList
-                                                                    dragOffset -= itemHeight
-                                                                } else if (dragOffset < -itemHeight / 2f && from > 0) {
+                                                                    searchPills = currentList.joinToString(",")
+                                                                    viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, currentList.size)
+                                                                    prefs.edit().putInt("shortcut_results_count", currentList.size).apply()
+                                                                } else if (relativeDragOffset < -itemHeight / 2f && from > 0) {
                                                                     val currentList = localPillList.toMutableList()
                                                                     java.util.Collections.swap(currentList, from, from - 1)
                                                                     localPillList = currentList
-                                                                    dragOffset += itemHeight
+                                                                    searchPills = currentList.joinToString(",")
+                                                                    viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, currentList.size)
+                                                                    prefs.edit().putInt("shortcut_results_count", currentList.size).apply()
                                                                 }
                                                             }
                                                         }

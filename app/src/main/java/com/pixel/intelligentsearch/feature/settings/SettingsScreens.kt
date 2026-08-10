@@ -50,6 +50,8 @@ import android.net.Uri
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.launch
 import android.widget.Toast
 import android.content.pm.PackageManager
@@ -422,6 +424,8 @@ fun rememberStringPreference(
         "custom_search_engine_url" -> SettingsManager.CUSTOM_SEARCH_ENGINE_URL
         "widget.theme.style" -> SettingsManager.WIDGET_THEME_STYLE
         "search.pills" -> SettingsManager.SEARCH_PILLS
+        "custom_icon_pills" -> SettingsManager.CUSTOM_ICON_PILLS
+        "active_icon_pack" -> SettingsManager.ACTIVE_ICON_PACK
         else -> null
     }
 
@@ -431,6 +435,8 @@ fun rememberStringPreference(
         "custom_search_engine_url" -> settingsState?.customSearchEngineUrl ?: (prefs.getString(key, defaultValue) ?: defaultValue)
         "widget.theme.style" -> settingsState?.widgetThemeStyle ?: (prefs.getString(key, defaultValue) ?: defaultValue)
         "search.pills" -> settingsState?.searchPills ?: (prefs.getString(key, defaultValue) ?: defaultValue)
+        "custom_icon_pills" -> settingsState?.customIconPills ?: (prefs.getString(key, defaultValue) ?: defaultValue)
+        "active_icon_pack" -> settingsState?.activeIconPack ?: (prefs.getString(key, defaultValue) ?: defaultValue)
         else -> prefs.getString(key, defaultValue) ?: defaultValue
     }
 
@@ -4561,7 +4567,10 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     var activeIconPack by rememberStringPreference(prefs, "active_icon_pack", "system_default")
     var neverShowWarning by rememberBooleanPreference(prefs, "never_show_icon_pack_warning", false) {}
-    var storedPillString by rememberStringPreference(prefs, "custom_icon_packs_order", "")
+    var storedPillString by rememberStringPreference(prefs, "custom_icon_pills", "")
+    val effectivePillString = remember(storedPillString) {
+        if (storedPillString.isNotBlank()) storedPillString else prefs.getString("custom_icon_packs_order", "") ?: ""
+    }
 
     val installedPacks = remember { com.pixel.intelligentsearch.core.util.IconPackManager.getInstalledIconPacks(context) }
     val validPackSet = remember(installedPacks) {
@@ -4578,9 +4587,13 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         map
     }
 
-    var localPillList by remember(storedPillString, validPackSet) {
-        val storedList = storedPillString.split(",").filter { validPackSet.contains(it) }
-        val merged = (storedList + validPackSet).distinct().filter { validPackSet.contains(it) }
+    var localPillList by remember(effectivePillString, validPackSet) {
+        val storedList = effectivePillString.split(",")
+            .map { it.trim() }
+            .filter { it.isNotBlank() && validPackSet.contains(it) }
+        val merged = (storedList + listOf("system_default") + installedPacks.map { it.packageName })
+            .distinct()
+            .filter { validPackSet.contains(it) }
         mutableStateOf(merged)
     }
 
@@ -4777,7 +4790,10 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                     draggingPackage = null
                                                     dragOffset = 0f
                                                     storedPillString = localPillList.joinToString(",")
-                                                    prefs.edit().putString("custom_icon_packs_order", storedPillString).apply()
+                                                    prefs.edit()
+                                                        .putString("custom_icon_pills", storedPillString)
+                                                        .putString("custom_icon_packs_order", storedPillString)
+                                                        .apply()
                                                 },
                                                 onDragCancel = {
                                                     draggingPackage = null

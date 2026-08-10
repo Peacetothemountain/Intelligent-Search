@@ -28,8 +28,7 @@ object IconPackManager {
         "com.solo.launcher.free.THEME",
         "com.dlto.atom.launcher.THEME",
         "com.teslacoilsw.launcher.THEME",
-        "com.anddoes.launcher.THEME",
-        "android.intent.action.MAIN"
+        "com.anddoes.launcher.THEME"
     )
 
     private val ICON_PACK_CATEGORIES = listOf(

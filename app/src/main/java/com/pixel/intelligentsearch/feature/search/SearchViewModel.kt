@@ -219,12 +219,14 @@ class SearchViewModel @Inject constructor(
                 if (match != null) {
                     val contactName = match.groupValues[1].trim()
                     val messageBody = match.groupValues[2].trim()
-                    // Create an SMS intent (we don't resolve contact strictly here, just pass the intent to let the system handle it, or we could resolve it if we had time)
+                    val matchingContact = SystemDataProvider.getContacts(context, contactName).firstOrNull()
+                    val recipientNumber = matchingContact?.phoneNumber ?: ""
                     val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
-                        data = android.net.Uri.parse("smsto:")
+                        data = android.net.Uri.parse("smsto:$recipientNumber")
                         putExtra("sms_body", messageBody)
                     }
-                    directActions.add(DirectAction("Message ", messageBody, "message", intent))
+                    val label = if (matchingContact != null) "Message ${matchingContact.name}" else "Message $contactName"
+                    directActions.add(DirectAction(label, messageBody, "message", intent))
                 }
             }
             

@@ -1573,22 +1573,11 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 ) { index ->
                     val app = filteredApps[index]
                     val isHidden = hiddenApps.contains(app.packageName)
-                    val activePack by rememberStringPreference(prefs, "active_icon_pack", "system_default")
-                    val themedIcon = remember(app.packageName, activePack) {
-                        com.pixel.intelligentsearch.feature.search.getThemedAppIcon(context, app.packageName, activePack)
-                    }
-                    val displayIcon = remember(themedIcon, app.icon) {
-                        if (themedIcon != null) {
-                            android.graphics.drawable.BitmapDrawable(context.resources, themedIcon.bitmap.asAndroidBitmap())
-                        } else {
-                            app.icon
-                        }
-                    }
                     
                     SettingsRowToggle(
                         title = app.name,
                         subtitle = app.packageName,
-                        icon = displayIcon,
+                        icon = app.icon,
                         isChecked = isHidden,
                         onCheckedChange = { hide ->
                             val newSet = hiddenApps.toMutableSet()
@@ -3926,19 +3915,11 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         val packageName = packageInfo.packageName
                         val label = packageInfo.applicationInfo?.loadLabel(context.packageManager)?.toString() ?: ""
                         val isSelected = selectedApps.contains(packageName)
-                        val activePack by rememberStringPreference(prefs, "active_icon_pack", "system_default")
-                        val themedIcon = remember(packageName, activePack) {
-                            com.pixel.intelligentsearch.feature.search.getThemedAppIcon(context, packageName, activePack)
-                        }
-                        val appIcon: Any = remember(themedIcon, packageInfo) {
-                            if (themedIcon != null) {
-                                android.graphics.drawable.BitmapDrawable(context.resources, themedIcon.bitmap.asAndroidBitmap())
-                            } else {
-                                try {
-                                    packageInfo.applicationInfo?.loadIcon(context.packageManager) ?: Icons.Outlined.Apps
-                                } catch (e: Exception) {
-                                    Icons.Outlined.Apps
-                                }
+                        val appIcon: Any = remember(packageInfo) {
+                            try {
+                                packageInfo.applicationInfo?.loadIcon(context.packageManager) ?: Icons.Outlined.Apps
+                            } catch (e: Exception) {
+                                Icons.Outlined.Apps
                             }
                         }
                         androidx.compose.foundation.layout.Box(

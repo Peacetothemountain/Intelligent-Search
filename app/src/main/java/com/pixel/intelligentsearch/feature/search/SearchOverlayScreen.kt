@@ -700,7 +700,7 @@ fun SearchOverlayScreen(
                             val appNameState = remember(packageName) { mutableStateOf("App") }
                             LaunchedEffect(packageName) {
                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                    val icon = getThemedAppIcon(context, packageName)
+                                    val icon = getThemedAppIcon(context, packageName, activePackOverride = "system_default")
                                     val name = getAppName(context, packageName)
                                     appIconState.value = icon
                                     appNameState.value = name

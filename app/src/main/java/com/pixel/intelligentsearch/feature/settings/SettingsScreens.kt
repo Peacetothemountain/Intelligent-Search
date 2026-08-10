@@ -4048,18 +4048,7 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            val themedIcon = remember(packageName) {
-                                                com.pixel.intelligentsearch.feature.search.getThemedAppIcon(context, packageName)
-                                            }
-                                            if (themedIcon != null) {
-                                                Image(
-                                                    bitmap = themedIcon.bitmap,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(32.dp),
-                                                    colorFilter = if (themedIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
-                                                )
-                                                Spacer(modifier = Modifier.width(16.dp))
-                                            } else if (icon != null) {
+                                            if (icon != null) {
                                                 Image(
                                                     bitmap = icon.toBitmap().asImageBitmap(),
                                                     contentDescription = null,

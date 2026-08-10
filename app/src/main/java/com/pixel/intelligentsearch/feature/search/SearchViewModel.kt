@@ -89,9 +89,13 @@ class SearchViewModel @Inject constructor(
                 val recentApps = if (settingsState.value.contextAwareQuickApps) {
                     SystemDataProvider.getContextAwareQuickApps(context)
                 } else {
-                    SystemDataProvider.getRecentApps(context)
+                    SystemDataProvider.getRecentApps(context, settingsState.value.hiddenApps)
                 }
-                val events = SystemDataProvider.getUpcomingEvents(context)
+                val events = if (settingsState.value.searchCalendar) {
+                    SystemDataProvider.getUpcomingEvents(context)
+                } else {
+                    emptyList()
+                }
                 
                 val clipboardActions = mutableListOf<DirectAction>()
                 if (settingsState.value.smartClipboardSuggestions) {
@@ -230,11 +234,13 @@ class SearchViewModel @Inject constructor(
                     .flatMap { it.value }
             } else emptyList()
 
-            val filteredApps = _uiState.value.allApps.filter { app ->
-                app.name.contains(newQuery, ignoreCase = true) || 
-                app.packageName.contains(newQuery, ignoreCase = true) ||
-                fuzzyKeywords.any { app.packageName.contains(it, ignoreCase = true) || app.name.contains(it, ignoreCase = true) }
-            }
+            val filteredApps = if (settings.searchApps) {
+                _uiState.value.allApps.filter { app ->
+                    app.name.contains(newQuery, ignoreCase = true) || 
+                    app.packageName.contains(newQuery, ignoreCase = true) ||
+                    fuzzyKeywords.any { app.packageName.contains(it, ignoreCase = true) || app.name.contains(it, ignoreCase = true) }
+                }
+            } else emptyList()
             
             coroutineScope {
                 val contactsDeferred = async {

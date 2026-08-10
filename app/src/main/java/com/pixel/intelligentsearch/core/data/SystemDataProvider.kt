@@ -79,7 +79,7 @@ object SystemDataProvider {
             .toList()
     }
 
-    suspend fun getRecentApps(context: Context): List<AppItem> = withContext(Dispatchers.IO) {
+    suspend fun getRecentApps(context: Context, hiddenApps: Set<String> = emptySet()): List<AppItem> = withContext(Dispatchers.IO) {
         val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val time = System.currentTimeMillis()
         val stats = usageStatsManager.queryUsageStats(
@@ -89,7 +89,7 @@ object SystemDataProvider {
         )
 
         val pm = context.packageManager
-        val sortedStats = stats.filter { it.totalTimeInForeground > 0 }
+        val sortedStats = stats.filter { it.totalTimeInForeground > 0 && !hiddenApps.contains(it.packageName) }
             .sortedByDescending { it.lastTimeUsed }
 
         val recentApps = mutableListOf<AppItem>()
@@ -118,7 +118,7 @@ object SystemDataProvider {
         }
         
         if (recentApps.isEmpty()) {
-            return@withContext getAllApps(context).take(8)
+            return@withContext getAllApps(context).filter { !hiddenApps.contains(it.packageName) }.take(8)
         }
         
         recentApps.distinctBy { it.packageName }

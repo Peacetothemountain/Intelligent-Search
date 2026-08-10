@@ -36,6 +36,13 @@ fun Modifier.bouncyClickable(
 
     val view = androidx.compose.ui.platform.LocalView.current
 
+    val longClickLambda: (() -> Unit)? = if (onLongClick != null) {
+        {
+            view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            onLongClick()
+        }
+    } else null
+
     this
         .graphicsLayer {
             scaleX = scale
@@ -48,10 +55,7 @@ fun Modifier.bouncyClickable(
                 color = MaterialTheme.colorScheme.primary,
                 bounded = true
             ),
-            onLongClick = onLongClick?.let { {
-                view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-                it()
-            } },
+            onLongClick = longClickLambda,
             onClick = {
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 onClick()

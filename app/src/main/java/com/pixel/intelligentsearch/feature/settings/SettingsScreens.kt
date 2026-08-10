@@ -49,6 +49,7 @@ import java.util.concurrent.Executors
 import android.net.Uri
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.drawable.toBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import kotlinx.coroutines.launch
 import android.widget.Toast
 import android.content.pm.PackageManager
@@ -1566,11 +1567,21 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 ) { index ->
                     val app = filteredApps[index]
                     val isHidden = hiddenApps.contains(app.packageName)
+                    val themedIcon = remember(app.packageName) {
+                        com.pixel.intelligentsearch.feature.search.getThemedAppIcon(context, app.packageName)
+                    }
+                    val displayIcon = remember(themedIcon, app.icon) {
+                        if (themedIcon != null) {
+                            android.graphics.drawable.BitmapDrawable(context.resources, themedIcon.bitmap.asAndroidBitmap())
+                        } else {
+                            app.icon
+                        }
+                    }
                     
                     SettingsRowToggle(
                         title = app.name,
                         subtitle = app.packageName,
-                        icon = app.icon,
+                        icon = displayIcon,
                         isChecked = isHidden,
                         onCheckedChange = { hide ->
                             val newSet = hiddenApps.toMutableSet()
@@ -4041,7 +4052,18 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            if (icon != null) {
+                                            val themedIcon = remember(packageName) {
+                                                com.pixel.intelligentsearch.feature.search.getThemedAppIcon(context, packageName)
+                                            }
+                                            if (themedIcon != null) {
+                                                Image(
+                                                    bitmap = themedIcon.bitmap,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(32.dp),
+                                                    colorFilter = if (themedIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
+                                                )
+                                                Spacer(modifier = Modifier.width(16.dp))
+                                            } else if (icon != null) {
                                                 Image(
                                                     bitmap = icon.toBitmap().asImageBitmap(),
                                                     contentDescription = null,
@@ -4648,8 +4670,10 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 items(localPillList, key = { it }) { packageName ->
                     val isDragging = draggingPackage == packageName
                     val draggingModifier = if (isDragging) {
-                        Modifier.zIndex(1f).graphicsLayer {
+                        Modifier.zIndex(10f).graphicsLayer {
                             translationY = dragOffset
+                            scaleX = 1.02f
+                            scaleY = 1.02f
                         }
                     } else {
                         Modifier.animateItem()
@@ -4664,9 +4688,9 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(draggingModifier)
-                            .shadow(if (isDragging) 8.dp else 0.dp, RoundedCornerShape(24.dp))
+                            .shadow(if (isDragging) 12.dp else 0.dp, RoundedCornerShape(24.dp))
                             .clip(RoundedCornerShape(24.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            .background(if (isDragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
                             .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
                         color = Color.Transparent
                     ) {

@@ -402,23 +402,57 @@ fun SearchOverlayScreen(
     }
 
     val launchWebSearch: (String) -> Unit = { searchQuery ->
-        val intent = if (settingsState.searchEngine == "Custom" && settingsState.customSearchEngineUrl.isNotEmpty()) {
-            val urlStr = settingsState.customSearchEngineUrl.replace("%s", Uri.encode(searchQuery))
-            if (urlStr.startsWith("http://", ignoreCase = true) || urlStr.startsWith("https://", ignoreCase = true)) {
-                Intent(Intent.ACTION_VIEW, Uri.parse(urlStr))
-            } else {
-                Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra(SearchManager.QUERY, searchQuery) }
-            }
-        } else if (settingsState.searchEngine == "DuckDuckGo") {
-            Intent(Intent.ACTION_VIEW, Uri.parse("https://duckduckgo.com/?q=${Uri.encode(searchQuery)}"))
-        } else if (settingsState.searchEngine == "Bing") {
-            Intent(Intent.ACTION_VIEW, Uri.parse("https://www.bing.com/search?q=${Uri.encode(searchQuery)}"))
-        } else {
-            Intent(Intent.ACTION_WEB_SEARCH).apply {
-                if (settingsState.searchEngine == "Google") {
-                    setPackage("com.google.android.googlequicksearchbox")
+        val engine = settingsState.searchEngine
+        val customUrl = settingsState.customSearchEngineUrl
+        val encodedQuery = Uri.encode(searchQuery)
+        
+        val intent = when (engine) {
+            "Custom" -> {
+                if (customUrl.isNotBlank()) {
+                    val rawUrl = if (customUrl.contains("%s")) {
+                        customUrl.replace("%s", encodedQuery)
+                    } else {
+                        "$customUrl$encodedQuery"
+                    }
+                    val fullUrl = if (rawUrl.startsWith("http://", ignoreCase = true) || rawUrl.startsWith("https://", ignoreCase = true)) {
+                        rawUrl
+                    } else {
+                        "https://$rawUrl"
+                    }
+                    Intent(Intent.ACTION_VIEW, Uri.parse(fullUrl))
+                } else {
+                    Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra(SearchManager.QUERY, searchQuery) }
                 }
-                putExtra(SearchManager.QUERY, searchQuery)
+            }
+            "DuckDuckGo" -> {
+                val ddgIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://duckduckgo.com/?q=$encodedQuery"))
+                val pm = context.packageManager
+                if (pm.resolveActivity(ddgIntent, 0) != null) {
+                    ddgIntent
+                } else {
+                    Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra(SearchManager.QUERY, searchQuery) }
+                }
+            }
+            "Bing" -> {
+                val bingIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.bing.com/search?q=$encodedQuery"))
+                val pm = context.packageManager
+                if (pm.resolveActivity(bingIntent, 0) != null) {
+                    bingIntent
+                } else {
+                    Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra(SearchManager.QUERY, searchQuery) }
+                }
+            }
+            else -> {
+                val googleIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
+                    setPackage("com.google.android.googlequicksearchbox")
+                    putExtra(SearchManager.QUERY, searchQuery)
+                }
+                val pm = context.packageManager
+                if (pm.resolveActivity(googleIntent, 0) != null) {
+                    googleIntent
+                } else {
+                    Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra(SearchManager.QUERY, searchQuery) }
+                }
             }
         }
         try {
@@ -430,7 +464,6 @@ fun SearchOverlayScreen(
             }
             try { context.findActivity()?.startActivityForResult(fallbackIntent, 1001) } catch (ex: Exception) {}
         }
-        /* closeOverlay() */
     }
 
     LaunchedEffect(transitionState.targetState) {

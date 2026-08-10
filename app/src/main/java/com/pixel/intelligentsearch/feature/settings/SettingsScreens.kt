@@ -1754,6 +1754,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         value = customUrl,
                         onValueChange = { customUrl = it },
                         label = { Text("Custom Search URL (use %s for query)") },
+                        shape = RoundedCornerShape(32.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -1763,7 +1764,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var webSuggestions by rememberBooleanPreference(prefs, "search.web.suggestions", true)
                 SettingsRowToggle(
                     title = "Web Suggestions",
-                    subtitle = "Show search suggestions as you type",
+                    subtitle = "Helpful Suggstions Appear During Active Search.",
                     icon = Icons.Outlined.ChatBubbleOutline,
                     isChecked = webSuggestions,
                     onCheckedChange = { webSuggestions = it },
@@ -1772,8 +1773,8 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                 var searchPreviousSearches by rememberBooleanPreference(prefs, "search_previous_searches", true)
                 SettingsRowToggle(
-                    title = "Previous Searches",
-                    subtitle = "Show search history on search overlay",
+                    title = "Search History",
+                    subtitle = "Previously Searched Quieries.",
                     icon = Icons.Outlined.History,
                     isChecked = searchPreviousSearches,
                     onCheckedChange = { searchPreviousSearches = it },

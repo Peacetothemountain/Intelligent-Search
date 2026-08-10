@@ -387,13 +387,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        // =================================================================================================
-        // WARNING: DO NOT MODIFY THIS FUNCTION OR THE INTENT IT RETURNS UNDER ANY CIRCUMSTANCES.
-        // The user has explicitly mandated that this logic must NEVER be changed.
-        // It must use Intent.ACTION_VOICE_COMMAND to correctly trigger the system's native Gemini overlay.
-        // DO NOT change this to ACTION_ASSIST or launch any custom Activities. 
-        // DO NOT TOUCH!
-        // =================================================================================================
+        // Triggers the system's native voice command overlay via Intent.ACTION_VOICE_COMMAND
         fun getGeminiSearchIntent(context: Context): Intent {
             return Intent(Intent.ACTION_VOICE_COMMAND).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)

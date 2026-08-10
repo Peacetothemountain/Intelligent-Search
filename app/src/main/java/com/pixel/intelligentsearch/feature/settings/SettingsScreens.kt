@@ -4581,8 +4581,8 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         val map = mutableMapOf<String, Pair<String, ImageBitmap?>>()
         map["system_default"] = Pair("System Default", null)
         installedPacks.forEach { pack ->
-            val bitmap = try { pack.icon?.toBitmap()?.asImageBitmap() } catch (e: Exception) { null }
-            map[pack.packageName] = Pair(pack.label, bitmap)
+            val bmp = try { pack.icon?.toBitmap()?.asImageBitmap() } catch (e: Exception) { null }
+            map[pack.packageName] = Pair(pack.label, bmp)
         }
         map
     }
@@ -4776,14 +4776,15 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         }
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
+                                    val currentPkg by rememberUpdatedState(packageName)
                                     Icon(
                                         imageVector = Icons.Outlined.DragHandle,
                                         contentDescription = "Drag to reorder",
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                        modifier = Modifier.pointerInput(Unit) {
+                                        modifier = Modifier.pointerInput(currentPkg) {
                                             detectVerticalDragGestures(
                                                 onDragStart = {
-                                                    draggingPackage = packageName
+                                                    draggingPackage = currentPkg
                                                     dragOffset = 0f
                                                 },
                                                 onDragEnd = {

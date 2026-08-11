@@ -1,0 +1,19 @@
+PROPRIETARY AND CONFIDENTIAL SOFTWARE LICENSE
+
+Copyright (c) 2026 NB Designs. All Rights Reserved.
+
+1. PROPRIETARY CODEBASE
+The source code, executable binaries, design assets, user interfaces, documentation, and underlying algorithms contained within this repository ("Software") are the exclusive intellectual property and trade secrets of NB Designs.
+
+2. RESTRICTION OF RIGHTS
+NO PERMISSION is granted to any person or entity obtaining a copy or accessing any portion of this Software to:
+   (a) View, inspect, reverse engineer, decompile, or disassemble the Software except as explicitly authorized in writing by NB Designs.
+   (b) Copy, reproduce, modify, merge, adapt, or create derivative works of the Software.
+   (c) Distribute, publish, sublicense, rent, lease, sell, or transfer the Software to any third party.
+   (d) Make any portion of the source code or assets publicly available.
+
+3. CONFIDENTIALITY AND PRIVACY
+All information, data structures, and code logic associated with this repository are strictly confidential. Unauthorized access, disclosure, or dissemination is strictly prohibited and subject to full legal remedies under applicable civil and criminal intellectual property laws.
+
+4. NO WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL NB DESIGNS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE.

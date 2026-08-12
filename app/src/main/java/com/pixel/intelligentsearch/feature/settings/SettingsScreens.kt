@@ -73,6 +73,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -277,6 +278,7 @@ fun rememberBooleanPreference(
         "context_aware_quick_apps" -> SettingsManager.CONTEXT_AWARE_QUICK_APPS
         "smart_clipboard_suggestions" -> SettingsManager.SMART_CLIPBOARD_SUGGESTIONS
         "search_previous_searches" -> SettingsManager.SEARCH_PREVIOUS_SEARCHES
+        "search_overlay_enabled" -> SettingsManager.SEARCH_OVERLAY_ENABLED
         else -> null
     }
 
@@ -467,6 +469,9 @@ fun rememberStringPreference(
                 if (datastoreKey != null && viewModel != null) {
                     viewModel.updateSetting(datastoreKey, v)
                 }
+                if (key == "active_icon_pack") {
+                    com.pixel.intelligentsearch.feature.search.clearThemedIconCache()
+                }
                 prefs.edit().putString(key, v).apply()
             }
         override operator fun component1() = value
@@ -541,22 +546,27 @@ fun SettingsScreensHub(
                 context.startActivity(intent)
                 onBackToLauncher()
             } else {
+                val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_HOME)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(homeIntent)
                 onBackToLauncher()
             }
         }
 
         val onBack: () -> Unit = {
-            val currentRoute = navController.currentBackStackEntry?.destination?.route
-            val isMainScreen = currentRoute?.contains("Main") == true || (navController.previousBackStackEntry == null && initialScreen == "main")
-
             if (navController.previousBackStackEntry != null) {
                 navController.popBackStack()
-            } else if (!isMainScreen) {
-                navController.navigate(com.pixel.intelligentsearch.core.navigation.Route.Main) {
-                    popUpTo(0) { inclusive = true }
-                }
             } else {
-                handleExitBack()
+                val currentDestination = navController.currentDestination?.route
+                if (currentDestination != null && !currentDestination.contains("Main")) {
+                    navController.navigate(com.pixel.intelligentsearch.core.navigation.Route.Main) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                } else {
+                    handleExitBack()
+                }
             }
         }
 
@@ -623,7 +633,7 @@ fun SettingsScreensHub(
                     composable<com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior> { SearchBehaviorScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal> { LaunchPortalScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.AppSearch> { AppSearchScreen(prefs, onNavigate, onBack) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchPills> { SearchPillsScreen(prefs, onBack) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchPills> { SearchPillsScreen(prefs, onBack, onNavigate) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.WebSearch> { WebSearchScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.ContactSearch> { ContactSearchScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.FileSearch> { FileSearchScreen(prefs, onBack) }
@@ -829,6 +839,8 @@ fun MainSettingsScreen(
     exoPlayer: androidx.media3.exoplayer.ExoPlayer,
     showTutorial: Boolean = false
 ) {
+    var showInfoDialog by remember { mutableStateOf(false) }
+
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
@@ -837,6 +849,11 @@ fun MainSettingsScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 },
+                actions = {
+                    IconButton(onClick = { showInfoDialog = true }) {
+                        Icon(Icons.Outlined.Info, contentDescription = "Developer Note")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         }
@@ -844,6 +861,188 @@ fun MainSettingsScreen(
         val scrollState = rememberScrollState()
         
         val isTutorialActive = TutorialManager.isTutorialActive(prefs)
+
+        if (showInfoDialog) {
+            val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { 2 })
+            val coroutineScope = rememberCoroutineScope()
+            val secureRepo = remember { com.pixel.intelligentsearch.core.security.SecureSettingsRepository(context) }
+            val attestationVerifier = remember { com.pixel.intelligentsearch.core.security.KeyAttestationVerifier(context) }
+            val attestationResult = remember { attestationVerifier.generateAndVerifyAttestation() }
+            val hardwareLevel = remember { secureRepo.getHardwareSecurityLevel() }
+            val securityTitle = when (hardwareLevel) {
+                com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> "Titan M3 / StrongBox Hardware Secured"
+                com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE -> "ARM TEE Hardware Secured"
+                com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.SOFTWARE -> "Software Encryption"
+            }
+            val securityDescription = when (hardwareLevel) {
+                com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX ->
+                    "Your cryptographic keys and sensitive tokens are protected by Google Titan M3 / Titan M2 discrete RISC-V hardware coprocessor (StrongBox KeyMint HAL with EAL4+ tamper resistance and AES-256 GCM Envelope Encryption)."
+                com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE ->
+                    "Your cryptographic keys are protected by the ARM Trusted Execution Environment (TrustZone KeyStore Module)."
+                com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.SOFTWARE ->
+                    "Cryptographic keys are stored using Android KeyStore software backing."
+            }
+
+            AlertDialog(
+                onDismissRequest = { showInfoDialog = false },
+                icon = { Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                title = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (pagerState.currentPage == 0) "Developer Note" else "Hardware Security",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            repeat(2) { pageIndex ->
+                                val isSelected = pagerState.currentPage == pageIndex
+                                Box(
+                                    modifier = Modifier
+                                        .size(if (isSelected) 10.dp else 6.dp)
+                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
+                                )
+                            }
+                        }
+                    }
+                },
+                text = {
+                    androidx.compose.foundation.pager.HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp)
+                    ) { page ->
+                        if (page == 0) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    "If you are a Google Pixel user who uses stock Pixel Launcher and would like to set Intelligent Search as your default Pixel Launcher search bar widget, use the following ADB Command:",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(12.dp)
+                                    )
+                                }
+                                Text(
+                                    "Please be advised: Using adb shell settings put secure selected_search_engine com.pixel.intelligentsearch on Pixel Launcher will cause Sports and Finance options on Google At A Glance to not function.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Security,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(26.dp)
+                                        )
+                                        Text(
+                                            text = securityTitle,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = securityDescription,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): " + if (attestationResult.isHardwareAttested) "Verified ✓" else "Attested",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (attestationResult.isHardwareAttested) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "Certificate Chain Depth: ${attestationResult.certificateCount} certificates",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    if (pagerState.currentPage == 0) {
+                        TextButton(onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                            val clip = android.content.ClipData.newPlainText("ADB Command", "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch")
+                            clipboard?.setPrimaryClip(clip)
+                            Toast.makeText(context, "ADB command copied to clipboard", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Text("Copy Command")
+                        }
+                    } else {
+                        TextButton(onClick = {
+                            coroutineScope.launch { pagerState.animateScrollToPage(0) }
+                        }) {
+                            Text("Back to Note")
+                        }
+                    }
+                },
+                dismissButton = {
+                    if (pagerState.currentPage == 0) {
+                        TextButton(onClick = {
+                            coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                        }) {
+                            Text("Security Info")
+                        }
+                    } else {
+                        TextButton(onClick = { showInfoDialog = false }) {
+                            Text("Close")
+                        }
+                    }
+                }
+            )
+        }
         
                 Column(
             modifier = Modifier
@@ -1156,6 +1355,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                         val defaultThemeValue = if (isSystemDark) "Material Dark" else "Material Light"
                         var rawThemeMode by rememberStringPreference(prefs, "night.mode", defaultThemeValue)
                         val themeMode = if (rawThemeMode == "System") "Material Dark" else rawThemeMode
+
                         SettingsDropdownRow(
                             title = "App Theme",
                             subtitle = themeMode,
@@ -1249,7 +1449,8 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                             valueRange = 0f..100f,
                             icon = Icons.Outlined.BlurOn,
                             showDivider = true,
-                            steps = 9
+                            steps = 9,
+                            onReset = { blur = 50 }
                         )
                         
                         SettingsSliderRow(
@@ -1259,7 +1460,8 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                             valueRange = 0f..100f,
                             icon = Icons.Outlined.Opacity,
                             showDivider = true,
-                            steps = 9
+                            steps = 9,
+                            onReset = { transparency = 50 }
                         )
                         
                         SettingsSliderRow(
@@ -1269,7 +1471,8 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                             valueRange = 0f..100f,
                             icon = Icons.Outlined.BrightnessMedium,
                             showDivider = false,
-                            steps = 9
+                            steps = 9,
+                            onReset = { pillOpacity = 50 }
                         )
                     }
                 }
@@ -1318,9 +1521,14 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                     icon = Icons.Outlined.Apps,
                     isChecked = searchApps,
                     onCheckedChange = { searchApps = it },
-                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.AppSearch) },
-                    showDivider = true,
-
+                    onClick = { 
+                        if (searchApps) {
+                            onNavigate(com.pixel.intelligentsearch.core.navigation.Route.AppSearch) 
+                        } else {
+                            Toast.makeText(context, "Enable Apps first to configure settings.", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    showDivider = true
                 )
                 var searchWeb by rememberBooleanPreference(prefs, "search.web", false)
                 SettingsRowToggle(
@@ -1329,7 +1537,13 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                     icon = Icons.Outlined.Language,
                     isChecked = searchWeb,
                     onCheckedChange = { searchWeb = it },
-                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.WebSearch) },
+                    onClick = { 
+                        if (searchWeb) {
+                            onNavigate(com.pixel.intelligentsearch.core.navigation.Route.WebSearch) 
+                        } else {
+                            Toast.makeText(context, "Enable Web first to configure settings.", Toast.LENGTH_SHORT).show()
+                        }
+                    },
                     showDivider = true
                 )
                 var searchContacts by rememberBooleanPreference(prefs, "search.contacts", false)
@@ -1360,7 +1574,13 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                             searchContacts = false
                         }
                     },
-                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.ContactSearch) },
+                    onClick = { 
+                        if (searchContacts) {
+                            onNavigate(com.pixel.intelligentsearch.core.navigation.Route.ContactSearch) 
+                        } else {
+                            Toast.makeText(context, "Enable Contacts first to configure settings.", Toast.LENGTH_SHORT).show()
+                        }
+                    },
                     showDivider = true
                 )
                 
@@ -1397,7 +1617,13 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                             searchFiles = false
                         }
                     },
-                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.FileSearch) },
+                    onClick = { 
+                        if (searchFiles) {
+                            onNavigate(com.pixel.intelligentsearch.core.navigation.Route.FileSearch) 
+                        } else {
+                            Toast.makeText(context, "Enable Files first to configure settings.", Toast.LENGTH_SHORT).show()
+                        }
+                    },
                     showDivider = true
                 )
                 var searchCalc by rememberBooleanPreference(prefs, "search.calculator", false)
@@ -1471,7 +1697,24 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var isSearching by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     
+    val biometricGate = remember { com.pixel.intelligentsearch.core.security.BiometricSearchGate(context) }
+    var isAuthenticated by remember { mutableStateOf(false) }
+
+    val triggerAuth: () -> Unit = {
+        val targetActivity = biometricGate.getActivity()
+        if (targetActivity != null && biometricGate.isBiometricHardwareAvailable()) {
+            biometricGate.authenticateForPrivateSearch(
+                activity = targetActivity,
+                onSuccess = { isAuthenticated = true },
+                onError = { isAuthenticated = false }
+            )
+        } else {
+            isAuthenticated = true
+        }
+    }
+
     LaunchedEffect(Unit) {
+        triggerAuth()
         kotlinx.coroutines.delay(100)
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val apps = SystemDataProvider.getAllApps(context).sortedBy { it.name }
@@ -1561,44 +1804,77 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
         ) {
-            androidx.compose.foundation.lazy.LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(vertical = 8.dp)
-            ) {
-                val filteredApps = if (searchQuery.isBlank()) {
-                    installedApps
-                } else {
-                    installedApps.filter { it.name.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
-                }
-
-                items(
-                    count = filteredApps.size,
-                    key = { index -> filteredApps[index].packageName }
-                ) { index ->
-                    val app = filteredApps[index]
-                    val isHidden = hiddenApps.contains(app.packageName)
-                    
-                    SettingsRowToggle(
-                        title = app.name,
-                        subtitle = app.packageName,
-                        icon = app.icon,
-                        isChecked = isHidden,
-                        onCheckedChange = { hide ->
-                            val newSet = hiddenApps.toMutableSet()
-                            if (hide) newSet.add(app.packageName) else newSet.remove(app.packageName)
-                            hiddenApps = newSet
-                            prefs.edit().putStringSet("hidden_apps", newSet).apply()
-                            viewModel?.updateSetting(SettingsManager.HIDDEN_APPS, newSet)
-                        },
-                        showDivider = index < filteredApps.size - 1
+            if (!isAuthenticated) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Lock,
+                        contentDescription = "Locked",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(56.dp)
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        "Biometric Authentication Required",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Use Fingerprint or Face Unlock to view and manage hidden applications.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    androidx.compose.material3.Button(onClick = triggerAuth) {
+                        Text("Unlock with Biometrics")
+                    }
                 }
-                if (installedApps.isEmpty()) {
-                    item {
-                        Text(
-                            "Loading apps...",
-                            modifier = Modifier.padding(16.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                androidx.compose.foundation.lazy.LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(vertical = 8.dp)
+                ) {
+                    val filteredApps = if (searchQuery.isBlank()) {
+                        installedApps
+                    } else {
+                        installedApps.filter { it.name.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
+                    }
+
+                    items(
+                        count = filteredApps.size,
+                        key = { index -> filteredApps[index].packageName }
+                    ) { index ->
+                        val app = filteredApps[index]
+                        val isHidden = hiddenApps.contains(app.packageName)
+                        
+                        SettingsRowToggle(
+                            title = app.name,
+                            subtitle = app.packageName,
+                            icon = app.icon,
+                            isChecked = isHidden,
+                            onCheckedChange = { hide ->
+                                val newSet = hiddenApps.toMutableSet()
+                                if (hide) newSet.add(app.packageName) else newSet.remove(app.packageName)
+                                hiddenApps = newSet
+                                prefs.edit().putStringSet("hidden_apps", newSet).apply()
+                                viewModel?.updateSetting(SettingsManager.HIDDEN_APPS, newSet)
+                            },
+                            showDivider = index < filteredApps.size - 1
                         )
+                    }
+                    if (installedApps.isEmpty()) {
+                        item {
+                            Text(
+                                "Loading apps...",
+                                modifier = Modifier.padding(16.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -2308,8 +2584,10 @@ fun SettingsSliderRow(
     valueRange: ClosedFloatingPointRange<Float>,
     icon: ImageVector,
     showDivider: Boolean,
-    steps: Int = 0
+    steps: Int = 0,
+    onReset: (() -> Unit)? = null
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Column {
         Row(
             modifier = Modifier
@@ -2325,7 +2603,29 @@ fun SettingsSliderRow(
             )
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = title, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                    if (onReset != null) {
+                        IconButton(
+                            onClick = {
+                                performClickHaptic(context)
+                                onReset()
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.RestartAlt,
+                                contentDescription = "Reset to Default",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
                 Android17Slider(
                     value = value,
                     onValueChange = onValueChange,
@@ -2407,9 +2707,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localLockBlack by remember { mutableStateOf(prefs.getBoolean("widget_material_lock_black", true)) }
     var localShowVoice by remember { mutableStateOf(prefs.getBoolean("widget_show_voice", true)) }
     var localActionIcon by remember { mutableStateOf(prefs.getString("widget_action_icon", "Search") ?: "Search") }
-    var localShortcut1 by remember { mutableStateOf(prefs.getString("widget_shortcut_1", prefs.getString("widget_shortcut", "Google Lens")) ?: "Google Lens") }
-    var localShortcut2 by remember { mutableStateOf(prefs.getString("widget_shortcut_2", "None") ?: "None") }
-    var localShortcut3 by remember { mutableStateOf(prefs.getString("widget_shortcut_3", "None") ?: "None") }
+    val rawSc1 = prefs.getString("widget_shortcut_1", prefs.getString("widget_shortcut", "Google Lens")) ?: "Google Lens"
+    val rawSc2 = prefs.getString("widget_shortcut_2", "None") ?: "None"
+    val rawSc3 = prefs.getString("widget_shortcut_3", "None") ?: "None"
+    var localShortcut1 by remember { mutableStateOf(if (rawSc1 == "Voice Search") "None" else rawSc1) }
+    var localShortcut2 by remember { mutableStateOf(if (rawSc2 == "Voice Search") "None" else rawSc2) }
+    var localShortcut3 by remember { mutableStateOf(if (rawSc3 == "Voice Search") "None" else rawSc3) }
     val defaultSlotOrder = "shortcut1,mic,shortcut2,shortcut3"
     var localSlotOrderStr by remember { mutableStateOf(prefs.getString("widget_shortcut_order", defaultSlotOrder) ?: defaultSlotOrder) }
     var activeShortcutSlot by remember { mutableIntStateOf(1) }
@@ -2473,7 +2776,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         localShowVoice = true
                         localActionIcon = "Search"
                         localShortcut1 = "Google Lens"
-                        localShortcut2 = "Voice Search"
+                        localShortcut2 = "None"
                         localShortcut3 = "None"
                     }) {
                         Text("Reset", color = MaterialTheme.colorScheme.onSurface)
@@ -2552,7 +2855,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     
                     val finalPreviewIconTint = if (localMaterialGIconTheme == "Accented G Icon") {
                         accentColor
-                    } else if (previewIsMaterialYou && localMaterialGIconTheme == "Material G Icon") {
+                    } else if (localMaterialGIconTheme == "Material G Icon") {
                         androidx.compose.ui.graphics.Color.Unspecified
                     } else if (previewIsMaterialYou) {
                         androidx.compose.ui.graphics.Color.White
@@ -3792,22 +4095,54 @@ fun performClickHaptic(context: android.content.Context) {
 // -----------------------------------------------------------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
+fun SearchPillsScreen(
+    prefs: SharedPreferences,
+    onBack: () -> Unit,
+    onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = {}
+) {
     val context = LocalContext.current
     val viewModel = LocalSettingsViewModel.current
-    var searchPills by rememberStringPreference(prefs, "search.pills", "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files")
+    val defaultPills = "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files"
+
+    var activeProfile by remember { mutableIntStateOf(prefs.getInt("active_app_search_profile", 1)) }
+
+    fun getSavedProfilePills(id: Int): String {
+        return prefs.getString("app_search_profile_${id}_saved", if (id == 1) defaultPills else "") ?: ""
+    }
+
+    fun getProfilePills(id: Int): String {
+        val current = prefs.getString("app_search_profile_$id", null)
+        if (current != null) return current
+        return getSavedProfilePills(id)
+    }
+
+    var searchPills by remember { mutableStateOf(getProfilePills(activeProfile)) }
     val pillList = remember(searchPills) { searchPills.split(",").filter { it.isNotBlank() } }
     
+    // Live Auto-Save Working State to Active Profile & DataStore
+    LaunchedEffect(searchPills, activeProfile) {
+        prefs.edit().putString("app_search_profile_$activeProfile", searchPills).apply()
+        prefs.edit().putString("search.pills", searchPills).apply()
+        viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, searchPills)
+        val count = if (searchPills.isBlank()) 0 else searchPills.split(",").filter { it.isNotBlank() }.size
+        viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, count)
+        prefs.edit().putInt("shortcut_results_count", count).apply()
+    }
+
+    fun switchProfile(id: Int) {
+        activeProfile = id
+        prefs.edit().putInt("active_app_search_profile", id).apply()
+        searchPills = getProfilePills(id)
+    }
+
     var showAppPicker by remember { mutableStateOf(false) }
     var installedApps by remember { mutableStateOf<List<android.content.pm.PackageInfo>>(emptyList()) }
     var multiSelectMode by remember { mutableStateOf(false) }
     var selectedApps by remember { mutableStateOf(setOf<String>()) }
-    
     var showMaxWarning by remember { mutableStateOf(false) }
 
     LaunchedEffect(showAppPicker) {
         if (showAppPicker && installedApps.isEmpty()) {
-
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val intent = android.content.Intent(android.content.Intent.ACTION_MAIN, null).apply {
                     addCategory(android.content.Intent.CATEGORY_LAUNCHER)
@@ -3859,8 +4194,6 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     if (!currentList.contains(app)) currentList.add(app)
                                 }
                                 searchPills = currentList.joinToString(",")
-                                viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, currentList.size)
-                                prefs.edit().putInt("shortcut_results_count", currentList.size).apply()
                                 multiSelectMode = false
                                 selectedApps = emptySet()
                                 showAppPicker = false
@@ -3870,12 +4203,18 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     } else if (!showAppPicker) {
                         IconButton(onClick = {
-                            val defaultPills = "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files"
-                            searchPills = defaultPills
-                            viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, 6)
-                            prefs.edit().putInt("shortcut_results_count", 6).apply()
+                            val savedState = getSavedProfilePills(activeProfile)
+                            val restoredPills = if (savedState.isNotBlank()) savedState else if (activeProfile == 1) defaultPills else ""
+                            searchPills = restoredPills
+                            Toast.makeText(context, "Profile $activeProfile Reset to Saved State", Toast.LENGTH_SHORT).show()
                         }) {
-                            Icon(Icons.Outlined.RestartAlt, contentDescription = "Reset Default Apps")
+                            Icon(Icons.Outlined.RestartAlt, contentDescription = "Reset to Saved State")
+                        }
+                        IconButton(onClick = {
+                            prefs.edit().putString("app_search_profile_${activeProfile}_saved", searchPills).apply()
+                            Toast.makeText(context, "Profile $activeProfile State Saved", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Icon(Icons.Outlined.Save, contentDescription = "Save Profile State")
                         }
                         IconButton(onClick = { showAppPicker = true }) {
                             Icon(Icons.Outlined.Add, contentDescription = "Add Pill")
@@ -3959,8 +4298,6 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             val newListList = if (searchPills.isEmpty()) listOf(packageName) else searchPills.split(",").filter { it.isNotBlank() } + packageName
                                             if (newListList.size <= 20) {
                                                 searchPills = newListList.joinToString(",")
-                                                viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, newListList.size)
-                                                prefs.edit().putInt("shortcut_results_count", newListList.size).apply()
                                             } else {
                                                 showMaxWarning = true
                                             }
@@ -3981,33 +4318,104 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 }
             }
         } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                // Modern Android 17 Segmented Profile Bar
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    for (id in 1..5) {
+                        val isSelected = activeProfile == id
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { switchProfile(id) },
+                            label = { Text("Profile $id", fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                            leadingIcon = if (isSelected) {
+                                { Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else null,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                    }
+                }
+
                 var localPillList by remember(searchPills) {
                     mutableStateOf(searchPills.split(",").filter { it.isNotBlank() })
                 }
-                      var draggingPackage by remember { mutableStateOf<String?>(null) }
-                var dragStartItemOffset by remember { mutableFloatStateOf(0f) }
-                var dragStartIndex by remember { mutableIntStateOf(0) }
-                var absoluteDragAmount by remember { mutableFloatStateOf(0f) }
-                val listState = rememberLazyListState()
-                
-                androidx.compose.foundation.lazy.LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(top = 8.dp)
-                ) {
-                    items(localPillList, key = { it }) { packageName ->
+
+                if (localPillList.isEmpty()) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                        color = Color.Transparent
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.AccountCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Text(
+                                "Profile $activeProfile is Empty",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                "Tap '+' to add applications to Profile $activeProfile. All changes auto-save in real-time.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Button(
+                                onClick = { showAppPicker = true },
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Add Applications")
+                            }
+                        }
+                    }
+                } else {
+                    var draggingPackage by remember { mutableStateOf<String?>(null) }
+                    var itemDragOffset by remember { mutableFloatStateOf(0f) }
+                    val listState = rememberLazyListState()
+                    
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp)
+                    ) {
+                        items(localPillList, key = { it }) { packageName ->
                         val isDragging = draggingPackage == packageName
                         val elevation by androidx.compose.animation.core.animateDpAsState(targetValue = if (isDragging) 8.dp else 0.dp, label = "elevation")
-                        val scale by androidx.compose.animation.core.animateFloatAsState(targetValue = if (isDragging) 1.02f else 1f, label = "scale")
+                        val scale by androidx.compose.animation.core.animateFloatAsState(targetValue = if (isDragging) 1.03f else 1f, label = "scale")
                         val draggingModifier = if (isDragging) {
                             Modifier.zIndex(10f).graphicsLayer {
-                                val currentItem = listState.layoutInfo.visibleItemsInfo.find { it.key == packageName }
-                                val currentOffset = currentItem?.offset?.toFloat() ?: dragStartItemOffset
-                                translationY = absoluteDragAmount - (currentOffset - dragStartItemOffset)
+                                translationY = itemDragOffset
                                 scaleX = scale
                                 scaleY = scale
                             }
@@ -4100,21 +4508,20 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 detectVerticalDragGestures(
                                                     onDragStart = {
                                                         draggingPackage = packageName
-                                                        val itemInfo = listState.layoutInfo.visibleItemsInfo.find { it.key == packageName }
-                                                        dragStartItemOffset = itemInfo?.offset?.toFloat() ?: 0f
-                                                        dragStartIndex = localPillList.indexOf(packageName)
-                                                        absoluteDragAmount = 0f
+                                                        itemDragOffset = 0f
                                                     },
                                                     onDragEnd = {
                                                         draggingPackage = null
+                                                        itemDragOffset = 0f
                                                         searchPills = localPillList.joinToString(",")
                                                     },
                                                     onDragCancel = {
                                                         draggingPackage = null
+                                                        itemDragOffset = 0f
                                                     },
                                                     onVerticalDrag = { change, dragAmount ->
                                                         change.consume()
-                                                        absoluteDragAmount += dragAmount
+                                                        itemDragOffset += dragAmount
                                                         
                                                         val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
                                                         val draggingItem = listState.layoutInfo.visibleItemsInfo.find { it.key == currentDraggingPackage }
@@ -4124,21 +4531,16 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                             val from = localPillList.indexOf(currentDraggingPackage)
                                                             
                                                             if (from != -1) {
-                                                                val relativeDragOffset = absoluteDragAmount - (from - dragStartIndex) * itemHeight
-                                                                if (relativeDragOffset > itemHeight / 2f && from < localPillList.size - 1) {
+                                                                if (itemDragOffset > itemHeight / 2f && from < localPillList.size - 1) {
                                                                     val currentList = localPillList.toMutableList()
                                                                     java.util.Collections.swap(currentList, from, from + 1)
                                                                     localPillList = currentList
-                                                                    searchPills = currentList.joinToString(",")
-                                                                    viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, currentList.size)
-                                                                    prefs.edit().putInt("shortcut_results_count", currentList.size).apply()
-                                                                } else if (relativeDragOffset < -itemHeight / 2f && from > 0) {
+                                                                    itemDragOffset -= itemHeight
+                                                                } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
                                                                     val currentList = localPillList.toMutableList()
                                                                     java.util.Collections.swap(currentList, from, from - 1)
                                                                     localPillList = currentList
-                                                                    searchPills = currentList.joinToString(",")
-                                                                    viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, currentList.size)
-                                                                    prefs.edit().putInt("shortcut_results_count", currentList.size).apply()
+                                                                    itemDragOffset += itemHeight
                                                                 }
                                                             }
                                                         }
@@ -4151,17 +4553,14 @@ fun SearchPillsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             }
                         }
                     }
-                    if (pillList.isEmpty()) {
-                        item {
-                            Text("No apps added. Click + to add some.", modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
                     item {
                         Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
+            }
         }
     }
+}
 }
 
 // -----------------------------------------------------------------------------------------
@@ -4872,6 +5271,8 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         }
     }
 }
+
+
 
 
 

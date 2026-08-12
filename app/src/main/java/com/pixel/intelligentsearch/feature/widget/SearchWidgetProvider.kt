@@ -60,9 +60,12 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val showGemini = prefs.getBoolean("widget_show_gemini", false)
         val showGIcon = prefs.getBoolean("widget_show_g_icon", true)
         val actionIconStr = prefs.getString("widget_action_icon", "Search") ?: "Search"
-        val shortcut1Str = prefs.getString("widget_shortcut_1", prefs.getString("widget_shortcut", "Google Lens")) ?: "Google Lens"
-        val shortcut2Str = prefs.getString("widget_shortcut_2", "None") ?: "None"
-        val shortcut3Str = prefs.getString("widget_shortcut_3", "None") ?: "None"
+        val rawShortcut1 = prefs.getString("widget_shortcut_1", prefs.getString("widget_shortcut", "Google Lens")) ?: "Google Lens"
+        val rawShortcut2 = prefs.getString("widget_shortcut_2", "None") ?: "None"
+        val rawShortcut3 = prefs.getString("widget_shortcut_3", "None") ?: "None"
+        val shortcut1Str = if (rawShortcut1 == "Voice Search") "None" else rawShortcut1
+        val shortcut2Str = if (rawShortcut2 == "Voice Search") "None" else rawShortcut2
+        val shortcut3Str = if (rawShortcut3 == "Voice Search") "None" else rawShortcut3
 
         val themeMode = prefs.getString("night.mode", "System") ?: "System"
         val isDark = when (themeMode) {
@@ -97,9 +100,10 @@ class SearchWidgetProvider : AppWidgetProvider() {
 
         val lockBlack = prefs.getBoolean("widget_material_lock_black", true)
 
-        // Inner pill: Material Black for Material You, System Design uses specific colors based on subtheme
         val pillColor = if (isMaterialYou) {
-            if (lockBlack) 0xFF121212.toInt() else actualCustomColor
+            if (lockBlack) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_neutral1_900) else 0xFF121212.toInt()
+            } else actualCustomColor
         } else {
             when (subthemeStr) {
                 "Light" -> 0xFFF8F9FA.toInt()
@@ -216,7 +220,11 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 
                 bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme)
                 views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic_original)
-                views.setColorStateList(R.id.widget_voice_search, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
+                if (materialGIconTheme == "Accented G Icon") {
+                    views.setColorStateList(R.id.widget_voice_search, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
+                } else {
+                    views.setColorStateList(R.id.widget_voice_search, "setImageTintList", null)
+                }
             }
 
             // Bind 4 ordered shortcut and microphone slots
@@ -264,14 +272,10 @@ class SearchWidgetProvider : AppWidgetProvider() {
                     views.setViewVisibility(targetViewId, View.VISIBLE)
                     views.setImageViewResource(targetViewId, item.second)
 
-                    if (isMaterialYou) {
-                        if (materialGIconTheme == "Accented G Icon") {
-                            views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
-                        } else {
-                            views.setColorStateList(targetViewId, "setImageTintList", null)
-                        }
-                    } else {
+                    if (materialGIconTheme == "Accented G Icon") {
                         views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
+                    } else {
+                        views.setColorStateList(targetViewId, "setImageTintList", null)
                     }
 
                     val pi = PendingIntent.getActivity(
@@ -306,12 +310,6 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             views.setOnClickPendingIntent(R.id.widget_pill_container, mainPI)
             views.setOnClickPendingIntent(R.id.widget_g_logo, mainPI)
-
-            // Tap mic -> Voice Search
-            val voicePI = PendingIntent.getActivity(context, appWidgetId + 1000,
-                getVoiceSearchIntent(context),
-                PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            views.setOnClickPendingIntent(R.id.widget_voice_search, voicePI)
 
             // Tap sparkle circle inside pill -> Gemini
             val geminiPI = PendingIntent.getActivity(context, appWidgetId + 2500,

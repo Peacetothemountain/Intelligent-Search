@@ -15,15 +15,15 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "in
 
 data class IntelligentSearchSettings(
     val theme: String = "system",
-    val searchApps: Boolean = true,
-    val searchContacts: Boolean = true,
+    val searchApps: Boolean = false,
+    val searchContacts: Boolean = false,
     val searchFiles: Boolean = false,
-    val searchWeb: Boolean = true,
+    val searchWeb: Boolean = false,
     val searchCalculator: Boolean = true,
     val searchCalendar: Boolean = true,
     val searchShortcuts: Boolean = true,
     val backgroundBlur: Int = 50,
-    val showWallpaper: Boolean = false,
+    val showWallpaper: Boolean = true,
     val backgroundTransparency: Int = 50,
     val pillOpacity: Int = 50,
     val searchEngine: String = "Google",
@@ -44,7 +44,7 @@ data class IntelligentSearchSettings(
     val quickSearchPlayStore: Boolean = true,
     val quickSearchMaps: Boolean = true,
     val searchPills: String = "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files",
-    val widgetThemeStyle: String = "dynamic",
+    val widgetThemeStyle: String = "System Default",
     val hiddenApps: Set<String> = emptySet(),
     val appQuickLaunch: Boolean = false,
     val contactDirectCall: Boolean = false,
@@ -58,6 +58,7 @@ data class IntelligentSearchSettings(
     val contextAwareQuickApps: Boolean = false,
     val smartClipboardSuggestions: Boolean = false,
     val activeIconPack: String = "system_default",
+    val searchOverlayEnabled: Boolean = true,
     val customIconPills: String = "",
     val neverShowIconPackWarning: Boolean = false,
     val searchPreviousSearches: Boolean = true
@@ -111,6 +112,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val CONTEXT_AWARE_QUICK_APPS = booleanPreferencesKey("context_aware_quick_apps")
         val SMART_CLIPBOARD_SUGGESTIONS = booleanPreferencesKey("smart_clipboard_suggestions")
         val ACTIVE_ICON_PACK = stringPreferencesKey("active_icon_pack")
+        val SEARCH_OVERLAY_ENABLED = booleanPreferencesKey("search_overlay_enabled")
         val CUSTOM_ICON_PILLS = stringPreferencesKey("custom_icon_pills")
         val NEVER_SHOW_ICON_PACK_WARNING = booleanPreferencesKey("never_show_icon_pack_warning")
     }
@@ -128,10 +130,10 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             val defaultTheme = if (isSystemDark) "Material Dark" else "Material Light"
             IntelligentSearchSettings(
                 theme = preferences[THEME] ?: defaultTheme,
-                searchApps = preferences[SEARCH_APPS] ?: true,
-                searchContacts = preferences[SEARCH_CONTACTS] ?: true,
+                searchApps = preferences[SEARCH_APPS] ?: false,
+                searchContacts = preferences[SEARCH_CONTACTS] ?: false,
                 searchFiles = preferences[SEARCH_FILES] ?: false,
-                searchWeb = preferences[SEARCH_WEB] ?: true,
+                searchWeb = preferences[SEARCH_WEB] ?: false,
                 searchCalculator = preferences[SEARCH_CALCULATOR] ?: true,
                 searchCalendar = preferences[SEARCH_CALENDAR] ?: true,
                 searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: true,
@@ -157,7 +159,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 quickSearchPlayStore = preferences[QUICK_SEARCH_PLAY_STORE] ?: true,
                 quickSearchMaps = preferences[QUICK_SEARCH_MAPS] ?: true,
                 searchPills = preferences[SEARCH_PILLS] ?: "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files",
-                widgetThemeStyle = preferences[WIDGET_THEME_STYLE] ?: "dynamic",
+                widgetThemeStyle = preferences[WIDGET_THEME_STYLE] ?: "System Default",
                 hiddenApps = preferences[HIDDEN_APPS] ?: emptySet(),
                 appQuickLaunch = preferences[APP_QUICK_LAUNCH] ?: false,
                 contactDirectCall = preferences[CONTACT_DIRECT_CALL] ?: false,

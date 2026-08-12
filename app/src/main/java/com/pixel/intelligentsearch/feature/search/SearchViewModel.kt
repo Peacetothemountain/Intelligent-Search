@@ -70,8 +70,16 @@ class SearchViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     private var searchJob: Job? = null
-    
+
+    private val liteRtEngine = com.pixel.intelligentsearch.core.ai.LiteRtEngine(context)
+    private val adpfThermalManager = com.pixel.intelligentsearch.core.performance.ADPFThermalManager(context)
+    private val appSearchEngine = com.pixel.intelligentsearch.core.data.AppSearchEngine(context)
+    private val privateSpaceManager = com.pixel.intelligentsearch.core.data.PrivateSpaceManager(context)
+    private val pixelEcosystemSync = com.pixel.intelligentsearch.core.ecosystem.PixelEcosystemSync(context)
+    private val nexusLauncherBridge = com.pixel.intelligentsearch.core.data.NexusLauncherBridge(context)
+
     init {
+        adpfThermalManager.applyTopAppThreadPriority()
         loadInitialData()
         
         viewModelScope.launch {
@@ -86,15 +94,38 @@ class SearchViewModel @Inject constructor(
             try {
                 kotlinx.coroutines.delay(400) // Delay to let enter transition animation complete
                 val allApps = SystemDataProvider.getAllApps(context)
-                val recentApps = if (settingsState.value.contextAwareQuickApps) {
-                    SystemDataProvider.getContextAwareQuickApps(context)
-                } else {
-                    SystemDataProvider.getRecentApps(context, settingsState.value.hiddenApps)
+                
+                val launcherPredictedApps = nexusLauncherBridge.getPredictedApps().mapNotNull { pred ->
+                    try {
+                        val iconDrawable = context.packageManager.getApplicationIcon(pred.packageName)
+                        AppItem(name = pred.displayName, packageName = pred.packageName, icon = iconDrawable)
+                    } catch (e: Exception) {
+                        null
+                    }
                 }
+
+                val recentApps = if (settingsState.value.contextAwareQuickApps) {
+                    val quickApps = SystemDataProvider.getContextAwareQuickApps(context)
+                    if (launcherPredictedApps.isNotEmpty()) (launcherPredictedApps + quickApps).distinctBy { it.packageName } else quickApps
+                } else {
+                    val standardRecents = SystemDataProvider.getRecentApps(context, settingsState.value.hiddenApps)
+                    if (launcherPredictedApps.isNotEmpty()) (launcherPredictedApps + standardRecents).distinctBy { it.packageName } else standardRecents
+                }
+
                 val events = if (settingsState.value.searchCalendar) {
                     SystemDataProvider.getUpcomingEvents(context)
                 } else {
                     emptyList()
+                }
+
+                val dockState = pixelEcosystemSync.getDeviceDockState()
+                if (dockState.isDocked) {
+                    android.util.Log.i("SearchViewModel", "Pixel Ecosystem Docked state active (Desk: ${dockState.isDeskDock}, Car: ${dockState.isCarDock})")
+                }
+
+                val profileState = privateSpaceManager.getProfileContainerState()
+                if (profileState.hasPrivateSpace && profileState.isPrivateSpaceLocked) {
+                    android.util.Log.i("SearchViewModel", "Android 15/16 Private Space container is locked.")
                 }
                 
                 val clipboardActions = mutableListOf<DirectAction>()
@@ -137,6 +168,7 @@ class SearchViewModel @Inject constructor(
 
     fun onQueryChanged(newQuery: String) {
         _uiState.update { it.copy(query = newQuery) }
+        pixelEcosystemSync.broadcastSearchStateToWearOS(newQuery)
         
         val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
         val simulateLatency = prefs.getBoolean("debug.simulate_latency", false)
@@ -154,7 +186,7 @@ class SearchViewModel @Inject constructor(
                     contacts = emptyList(),
                     files = emptyList(),
                     shortcuts = emptyList(),
-                      directActions = emptyList(),
+                    directActions = emptyList(),
                     mathResult = null,
                     instantAnswer = null
                 ) }
@@ -165,7 +197,7 @@ class SearchViewModel @Inject constructor(
                     files = emptyList(),
                     webSuggestions = emptyList(),
                     shortcuts = emptyList(),
-                      directActions = emptyList(),
+                    directActions = emptyList(),
                     mathResult = null,
                     instantAnswer = null
                 ) }
@@ -176,6 +208,17 @@ class SearchViewModel @Inject constructor(
         searchJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             if (verboseLogging) android.util.Log.d("SearchDebug", "Query started: $newQuery")
             val startTime = System.currentTimeMillis()
+
+            val queryEmbedding = liteRtEngine.generateTextEmbedding(newQuery)
+            appSearchEngine.indexDocument(
+                com.pixel.intelligentsearch.core.data.IndexedSearchDocument(
+                    id = newQuery.hashCode().toString(),
+                    namespace = "search_history",
+                    title = newQuery,
+                    snippet = "User search query",
+                    timestampMs = System.currentTimeMillis()
+                )
+            )
             
             delay(60)
             if (simulateLatency) {

@@ -4,6 +4,8 @@
 
     <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
     
     <!-- Search Data Source Permissions -->
@@ -78,12 +80,27 @@
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.ASSIST" />
+                <action android:name="android.intent.action.VOICE_ASSIST" />
+                <action android:name="android.intent.action.SEARCH_LONG_PRESS" />
+                <action android:name="com.google.android.apps.nexuslauncher.SEARCH" />
+                <action android:name="com.android.launcher3.action.SEARCH" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <meta-data
                 android:name="android.app.searchable"
                 android:resource="@xml/searchable" />
         </activity>
+
+        <service
+            android:name="com.pixel.intelligentsearch.core.service.QuickSearchTileService"
+            android:icon="@drawable/ic_search_ai_colored"
+            android:label="Quick Search"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
 
         <activity
             android:name="com.pixel.intelligentsearch.feature.widget.WidgetActivity"
@@ -165,6 +182,12 @@
             android:permission="android.permission.BIND_VOICE_INTERACTION"
             android:exported="true">
         </service>
+
+        <provider
+            android:name="com.pixel.intelligentsearch.core.data.GlobalSearchProvider"
+            android:authorities="com.pixel.intelligentsearch.globalsearch"
+            android:exported="true"
+            android:permission="android.permission.GLOBAL_SEARCH" />
 
     </application>
 </manifest>

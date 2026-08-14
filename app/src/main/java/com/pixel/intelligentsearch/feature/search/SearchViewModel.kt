@@ -45,6 +45,7 @@ data class SearchUiState(
     val shortcuts: List<AppShortcutItem> = emptyList(),
     val mathResult: String? = null,
     val instantAnswer: InstantAnswer? = null,
+    val systemToggle: com.pixel.intelligentsearch.core.ui.SystemToggleUiState? = null,
     val directActions: List<DirectAction> = emptyList(),
     val calendarEvents: List<CalendarEvent> = emptyList(),
     val recentSearches: List<String> = emptyList(),
@@ -70,8 +71,17 @@ class SearchViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     private var searchJob: Job? = null
-    
+
+    private val liteRtEngine = com.pixel.intelligentsearch.core.ai.LiteRtEngine(context)
+    private val adpfThermalManager = com.pixel.intelligentsearch.core.performance.ADPFThermalManager(context)
+    private val appSearchEngine = com.pixel.intelligentsearch.core.data.AppSearchEngine(context)
+    private val privateSpaceManager = com.pixel.intelligentsearch.core.data.PrivateSpaceManager(context)
+    private val pixelEcosystemSync = com.pixel.intelligentsearch.core.ecosystem.PixelEcosystemSync(context)
+    private val nexusLauncherBridge = com.pixel.intelligentsearch.core.data.NexusLauncherBridge(context)
+    private val systemToggleManager = com.pixel.intelligentsearch.core.system.SystemToggleManager(context)
+
     init {
+        adpfThermalManager.applyTopAppThreadPriority()
         loadInitialData()
         
         viewModelScope.launch {
@@ -86,31 +96,60 @@ class SearchViewModel @Inject constructor(
             try {
                 kotlinx.coroutines.delay(400) // Delay to let enter transition animation complete
                 val allApps = SystemDataProvider.getAllApps(context)
-                val recentApps = if (settingsState.value.contextAwareQuickApps) {
-                    SystemDataProvider.getContextAwareQuickApps(context)
-                } else {
-                    SystemDataProvider.getRecentApps(context)
+                
+                val launcherPredictedApps = nexusLauncherBridge.getPredictedApps().mapNotNull { pred ->
+                    try {
+                        val iconDrawable = context.packageManager.getApplicationIcon(pred.packageName)
+                        AppItem(name = pred.displayName, packageName = pred.packageName, icon = iconDrawable)
+                    } catch (e: Exception) {
+                        null
+                    }
                 }
-                val events = SystemDataProvider.getUpcomingEvents(context)
+
+                val recentApps = if (settingsState.value.contextAwareQuickApps) {
+                    val quickApps = SystemDataProvider.getContextAwareQuickApps(context)
+                    if (launcherPredictedApps.isNotEmpty()) (launcherPredictedApps + quickApps).distinctBy { it.packageName } else quickApps
+                } else {
+                    val standardRecents = SystemDataProvider.getRecentApps(context, settingsState.value.hiddenApps)
+                    if (launcherPredictedApps.isNotEmpty()) (launcherPredictedApps + standardRecents).distinctBy { it.packageName } else standardRecents
+                }
+
+                val events = if (settingsState.value.searchCalendar) {
+                    SystemDataProvider.getUpcomingEvents(context)
+                } else {
+                    emptyList()
+                }
+
+                val dockState = pixelEcosystemSync.getDeviceDockState()
+                if (dockState.isDocked) {
+                    android.util.Log.i("SearchViewModel", "Pixel Ecosystem Docked state active (Desk: ${dockState.isDeskDock}, Car: ${dockState.isCarDock})")
+                }
+
+                val profileState = privateSpaceManager.getProfileContainerState()
+                if (profileState.hasPrivateSpace && profileState.isPrivateSpaceLocked) {
+                    android.util.Log.i("SearchViewModel", "Android 15/16 Private Space container is locked.")
+                }
                 
                 val clipboardActions = mutableListOf<DirectAction>()
                 if (settingsState.value.smartClipboardSuggestions) {
                     try {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        if (clipboard.hasPrimaryClip()) {
+                        if (clipboard.hasPrimaryClip() && clipboard.primaryClipDescription != null) {
                             val item = clipboard.primaryClip?.getItemAt(0)
-                            val text = item?.text?.toString()
+                            val text = item?.text?.toString() ?: item?.coerceToText(context)?.toString()
                             if (!text.isNullOrBlank()) {
-                                if (android.util.Patterns.WEB_URL.matcher(text).matches()) {
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(text))
-                                    clipboardActions.add(DirectAction("Open Link", text, "link", intent))
-                                } else if (android.util.Patterns.PHONE.matcher(text).matches()) {
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$text"))
-                                    clipboardActions.add(DirectAction("Call Number", text, "phone", intent))
+                                val trimmed = text.trim()
+                                if (android.util.Patterns.WEB_URL.matcher(trimmed).matches()) {
+                                    val url = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed else "https://$trimmed"
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                    clipboardActions.add(DirectAction("Open Link", trimmed, "link", intent))
+                                } else if (android.util.Patterns.PHONE.matcher(trimmed).matches() && trimmed.length >= 7) {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$trimmed"))
+                                    clipboardActions.add(DirectAction("Call Number", trimmed, "phone", intent))
                                 } else {
                                     val intent = android.content.Intent(android.content.Intent.ACTION_WEB_SEARCH)
-                                    intent.putExtra(android.app.SearchManager.QUERY, text)
-                                    clipboardActions.add(DirectAction("Search Copied Text", text, "search", intent))
+                                    intent.putExtra(android.app.SearchManager.QUERY, trimmed)
+                                    clipboardActions.add(DirectAction("Search Copied Text", trimmed, "search", intent))
                                 }
                             }
                         }
@@ -131,6 +170,7 @@ class SearchViewModel @Inject constructor(
 
     fun onQueryChanged(newQuery: String) {
         _uiState.update { it.copy(query = newQuery) }
+        pixelEcosystemSync.broadcastSearchStateToWearOS(newQuery)
         
         val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
         val simulateLatency = prefs.getBoolean("debug.simulate_latency", false)
@@ -148,9 +188,10 @@ class SearchViewModel @Inject constructor(
                     contacts = emptyList(),
                     files = emptyList(),
                     shortcuts = emptyList(),
-                      directActions = emptyList(),
+                    directActions = emptyList(),
                     mathResult = null,
-                    instantAnswer = null
+                    instantAnswer = null,
+                    systemToggle = null
                 ) }
             } else {
                 _uiState.update { it.copy(
@@ -159,19 +200,31 @@ class SearchViewModel @Inject constructor(
                     files = emptyList(),
                     webSuggestions = emptyList(),
                     shortcuts = emptyList(),
-                      directActions = emptyList(),
+                    directActions = emptyList(),
                     mathResult = null,
-                    instantAnswer = null
+                    instantAnswer = null,
+                    systemToggle = null
                 ) }
             }
             return
         }
 
-        searchJob = viewModelScope.launch {
+        searchJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             if (verboseLogging) android.util.Log.d("SearchDebug", "Query started: $newQuery")
             val startTime = System.currentTimeMillis()
+
+            val queryEmbedding = liteRtEngine.generateTextEmbedding(newQuery)
+            appSearchEngine.indexDocument(
+                com.pixel.intelligentsearch.core.data.IndexedSearchDocument(
+                    id = newQuery.hashCode().toString(),
+                    namespace = "search_history",
+                    title = newQuery,
+                    snippet = "User search query",
+                    timestampMs = System.currentTimeMillis()
+                )
+            )
             
-            delay(150)
+            delay(60)
             if (simulateLatency) {
                 delay(2000)
             }
@@ -213,12 +266,14 @@ class SearchViewModel @Inject constructor(
                 if (match != null) {
                     val contactName = match.groupValues[1].trim()
                     val messageBody = match.groupValues[2].trim()
-                    // Create an SMS intent (we don't resolve contact strictly here, just pass the intent to let the system handle it, or we could resolve it if we had time)
+                    val matchingContact = SystemDataProvider.getContacts(context, contactName).firstOrNull()
+                    val recipientNumber = matchingContact?.phoneNumber ?: ""
                     val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
-                        data = android.net.Uri.parse("smsto:")
+                        data = android.net.Uri.parse("smsto:$recipientNumber")
                         putExtra("sms_body", messageBody)
                     }
-                    directActions.add(DirectAction("Message ", messageBody, "message", intent))
+                    val label = if (matchingContact != null) "Message ${matchingContact.name}" else "Message $contactName"
+                    directActions.add(DirectAction(label, messageBody, "message", intent))
                 }
             }
             
@@ -228,11 +283,13 @@ class SearchViewModel @Inject constructor(
                     .flatMap { it.value }
             } else emptyList()
 
-            val filteredApps = _uiState.value.allApps.filter { app ->
-                app.name.contains(newQuery, ignoreCase = true) || 
-                app.packageName.contains(newQuery, ignoreCase = true) ||
-                fuzzyKeywords.any { app.packageName.contains(it, ignoreCase = true) || app.name.contains(it, ignoreCase = true) }
-            }
+            val filteredApps = if (settings.searchApps) {
+                _uiState.value.allApps.filter { app ->
+                    app.name.contains(newQuery, ignoreCase = true) || 
+                    app.packageName.contains(newQuery, ignoreCase = true) ||
+                    fuzzyKeywords.any { app.packageName.contains(it, ignoreCase = true) || app.name.contains(it, ignoreCase = true) }
+                }
+            } else emptyList()
             
             coroutineScope {
                 val contactsDeferred = async {
@@ -300,11 +357,228 @@ class SearchViewModel @Inject constructor(
                     }
                 }
 
+                val systemToggleDeferred = async {
+                    val qClean = newQuery.lowercase().trim()
+                    when {
+                        qClean in listOf("flashlight", "torch", "flash light", "light", "flash") -> {
+                            val isTorch = systemToggleManager.isTorchEnabled()
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "flashlight",
+                                title = "Flashlight",
+                                subtitle = systemToggleManager.getTorchStatusText(isTorch),
+                                iconType = "flashlight",
+                                isEnabled = isTorch,
+                                onToggle = { systemToggleManager.toggleTorch(it) },
+                                onOpenSettings = { systemToggleManager.openTorchSettings() }
+                            )
+                        }
+                        qClean in listOf("bluetooth", "bt", "blue tooth") -> {
+                            val isBt = systemToggleManager.isBluetoothEnabled()
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "bluetooth",
+                                title = "Bluetooth",
+                                subtitle = systemToggleManager.getBluetoothStatusText(isBt),
+                                iconType = "bluetooth",
+                                isEnabled = isBt,
+                                onToggle = { systemToggleManager.toggleBluetooth(it) },
+                                onOpenSettings = { systemToggleManager.openBluetoothSettings() }
+                            )
+                        }
+                        qClean in listOf("wifi", "wi-fi", "internet", "wireless", "wlan") -> {
+                            val isWifi = systemToggleManager.isWifiEnabled()
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "wifi",
+                                title = "Wi-Fi",
+                                subtitle = systemToggleManager.getWifiStatusText(isWifi),
+                                iconType = "wifi",
+                                isEnabled = isWifi,
+                                onToggle = { systemToggleManager.toggleWifiDirect(it) },
+                                onOpenSettings = { systemToggleManager.openWifiSettings() }
+                            )
+                        }
+                        qClean in listOf("mobile data", "cellular", "cellular data", "data", "lte", "5g") -> {
+                            val isData = systemToggleManager.isMobileDataEnabled()
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "cellular",
+                                title = "Mobile Data",
+                                subtitle = systemToggleManager.getMobileDataStatusText(),
+                                iconType = "cellular",
+                                isEnabled = isData,
+                                isActionOnly = true,
+                                onToggle = { systemToggleManager.openMobileDataSettings() },
+                                onOpenSettings = { systemToggleManager.openMobileDataSettings() }
+                            )
+                        }
+                        qClean in listOf("airplane", "airplane mode", "aeroplane mode", "flight mode") -> {
+                            val isAir = systemToggleManager.isAirplaneModeEnabled()
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "airplane",
+                                title = "Airplane Mode",
+                                subtitle = systemToggleManager.getAirplaneModeStatusText(isAir),
+                                iconType = "airplane",
+                                isEnabled = isAir,
+                                isActionOnly = true,
+                                onToggle = { systemToggleManager.openAirplaneModeSettings() },
+                                onOpenSettings = { systemToggleManager.openAirplaneModeSettings() }
+                            )
+                        }
+                        qClean in listOf("auto rotate", "autorotate", "rotation", "screen rotation", "rotate", "portrait", "landscape") -> {
+                            val isRotate = systemToggleManager.isAutoRotateEnabled()
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "autorotate",
+                                title = "Auto-Rotate",
+                                subtitle = systemToggleManager.getAutoRotateStatusText(isRotate),
+                                iconType = "autorotate",
+                                isEnabled = isRotate,
+                                onToggle = { systemToggleManager.toggleAutoRotate(it) },
+                                onOpenSettings = { systemToggleManager.openAutoRotateSettings() }
+                            )
+                        }
+                        qClean in listOf("dnd", "do not disturb", "silence", "mute phone", "priority only") -> {
+                            val isDnd = systemToggleManager.isDndEnabled()
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "dnd",
+                                title = "Do Not Disturb",
+                                subtitle = systemToggleManager.getDndStatusText(isDnd),
+                                iconType = "dnd",
+                                isEnabled = isDnd,
+                                onToggle = { systemToggleManager.toggleDnd(it) },
+                                onOpenSettings = { systemToggleManager.openDndSettings() }
+                            )
+                        }
+                        qClean in listOf("battery saver", "power saver", "low power mode", "battery", "saver") -> {
+                            val isBat = systemToggleManager.isBatterySaverEnabled()
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "battery",
+                                title = "Battery Saver",
+                                subtitle = systemToggleManager.getBatterySaverStatusText(isBat),
+                                iconType = "battery",
+                                isEnabled = isBat,
+                                isActionOnly = true,
+                                onToggle = { systemToggleManager.openBatterySaverSettings() },
+                                onOpenSettings = { systemToggleManager.openBatterySaverSettings() }
+                            )
+                        }
+                        qClean in listOf("location", "gps", "locate") -> {
+                            val isLoc = systemToggleManager.isLocationEnabled()
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "location",
+                                title = "Location",
+                                subtitle = systemToggleManager.getLocationStatusText(isLoc),
+                                iconType = "location",
+                                isEnabled = isLoc,
+                                isActionOnly = true,
+                                onToggle = { systemToggleManager.openLocationSettings() },
+                                onOpenSettings = { systemToggleManager.openLocationSettings() }
+                            )
+                        }
+                        qClean in listOf("hotspot", "tethering", "portable hotspot", "wifi hotspot", "personal hotspot") -> {
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "hotspot",
+                                title = "Hotspot & Tethering",
+                                subtitle = systemToggleManager.getHotspotStatusText(),
+                                iconType = "hotspot",
+                                isEnabled = false,
+                                isActionOnly = true,
+                                onToggle = { systemToggleManager.openHotspotSettings() },
+                                onOpenSettings = { systemToggleManager.openHotspotSettings() }
+                            )
+                        }
+                        qClean in listOf("dark mode", "dark theme", "night mode", "light mode", "theme") -> {
+                            val isDark = systemToggleManager.isDarkModeEnabled()
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "darkmode",
+                                title = "Dark Theme",
+                                subtitle = systemToggleManager.getDarkModeStatusText(isDark),
+                                iconType = "darkmode",
+                                isEnabled = isDark,
+                                onToggle = { systemToggleManager.toggleDarkMode(it) },
+                                onOpenSettings = { systemToggleManager.openDarkModeSettings() }
+                            )
+                        }
+                        qClean in listOf("night light", "blue light", "reading mode", "eye comfort") -> {
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "nightlight",
+                                title = "Night Light",
+                                subtitle = "Warm screen tint for low light",
+                                iconType = "nightlight",
+                                isEnabled = false,
+                                isActionOnly = true,
+                                onToggle = { systemToggleManager.openNightLightSettings() },
+                                onOpenSettings = { systemToggleManager.openNightLightSettings() }
+                            )
+                        }
+                        qClean in listOf("nfc", "contactless", "google pay") -> {
+                            val isNfc = systemToggleManager.isNfcEnabled()
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "nfc",
+                                title = "NFC",
+                                subtitle = systemToggleManager.getNfcStatusText(isNfc),
+                                iconType = "nfc",
+                                isEnabled = isNfc,
+                                isActionOnly = true,
+                                onToggle = { systemToggleManager.openNfcSettings() },
+                                onOpenSettings = { systemToggleManager.openNfcSettings() }
+                            )
+                        }
+                        qClean in listOf("volume", "sound", "vibrate", "silent", "ringtone", "ringer") -> {
+                            val isVib = systemToggleManager.isSilentOrVibrate()
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "sound",
+                                title = "Sound & Vibration",
+                                subtitle = systemToggleManager.getSoundStatusText(isVib),
+                                iconType = "sound",
+                                isEnabled = isVib,
+                                onToggle = { systemToggleManager.toggleSoundMode(it) },
+                                onOpenSettings = { systemToggleManager.openSoundSettings() }
+                            )
+                        }
+                        qClean in listOf("cast", "screen cast", "screen mirroring", "chromecast") -> {
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "cast",
+                                title = "Screen Cast",
+                                subtitle = "Mirror screen to TV / Displays",
+                                iconType = "cast",
+                                isEnabled = false,
+                                isActionOnly = true,
+                                onToggle = { systemToggleManager.openCastSettings() },
+                                onOpenSettings = { systemToggleManager.openCastSettings() }
+                            )
+                        }
+                        qClean in listOf("brightness", "auto brightness", "screen brightness") -> {
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "brightness",
+                                title = "Display Brightness",
+                                subtitle = "Screen & adaptive brightness",
+                                iconType = "brightness",
+                                isEnabled = false,
+                                isActionOnly = true,
+                                onToggle = { systemToggleManager.openDisplayBrightnessSettings() },
+                                onOpenSettings = { systemToggleManager.openDisplayBrightnessSettings() }
+                            )
+                        }
+                        qClean in listOf("privacy", "camera access", "mic access", "sensor privacy") -> {
+                            com.pixel.intelligentsearch.core.ui.SystemToggleUiState(
+                                id = "privacy",
+                                title = "Privacy & Sensors",
+                                subtitle = "Microphone & Camera Permissions",
+                                iconType = "privacy",
+                                isEnabled = true,
+                                isActionOnly = true,
+                                onToggle = { systemToggleManager.openPrivacySettings() },
+                                onOpenSettings = { systemToggleManager.openPrivacySettings() }
+                            )
+                        }
+                        else -> null
+                    }
+                }
+
                 val localContacts = contactsDeferred.await()
                 val localFiles = filesDeferred.await()
                 val localShortcuts = shortcutsDeferred.await()
                 val localMathResult = mathResultDeferred.await()
                 val localInstantAnswer = instantAnswerDeferred.await()
+                val localSystemToggle = systemToggleDeferred.await()
                 
                 _uiState.update {
                     it.copy(
@@ -315,6 +589,7 @@ class SearchViewModel @Inject constructor(
                         shortcuts = localShortcuts,
                         mathResult = localMathResult,
                         instantAnswer = localInstantAnswer,
+                        systemToggle = localSystemToggle,
                         isLoading = settings.searchWeb,
                         lastQueryLatency = System.currentTimeMillis() - startTime
                     )
@@ -359,6 +634,18 @@ class SearchViewModel @Inject constructor(
     fun clearSearchHistory() {
         viewModelScope.launch {
             historyDao.clearHistory()
+        }
+    }
+
+    fun dismissDirectAction(action: DirectAction) {
+        _uiState.update { state ->
+            state.copy(directActions = state.directActions.filter { it != action })
+        }
+    }
+
+    fun dismissCalendarEvent(event: CalendarEvent) {
+        _uiState.update { state ->
+            state.copy(calendarEvents = state.calendarEvents.filter { it != event })
         }
     }
 }

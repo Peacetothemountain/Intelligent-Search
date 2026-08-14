@@ -1,4 +1,7 @@
 package com.pixel.intelligentsearch.core.theme
+
+import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -6,54 +9,64 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
-// Authentic Google Fallback Palette for API 30 (No Monet)
 private val RobinDarkColorScheme = darkColorScheme(
-    primary = Color(0xFFA8C7FA), 
-    onPrimary = Color(0xFF062E6F),
-    primaryContainer = Color(0xFF282A2C), // True pill background
-    secondary = Color(0xFFC4C7C5),
-    surface = Color(0xFF131314), // True Gemini background
-    onSurface = Color(0xFFE3E3E3),
-    onSurfaceVariant = Color(0xFFC4C7C5),
-    outlineVariant = Color(0xFF444746),
-    background = Color(0xFF131314)
+    primary = GoogleDarkPrimary,
+    onPrimary = GoogleDarkOnPrimary,
+    secondaryContainer = GoogleDarkSecondaryContainer,
+    onSecondaryContainer = GoogleDarkOnSecondaryContainer,
+    surfaceContainer = GoogleDarkSurfaceContainer,
+    surfaceContainerLow = GoogleDarkSurfaceContainerLow,
+    surfaceContainerHigh = GoogleDarkSurfaceContainerHigh,
+    surfaceContainerHighest = GoogleDarkSurfaceContainerHighest,
+    outlineVariant = GoogleDarkOutlineVariant
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40,
-    background = Color(0xFFF8F9FA),
-    surface = Color(0xFFF8F9FA)
+    primary = GoogleLightPrimary,
+    onPrimary = GoogleLightOnPrimary,
+    secondaryContainer = GoogleLightSecondaryContainer,
+    onSecondaryContainer = GoogleLightOnSecondaryContainer,
+    surfaceContainer = GoogleLightSurfaceContainer,
+    surfaceContainerLow = GoogleLightSurfaceContainerLow,
+    surfaceContainerHigh = GoogleLightSurfaceContainerHigh,
+    surfaceContainerHighest = GoogleLightSurfaceContainerHighest,
+    outlineVariant = GoogleLightOutlineVariant
 )
 
 @Composable
 fun IntelligentSearchTheme(
-    darkTheme: Boolean = true,
+    darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true,
-    content: @Composable () -> Unit,
+    content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-
-    val colorScheme = if (dynamicColor) {
-        if (darkTheme) {
-            dynamicDarkColorScheme(context)
-        } else {
-            dynamicLightColorScheme(context).copy(
-                background = Color(0xFFF8F9FA),
-                surface = Color(0xFFF8F9FA)
-            )
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-    } else {
-        if (darkTheme) RobinDarkColorScheme else LightColorScheme
+        darkTheme -> RobinDarkColorScheme
+        else -> LightColorScheme
+    }
+
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = colorScheme.surface.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+        }
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
+        shapes = Shapes,
         content = content
     )
 }

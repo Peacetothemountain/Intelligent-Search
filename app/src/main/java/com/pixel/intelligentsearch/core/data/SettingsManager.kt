@@ -19,11 +19,11 @@ data class IntelligentSearchSettings(
     val searchContacts: Boolean = false,
     val searchFiles: Boolean = false,
     val searchWeb: Boolean = false,
-    val searchCalculator: Boolean = false,
-    val searchCalendar: Boolean = false,
-    val searchShortcuts: Boolean = false,
+    val searchCalculator: Boolean = true,
+    val searchCalendar: Boolean = true,
+    val searchShortcuts: Boolean = true,
     val backgroundBlur: Int = 50,
-    val showWallpaper: Boolean = false,
+    val showWallpaper: Boolean = true,
     val backgroundTransparency: Int = 50,
     val pillOpacity: Int = 50,
     val searchEngine: String = "Google",
@@ -44,7 +44,7 @@ data class IntelligentSearchSettings(
     val quickSearchPlayStore: Boolean = true,
     val quickSearchMaps: Boolean = true,
     val searchPills: String = "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files",
-    val widgetThemeStyle: String = "dynamic",
+    val widgetThemeStyle: String = "System Default",
     val hiddenApps: Set<String> = emptySet(),
     val appQuickLaunch: Boolean = false,
     val contactDirectCall: Boolean = false,
@@ -56,7 +56,12 @@ data class IntelligentSearchSettings(
     val fileResultsCount: Int = 5,
     val shortcutResultsCount: Int = 6,
     val contextAwareQuickApps: Boolean = false,
-    val smartClipboardSuggestions: Boolean = true
+    val smartClipboardSuggestions: Boolean = false,
+    val activeIconPack: String = "system_default",
+    val searchOverlayEnabled: Boolean = true,
+    val customIconPills: String = "",
+    val neverShowIconPackWarning: Boolean = false,
+    val searchPreviousSearches: Boolean = true
 )
 
 @Singleton
@@ -67,6 +72,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val SEARCH_CONTACTS = booleanPreferencesKey("search.contacts")
         val SEARCH_FILES = booleanPreferencesKey("search.files")
         val SEARCH_WEB = booleanPreferencesKey("search.web")
+        val SEARCH_PREVIOUS_SEARCHES = booleanPreferencesKey("search_previous_searches")
         val SEARCH_CALCULATOR = booleanPreferencesKey("search.calculator")
         val SEARCH_CALENDAR = booleanPreferencesKey("search.calendar")
         val SEARCH_SHORTCUTS = booleanPreferencesKey("search.shortcuts")
@@ -105,6 +111,10 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val SHORTCUT_RESULTS_COUNT = intPreferencesKey("shortcut_results_count")
         val CONTEXT_AWARE_QUICK_APPS = booleanPreferencesKey("context_aware_quick_apps")
         val SMART_CLIPBOARD_SUGGESTIONS = booleanPreferencesKey("smart_clipboard_suggestions")
+        val ACTIVE_ICON_PACK = stringPreferencesKey("active_icon_pack")
+        val SEARCH_OVERLAY_ENABLED = booleanPreferencesKey("search_overlay_enabled")
+        val CUSTOM_ICON_PILLS = stringPreferencesKey("custom_icon_pills")
+        val NEVER_SHOW_ICON_PACK_WARNING = booleanPreferencesKey("never_show_icon_pack_warning")
     }
 
     val settingsFlow: Flow<IntelligentSearchSettings> = context.dataStore.data
@@ -124,9 +134,9 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 searchContacts = preferences[SEARCH_CONTACTS] ?: false,
                 searchFiles = preferences[SEARCH_FILES] ?: false,
                 searchWeb = preferences[SEARCH_WEB] ?: false,
-                searchCalculator = preferences[SEARCH_CALCULATOR] ?: false,
-                searchCalendar = preferences[SEARCH_CALENDAR] ?: false,
-                searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: false,
+                searchCalculator = preferences[SEARCH_CALCULATOR] ?: true,
+                searchCalendar = preferences[SEARCH_CALENDAR] ?: true,
+                searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: true,
                 backgroundBlur = preferences[BACKGROUND_BLUR] ?: 50,
                 showWallpaper = preferences[SHOW_WALLPAPER] ?: false,
                 backgroundTransparency = preferences[BACKGROUND_TRANSPARENCY] ?: 50,
@@ -149,7 +159,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 quickSearchPlayStore = preferences[QUICK_SEARCH_PLAY_STORE] ?: true,
                 quickSearchMaps = preferences[QUICK_SEARCH_MAPS] ?: true,
                 searchPills = preferences[SEARCH_PILLS] ?: "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files",
-                widgetThemeStyle = preferences[WIDGET_THEME_STYLE] ?: "dynamic",
+                widgetThemeStyle = preferences[WIDGET_THEME_STYLE] ?: "System Default",
                 hiddenApps = preferences[HIDDEN_APPS] ?: emptySet(),
                 appQuickLaunch = preferences[APP_QUICK_LAUNCH] ?: false,
                 contactDirectCall = preferences[CONTACT_DIRECT_CALL] ?: false,
@@ -161,7 +171,11 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 fileResultsCount = preferences[FILE_RESULTS_COUNT] ?: 5,
                 shortcutResultsCount = preferences[SHORTCUT_RESULTS_COUNT] ?: 6,
                 contextAwareQuickApps = preferences[CONTEXT_AWARE_QUICK_APPS] ?: false,
-                smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: false
+                smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: false,
+                activeIconPack = preferences[ACTIVE_ICON_PACK] ?: "system_default",
+                customIconPills = preferences[CUSTOM_ICON_PILLS] ?: "",
+                neverShowIconPackWarning = preferences[NEVER_SHOW_ICON_PACK_WARNING] ?: false,
+                searchPreviousSearches = preferences[SEARCH_PREVIOUS_SEARCHES] ?: true
             )
         }
 

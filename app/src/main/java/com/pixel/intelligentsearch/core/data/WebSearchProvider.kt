@@ -12,7 +12,7 @@ object WebSearchProvider {
         val suggestions = mutableListOf<String>()
         try {
             val encodedQuery = URLEncoder.encode(query, "UTF-8")
-            val url = URL("https://suggestqueries.google.com/complete/search?client=chrome&q=$encodedQuery")
+            val url = java.net.URI.create("https://suggestqueries.google.com/complete/search?client=chrome&q=$encodedQuery").toURL()
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.connectTimeout = 3000

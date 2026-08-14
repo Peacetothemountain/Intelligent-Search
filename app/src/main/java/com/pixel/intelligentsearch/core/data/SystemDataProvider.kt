@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.provider.CalendarContract
 import android.provider.ContactsContract
 import android.provider.MediaStore
@@ -61,7 +62,12 @@ object SystemDataProvider {
         val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
         }
-        val resolveInfos = pm.queryIntentActivities(mainIntent, 0)
+        val resolveInfos = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.queryIntentActivities(mainIntent, PackageManager.ResolveInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            pm.queryIntentActivities(mainIntent, 0)
+        }
         resolveInfos.asSequence()
             .distinctBy { it.activityInfo.packageName }
             .map {
@@ -79,7 +85,7 @@ object SystemDataProvider {
             .toList()
     }
 
-    suspend fun getRecentApps(context: Context): List<AppItem> = withContext(Dispatchers.IO) {
+    suspend fun getRecentApps(context: Context, hiddenApps: Set<String> = emptySet()): List<AppItem> = withContext(Dispatchers.IO) {
         val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val time = System.currentTimeMillis()
         val stats = usageStatsManager.queryUsageStats(
@@ -89,7 +95,7 @@ object SystemDataProvider {
         )
 
         val pm = context.packageManager
-        val sortedStats = stats.filter { it.totalTimeInForeground > 0 }
+        val sortedStats = stats.filter { it.totalTimeInForeground > 0 && !hiddenApps.contains(it.packageName) }
             .sortedByDescending { it.lastTimeUsed }
 
         val recentApps = mutableListOf<AppItem>()
@@ -99,7 +105,12 @@ object SystemDataProvider {
                 // Check if it's a launchable app
                 val intent = pm.getLaunchIntentForPackage(stat.packageName)
                 if (intent != null) {
-                    val appInfo = pm.getApplicationInfo(stat.packageName, 0)
+                    val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        pm.getApplicationInfo(stat.packageName, PackageManager.ApplicationInfoFlags.of(0))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        pm.getApplicationInfo(stat.packageName, 0)
+                    }
                     val label = pm.getApplicationLabel(appInfo).toString()
                     val packageName = stat.packageName
                     val icon = pm.getApplicationIcon(appInfo)
@@ -118,7 +129,7 @@ object SystemDataProvider {
         }
         
         if (recentApps.isEmpty()) {
-            return@withContext getAllApps(context).take(8)
+            return@withContext getAllApps(context).filter { !hiddenApps.contains(it.packageName) }.take(8)
         }
         
         recentApps.distinctBy { it.packageName }
@@ -242,54 +253,47 @@ object SystemDataProvider {
 
     suspend fun getFiles(context: Context, query: String, includeHidden: Boolean): List<FileItem> = withContext(Dispatchers.IO) {
         val files = mutableListOf<FileItem>()
-        val hasStoragePermission = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            context.checkSelfPermission(android.Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED ||
-            context.checkSelfPermission(android.Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED ||
-            context.checkSelfPermission(android.Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
-        } else {
-            context.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-        }
+        if (query.isBlank()) return@withContext files
 
-        if (query.isEmpty() || !hasStoragePermission) {
-            return@withContext files
-        }
+        try {
+            val projection = arrayOf(
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.DATA,
+                MediaStore.Files.FileColumns.MIME_TYPE,
+                MediaStore.Files.FileColumns._ID
+            )
 
-        val projection = arrayOf(
-            MediaStore.Files.FileColumns.DISPLAY_NAME,
-            MediaStore.Files.FileColumns.DATA,
-            MediaStore.Files.FileColumns.MIME_TYPE,
-            MediaStore.Files.FileColumns._ID
-        )
+            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?"
+            val selectionArgs = arrayOf("%$query%")
 
-        val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?"
-        val selectionArgs = arrayOf("%$query%")
+            context.contentResolver.query(
+                MediaStore.Files.getContentUri("external"),
+                projection,
+                selection,
+                selectionArgs,
+                "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+            )?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                val dataIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATA)
+                val mimeIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.MIME_TYPE)
+                val idIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns._ID)
 
-        // Querying MediaStore.Files includes everything indexed by the system (Docs, Images, Videos, Audio, Downloads)
-        context.contentResolver.query(
-            MediaStore.Files.getContentUri("external"),
-            projection,
-            selection,
-            selectionArgs,
-            MediaStore.Files.FileColumns.DATE_MODIFIED + " DESC"
-        )?.use { cursor ->
-            val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
-            val dataIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
-            val mimeIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
-            val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
-
-            while (cursor.moveToNext() && files.size < 15) {
-                val name = cursor.getString(nameIndex) ?: continue
-                
-                // Skip hidden files if not enabled
-                if (!includeHidden && name.startsWith(".")) continue
-                
-                val path = cursor.getString(dataIndex) ?: ""
-                val mimeType = cursor.getString(mimeIndex) ?: "*/*"
-                val id = cursor.getLong(idIndex)
-                val uri = android.content.ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), id).toString()
-                
-                files.add(FileItem(name, path, mimeType, uri))
+                while (cursor.moveToNext() && files.size < 15) {
+                    if (nameIndex != -1) {
+                        val name = cursor.getString(nameIndex) ?: continue
+                        if (!includeHidden && name.startsWith(".")) continue
+                        
+                        val path = if (dataIndex != -1) cursor.getString(dataIndex) ?: "" else ""
+                        val mimeType = if (mimeIndex != -1) cursor.getString(mimeIndex) ?: "*/*" else "*/*"
+                        val id = if (idIndex != -1) cursor.getLong(idIndex) else 0L
+                        val uri = android.content.ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), id).toString()
+                        
+                        files.add(FileItem(name, path, mimeType, uri))
+                    }
+                }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
         files
     }

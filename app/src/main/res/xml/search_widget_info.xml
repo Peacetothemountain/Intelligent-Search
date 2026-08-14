@@ -6,5 +6,5 @@
     android:minResizeHeight="52dp"
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/widget_search"
-    android:resizeMode="horizontal"
-    android:widgetCategory="home_screen" />
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen|keyguard" />

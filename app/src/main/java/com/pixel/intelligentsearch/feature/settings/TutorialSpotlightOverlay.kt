@@ -68,7 +68,13 @@ fun TutorialSpotlightOverlay(
     val animationProgress = remember { Animatable(0f) }
     LaunchedEffect(currentStep) {
         animationProgress.snapTo(0f)
-        animationProgress.animateTo(1f, animationSpec = tween(800, easing = LinearOutSlowInEasing))
+        animationProgress.animateTo(
+            1f,
+            animationSpec = androidx.compose.animation.core.spring(
+                stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow,
+                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioLowBouncy
+            )
+        )
     }
 
     val infiniteTransition = rememberInfiniteTransition()

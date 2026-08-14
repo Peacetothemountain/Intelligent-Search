@@ -148,7 +148,7 @@ private const val APP_WIDE_STARDUST_SHADER = """
  * without adding heavy recomposition nodes to the UI tree.
  */
 @Composable
-private fun Modifier.appWideGeminiShader(color: Color): Modifier {
+private fun Modifier.appWideStardustShader(color: Color): Modifier {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
         return this.background(color.copy(alpha = 0.1f)) // Safe fallback for older API versions
     }
@@ -156,7 +156,7 @@ private fun Modifier.appWideGeminiShader(color: Color): Modifier {
     val lifecycleOwner = LocalLifecycleOwner.current
     val timeState = remember { mutableFloatStateOf(0f) }
     
-    // ANDROID 17 OPTIMIZATION: Pauses the full-screen animation completely if app is minimized
+    // Lifecycle-aware frame loop: pauses animation when activity is not in foreground
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             var lastFrame = 0L
@@ -170,8 +170,6 @@ private fun Modifier.appWideGeminiShader(color: Color): Modifier {
         }
     }
     
-    // ANDROID 17 OPTIMIZATION: drawWithCache pipes variables to GPU directly. 
-    // The CPU is fully freed up to handle your app navigation and scrolling.
     return this.drawWithCache {
         val shader = RuntimeShader(APP_WIDE_STARDUST_SHADER)
         val shaderBrush = ShaderBrush(shader)
@@ -182,8 +180,6 @@ private fun Modifier.appWideGeminiShader(color: Color): Modifier {
 
             shader.setFloatUniform("resolution", w, h)
             shader.setFloatUniform("targetColor", color.red, color.green, color.blue, color.alpha)
-            
-            // Reads time strictly inside the draw phase for buttery 120fps on full screen
             shader.setFloatUniform("time", timeState.floatValue)
             
             drawRect(brush = shaderBrush)
@@ -192,17 +188,9 @@ private fun Modifier.appWideGeminiShader(color: Color): Modifier {
 }
 
 // ==============================================================================
-// 4. THE MASTER APP SCAFFOLD (How to wrap your entire app)
+// 4. BACKGROUND CONTAINER SCAFFOLD
 // ==============================================================================
 
-/**
- * GeminiAppBackgroundContainer
- * 
- * Instructions for Developers: 
- * Wrap the `NavHost` inside this Composable in your MainActivity. Make sure the child 
- * screens inside the NavHost use `Color.Transparent` as their background color so the 
- * flowing Stardust is visible behind them!
- */
 @Composable
 fun GeminiAppBackgroundContainer(
     appDesign: AppDesignTheme,
@@ -213,14 +201,12 @@ fun GeminiAppBackgroundContainer(
 ) {
     val activeColor = resolveGlobalStardustColor(appDesign, appTheme, customColor)
 
-    // The absolute back wall of the app. 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background) // Base solid wall
-            .appWideGeminiShader(activeColor) // GPU shader painted on top of the base wall
+            .background(MaterialTheme.colorScheme.background)
+            .appWideStardustShader(activeColor)
     ) {
-        // Your App Content (Navigation, Settings Menus, Bars) floats safely on top.
         content()
     }
 }

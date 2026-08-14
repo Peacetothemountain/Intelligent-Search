@@ -21,7 +21,12 @@ class NexusLauncherBridge(private val context: Context) {
 
     fun isNexusLauncherInstalled(): Boolean {
         return try {
-            context.packageManager.getPackageInfo(LAUNCHER_PKG, 0)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(LAUNCHER_PKG, PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(LAUNCHER_PKG, 0)
+            }
             true
         } catch (e: PackageManager.NameNotFoundException) {
             false

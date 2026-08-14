@@ -30,7 +30,7 @@ object AGSLBackdropShader {
     """
 
     fun applyAgslGlassBackdrop(view: View, monetColorInt: Int, blurRadius: Float = 24f) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             try {
                 val shader = RuntimeShader(AGSL_GLASS_SHADER)
                 shader.setFloatUniform("uResolution", view.width.toFloat().coerceAtLeast(1f), view.height.toFloat().coerceAtLeast(1f))

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.provider.CalendarContract
 import android.provider.ContactsContract
 import android.provider.MediaStore
@@ -61,7 +62,12 @@ object SystemDataProvider {
         val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
         }
-        val resolveInfos = pm.queryIntentActivities(mainIntent, 0)
+        val resolveInfos = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.queryIntentActivities(mainIntent, PackageManager.ResolveInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            pm.queryIntentActivities(mainIntent, 0)
+        }
         resolveInfos.asSequence()
             .distinctBy { it.activityInfo.packageName }
             .map {
@@ -99,7 +105,12 @@ object SystemDataProvider {
                 // Check if it's a launchable app
                 val intent = pm.getLaunchIntentForPackage(stat.packageName)
                 if (intent != null) {
-                    val appInfo = pm.getApplicationInfo(stat.packageName, 0)
+                    val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        pm.getApplicationInfo(stat.packageName, PackageManager.ApplicationInfoFlags.of(0))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        pm.getApplicationInfo(stat.packageName, 0)
+                    }
                     val label = pm.getApplicationLabel(appInfo).toString()
                     val packageName = stat.packageName
                     val icon = pm.getApplicationIcon(appInfo)

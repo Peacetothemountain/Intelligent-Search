@@ -303,7 +303,6 @@ fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: S
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Suppress("DEPRECATION")
 private fun finishWithoutTransition(activity: android.app.Activity?) {
     if (activity != null && !activity.isFinishing) {
@@ -817,6 +816,16 @@ fun SearchOverlayScreen(
             reverseLayout = if (!settingsState.bottomSearch) false else settingsState.bottomSearchResult,
             verticalArrangement = if (settingsState.bottomSearch) Arrangement.Bottom else Arrangement.Top
         ) {
+
+            val systemToggle = uiState.systemToggle
+            if (systemToggle != null) {
+                item(key = "system_toggle_card_${systemToggle.id}") {
+                    com.pixel.intelligentsearch.core.ui.SystemToggleCard(
+                        toggleState = systemToggle,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                }
+            }
 
             if (settingsState.smartClipboardSuggestions && uiState.directActions.isNotEmpty()) {
                 itemsIndexed(uiState.directActions, key = { index, action -> "direct_action_${action.title}_$index" }) { _, action ->

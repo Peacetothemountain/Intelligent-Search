@@ -52,6 +52,34 @@ Want early access to test new release builds of **Intelligent Search** on your d
 
 ---
 
+## 📸 App & Settings Showcase
+
+<div align="center">
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <b>🔍 Instant Search Overlay</b><br/><br/>
+      <img src="docs/images/screenshot_search.png" alt="Search Overlay" width="250" /><br/><br/>
+      <sub><i>Pixel Pill Bar, Fuzzy App Indexing & Instant Suggestions</i></sub>
+    </td>
+    <td align="center" width="33%">
+      <b>🎨 Material & Monet Settings</b><br/><br/>
+      <img src="docs/images/screenshot_settings.png" alt="Settings Screen" width="250" /><br/><br/>
+      <sub><i>Dynamic Monet 3-Color Engine & Custom Color Tuning</i></sub>
+    </td>
+    <td align="center" width="33%">
+      <b>🎛️ System Toggles & Widgets</b><br/><br/>
+      <img src="docs/images/screenshot_widgets.png" alt="Widgets and Toggles" width="250" /><br/><br/>
+      <sub><i>M3 Expressive Inline Toggles & Resizable Widgets</i></sub>
+    </td>
+  </tr>
+</table>
+
+</div>
+
+---
+
 ## ✨ Features at a Glance
 
 <table>

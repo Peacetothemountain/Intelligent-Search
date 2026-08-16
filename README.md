@@ -33,7 +33,7 @@ Want early access to test new release builds of **Intelligent Search** on your d
 
 <div align="center">
 
-[<img src="https://img.shields.io/badge/Join%20Closed%20Beta-Google%20Play-3DDC84?style=for-the-badge&logo=googleplay&logoColor=white" alt="Join Closed Beta">](https://forms.gle)
+[<img src="https://img.shields.io/badge/Join%20Closed%20Beta-Google%20Play-3DDC84?style=for-the-badge&logo=googleplay&logoColor=white" alt="Join Closed Beta">](https://forms.gle/wZCyu67zc4L7qgAs8)
 
 </div>
 

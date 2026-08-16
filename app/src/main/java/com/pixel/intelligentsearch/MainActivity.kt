@@ -24,14 +24,24 @@ import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
 import android.app.SearchManager
 
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import com.pixel.intelligentsearch.feature.search.SearchViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 open class MainActivity : AppCompatActivity() {
 
+    private val searchViewModel: SearchViewModel by viewModels()
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        val queryExtra = intent.getStringExtra("query") ?: intent.getStringExtra(SearchManager.QUERY)
+        if (queryExtra != null) {
+            searchViewModel.onQueryChanged(queryExtra)
+        } else {
+            searchViewModel.onQueryChanged("")
+        }
         handleIntent(intent)
     }
 
@@ -133,6 +143,7 @@ open class MainActivity : AppCompatActivity() {
                                     startActivity(intent, options.toBundle())
                                 },
                                 onLaunchApp = { packageName ->
+                                    searchViewModel.onQueryChanged("")
                                     val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
                                     if (launchIntent != null) {
                                 if (settingsState.appAnimations) {
@@ -147,6 +158,7 @@ open class MainActivity : AppCompatActivity() {
                                         }
                                     }
                                 },
+                                viewModel = searchViewModel,
                                 isKeyboardDisabled = false
                             )
                         }
@@ -201,6 +213,7 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        searchViewModel.onQueryChanged("")
         
         // Force widget update when leaving the home screen app
         val updateIntent = Intent(this, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {

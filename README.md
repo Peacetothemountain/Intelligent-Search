@@ -58,20 +58,30 @@ Want early access to test new release builds of **Intelligent Search** on your d
 
 <table>
   <tr>
-    <td align="center" width="33%">
-      <b>🔍 Instant Search Overlay</b><br/><br/>
-      <img src="docs/images/screenshot_search.png" alt="Search Overlay" width="250" /><br/><br/>
-      <sub><i>Pixel Pill Bar, Fuzzy App Indexing & Instant Suggestions</i></sub>
+    <td align="center" width="20%" valign="top">
+      <b>🔍 Search Overlay</b><br/><br/>
+      <img src="docs/images/01_screen_overlay.png" alt="Search Overlay" width="180" /><br/><br/>
+      <sub><i>Pixel Pill Bar, Ambient Shader & Quick Apps</i></sub>
     </td>
-    <td align="center" width="33%">
-      <b>🎨 Material & Monet Settings</b><br/><br/>
-      <img src="docs/images/screenshot_settings.png" alt="Settings Screen" width="250" /><br/><br/>
-      <sub><i>Dynamic Monet 3-Color Engine & Custom Color Tuning</i></sub>
+    <td align="center" width="20%" valign="top">
+      <b>🎨 Widget Customization</b><br/><br/>
+      <img src="docs/images/02_widget_customization.png" alt="Widget Customization" width="180" /><br/><br/>
+      <sub><i>Live Widget Preview, Monet 3-Color & Slot Reordering</i></sub>
     </td>
-    <td align="center" width="33%">
-      <b>🎛️ System Toggles & Widgets</b><br/><br/>
-      <img src="docs/images/screenshot_widgets.png" alt="Widgets and Toggles" width="250" /><br/><br/>
-      <sub><i>M3 Expressive Inline Toggles & Resizable Widgets</i></sub>
+    <td align="center" width="20%" valign="top">
+      <b>⚙️ Settings Overview</b><br/><br/>
+      <img src="docs/images/03_settings_overview.png" alt="Settings Overview" width="180" /><br/><br/>
+      <sub><i>Unified Control Center & Assistant Configuration</i></sub>
+    </td>
+    <td align="center" width="20%" valign="top">
+      <b>⚡ Search Behavior</b><br/><br/>
+      <img src="docs/images/04_search_behavior.png" alt="Search Behavior" width="180" /><br/><br/>
+      <sub><i>Bottom Searchbar, Smart Clipboard & Search Sources</i></sub>
+    </td>
+    <td align="center" width="20%" valign="top">
+      <b>✨ Appearance & Shaders</b><br/><br/>
+      <img src="docs/images/05_appearance_settings.png" alt="Appearance Settings" width="180" /><br/><br/>
+      <sub><i>AGSL Background Shaders, Material Morph & Blur</i></sub>
     </td>
   </tr>
 </table>

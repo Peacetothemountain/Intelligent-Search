@@ -131,4 +131,16 @@ This software repository, source code, visual assets, and underlying algorithms 
 - **Official License**: Read the complete terms in the [`LICENSE`](LICENSE) file.
 - **Privacy Policy**: Read our data processing policies in [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md).
 
+---
+
+## 🏷️ Trademarks & Legal Disclaimer
+
+Android, Google, Google Pixel, Google Play, and the Google Play logo are registered trademarks of **Google LLC**. 
+
+- **Intelligent Search** is an independent software application developed by **NB Designs**.
+- This application and repository are not affiliated with, sponsored by, or endorsed by Google LLC.
+- All web search queries and search engine options (Google, DuckDuckGo, Bing, or Custom Search URLs) execute directly via standard web intents to their respective providers.
+
+---
+
 Copyright (c) 2026 **NB Designs**. All Rights Reserved.

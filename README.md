@@ -19,9 +19,9 @@
 
 <br/>
 
-[<img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="80">](https://play.google.com/store/apps/details?id=com.pixel.intelligentsearch)
+[<img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="80">](https://forms.gle/wZCyu67zc4L7qgAs8)
 
-*Click the badge above to download Intelligent Search on the Google Play Store.*
+*Click the badge above to sign up for early access to the Google Play Store Closed Beta track.*
 
 ---
 

@@ -3,7 +3,7 @@
 ## Release Version 7.0 - Recent Updates
 
 ### Motion & Navigation Physics
-- **RenderThread GPU Layer Compositing**: Migrated search overlay container morphing to `.graphicsLayer { scaleX = ..., scaleY = ..., transformOrigin = TransformOrigin(0.5f, 1.0f) }`, eliminating CPU main-thread re-layout calls for 120Hz smooth rendering.
+- **RenderThread GPU Layer Compositing**: Migrated search overlay container morphing to `.graphicsLayer { scaleX = ..., scaleY = ..., transformOrigin = TransformOrigin(0.5f, 1.0f) }`, eliminating CPU main-thread re-layout calls for ultra-smooth rendering.
 - **Velocity Momentum Preservation**: Passed `initialVelocity` momentum to `overlayProgressAnim.animateTo()`, ensuring smooth gesture returns across fast swipe-ups and mid-flight reversals.
 - **Critically Damped Pixel Springs**: Applied critically damped spring physics (`dampingRatio = 0.92f`, `stiffness = 250f`) for instant gesture tracking without oscillation or bounce.
 - **Settings Activity Slide Transition**: Registered smooth right-to-left horizontal slide transitions using Android 14+ `overrideActivityTransition`.

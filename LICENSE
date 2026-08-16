@@ -1,19 +1,28 @@
-PROPRIETARY AND CONFIDENTIAL SOFTWARE LICENSE
+NB DESIGNS PROPRIETARY SOFTWARE LICENSE AGREEMENT
 
 Copyright (c) 2026 NB Designs. All Rights Reserved.
 
-1. PROPRIETARY CODEBASE
-The source code, executable binaries, design assets, user interfaces, documentation, and underlying algorithms contained within this repository ("Software") are the exclusive intellectual property and trade secrets of NB Designs.
+NOTICE TO ALL USERS: READ THIS PROPRIETARY SOFTWARE LICENSE AGREEMENT ("AGREEMENT") CAREFULLY BEFORE ACCESSING, DOWNLOADING, OR USING THIS SOFTWARE CODEBASE, BINARIES, OR DOCUMENTATION.
 
-2. RESTRICTION OF RIGHTS
-NO PERMISSION is granted to any person or entity obtaining a copy or accessing any portion of this Software to:
-   (a) View, inspect, reverse engineer, decompile, or disassemble the Software except as explicitly authorized in writing by NB Designs.
-   (b) Copy, reproduce, modify, merge, adapt, or create derivative works of the Software.
-   (c) Distribute, publish, sublicense, rent, lease, sell, or transfer the Software to any third party.
-   (d) Make any portion of the source code or assets publicly available.
+1. GRANT OF PROPRIETARY RIGHTS
+The source code, architecture, algorithms, user interface designs, executable files, and documentation contained within this repository ("Software") are the exclusive intellectual property and proprietary trade secrets of NB Designs. Title, ownership rights, and intellectual property rights in and to the Software shall remain strictly with NB Designs.
 
-3. CONFIDENTIALITY AND PRIVACY
-All information, data structures, and code logic associated with this repository are strictly confidential. Unauthorized access, disclosure, or dissemination is strictly prohibited and subject to full legal remedies under applicable civil and criminal intellectual property laws.
+2. RESTRICTIONS ON USE
+Except as expressly authorized in writing by NB Designs, you may not:
+   (a) Copy, reproduce, distribute, publish, or publicly display any portion of the Software.
+   (b) Modify, translate, adapt, alter, or create derivative works based upon the Software.
+   (c) Reverse engineer, decompile, disassemble, or attempt to derive the source code or underlying structure of the Software.
+   (d) Sublicense, lease, rent, sell, assign, or transfer the Software to any third party.
+   (e) Use the Software or any portion thereof for commercial distribution without a separate written license agreement executed by NB Designs.
 
-4. NO WARRANTY
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL NB DESIGNS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE.
+3. TRADE SECRETS & CONFIDENTIALITY
+The Software contains confidential information and proprietary trade secrets of NB Designs. Access to the Software does not grant any express or implied license under any patents, copyrights, trademarks, or trade secret rights of NB Designs.
+
+4. DISCLAIMER OF WARRANTIES
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. IN NO EVENT SHALL NB DESIGNS OR ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE.
+
+5. GOVERNING LAW
+This Agreement shall be governed by and construed in accordance with the laws of the jurisdiction of NB Designs, without regard to its conflict of law principles.
+
+For licensing inquiries or commercial distribution permissions, contact:
+NB Designs Legal & Support: support.nbdesigns@gmail.com

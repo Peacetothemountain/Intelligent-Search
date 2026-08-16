@@ -9,6 +9,7 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class SearchActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         super.onCreate(savedInstanceState)
         android.util.Log.d("SearchActivity", "onCreate called. Intent action: ${intent?.action}")
         val query = intent.getStringExtra(SearchManager.QUERY) ?: ""

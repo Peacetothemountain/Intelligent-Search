@@ -392,6 +392,7 @@ fun SearchOverlayScreen(
 
     val closeOverlay = {
         keyboardController?.hide()
+        viewModel.onQueryChanged("")
         if (transitionState.targetState) {
             transitionState.targetState = false
         } else {
@@ -456,12 +457,16 @@ fun SearchOverlayScreen(
         }
         try {
             viewModel.addSearchHistory(searchQuery)
+            viewModel.onQueryChanged("")
             context.findActivity()?.startActivityForResult(intent, 1001)
         } catch (e: Exception) {
             val fallbackIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                 putExtra(SearchManager.QUERY, searchQuery)
             }
-            try { context.findActivity()?.startActivityForResult(fallbackIntent, 1001) } catch (ex: Exception) {}
+            try { 
+                viewModel.onQueryChanged("")
+                context.findActivity()?.startActivityForResult(fallbackIntent, 1001) 
+            } catch (ex: Exception) {}
         }
     }
 
@@ -483,6 +488,7 @@ fun SearchOverlayScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
                 keyboardController?.hide()
+                viewModel.onQueryChanged("")
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
                 if (forceTut) {
@@ -509,12 +515,17 @@ fun SearchOverlayScreen(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose {
+            viewModel.onQueryChanged("")
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
     
-    BackHandler(enabled = showTutorial) {
+    BackHandler(enabled = true) {
         if (showTutorial) {
             // Suppress exit during tutorial
+        } else {
+            closeOverlay()
         }
     }
 
@@ -1372,6 +1383,7 @@ fun SearchOverlayScreen(
                                 animationSpec = spring(dampingRatio = 0.92f, stiffness = 250f)
                             )
                             if (target == 0f) {
+                                viewModel.onQueryChanged("")
                                 val act = (context as? android.app.Activity)
                                 finishWithoutTransition(act)
                             }

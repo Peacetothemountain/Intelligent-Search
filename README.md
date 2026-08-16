@@ -27,6 +27,25 @@
 
 </div>
 
+## 🚀 Join the Google Play Closed Beta Test
+
+Want early access to test new release builds of **Intelligent Search** on your device? You can sign up for access to the **Google Play Store Closed Beta Track**!
+
+<div align="center">
+
+[<img src="https://img.shields.io/badge/Join%20Closed%20Beta-Google%20Play-3DDC84?style=for-the-badge&logo=googleplay&logoColor=white" alt="Join Closed Beta">](https://forms.gle)
+
+</div>
+
+> [!IMPORTANT]
+> **🔒 Closed Beta Privacy & Non-Spam Guarantee**  
+> Your email address is collected **exclusively** for the purpose of registering your Google Account for Google Play Store Closed Beta testing permissions.  
+> - **Zero Marketing Emails**: We will **never** send promotional emails, newsletters, or marketing communications.  
+> - **Zero Third-Party Sharing**: We will **never** sell, share, or transfer your email address to any third party.  
+> - **Single Purpose**: Your email address is strictly used to populate the Google Play Console closed testing list so your Google Play Store account can download beta builds.
+
+---
+
 ## 🌟 Overview
 
 **Intelligent Search** is a fast, highly customizable search application designed to bring authentic Google Pixel Search Bar styling and system-wide search overlays to any Android device. Engineered with modern Jetpack Compose, AGSL GPU shaders, dynamic Material You color systems, and RenderThread layer compositing, Intelligent Search delivers instant access to installed apps, system settings, contact shortcuts, web search engines, and device media.

@@ -31,11 +31,20 @@
 
 Want early access to test new release builds of **Intelligent Search** on your device? You can sign up for access to the **Google Play Store Closed Beta Track**!
 
-<div align="center">
+### How to Join the Beta:
 
-[<img src="https://img.shields.io/badge/Join%20Closed%20Beta-Google%20Play-3DDC84?style=for-the-badge&logo=googleplay&logoColor=white" alt="Join Closed Beta">](https://forms.gle/wZCyu67zc4L7qgAs8)
+1. **Step 1: Sign Up via Google Form**  
+   Submit your Google Account email using the form below to register your device for testing permissions:
+   
+   <div align="center">
+   
+   [<img src="https://img.shields.io/badge/Join%20Closed%20Beta-Google%20Play-3DDC84?style=for-the-badge&logo=googleplay&logoColor=white" alt="Join Closed Beta">](https://forms.gle/wZCyu67zc4L7qgAs8)
+   
+   </div>
 
-</div>
+2. **Step 2: Download on Google Play**  
+   Once you have submitted your email, wait a short while for your Google Play testing permissions to sync, then click the link below to download **Intelligent Search** directly from the Google Play Store:  
+   👉 **[Download Intelligent Search on Google Play Store](https://play.google.com/store/apps/details?id=com.pixel.intelligentsearch)**
 
 > [!IMPORTANT]
 > **🔒 Closed Beta Privacy & Non-Spam Guarantee**  

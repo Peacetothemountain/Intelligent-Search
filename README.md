@@ -1,6 +1,14 @@
 <div align="center">
 
-# 🔍 Intelligent Search
+<h1 align="center">
+  <svg width="42" height="42" viewBox="0 0 24 24" fill="none" style="vertical-align: middle; margin-right: 8px;">
+    <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="#4285F4"/>
+    <path d="M12 1.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6.6-1.4z" fill="#FBBC05"/>
+    <path d="M19 4.5l.4.9.9.4-.9.4-.4.9-.4-.9-.9-.4.9-.4.4-.9z" fill="#EA4335"/>
+    <path d="M17 10.5l.5 1.1 1.1.5-1.1.5-.5 1.1-.5-1.1-1.1-.5 1.1-.5.5-1.1z" fill="#34A853"/>
+  </svg>
+  Intelligent Search
+</h1>
 
 **A Pixel-Inspired Search Overlay & Home Screen Widget Experience for Android**
 

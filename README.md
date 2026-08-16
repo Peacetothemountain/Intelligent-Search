@@ -14,7 +14,7 @@
 
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge&logo=androidstudio)](https://github.com/Peacetothemountain/Intelligent-Search)
 [![Target Android](https://img.shields.io/badge/Android-15%2B%20%2F%20SDK%2035-3DDC84?style=for-the-badge&logo=android)](https://developer.android.com)
-[![Version Code](https://img.shields.io/badge/Version-v7.8%20(106)-blue?style=for-the-badge)](https://github.com/Peacetothemountain/Intelligent-Search/releases)
+[![Version Code](https://img.shields.io/badge/Version-v8.1%20(81)-blue?style=for-the-badge)](https://github.com/Peacetothemountain/Intelligent-Search/releases)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge&logo=apache)](LICENSE)
 
 <br/>
@@ -139,7 +139,7 @@ The compiled release binary is generated at:
 
 Automated build and release workflows are managed via GitHub Actions (`.github/workflows/release.yml`) utilizing secure **Blacksmith runners** (`blacksmith-4vcpu-ubuntu-2404`) for fast, isolated compilation.
 
-- **Releases Page**: Compiled release binaries (`v7.8`) are available under the repository [Releases Section](https://github.com/Peacetothemountain/Intelligent-Search/releases).
+- **Releases Page**: Compiled release binaries (`v8.1`) are available under the repository [Releases Section](https://github.com/Peacetothemountain/Intelligent-Search/releases).
 
 ---
 

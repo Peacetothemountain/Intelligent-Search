@@ -224,10 +224,7 @@ class SearchViewModel @Inject constructor(
                 )
             )
             
-            delay(60)
-            if (simulateLatency) {
-                delay(2000)
-            }
+            val cachedSuggestions = if (settingsState.value.searchWeb) WebSearchProvider.getCachedSuggestions(newQuery) else null
             
             if (forceSearchError) {
                 _uiState.update { it.copy(
@@ -237,7 +234,10 @@ class SearchViewModel @Inject constructor(
                 return@launch
             }
             
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.update { it.copy(
+                isLoading = cachedSuggestions == null && settingsState.value.searchWeb,
+                webSuggestions = cachedSuggestions ?: it.webSuggestions
+            ) }
             
             val settings = settingsState.value
 
@@ -585,12 +585,10 @@ class SearchViewModel @Inject constructor(
                         filteredApps = filteredApps,
                         contacts = localContacts,
                         files = localFiles,
-                        webSuggestions = emptyList(), // clear old suggestions while waiting for new ones
                         shortcuts = localShortcuts,
                         mathResult = localMathResult,
                         instantAnswer = localInstantAnswer,
                         systemToggle = localSystemToggle,
-                        isLoading = settings.searchWeb,
                         lastQueryLatency = System.currentTimeMillis() - startTime
                     )
                 }
@@ -599,7 +597,7 @@ class SearchViewModel @Inject constructor(
                     val webSuggestions = webSuggestionsDeferred.await()
                     _uiState.update {
                         it.copy(
-                            webSuggestions = webSuggestions,
+                            webSuggestions = if (webSuggestions.isNotEmpty()) webSuggestions else it.webSuggestions,
                             isLoading = false
                         )
                     }

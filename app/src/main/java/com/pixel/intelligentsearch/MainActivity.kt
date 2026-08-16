@@ -63,6 +63,15 @@ open class MainActivity : AppCompatActivity() {
 
         if (handleIntent(intent)) return
 
+        if (this::class.java == MainActivity::class.java && (intent?.action == Intent.ACTION_MAIN || intent?.action == null)) {
+            val settingsIntent = Intent(this, SettingsActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            startActivity(settingsIntent)
+            finish()
+            return
+        }
+
         val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", android.content.Context.MODE_PRIVATE)
         val searchOverlayEnabled = prefs.getBoolean("search_overlay_enabled", true)
         if (!searchOverlayEnabled) {

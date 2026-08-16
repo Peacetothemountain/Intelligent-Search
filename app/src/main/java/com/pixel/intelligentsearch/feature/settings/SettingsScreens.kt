@@ -869,18 +869,200 @@ fun MainSettingsScreen(
             val attestationVerifier = remember { com.pixel.intelligentsearch.core.security.KeyAttestationVerifier(context) }
             val attestationResult = remember { attestationVerifier.generateAndVerifyAttestation() }
             val hardwareLevel = remember { secureRepo.getHardwareSecurityLevel() }
-            val securityTitle = when (hardwareLevel) {
-                com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> "Titan M3 / StrongBox Hardware Secured"
-                com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE -> "ARM TEE Hardware Secured"
-                com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.SOFTWARE -> "Software Encryption"
-            }
-            val securityDescription = when (hardwareLevel) {
-                com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX ->
-                    "Your cryptographic keys and sensitive tokens are protected by Google Titan M3 / Titan M2 discrete RISC-V hardware coprocessor (StrongBox KeyMint HAL with EAL4+ tamper resistance and AES-256 GCM Envelope Encryption)."
-                com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE ->
-                    "Your cryptographic keys are protected by the ARM Trusted Execution Environment (TrustZone KeyStore Module)."
-                com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.SOFTWARE ->
-                    "Cryptographic keys are stored using Android KeyStore software backing."
+            
+            val (securityTitle, securityDescription) = remember(hardwareLevel) {
+                val manufacturer = android.os.Build.MANUFACTURER.lowercase()
+                val brand = android.os.Build.BRAND.lowercase()
+                val model = android.os.Build.MODEL.lowercase()
+                val device = android.os.Build.DEVICE.lowercase()
+                val hardware = android.os.Build.HARDWARE.lowercase()
+                val board = android.os.Build.BOARD.lowercase()
+                val product = android.os.Build.PRODUCT.lowercase()
+                val socModel = if (android.os.Build.VERSION.SDK_INT >= 31) {
+                    try {
+                        android.os.Build.SOC_MODEL.lowercase()
+                    } catch (e: Throwable) {
+                        ""
+                    }
+                } else {
+                    ""
+                }
+
+                val isPixel = manufacturer.contains("google") || brand.contains("google") || model.contains("pixel") || product.contains("pixel")
+                
+                val (chipName, teeName) = when {
+                    // 1. Google Pixel Family
+                    isPixel -> {
+                        val pixelChip = when {
+                            // Pixel 11 / Tensor G6 generation (Titan M4)
+                            model.contains("pixel 11") || model.contains("pixel11") || socModel.contains("tensor g6") || socModel.contains("malibu") || board.contains("malibu") || hardware.contains("malibu") -> "Google Titan M4"
+                            
+                            // Pixel 10 / Tensor G5 generation (Titan M3)
+                            model.contains("pixel 10") || model.contains("pixel10") || socModel.contains("tensor g5") || socModel.contains("laguna") || board.contains("laguna") || hardware.contains("laguna") ||
+                            device.contains("frankel") || device.contains("blazer") || device.contains("mustang") || device.contains("rango") -> "Google Titan M3"
+
+                            // Legacy Pixel 3, 4, 5 series (Snapdragon SoCs + 1st Gen Titan M)
+                            model.contains("pixel 3") || model.contains("pixel 4") || model.contains("pixel 5") ||
+                            device.contains("blueline") || device.contains("crosshatch") || device.contains("sargo") || device.contains("bonito") ||
+                            device.contains("flame") || device.contains("coral") || device.contains("sunfish") || device.contains("bramble") ||
+                            device.contains("redfin") || device.contains("barbet") -> "Google Titan M"
+
+                            // Tensor G1 - G4 Pixels: Pixel 6, 7, 8, 9, Pixel Fold (1st Gen), Pixel 9 Pro Fold, Pixel Tablet, etc.
+                            // ALL Tensor G1-G4 devices globally use Titan M2!
+                            model.contains("pixel 6") || model.contains("pixel 7") || model.contains("pixel 8") || model.contains("pixel 9") ||
+                            model.contains("fold") || model.contains("tablet") ||
+                            device.contains("felix") || device.contains("comet") || device.contains("tangorpro") ||
+                            device.contains("caimito") || device.contains("komodo") || device.contains("tokay") ||
+                            device.contains("shiba") || device.contains("husky") || device.contains("akita") ||
+                            device.contains("cheetah") || device.contains("panther") || device.contains("lynx") ||
+                            device.contains("oriole") || device.contains("raven") || device.contains("bluejay") ||
+                            socModel.contains("tensor") || socModel.contains("gs101") || socModel.contains("gs201") || socModel.contains("zuma") ||
+                            board.contains("gs101") || board.contains("gs201") || board.contains("zuma") ||
+                            hardware.contains("gs101") || hardware.contains("gs201") || hardware.contains("zuma") -> "Google Titan M2"
+
+                            // Global fallback for any Google Pixel device
+                            else -> "Google Titan M2"
+                        }
+                        Pair(pixelChip, "Google Tensor TrustZone TEE")
+                    }
+
+                    // 2. Samsung Galaxy
+                    manufacturer.contains("samsung") || brand.contains("samsung") -> {
+                        Pair("Samsung Knox Vault (EAL6+)", "Samsung Knox TEE (TEEGRIS / Kinibi)")
+                    }
+
+                    // 3. Xiaomi / Redmi / POCO / Black Shark
+                    manufacturer.contains("xiaomi") || brand.contains("xiaomi") || brand.contains("redmi") || brand.contains("poco") || brand.contains("blackshark") -> {
+                        Pair("Xiaomi HyperOS Hardware Security Element", "Xiaomi HyperOS TEE")
+                    }
+
+                    // 4. OnePlus / OPPO / Realme (OPlus Group)
+                    manufacturer.contains("oneplus") || brand.contains("oneplus") || manufacturer.contains("oppo") || brand.contains("oppo") || manufacturer.contains("realme") || brand.contains("realme") -> {
+                        Pair("OPlus Discrete Security Element (StrongBox)", "OxygenOS / ColorOS Secure TEE")
+                    }
+
+                    // 5. Motorola / Lenovo
+                    manufacturer.contains("motorola") || brand.contains("motorola") || brand.contains("moto") || manufacturer.contains("lenovo") || brand.contains("lenovo") -> {
+                        Pair("Moto ThinkShield Hardware Security", "ThinkShield ARM TrustZone TEE")
+                    }
+
+                    // 6. Sony Xperia
+                    manufacturer.contains("sony") || brand.contains("sony") -> {
+                        Pair("Sony Xperia Hardware Security Module", "Sony Xperia Qualcomm QTEE")
+                    }
+
+                    // 7. Nothing / CMF
+                    manufacturer.contains("nothing") || brand.contains("nothing") || brand.contains("cmf") -> {
+                        Pair("Nothing OS Hardware Security Engine", "Nothing OS ARM TrustZone TEE")
+                    }
+
+                    // 8. Honor
+                    manufacturer.contains("honor") || brand.contains("honor") -> {
+                        Pair("Honor Discrete Security Chip (HTEE)", "Honor MagicOS HTEE Dual-Engine")
+                    }
+
+                    // 9. Huawei
+                    manufacturer.contains("huawei") || brand.contains("huawei") -> {
+                        Pair("Huawei In-Chip Security Element (iSE)", "Huawei iTrustee TEE (CC EAL5+)")
+                    }
+
+                    // 10. Vivo / iQOO
+                    manufacturer.contains("vivo") || brand.contains("vivo") || brand.contains("iqoo") -> {
+                        Pair("Vivo Dual-Security Hardware Core", "OriginOS / Funtouch OS Secure TEE")
+                    }
+
+                    // 11. ASUS (ROG / Zenfone)
+                    manufacturer.contains("asus") || brand.contains("asus") || brand.contains("rog") -> {
+                        Pair("ASUS ROG Hardware Security Engine", "ASUS Secure Execution TEE")
+                    }
+
+                    // 12. ZTE / Nubia / RedMagic
+                    manufacturer.contains("zte") || brand.contains("zte") || brand.contains("nubia") || brand.contains("redmagic") -> {
+                        Pair("RedMagic Dedicated Hardware Security Core", "Nubia Secure Execution TEE")
+                    }
+
+                    // 13. Fairphone
+                    manufacturer.contains("fairphone") || brand.contains("fairphone") -> {
+                        Pair("Fairphone StrongBox KeyMint Module", "Fairphone ARM TrustZone TEE")
+                    }
+
+                    // 14. Nokia / HMD Global
+                    manufacturer.contains("hmd") || brand.contains("hmd") || brand.contains("nokia") -> {
+                        Pair("HMD Global Hardware StrongBox Keystore", "Nokia ARM TrustZone TEE")
+                    }
+
+                    // 15. Transsion Group (Infinix / Tecno / itel)
+                    manufacturer.contains("transsion") || brand.contains("infinix") || brand.contains("tecno") || brand.contains("itel") -> {
+                        Pair("Transsion Hardware Security Module", "HiOS / XOS Secure TEE")
+                    }
+
+                    // 16. Meizu
+                    manufacturer.contains("meizu") || brand.contains("meizu") -> {
+                        Pair("Flyme All-Scenario Security Core", "Flyme Secure TEE")
+                    }
+
+                    // 17. TCL / Alcatel
+                    manufacturer.contains("tcl") || brand.contains("tcl") || brand.contains("alcatel") -> {
+                        Pair("TCL Hardware Security Module", "TCL ARM TrustZone TEE")
+                    }
+
+                    // 18. Sharp Aquos
+                    manufacturer.contains("sharp") || brand.contains("sharp") -> {
+                        Pair("Sharp Aquos Hardware Security Engine", "Sharp Secure Execution TEE")
+                    }
+
+                    // 19. Kyocera
+                    manufacturer.contains("kyocera") || brand.contains("kyocera") -> {
+                        Pair("Kyocera Rugged Hardware Security Core", "Kyocera Secure TEE")
+                    }
+
+                    // 20. HTC
+                    manufacturer.contains("htc") || brand.contains("htc") -> {
+                        Pair("HTC Hardware Security Module", "HTC ARM TrustZone TEE")
+                    }
+
+                    // 21. LG Electronics
+                    manufacturer.contains("lge") || brand.contains("lge") || brand.contains("lg") -> {
+                        Pair("LG Gatekeeper Hardware Keystore", "LG ARM TrustZone TEE")
+                    }
+
+                    // 22. SoC Architectures
+                    socModel.contains("snapdragon") || hardware.contains("qcom") || board.contains("qcom") || manufacturer.contains("qualcomm") -> {
+                        Pair("Qualcomm SPU (Secure Processing Unit)", "Qualcomm Secure Execution Environment (QTEE)")
+                    }
+                    socModel.contains("dimensity") || socModel.contains("helio") || hardware.contains("mt") || manufacturer.contains("mediatek") -> {
+                        Pair("MediaTek MTEE StrongBox Coprocessor", "MediaTek Micro-TEE (MTEE)")
+                    }
+                    socModel.contains("unisoc") || hardware.contains("unisoc") || hardware.contains("sprd") -> {
+                        Pair("UNISOC Secure Processing Core", "UNISOC Secure TEE")
+                    }
+
+                    // 23. Universal Android Ready SE / KeyMint Hardware Fallback
+                    else -> {
+                        Pair("Android Ready SE / KeyMint StrongBox", "ARM TrustZone TEE Keystore")
+                    }
+                }
+
+                when (hardwareLevel) {
+                    com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> {
+                        Pair(
+                            "$chipName Hardware Secured",
+                            "Your cryptographic keys and sensitive tokens are protected by $chipName isolated discrete hardware coprocessor (StrongBox KeyMint HAL with EAL4+/EAL6+ tamper resistance and AES-256 GCM Envelope Encryption)."
+                        )
+                    }
+                    com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE -> {
+                        Pair(
+                            "$teeName Hardware Secured",
+                            "Your cryptographic keys are protected by the $teeName (TrustZone Secure Keystore Module)."
+                        )
+                    }
+                    com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.SOFTWARE -> {
+                        Pair(
+                            "Software Encryption",
+                            "Cryptographic keys are stored using Android KeyStore software backing."
+                        )
+                    }
+                }
             }
 
             AlertDialog(
@@ -943,7 +1125,7 @@ fun MainSettingsScreen(
                                     )
                                 }
                                 Text(
-                                    "Please be advised: Using adb shell settings put secure selected_search_engine com.pixel.intelligentsearch on Pixel Launcher will cause Sports and Finance options on Google At A Glance to not function.",
+                                    "*Please be advised: Using adb shell settings put secure selected_search_engine com.pixel.intelligentsearch on Pixel Launcher will cause Sports and Finance options on Google At A Glance to not function.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -2050,7 +2232,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var searchPreviousSearches by rememberBooleanPreference(prefs, "search_previous_searches", true)
                 SettingsRowToggle(
                     title = "Search History",
-                    subtitle = "Previously Searched Quieries.",
+                    subtitle = "Previous Searched Web Queries.",
                     icon = Icons.Outlined.History,
                     isChecked = searchPreviousSearches,
                     onCheckedChange = { searchPreviousSearches = it },
@@ -2702,8 +2884,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localHue by remember { mutableStateOf(prefs.getInt("widget_custom_hue", 277).toFloat()) }
     var localSaturation by remember { mutableStateOf(prefs.getInt("widget_custom_saturation", 51).toFloat()) }
     var localLightness by remember { mutableStateOf(prefs.getInt("widget_custom_lightness", 100).toFloat()) }
-    var localCustomColorInt by remember { mutableStateOf(prefs.getInt("widget_custom_color_int", android.graphics.Color.HSVToColor(floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f)))) }
-    var localOpacity by remember { mutableStateOf(prefs.getInt("widget.background.transparency", 28).toFloat()) }
+    var localColorOpacity by remember { mutableStateOf(prefs.getInt("widget_custom_color_opacity", 100).toFloat()) }
+    var localTransparency by remember { mutableStateOf(prefs.getInt("widget.background.transparency", 28).toFloat()) }
+    var localCustomColorInt by remember { mutableStateOf(prefs.getInt("widget_custom_color_int", android.graphics.Color.HSVToColor((localColorOpacity / 100f * 255).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))) }
     var localLockBlack by remember { mutableStateOf(prefs.getBoolean("widget_material_lock_black", true)) }
     var localShowVoice by remember { mutableStateOf(prefs.getBoolean("widget_show_voice", true)) }
     var localActionIcon by remember { mutableStateOf(prefs.getString("widget_action_icon", "Search") ?: "Search") }
@@ -2721,7 +2904,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
     LaunchedEffect(
         localShowGIcon, localThemeStyle, localSubtheme,
-        localMaterialGIconTheme, localHue, localSaturation, localLightness, localOpacity, localLockBlack,
+        localMaterialGIconTheme, localHue, localSaturation, localLightness, localColorOpacity, localTransparency, localLockBlack,
         localShowVoice, localActionIcon, localShortcut1, localShortcut2, localShortcut3, localSlotOrderStr, localCustomColorInt
     ) {
         if (isInitialSetup) {
@@ -2730,15 +2913,15 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         }
         prefs.edit()
             .putBoolean("widget_show_g_icon", localShowGIcon)
-
             .putString("widget.theme.style", localThemeStyle)
             .putString("widget_subtheme", localSubtheme)
             .putString("widget_material_g_icon", localMaterialGIconTheme)
             .putInt("widget_custom_hue", localHue.toInt())
             .putInt("widget_custom_saturation", localSaturation.toInt())
             .putInt("widget_custom_lightness", localLightness.toInt())
+            .putInt("widget_custom_color_opacity", localColorOpacity.toInt())
             .putInt("widget_custom_color_int", localCustomColorInt)
-            .putInt("widget.background.transparency", localOpacity.toInt())
+            .putInt("widget.background.transparency", localTransparency.toInt())
             .putBoolean("widget_material_lock_black", localLockBlack)
             .putBoolean("widget_show_voice", localShowVoice)
             .putString("widget_action_icon", localActionIcon)
@@ -2763,21 +2946,22 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     androidx.compose.material3.TextButton(onClick = {
                         view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                         localShowGIcon = true
-
                         localThemeStyle = "Material Design"
                         localSubtheme = "System"
                         localMaterialGIconTheme = "Material G Icon"
                         localHue = 277f
                         localSaturation = 51f
                         localLightness = 100f
-                        localCustomColorInt = android.graphics.Color.HSVToColor(floatArrayOf(277f, 0.51f, 1f))
-                        localOpacity = 28f
+                        localColorOpacity = 100f
+                        localTransparency = 28f
+                        localCustomColorInt = android.graphics.Color.HSVToColor(255, floatArrayOf(277f, 0.51f, 1f))
                         localLockBlack = true
                         localShowVoice = true
                         localActionIcon = "Search"
                         localShortcut1 = "Google Lens"
                         localShortcut2 = "None"
                         localShortcut3 = "None"
+                        localSlotOrderStr = defaultSlotOrder
                     }) {
                         Text("Reset", color = MaterialTheme.colorScheme.onSurface)
                     }
@@ -2808,20 +2992,23 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     .background(MaterialTheme.colorScheme.background),
                 contentAlignment = Alignment.Center
             ) {
-                    val alphaInt = (255 * (100 - localOpacity.toInt()) / 100).coerceIn(0, 255) / 255f
+                    val containerAlpha = ((100 - localTransparency.toInt()) / 100f).coerceIn(0f, 1f)
+                    val colorAlpha = (localColorOpacity / 100f).coerceIn(0f, 1f)
+                    val effectiveColorAlpha = (colorAlpha * containerAlpha).coerceIn(0f, 1f)
+                    
                     val accentColor = if (localSubtheme == "Custom") {
                         androidx.compose.ui.graphics.Color(localCustomColorInt)
                     } else {
                         MaterialTheme.colorScheme.primary
                     }
-                    val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)"
+                    val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
                     val matPrimary = MaterialTheme.colorScheme.primary
                     val matSecondary = MaterialTheme.colorScheme.secondary
                     val matTertiary = MaterialTheme.colorScheme.tertiary
                     val matError = MaterialTheme.colorScheme.error
                     val matSurfaceVariant = MaterialTheme.colorScheme.surfaceVariant
 
-                    val activeColor = remember(previewIsMaterialYou, localSubtheme, localCustomColorInt, matPrimary, matSurfaceVariant, alphaInt) {
+                    val activeColor = remember(previewIsMaterialYou, localSubtheme, localCustomColorInt, matPrimary, matSurfaceVariant, effectiveColorAlpha) {
                         if (localSubtheme == "Custom") {
                             val hsv = FloatArray(3)
                             android.graphics.Color.colorToHSV(localCustomColorInt, hsv)
@@ -2845,64 +3032,49 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                     val previewRimColorAlpha = if (previewIsMaterialYou) {
                         if (localSubtheme == "Custom") {
-                            accentColor.copy(alpha = alphaInt)
+                            accentColor.copy(alpha = effectiveColorAlpha)
                         } else if (localSubtheme == "Material") {
-                            MaterialTheme.colorScheme.primaryContainer
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = effectiveColorAlpha)
                         } else {
-                            androidx.compose.ui.graphics.Color(0xFF6C63FF)
+                            androidx.compose.ui.graphics.Color(0xFF6C63FF).copy(alpha = effectiveColorAlpha)
                         }
                     } else androidx.compose.ui.graphics.Color.Transparent
                     
-                    val finalPreviewIconTint = if (localMaterialGIconTheme == "Accented G Icon") {
-                        accentColor
-                    } else if (localMaterialGIconTheme == "Material G Icon") {
-                        androidx.compose.ui.graphics.Color.Unspecified
-                    } else if (previewIsMaterialYou) {
-                        androidx.compose.ui.graphics.Color.White
+                    val finalPreviewIconTint = if (previewIsMaterialYou) {
+                        when (localMaterialGIconTheme) {
+                            "Accented G Icon" -> accentColor
+                            "Material G Icon" -> androidx.compose.ui.graphics.Color.White
+                            "System G Icon" -> androidx.compose.ui.graphics.Color.White
+                            else -> androidx.compose.ui.graphics.Color.White
+                        }
                     } else {
-                        val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
-                        val previewIconTint = if (!previewIsMaterialYou) {
-                            // System Design
-                            when (localSubtheme) {
-                                "System" -> MaterialTheme.colorScheme.onSurfaceVariant // Material 3 Color
-                                "Dark" -> androidx.compose.ui.graphics.Color.White
-                                "Light" -> androidx.compose.ui.graphics.Color(0xFF5F6368)
-                                "Custom" -> {
-                                    val luminance = (0.299 * accentColor.red + 0.587 * accentColor.green + 0.114 * accentColor.blue)
-                                    if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
-                                }
-                                else -> if (isSystemDark) androidx.compose.ui.graphics.Color(0xFF9AA0A6) else androidx.compose.ui.graphics.Color(0xFF5F6368)
-                            }
-                        } else {
-                            // Material Design
-                            when (localMaterialGIconTheme) {
-                                "System G Icon" -> androidx.compose.ui.graphics.Color.White
-                                "Material G Icon" -> MaterialTheme.colorScheme.onSurfaceVariant // Material 3 Color
-                                "Accented G Icon" -> accentColor
-                                else -> androidx.compose.ui.graphics.Color.White
+                        when (localSubtheme) {
+                            "Light" -> if (localMaterialGIconTheme == "Accented G Icon") accentColor else androidx.compose.ui.graphics.Color(0xFF5F6368)
+                            else -> {
+                                if (localMaterialGIconTheme == "Accented G Icon") accentColor
+                                else androidx.compose.ui.graphics.Color.White
                             }
                         }
-                        previewIconTint
                     }
                     
                     val rimBrush = if (previewIsMaterialYou && localSubtheme == "Custom") {
-                        androidx.compose.ui.graphics.SolidColor(accentColor.copy(alpha = alphaInt))
+                        androidx.compose.ui.graphics.SolidColor(accentColor.copy(alpha = effectiveColorAlpha))
                     } else {
                         androidx.compose.ui.graphics.Brush.linearGradient(listOf(previewRimColorAlpha, previewRimColorAlpha))
                     }
                     
                     val previewPillColorAlpha = if (previewIsMaterialYou) {
                         if (localLockBlack) {
-                            androidx.compose.ui.graphics.Color(0xFF121212)
+                            androidx.compose.ui.graphics.Color(0xFF121212).copy(alpha = containerAlpha)
                         } else {
-                            accentColor.copy(alpha = alphaInt)
+                            accentColor.copy(alpha = effectiveColorAlpha)
                         }
                     } else {
                         when (localSubtheme) {
-                            "Light" -> androidx.compose.ui.graphics.Color(0xFFF8F9FA)
-                            "Dark" -> androidx.compose.ui.graphics.Color(0xFF303134)
-                            "Custom" -> accentColor.copy(alpha = alphaInt)
-                            else -> if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFF303134) else androidx.compose.ui.graphics.Color(0xFFF8F9FA)
+                            "Light" -> androidx.compose.ui.graphics.Color(0xFFF8F9FA).copy(alpha = containerAlpha)
+                            "Dark" -> androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = containerAlpha)
+                            "Custom" -> accentColor.copy(alpha = effectiveColorAlpha)
+                            else -> if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = containerAlpha) else androidx.compose.ui.graphics.Color(0xFFF8F9FA).copy(alpha = containerAlpha)
                         }
                     }
                     
@@ -2928,22 +3100,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         ) {
                             if (localShowGIcon) {
                                 val gIconTint = when (localMaterialGIconTheme) {
-                                    "System G Icon" -> androidx.compose.ui.graphics.Color.Unspecified
                                     "Accented G Icon" -> accentColor
-                                    "Material G Icon" -> {
-                                        if (previewIsMaterialYou) androidx.compose.ui.graphics.Color.Unspecified else finalPreviewIconTint
-                                    }
                                     else -> androidx.compose.ui.graphics.Color.Unspecified
                                 }
-                                val useOriginalGIcon = if (previewIsMaterialYou) {
-                                    localMaterialGIconTheme == "System G Icon"
-                                } else {
-                                    if (localSubtheme == "Custom") {
-                                        localMaterialGIconTheme == "System G Icon"
-                                    } else {
-                                        localSubtheme != "System"
-                                    }
-                                }
+                                val useOriginalGIcon = localMaterialGIconTheme == "System G Icon"
                                 ComposeGIcon(
                                     modifier = Modifier.size(24.dp),
                                     primaryColor = MaterialTheme.colorScheme.primary,
@@ -2958,64 +3118,30 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             
                             Spacer(Modifier.weight(1f))
                             
+                            val useMaterialYouIcons = previewIsMaterialYou || localMaterialGIconTheme == "Material G Icon"
                             val slotOrder = localSlotOrderStr.split(",").filter { it.isNotBlank() }
-                            val previewActiveItems = mutableListOf<Pair<String, Int>>()
+                            val previewActiveItems = mutableListOf<Triple<String, Int, Boolean>>()
                             slotOrder.forEach { key ->
                                 when (key) {
                                     "mic" -> {
                                         if (localShowVoice) {
-                                            previewActiveItems.add("Microphone" to com.pixel.intelligentsearch.R.drawable.ic_mic)
+                                            val micRes = if (useMaterialYouIcons) com.pixel.intelligentsearch.R.drawable.ic_mic else com.pixel.intelligentsearch.R.drawable.ic_mic_original
+                                            previewActiveItems.add(Triple("Voice Search", micRes, true))
                                         }
                                     }
                                     "shortcut1" -> {
                                         if (localShortcut1 != "None") {
-                                            previewActiveItems.add(localShortcut1 to (when (localShortcut1) {
-                                                "Live" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
-                                                "Translate (text)" -> com.pixel.intelligentsearch.R.drawable.ic_translate
-                                                "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_document_scanner
-                                                "Weather" -> com.pixel.intelligentsearch.R.drawable.ic_weather
-                                                "Sports" -> com.pixel.intelligentsearch.R.drawable.ic_sports
-                                                "Dictionary" -> com.pixel.intelligentsearch.R.drawable.ic_dictionary
-                                                "Homework" -> com.pixel.intelligentsearch.R.drawable.ic_homework
-                                                "Finance" -> com.pixel.intelligentsearch.R.drawable.ic_finance
-                                                "Saved" -> com.pixel.intelligentsearch.R.drawable.ic_saved
-                                                "News" -> com.pixel.intelligentsearch.R.drawable.ic_news
-                                                else -> com.pixel.intelligentsearch.R.drawable.ic_camera
-                                            }))
+                                            previewActiveItems.add(Triple(localShortcut1, SearchWidgetProvider.getShortcutIconRes(localShortcut1, useMaterialYouIcons), false))
                                         }
                                     }
                                     "shortcut2" -> {
                                         if (localShortcut2 != "None") {
-                                            previewActiveItems.add(localShortcut2 to (when (localShortcut2) {
-                                                "Live" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
-                                                "Translate (text)" -> com.pixel.intelligentsearch.R.drawable.ic_translate
-                                                "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_document_scanner
-                                                "Weather" -> com.pixel.intelligentsearch.R.drawable.ic_weather
-                                                "Sports" -> com.pixel.intelligentsearch.R.drawable.ic_sports
-                                                "Dictionary" -> com.pixel.intelligentsearch.R.drawable.ic_dictionary
-                                                "Homework" -> com.pixel.intelligentsearch.R.drawable.ic_homework
-                                                "Finance" -> com.pixel.intelligentsearch.R.drawable.ic_finance
-                                                "Saved" -> com.pixel.intelligentsearch.R.drawable.ic_saved
-                                                "News" -> com.pixel.intelligentsearch.R.drawable.ic_news
-                                                else -> com.pixel.intelligentsearch.R.drawable.ic_camera
-                                            }))
+                                            previewActiveItems.add(Triple(localShortcut2, SearchWidgetProvider.getShortcutIconRes(localShortcut2, useMaterialYouIcons), false))
                                         }
                                     }
                                     "shortcut3" -> {
                                         if (localShortcut3 != "None") {
-                                            previewActiveItems.add(localShortcut3 to (when (localShortcut3) {
-                                                "Live" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
-                                                "Translate (text)" -> com.pixel.intelligentsearch.R.drawable.ic_translate
-                                                "Translate (camera)" -> com.pixel.intelligentsearch.R.drawable.ic_document_scanner
-                                                "Weather" -> com.pixel.intelligentsearch.R.drawable.ic_weather
-                                                "Sports" -> com.pixel.intelligentsearch.R.drawable.ic_sports
-                                                "Dictionary" -> com.pixel.intelligentsearch.R.drawable.ic_dictionary
-                                                "Homework" -> com.pixel.intelligentsearch.R.drawable.ic_homework
-                                                "Finance" -> com.pixel.intelligentsearch.R.drawable.ic_finance
-                                                "Saved" -> com.pixel.intelligentsearch.R.drawable.ic_saved
-                                                "News" -> com.pixel.intelligentsearch.R.drawable.ic_news
-                                                else -> com.pixel.intelligentsearch.R.drawable.ic_camera
-                                            }))
+                                            previewActiveItems.add(Triple(localShortcut3, SearchWidgetProvider.getShortcutIconRes(localShortcut3, useMaterialYouIcons), false))
                                         }
                                     }
                                 }
@@ -3025,10 +3151,22 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 if (idx > 0) {
                                     Spacer(modifier = Modifier.width(16.dp))
                                 }
+                                val isMic = item.third
+                                val iconTint = if (localMaterialGIconTheme == "Accented G Icon") {
+                                    accentColor
+                                } else if (localMaterialGIconTheme == "Material G Icon") {
+                                    androidx.compose.ui.graphics.Color.Unspecified
+                                } else if (localSubtheme == "Light" && !previewIsMaterialYou) {
+                                    androidx.compose.ui.graphics.Color(0xFF5F6368)
+                                } else if (isMic && localMaterialGIconTheme == "System G Icon") {
+                                    androidx.compose.ui.graphics.Color.Unspecified
+                                } else {
+                                    androidx.compose.ui.graphics.Color.White
+                                }
                                 Icon(
                                     painter = androidx.compose.ui.res.painterResource(id = item.second),
                                     contentDescription = item.first,
-                                    tint = finalPreviewIconTint,
+                                    tint = iconTint,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -3051,7 +3189,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 Icon(
                                     painter = androidx.compose.ui.res.painterResource(id = actIcon),
                                     contentDescription = "Action",
-                                    tint = finalPreviewIconTint,
+                                    tint = Color.Unspecified,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -3137,14 +3275,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val systemOpts = listOf("System", "Light", "Dark", "Custom")
                     systemOpts.forEach { opt ->
                         val isSel = localSubtheme == opt
-                        val dynColor = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(((100 - localOpacity) * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
+                        val dynColor = androidx.compose.ui.graphics.Color(localCustomColorInt)
                         val bgModifier = if (opt == "Custom") {
                             if (isSel) {
                                 Modifier.background(dynColor, RoundedCornerShape(32.dp))
                             } else {
                                 Modifier.background(
                                     brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                        colors = listOf(androidx.compose.ui.graphics.Color(0xFF3F51B5), androidx.compose.ui.graphics.Color(0xFFE91E63))
+                                        colors = listOf(
+                                            dynColor.copy(alpha = 0.5f),
+                                            dynColor
+                                        )
                                     ),
                                     shape = RoundedCornerShape(32.dp)
                                 )
@@ -3182,14 +3323,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val matOpts = listOf("Material", "Custom")
                     matOpts.forEach { opt ->
                         val isSel = localSubtheme == opt
-                        val dynColor = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(((100 - localOpacity) * 2.55f).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))
+                        val dynColor = androidx.compose.ui.graphics.Color(localCustomColorInt)
                         val bgModifier = if (opt == "Custom") {
                             if (isSel) {
                                 Modifier.background(dynColor, RoundedCornerShape(32.dp))
                             } else {
                                 Modifier.background(
                                     brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                        colors = listOf(androidx.compose.ui.graphics.Color(0xFF5E35B1), androidx.compose.ui.graphics.Color(0xFFAD1457))
+                                        colors = listOf(
+                                            dynColor.copy(alpha = 0.5f),
+                                            dynColor
+                                        )
                                     ),
                                     shape = RoundedCornerShape(32.dp)
                                 )
@@ -3284,11 +3428,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     shape = RoundedCornerShape(8.dp)
                                 )) {
                                     Android17Slider(
-                            showTrack = false,
-                            value = localHue,
+                                        showTrack = false,
+                                        value = localHue,
                                         onValueChange = { 
                                             localHue = it 
-                                            localCustomColorInt = android.graphics.Color.HSVToColor(floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
+                                            localCustomColorInt = android.graphics.Color.HSVToColor((localColorOpacity / 100f * 255).toInt().coerceIn(0, 255), floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
                                         },
                                         valueRange = 0f..360f,
                                         modifier = Modifier.fillMaxWidth()
@@ -3313,17 +3457,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
                                         colors = listOf(
                                             androidx.compose.ui.graphics.Color.White,
-                                            androidx.compose.ui.graphics.Color(0xFFE91E63)
+                                            androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(localHue, 1f, 1f)))
                                         )
                                     ),
                                     shape = RoundedCornerShape(8.dp)
                                 )) {
                                     Android17Slider(
-                            showTrack = false,
-                            value = localSaturation,
+                                        showTrack = false,
+                                        value = localSaturation,
                                         onValueChange = { 
                                             localSaturation = it 
-                                            localCustomColorInt = android.graphics.Color.HSVToColor(floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
+                                            localCustomColorInt = android.graphics.Color.HSVToColor((localColorOpacity / 100f * 255).toInt().coerceIn(0, 255), floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
                                         },
                                         valueRange = 0f..100f,
                                         modifier = Modifier.fillMaxWidth()
@@ -3334,28 +3478,72 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         
                         Spacer(modifier = Modifier.height(24.dp))
                         
-                        // Opacity
+                        // Color Opacity
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.Contrast, contentDescription = "Opacity", tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(24.dp))
+                            Icon(Icons.Default.Contrast, contentDescription = "Color Opacity", tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Opacity", fontSize = 16.sp, color = androidx.compose.ui.graphics.Color.White)
+                                    Text("Color Opacity", fontSize = 16.sp, color = androidx.compose.ui.graphics.Color.White)
                                     Spacer(modifier = Modifier.weight(1f))
-                                    Text("${localOpacity.toInt()}%", fontSize = 14.sp, color = androidx.compose.ui.graphics.Color.White)
+                                    Text("${localColorOpacity.toInt()}%", fontSize = 14.sp, color = androidx.compose.ui.graphics.Color.White)
                                 }
                                 Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
                                     brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
                                         colors = listOf(
                                             androidx.compose.ui.graphics.Color.Transparent,
-                                            androidx.compose.ui.graphics.Color.White
+                                            androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(localHue, localSaturation / 100f, 1f)))
                                         )
                                     ),
                                     shape = RoundedCornerShape(8.dp)
                                 )) {
                                     Android17Slider(
-                                        value = localOpacity,
-                                        onValueChange = { localOpacity = it },
+                                        value = localColorOpacity,
+                                        onValueChange = { 
+                                            localColorOpacity = it 
+                                            localCustomColorInt = android.graphics.Color.HSVToColor((localColorOpacity / 100f * 255).toInt().coerceIn(0, 255), floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
+                                        },
+                                        valueRange = 0f..100f,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        showTrack = false
+                                    )
+                                }
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
+                        // Transparency Slider (Widget Container Transparency)
+                        val dynamicCustomColor = androidx.compose.ui.graphics.Color(localCustomColorInt)
+                        val transparencyTrackGradient = remember(localCustomColorInt) {
+                            listOf(
+                                dynamicCustomColor,
+                                dynamicCustomColor.copy(alpha = 0.7f),
+                                dynamicCustomColor.copy(alpha = 0.35f),
+                                androidx.compose.ui.graphics.Color.White.copy(alpha = 0.25f),
+                                androidx.compose.ui.graphics.Color(0xFF3C4043).copy(alpha = 0.6f),
+                                androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.85f)
+                            )
+                        }
+                        
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.Opacity, contentDescription = "Transparency", tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Transparency", fontSize = 16.sp, color = androidx.compose.ui.graphics.Color.White)
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Text("${localTransparency.toInt()}%", fontSize = 14.sp, color = androidx.compose.ui.graphics.Color.White)
+                                }
+                                Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
+                                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                        colors = transparencyTrackGradient
+                                    ),
+                                    shape = RoundedCornerShape(8.dp)
+                                )) {
+                                    Android17Slider(
+                                        value = localTransparency,
+                                        onValueChange = { localTransparency = it },
                                         valueRange = 0f..100f,
                                         modifier = Modifier.fillMaxWidth(),
                                         showTrack = false
@@ -3387,7 +3575,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             Icon(Icons.Default.Edit, contentDescription = "Edit Hex", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                         }
                         
-                        if (localThemeStyle == "Material You (Minimal)") {
+                        if (localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design") {
                             Spacer(modifier = Modifier.height(16.dp))
                             Row(
                                 modifier = Modifier
@@ -3450,10 +3638,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             }
                 Text("WIDGET SHORTCUTS & MICROPHONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp))
                 
-                var draggingShortcutSlotIndex by remember { mutableStateOf<Int?>(null) }
-                var shortcutDragOffset by remember { mutableFloatStateOf(0f) }
+                var draggingSlotKey by remember { mutableStateOf<String?>(null) }
+                var itemDragOffset by remember { mutableFloatStateOf(0f) }
                 val coroutineScope = rememberCoroutineScope()
                 val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+                val density = androidx.compose.ui.platform.LocalDensity.current
+                val slotItemHeightPx = with(density) { 82.dp.toPx() }
 
                 Column(
                     modifier = Modifier
@@ -3462,177 +3652,196 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     val currentOrderList = localSlotOrderStr.split(",").filter { it.isNotBlank() }
-                    currentOrderList.forEachIndexed { index, slotKey ->
-                        val isDragging = draggingShortcutSlotIndex == index
-                        val swipeOffsetX = remember { androidx.compose.animation.core.Animatable(0f) }
+                    currentOrderList.forEach { slotKey ->
+                        key(slotKey) {
+                            val isDragging = draggingSlotKey == slotKey
+                            val elevation by androidx.compose.animation.core.animateDpAsState(
+                                targetValue = if (isDragging) 8.dp else 2.dp,
+                                label = "elevation"
+                            )
+                            val scale by androidx.compose.animation.core.animateFloatAsState(
+                                targetValue = if (isDragging) 1.03f else 1f,
+                                label = "scale"
+                            )
+                            val swipeOffsetX = remember { androidx.compose.animation.core.Animatable(0f) }
 
-                        val cardTitle = when (slotKey) {
-                            "mic" -> "Microphone Slot:"
-                            "shortcut1" -> "Shortcut Slot: 1"
-                            "shortcut2" -> "Shortcut Slot: 2"
-                            else -> "Shortcut Slot: 3"
-                        }
+                            val currentPositionIndex = currentOrderList.indexOf(slotKey)
+                            val cardTitle = when (slotKey) {
+                                "mic" -> "Microphone Slot:"
+                                else -> "Shortcut Slot: ${currentPositionIndex + 1}"
+                            }
 
-                        val cardSubtext = when (slotKey) {
-                            "mic" -> if (localShowVoice) "Voice Search" else "None"
-                            "shortcut1" -> localShortcut1
-                            "shortcut2" -> localShortcut2
-                            else -> localShortcut3
-                        }
+                            val cardSubtext = when (slotKey) {
+                                "mic" -> if (localShowVoice) "Voice Search" else "None"
+                                "shortcut1" -> localShortcut1
+                                "shortcut2" -> localShortcut2
+                                else -> localShortcut3
+                            }
 
-                        val cardIcon = when (slotKey) {
-                            "mic" -> if (localShowVoice) Icons.Default.Mic else Icons.Default.Close
-                            else -> shortcutOptions.find { it.first == cardSubtext }?.second ?: Icons.Default.Close
-                        }
+                            val cardIcon = when (slotKey) {
+                                "mic" -> if (localShowVoice) Icons.Default.Mic else Icons.Default.Close
+                                else -> shortcutOptions.find { it.first == cardSubtext }?.second ?: Icons.Default.Close
+                            }
 
-                        val cardModifier = if (isDragging) {
-                            Modifier
-                                .zIndex(2f)
-                                .graphicsLayer { translationY = shortcutDragOffset }
-                        } else {
-                            Modifier.graphicsLayer { translationX = swipeOffsetX.value }
-                        }
-
-                        Surface(
-                            modifier = cardModifier
-                                .fillMaxWidth()
-                                .pointerInput(slotKey, isDragging) {
-                                    if (!isDragging) {
-                                        detectHorizontalDragGestures(
-                                            onDragEnd = {
-                                                coroutineScope.launch {
-                                                    if (kotlin.math.abs(swipeOffsetX.value) > 200f) {
-                                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                                        when (slotKey) {
-                                                            "mic" -> localShowVoice = false
-                                                            "shortcut1" -> localShortcut1 = "None"
-                                                            "shortcut2" -> localShortcut2 = "None"
-                                                            "shortcut3" -> localShortcut3 = "None"
-                                                        }
-                                                    }
-                                                    swipeOffsetX.animateTo(
-                                                        targetValue = 0f,
-                                                        animationSpec = androidx.compose.animation.core.spring(
-                                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                                                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
-                                                        )
-                                                    )
-                                                }
-                                            },
-                                            onDragCancel = {
-                                                coroutineScope.launch {
-                                                    swipeOffsetX.animateTo(
-                                                        targetValue = 0f,
-                                                        animationSpec = androidx.compose.animation.core.spring(
-                                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                                                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
-                                                        )
-                                                    )
-                                                }
-                                            },
-                                            onHorizontalDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, dragAmount: Float ->
-                                                change.consume()
-                                                coroutineScope.launch {
-                                                    swipeOffsetX.snapTo(swipeOffsetX.value + dragAmount)
-                                                }
-                                            }
-                                        )
+                            val cardModifier = if (isDragging) {
+                                Modifier
+                                    .zIndex(10f)
+                                    .graphicsLayer {
+                                        translationY = itemDragOffset
+                                        scaleX = scale
+                                        scaleY = scale
                                     }
-                                },
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            tonalElevation = if (isDragging) 8.dp else 2.dp,
-                            shadowElevation = if (isDragging) 4.dp else 0.dp
-                        ) {
-                            Row(
-                                modifier = Modifier
+                            } else {
+                                Modifier
+                                    .zIndex(0f)
+                                    .graphicsLayer {
+                                        translationX = swipeOffsetX.value
+                                        scaleX = scale
+                                        scaleY = scale
+                                    }
+                            }
+
+                            Surface(
+                                modifier = cardModifier
                                     .fillMaxWidth()
-                                    .clickable {
-                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                        if (slotKey == "mic") {
-                                            localShowVoice = !localShowVoice
-                                        } else {
-                                            activeShortcutSlot = when (slotKey) {
-                                                "shortcut1" -> 1
-                                                "shortcut2" -> 2
-                                                else -> 3
-                                            }
-                                            showShortcutSheet = true
-                                        }
-                                    }
-                                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = cardIcon,
-                                    contentDescription = cardSubtext,
-                                    modifier = Modifier.size(24.dp),
-                                    tint = if (cardSubtext == "None") MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = cardTitle,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = cardSubtext,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Icon(
-                                    imageVector = Icons.Outlined.DragHandle,
-                                    contentDescription = "Drag to reorder",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier
-                                        .padding(start = 12.dp)
-                                        .size(24.dp)
-                                        .pointerInput(index) {
-                                            detectVerticalDragGestures(
-                                                onDragStart = {
-                                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                                    draggingShortcutSlotIndex = index
-                                                    shortcutDragOffset = 0f
-                                                },
+                                    .pointerInput(slotKey, isDragging) {
+                                        if (!isDragging) {
+                                            detectHorizontalDragGestures(
                                                 onDragEnd = {
-                                                    draggingShortcutSlotIndex = null
-                                                    shortcutDragOffset = 0f
+                                                    coroutineScope.launch {
+                                                        if (kotlin.math.abs(swipeOffsetX.value) > 200f) {
+                                                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                                            when (slotKey) {
+                                                                "mic" -> localShowVoice = false
+                                                                "shortcut1" -> localShortcut1 = "None"
+                                                                "shortcut2" -> localShortcut2 = "None"
+                                                                "shortcut3" -> localShortcut3 = "None"
+                                                            }
+                                                        }
+                                                        swipeOffsetX.animateTo(
+                                                            targetValue = 0f,
+                                                            animationSpec = androidx.compose.animation.core.spring(
+                                                                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                                                stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                                                            )
+                                                        )
+                                                    }
                                                 },
                                                 onDragCancel = {
-                                                    draggingShortcutSlotIndex = null
-                                                    shortcutDragOffset = 0f
+                                                    coroutineScope.launch {
+                                                        swipeOffsetX.animateTo(
+                                                            targetValue = 0f,
+                                                            animationSpec = androidx.compose.animation.core.spring(
+                                                                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                                                stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                                                            )
+                                                        )
+                                                    }
                                                 },
-                                                onVerticalDrag = { change, dragAmount ->
+                                                onHorizontalDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, dragAmount: Float ->
                                                     change.consume()
-                                                    shortcutDragOffset += dragAmount
-                                                    val currentIdx = draggingShortcutSlotIndex ?: return@detectVerticalDragGestures
-                                                    
-                                                    if (shortcutDragOffset > 120f && currentIdx < currentOrderList.size - 1) {
-                                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                                        val listCopy = currentOrderList.toMutableList()
-                                                        val temp = listCopy[currentIdx]
-                                                        listCopy[currentIdx] = listCopy[currentIdx + 1]
-                                                        listCopy[currentIdx + 1] = temp
-                                                        localSlotOrderStr = listCopy.joinToString(",")
-                                                        draggingShortcutSlotIndex = currentIdx + 1
-                                                        shortcutDragOffset = 0f
-                                                    } else if (shortcutDragOffset < -120f && currentIdx > 0) {
-                                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                                        val listCopy = currentOrderList.toMutableList()
-                                                        val temp = listCopy[currentIdx]
-                                                        listCopy[currentIdx] = listCopy[currentIdx - 1]
-                                                        listCopy[currentIdx - 1] = temp
-                                                        localSlotOrderStr = listCopy.joinToString(",")
-                                                        draggingShortcutSlotIndex = currentIdx - 1
-                                                        shortcutDragOffset = 0f
+                                                    coroutineScope.launch {
+                                                        swipeOffsetX.snapTo(swipeOffsetX.value + dragAmount)
                                                     }
                                                 }
                                             )
                                         }
-                                )
+                                    },
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                tonalElevation = elevation,
+                                shadowElevation = elevation
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                            if (slotKey == "mic") {
+                                                localShowVoice = !localShowVoice
+                                            } else {
+                                                activeShortcutSlot = when (slotKey) {
+                                                    "shortcut1" -> 1
+                                                    "shortcut2" -> 2
+                                                    else -> 3
+                                                }
+                                                showShortcutSheet = true
+                                            }
+                                        }
+                                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = cardIcon,
+                                        contentDescription = cardSubtext,
+                                        modifier = Modifier.size(24.dp),
+                                        tint = if (cardSubtext == "None") MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = cardTitle,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = cardSubtext,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Outlined.DragHandle,
+                                        contentDescription = "Drag to reorder",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier
+                                            .padding(start = 12.dp)
+                                            .size(24.dp)
+                                            .pointerInput(slotKey) {
+                                                detectVerticalDragGestures(
+                                                    onDragStart = {
+                                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                                        draggingSlotKey = slotKey
+                                                        itemDragOffset = 0f
+                                                    },
+                                                    onDragEnd = {
+                                                        draggingSlotKey = null
+                                                        itemDragOffset = 0f
+                                                    },
+                                                    onDragCancel = {
+                                                        draggingSlotKey = null
+                                                        itemDragOffset = 0f
+                                                    },
+                                                    onVerticalDrag = { change, dragAmount ->
+                                                        change.consume()
+                                                        itemDragOffset += dragAmount
+                                                        
+                                                        val currentDraggingSlot = draggingSlotKey ?: return@detectVerticalDragGestures
+                                                        val currentList = localSlotOrderStr.split(",").filter { it.isNotBlank() }
+                                                        val from = currentList.indexOf(currentDraggingSlot)
+                                                        val itemHeight = slotItemHeightPx
+                                                        
+                                                        if (from != -1) {
+                                                            if (itemDragOffset > itemHeight / 2f && from < currentList.size - 1) {
+                                                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                                                val updated = currentList.toMutableList()
+                                                                java.util.Collections.swap(updated, from, from + 1)
+                                                                localSlotOrderStr = updated.joinToString(",")
+                                                                itemDragOffset -= itemHeight
+                                                            } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
+                                                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                                                val updated = currentList.toMutableList()
+                                                                java.util.Collections.swap(updated, from, from - 1)
+                                                                localSlotOrderStr = updated.joinToString(",")
+                                                                itemDragOffset += itemHeight
+                                                            }
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                    )
+                                }
                             }
                         }
                     }
@@ -4773,16 +4982,18 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine, val startX:
     var sizePx = 0f
     var mass = 1f
     
-    fun updateBounds(width: Float, height: Float, dWidth: Float, dHeight: Float) {
+    fun updateBounds(width: Float, height: Float, dWidth: Float, dHeight: Float, smallestWidthDp: Int, fontScale: Float) {
         boundsWidth = width
         boundsHeight = height
         deviceWidth = dWidth
         deviceHeight = dHeight
-        // "None are smaller though. Some are a medium size bigger."
-        // Base is 0.04f. Multipliers: 1.0, 1.2, 1.4, 1.6
+        
+        // Scale particle base size proportionally to smallestScreenWidthDp, density, and fontScale
+        val dpScale = (smallestWidthDp / 411f).coerceIn(0.65f, 1.4f)
+        val fontAdjust = (1f / fontScale.coerceIn(0.8f, 1.5f))
+        val baseFraction = 0.038f * dpScale * fontAdjust
         val sizeMultiplier = 1.0f + (index % 4) * 0.2f
-        sizePx = dWidth * 0.04f * sizeMultiplier
-        // Mass scales with 2D area (radius squared)
+        sizePx = (dWidth * baseFraction * sizeMultiplier).coerceIn(16f, (height * 0.35f).coerceAtLeast(24f))
         mass = sizeMultiplier * sizeMultiplier
     }
 
@@ -4856,8 +5067,8 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine, val startX:
                 
                 var touchingGround = false
                 
-                val maxY = boundsHeight - sizePx
-                val minY = sizePx // ceiling
+                val maxY = (boundsHeight - sizePx).coerceAtLeast(0f)
+                val minY = 0f // ceiling
                 if (y >= maxY) {
                     y = maxY
                     touchingGround = true
@@ -4878,8 +5089,8 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine, val startX:
                     }
                 }
                 
-                val minX = sizePx
-                val maxX = boundsWidth - sizePx
+                val minX = 0f
+                val maxX = (boundsWidth - sizePx).coerceAtLeast(0f)
                 if (x <= minX) {
                     x = minX
                     if (vx < 0) {
@@ -4929,41 +5140,44 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine, val startX:
 fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val coroutineScope = rememberCoroutineScope()
     val engine = remember { MorphAnimationEngine(coroutineScope) }
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val context = LocalContext.current
-    val view = LocalView.current
 
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val density = androidx.compose.ui.platform.LocalDensity.current
     val deviceWidth = configuration.screenWidthDp * density.density
     val deviceHeight = configuration.screenHeightDp * density.density
+    val smallestWidthDp = configuration.smallestScreenWidthDp
+    val fontScale = density.fontScale
 
-    BoxWithConstraints(modifier = modifier) {
+    BoxWithConstraints(modifier = modifier.clipToBounds()) {
         val width = constraints.maxWidth.toFloat()
         val height = constraints.maxHeight.toFloat()
 
-        // Update synchronously during composition to guarantee zero frame delay
-        engine.bouncers.forEach { it.updateBounds(width, height, deviceWidth, deviceHeight) }
+        if (width > 0f && height > 0f) {
+            engine.bouncers.forEach { it.updateBounds(width, height, deviceWidth, deviceHeight, smallestWidthDp, fontScale) }
 
-        val baseAccentColor = MaterialTheme.colorScheme.primary
-        val variant1 = MaterialTheme.colorScheme.secondary
-        val variant2 = MaterialTheme.colorScheme.tertiary
-        val variant3 = MaterialTheme.colorScheme.primaryContainer
+            val baseAccentColor = MaterialTheme.colorScheme.primary
+            val variant1 = MaterialTheme.colorScheme.secondary
+            val variant2 = MaterialTheme.colorScheme.tertiary
+            val variant3 = MaterialTheme.colorScheme.primaryContainer
 
-        val colors = listOf(baseAccentColor, variant1, variant2, variant3)
+            val colors = listOf(baseAccentColor, variant1, variant2, variant3)
 
-        engine.bouncers.forEachIndexed { index, bouncer ->
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val sizePx = bouncer.sizePx
-                if (sizePx <= 0f) return@Canvas
-                
-                translate(left = bouncer.x, top = bouncer.y) {
-                    rotate(bouncer.rotation.value) {
-                        val path = android.graphics.Path()
-                        bouncer.morph.toPath(progress = bouncer.morphProgress.value, path = path)
-                        
-                        scale(scale = sizePx, pivot = Offset.Zero) {
-                            drawPath(path.asComposePath(), colors[index].copy(alpha = bouncer.alpha.value * 0.9f))
+            engine.bouncers.forEachIndexed { index, bouncer ->
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val sizePx = bouncer.sizePx
+                    if (sizePx <= 0f) return@Canvas
+                    
+                    val boundedX = bouncer.x.coerceIn(0f, (width - sizePx).coerceAtLeast(0f))
+                    val boundedY = bouncer.y.coerceIn(0f, (height - sizePx).coerceAtLeast(0f))
+                    
+                    translate(left = boundedX, top = boundedY) {
+                        rotate(bouncer.rotation.value) {
+                            val path = android.graphics.Path()
+                            bouncer.morph.toPath(progress = bouncer.morphProgress.value, path = path)
+                            
+                            scale(scale = sizePx, pivot = Offset.Zero) {
+                                drawPath(path.asComposePath(), colors[index].copy(alpha = bouncer.alpha.value * 0.9f))
+                            }
                         }
                     }
                 }

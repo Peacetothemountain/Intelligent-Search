@@ -60,9 +60,12 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val showGemini = prefs.getBoolean("widget_show_gemini", false)
         val showGIcon = prefs.getBoolean("widget_show_g_icon", true)
         val actionIconStr = prefs.getString("widget_action_icon", "Search") ?: "Search"
-        val shortcut1Str = prefs.getString("widget_shortcut_1", prefs.getString("widget_shortcut", "Google Lens")) ?: "Google Lens"
-        val shortcut2Str = prefs.getString("widget_shortcut_2", "None") ?: "None"
-        val shortcut3Str = prefs.getString("widget_shortcut_3", "None") ?: "None"
+        val rawShortcut1 = prefs.getString("widget_shortcut_1", prefs.getString("widget_shortcut", "Google Lens")) ?: "Google Lens"
+        val rawShortcut2 = prefs.getString("widget_shortcut_2", "None") ?: "None"
+        val rawShortcut3 = prefs.getString("widget_shortcut_3", "None") ?: "None"
+        val shortcut1Str = if (rawShortcut1 == "Voice Search") "None" else rawShortcut1
+        val shortcut2Str = if (rawShortcut2 == "Voice Search") "None" else rawShortcut2
+        val shortcut3Str = if (rawShortcut3 == "Voice Search") "None" else rawShortcut3
 
         val themeMode = prefs.getString("night.mode", "System") ?: "System"
         val isDark = when (themeMode) {
@@ -75,13 +78,15 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val isMaterialYou = widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
 
         val subthemeStr = prefs.getString("widget_subtheme", "System") ?: "System"
-        val customColorInt = prefs.getInt("widget_custom_color_int", android.graphics.Color.HSVToColor(floatArrayOf(
-            prefs.getInt("widget_custom_hue", 277).toFloat(),
-            prefs.getInt("widget_custom_saturation", 51) / 100f,
-            prefs.getInt("widget_custom_lightness", 100) / 100f
-        )))
-        
-        val actualCustomColor = customColorInt  // Outer accent rim: system_accent1 (primary tonal)
+        val customHue = prefs.getInt("widget_custom_hue", 277).toFloat()
+        val customSat = prefs.getInt("widget_custom_saturation", 51) / 100f
+        val customLightness = prefs.getInt("widget_custom_lightness", 100) / 100f
+        val customColorOpacity = prefs.getInt("widget_custom_color_opacity", 100) / 100f
+        val colorAlphaInt = (customColorOpacity * 255).toInt().coerceIn(0, 255)
+        val actualCustomColor = android.graphics.Color.HSVToColor(
+            colorAlphaInt,
+            floatArrayOf(customHue, customSat, customLightness)
+        )
         val rimColor = if (isMaterialYou) {
             if (subthemeStr == "Custom") {
                 actualCustomColor
@@ -97,9 +102,10 @@ class SearchWidgetProvider : AppWidgetProvider() {
 
         val lockBlack = prefs.getBoolean("widget_material_lock_black", true)
 
-        // Inner pill: Material Black for Material You, System Design uses specific colors based on subtheme
         val pillColor = if (isMaterialYou) {
-            if (lockBlack) 0xFF121212.toInt() else actualCustomColor
+            if (lockBlack) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_neutral1_900) else 0xFF121212.toInt()
+            } else actualCustomColor
         } else {
             when (subthemeStr) {
                 "Light" -> 0xFFF8F9FA.toInt()
@@ -112,9 +118,21 @@ class SearchWidgetProvider : AppWidgetProvider() {
         // Circle button: slightly lighter than pill
         val circleColor = pillColor
 
-        // Apply widget transparency setting to the background colors (0 = solid, 100 = invisible)
+        // Apply widget transparency & color opacity settings to background layers
         val transparency = prefs.getInt("widget.background.transparency", 28)
-        val alphaInt = if (subthemeStr == "Custom") { (255 * (100 - transparency) / 100).coerceIn(0, 255) } else { 255 }
+        val containerAlpha = ((100 - transparency) / 100f).coerceIn(0f, 1f)
+        val containerAlphaInt = (containerAlpha * 255).toInt().coerceIn(0, 255)
+
+        val colorAlpha = customColorOpacity.coerceIn(0f, 1f)
+        val effectiveColorAlphaInt = (colorAlpha * containerAlpha * 255).toInt().coerceIn(0, 255)
+
+        val rimAlphaInt = if (isMaterialYou) effectiveColorAlphaInt else 0
+        val pillAlphaInt = if (isMaterialYou) {
+            if (lockBlack) containerAlphaInt else effectiveColorAlphaInt
+        } else {
+            if (subthemeStr == "Custom") effectiveColorAlphaInt else containerAlphaInt
+        }
+        val circleAlphaInt = pillAlphaInt
         
         // Use opaque colors for the filter to completely overwrite the grey base
         val rimColorOpaque = android.graphics.Color.rgb(
@@ -156,18 +174,11 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val materialGIconTheme = prefs.getString("widget_material_g_icon", "Material G Icon") ?: "Material G Icon"
         val accentIconTint = if (materialGIconTheme == "Accented G Icon") actualCustomColor else iconTint
 
-        val gIconRes = when {
-            !isMaterialYou -> {
-                if (materialGIconTheme == "Accented G Icon") R.drawable.ic_g_logo else R.drawable.ic_g_logo_colored
-            }
-            else -> {
-                when (materialGIconTheme) {
-                    "System G Icon" -> R.drawable.ic_g_logo_colored
-                    "Material G Icon" -> R.drawable.ic_g_logo
-                    "Accented G Icon" -> R.drawable.ic_g_logo
-                    else -> R.drawable.ic_g_logo_colored
-                }
-            }
+        val gIconRes = when (materialGIconTheme) {
+            "System G Icon" -> R.drawable.ic_g_logo_colored
+            "Material G Icon" -> R.drawable.ic_g_logo
+            "Accented G Icon" -> R.drawable.ic_g_logo
+            else -> if (isMaterialYou) R.drawable.ic_g_logo else R.drawable.ic_g_logo_colored
         }
         
         val actionIconRes = when (actionIconStr) {
@@ -184,23 +195,20 @@ class SearchWidgetProvider : AppWidgetProvider() {
             // Apply Material You colors with transparency using setImageAlpha
             if (isMaterialYou) {
                 views.setColorStateList(R.id.widget_outer_background, "setImageTintList", android.content.res.ColorStateList.valueOf(rimColorOpaque))
-                views.setInt(R.id.widget_outer_background, "setImageAlpha", alphaInt)
+                views.setInt(R.id.widget_outer_background, "setImageAlpha", rimAlphaInt)
                 
                 views.setColorStateList(R.id.widget_pill_background, "setImageTintList", android.content.res.ColorStateList.valueOf(pillColorOpaque))
-                views.setInt(R.id.widget_pill_background, "setImageAlpha", if (lockBlack) 255 else alphaInt)
+                views.setInt(R.id.widget_pill_background, "setImageAlpha", pillAlphaInt)
                 
                 views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
-                views.setInt(R.id.widget_sound_background, "setImageAlpha", if (lockBlack) 255 else alphaInt)
+                views.setInt(R.id.widget_sound_background, "setImageAlpha", circleAlphaInt)
                 
-                bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme)
-                views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic)
+                bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme, subthemeStr, isMaterialYou)
                 if (materialGIconTheme == "Accented G Icon") {
                     views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
-                    views.setColorStateList(R.id.widget_voice_search, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
                     views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
                 } else {
                     views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
-                    views.setColorStateList(R.id.widget_voice_search, "setImageTintList", null)
                     views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", null)
                 }
 
@@ -209,14 +217,12 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_outer_background, View.GONE)
                 
                 views.setColorStateList(R.id.widget_pill_background, "setImageTintList", android.content.res.ColorStateList.valueOf(pillColorOpaque))
-                views.setInt(R.id.widget_pill_background, "setImageAlpha", alphaInt)
+                views.setInt(R.id.widget_pill_background, "setImageAlpha", pillAlphaInt)
                 
                 views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
-                views.setInt(R.id.widget_sound_background, "setImageAlpha", alphaInt)
+                views.setInt(R.id.widget_sound_background, "setImageAlpha", circleAlphaInt)
                 
-                bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme)
-                views.setImageViewResource(R.id.widget_voice_search, R.drawable.ic_mic_original)
-                views.setColorStateList(R.id.widget_voice_search, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
+                bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme, subthemeStr, isMaterialYou)
             }
 
             // Bind 4 ordered shortcut and microphone slots
@@ -230,28 +236,29 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 R.id.widget_shortcut_3
             )
 
+            val useMaterialYouIcons = isMaterialYou || materialGIconTheme == "Material G Icon"
             val activeItems = mutableListOf<Triple<String, Int, Intent>>()
             for (key in slotOrder) {
                 when (key) {
                     "mic" -> {
                         if (showVoice) {
-                            val micIcon = if (isMaterialYou) R.drawable.ic_mic else R.drawable.ic_mic_original
+                            val micIcon = if (useMaterialYouIcons) R.drawable.ic_mic else R.drawable.ic_mic_original
                             activeItems.add(Triple("mic", micIcon, getVoiceSearchIntent(context)))
                         }
                     }
                     "shortcut1" -> {
                         if (shortcut1Str != "None") {
-                            activeItems.add(Triple("shortcut1", getShortcutIconRes(shortcut1Str, isMaterialYou), getShortcutIntent(context, shortcut1Str)))
+                            activeItems.add(Triple("shortcut1", getShortcutIconRes(shortcut1Str, useMaterialYouIcons), getShortcutIntent(context, shortcut1Str)))
                         }
                     }
                     "shortcut2" -> {
                         if (shortcut2Str != "None") {
-                            activeItems.add(Triple("shortcut2", getShortcutIconRes(shortcut2Str, isMaterialYou), getShortcutIntent(context, shortcut2Str)))
+                            activeItems.add(Triple("shortcut2", getShortcutIconRes(shortcut2Str, useMaterialYouIcons), getShortcutIntent(context, shortcut2Str)))
                         }
                     }
                     "shortcut3" -> {
                         if (shortcut3Str != "None") {
-                            activeItems.add(Triple("shortcut3", getShortcutIconRes(shortcut3Str, isMaterialYou), getShortcutIntent(context, shortcut3Str)))
+                            activeItems.add(Triple("shortcut3", getShortcutIconRes(shortcut3Str, useMaterialYouIcons), getShortcutIntent(context, shortcut3Str)))
                         }
                     }
                 }
@@ -264,14 +271,18 @@ class SearchWidgetProvider : AppWidgetProvider() {
                     views.setViewVisibility(targetViewId, View.VISIBLE)
                     views.setImageViewResource(targetViewId, item.second)
 
-                    if (isMaterialYou) {
-                        if (materialGIconTheme == "Accented G Icon") {
-                            views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
-                        } else {
-                            views.setColorStateList(targetViewId, "setImageTintList", null)
-                        }
-                    } else {
+                    if (materialGIconTheme == "Accented G Icon") {
                         views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
+                    } else if (materialGIconTheme == "Material G Icon") {
+                        views.setColorStateList(targetViewId, "setImageTintList", null)
+                    } else if (!isMaterialYou && subthemeStr == "Light") {
+                        views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(android.graphics.Color.DKGRAY))
+                    } else if (item.first == "mic" && materialGIconTheme == "System G Icon") {
+                        views.setColorStateList(targetViewId, "setImageTintList", null)
+                    } else if (!isMaterialYou) {
+                        views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE))
+                    } else {
+                        views.setColorStateList(targetViewId, "setImageTintList", null)
                     }
 
                     val pi = PendingIntent.getActivity(
@@ -307,12 +318,6 @@ class SearchWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_pill_container, mainPI)
             views.setOnClickPendingIntent(R.id.widget_g_logo, mainPI)
 
-            // Tap mic -> Voice Search
-            val voicePI = PendingIntent.getActivity(context, appWidgetId + 1000,
-                getVoiceSearchIntent(context),
-                PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            views.setOnClickPendingIntent(R.id.widget_voice_search, voicePI)
-
             // Tap sparkle circle inside pill -> Gemini
             val geminiPI = PendingIntent.getActivity(context, appWidgetId + 2500,
                 getGeminiSearchIntent(context),
@@ -341,6 +346,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                     else -> R.drawable.ic_search_ai_colored // Search
                 }
                 views.setImageViewResource(R.id.widget_sound_icon, actionIconRes)
+                views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", null)
             }
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
@@ -468,19 +474,21 @@ class SearchWidgetProvider : AppWidgetProvider() {
             return defaultIntent()
         }
 
-          private fun bindGIcon(
+        private fun bindGIcon(
             views: RemoteViews, 
             showGIcon: Boolean, 
             gIconRes: Int, 
             iconTint: Int,
-            materialGIconTheme: String
+            materialGIconTheme: String,
+            subthemeStr: String,
+            isMaterialYou: Boolean
         ) {
             views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
             views.setImageViewResource(R.id.widget_g_logo, gIconRes)
-            if (materialGIconTheme == "Accented G Icon" || materialGIconTheme == "Colorful") {
-                if (materialGIconTheme == "Accented G Icon") {
-                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
-                }
+            if (materialGIconTheme == "Accented G Icon") {
+                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
+            } else if (!isMaterialYou && subthemeStr == "Light" && materialGIconTheme != "System G Icon") {
+                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(android.graphics.Color.DKGRAY))
             } else {
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
             }

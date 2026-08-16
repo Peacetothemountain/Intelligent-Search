@@ -303,7 +303,6 @@ fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: S
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Suppress("DEPRECATION")
 private fun finishWithoutTransition(activity: android.app.Activity?) {
     if (activity != null && !activity.isFinishing) {
@@ -523,14 +522,20 @@ fun SearchOverlayScreen(
         uiState.filteredApps.filter { !settingsState.hiddenApps.contains(it.packageName) }
     }
 
-    val bestMatch = remember(uiState.query, uiState.contacts, visibleApps, uiState.files) {
+    val bestMatch = remember(uiState.query, uiState.contacts, visibleApps, uiState.files, settingsState.searchApps, settingsState.searchContacts, settingsState.searchFiles) {
         if (uiState.query.isEmpty()) return@remember null
-        val contactMatch = uiState.contacts.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
-        if (contactMatch != null) return@remember contactMatch
-        val appMatch = visibleApps.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
-        if (appMatch != null) return@remember appMatch
-        val fileMatch = uiState.files.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
-        if (fileMatch != null) return@remember fileMatch
+        if (settingsState.searchContacts) {
+            val contactMatch = uiState.contacts.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
+            if (contactMatch != null) return@remember contactMatch
+        }
+        if (settingsState.searchApps) {
+            val appMatch = visibleApps.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
+            if (appMatch != null) return@remember appMatch
+        }
+        if (settingsState.searchFiles) {
+            val fileMatch = uiState.files.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
+            if (fileMatch != null) return@remember fileMatch
+        }
         null
     }
     
@@ -731,11 +736,11 @@ fun SearchOverlayScreen(
                     }
                         val dynamicScale = if (pillPackages.size > 6) (6f / pillPackages.size.toFloat()).coerceIn(0.6f, 1f) else 1f
                         items(pillPackages, key = { it }) { packageName ->
-                            val appIconState = remember(packageName) { mutableStateOf<AppIconResult?>(null) }
+                            val appIconState = remember(packageName, settingsState.activeIconPack) { mutableStateOf<AppIconResult?>(null) }
                             val appNameState = remember(packageName) { mutableStateOf("App") }
-                            LaunchedEffect(packageName) {
+                            LaunchedEffect(packageName, settingsState.activeIconPack) {
                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                    val icon = getThemedAppIcon(context, packageName, activePackOverride = "system_default")
+                                    val icon = getThemedAppIcon(context, packageName, activePackOverride = settingsState.activeIconPack)
                                     val name = getAppName(context, packageName)
                                     appIconState.value = icon
                                     appNameState.value = name
@@ -811,6 +816,16 @@ fun SearchOverlayScreen(
             reverseLayout = if (!settingsState.bottomSearch) false else settingsState.bottomSearchResult,
             verticalArrangement = if (settingsState.bottomSearch) Arrangement.Bottom else Arrangement.Top
         ) {
+
+            val systemToggle = uiState.systemToggle
+            if (systemToggle != null) {
+                item(key = "system_toggle_card_${systemToggle.id}") {
+                    com.pixel.intelligentsearch.core.ui.SystemToggleCard(
+                        toggleState = systemToggle,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                }
+            }
 
             if (settingsState.smartClipboardSuggestions && uiState.directActions.isNotEmpty()) {
                 itemsIndexed(uiState.directActions, key = { index, action -> "direct_action_${action.title}_$index" }) { _, action ->
@@ -1398,7 +1413,7 @@ fun SearchOverlayScreen(
         }
 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-            if (prefs.getBoolean("matrix_animation_enabled", false)) {
+            if (prefs.getBoolean("matrix_animation_enabled", true)) {
                 AnimatedMatrixBackground()
             }
             

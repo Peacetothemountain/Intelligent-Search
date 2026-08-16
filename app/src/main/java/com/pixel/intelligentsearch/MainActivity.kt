@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch
 import com.pixel.intelligentsearch.feature.settings.SettingsActivity
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
@@ -36,7 +37,15 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setInheritShowWhenLocked(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
+        }
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
+        com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         super.onCreate(savedInstanceState)
         
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -53,6 +62,31 @@ open class MainActivity : AppCompatActivity() {
         }
 
         if (handleIntent(intent)) return
+
+        if (this::class.java == MainActivity::class.java && (intent?.action == Intent.ACTION_MAIN || intent?.action == null)) {
+            val settingsIntent = Intent(this, SettingsActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            startActivity(settingsIntent)
+            finish()
+            return
+        }
+
+        val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", android.content.Context.MODE_PRIVATE)
+        val searchOverlayEnabled = prefs.getBoolean("search_overlay_enabled", true)
+        if (!searchOverlayEnabled) {
+            val fallbackIntent = Intent("android.search.action.GLOBAL_SEARCH").apply {
+                setPackage("com.google.android.googlequicksearchbox")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            }
+            if (packageManager.resolveActivity(fallbackIntent, 0) != null) {
+                startActivity(fallbackIntent)
+            } else {
+                startActivity(Intent(Intent.ACTION_WEB_SEARCH).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+            }
+            finish()
+            return
+        }
 
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))

@@ -1,28 +1,37 @@
-NB DESIGNS PROPRIETARY SOFTWARE LICENSE AGREEMENT
+# NB Designs Intelligent Search Community License Agreement
 
-Copyright (c) 2026 NB Designs. All Rights Reserved.
+**Version 1.0 - Effective Date: August 16, 2026**  
+**Licensor: NB Designs** (support.nbdesigns@gmail.com)
 
-NOTICE TO ALL USERS: READ THIS PROPRIETARY SOFTWARE LICENSE AGREEMENT ("AGREEMENT") CAREFULLY BEFORE ACCESSING, DOWNLOADING, OR USING THIS SOFTWARE CODEBASE, BINARIES, OR DOCUMENTATION.
+By accessing, downloading, cloning, or using the source code, materials, assets, or software binaries ("Software") provided in this repository, you agree to the terms of this License Agreement.
 
-1. GRANT OF PROPRIETARY RIGHTS
-The source code, architecture, algorithms, user interface designs, executable files, and documentation contained within this repository ("Software") are the exclusive intellectual property and proprietary trade secrets of NB Designs. Title, ownership rights, and intellectual property rights in and to the Software shall remain strictly with NB Designs.
+---
 
-2. RESTRICTIONS ON USE
-Except as expressly authorized in writing by NB Designs, you may not:
-   (a) Copy, reproduce, distribute, publish, or publicly display any portion of the Software.
-   (b) Modify, translate, adapt, alter, or create derivative works based upon the Software.
-   (c) Reverse engineer, decompile, disassemble, or attempt to derive the source code or underlying structure of the Software.
-   (d) Sublicense, lease, rent, sell, assign, or transfer the Software to any third party.
-   (e) Use the Software or any portion thereof for commercial distribution without a separate written license agreement executed by NB Designs.
+### 1. Grant of Rights
+Subject to your compliance with this Agreement, NB Designs grants you a non-exclusive, worldwide, non-transferable, revocable license to:
+1. **Personal & Non-Commercial Use**: View, compile, test, and run the Software for non-commercial personal evaluation, testing, and contribution purposes.
+2. **On-Device Installation**: Build and install release binaries onto your personal Android devices for testing and personal productivity.
 
-3. TRADE SECRETS & CONFIDENTIALITY
-The Software contains confidential information and proprietary trade secrets of NB Designs. Access to the Software does not grant any express or implied license under any patents, copyrights, trademarks, or trade secret rights of NB Designs.
+---
 
-4. DISCLAIMER OF WARRANTIES
-THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. IN NO EVENT SHALL NB DESIGNS OR ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE.
+### 2. Restrictions & Prohibitions
+You shall NOT, without express prior written consent from NB Designs:
+1. **Commercial Distribution**: Sell, monetize, rent, lease, sublicense, or distribute the Software or any derivative work on any commercial marketplace (including but not limited to the Google Play Store, Samsung Galaxy Store, or Apple App Store).
+2. **Reverse Engineering & Asset Extraction**: Extract, repackage, or distribute proprietary design assets, drawables, or shaders under another application name or identifier.
+3. **Trademark Restrictions**: Use the name "Intelligent Search", "NB Designs", or related logos to endorse or promote derivative products without permission.
 
-5. GOVERNING LAW
-This Agreement shall be governed by and construed in accordance with the laws of the jurisdiction of NB Designs, without regard to its conflict of law principles.
+---
 
-For licensing inquiries or commercial distribution permissions, contact:
-NB Designs Legal & Support: support.nbdesigns@gmail.com
+### 3. Intellectual Property & Ownership
+The Software and all underlying intellectual property rights, copyrights, algorithms, and trade secrets remain the sole and exclusive property of **NB Designs**. All rights not expressly granted herein are reserved.
+
+---
+
+### 4. Disclaimer of Warranty
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL NB DESIGNS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE USE OF THE SOFTWARE.
+
+---
+
+### 5. Contact & Commercial Licensing
+For commercial licensing, enterprise partnerships, or distribution inquiries, contact:  
+**NB Designs Legal & Licensing**: support.nbdesigns@gmail.com

@@ -846,14 +846,13 @@ fun SearchOverlayScreen(
                     var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
                     val rowAlpha = remember { Animatable(1f) }
-                    val rowHeightPx = remember { Animatable(1f) }
                     val scope = rememberCoroutineScope()
 
                     LaunchedEffect(dismissed) {
                         if (dismissed) {
                             launch {
                                 offsetX.animateTo(
-                                    targetValue = dismissDirection * 1400f,
+                                    targetValue = dismissDirection * 1500f,
                                     animationSpec = spring(
                                         dampingRatio = Spring.DampingRatioMediumBouncy,
                                         stiffness = Spring.StiffnessMediumLow
@@ -863,17 +862,10 @@ fun SearchOverlayScreen(
                             launch {
                                 rowAlpha.animateTo(
                                     targetValue = 0f,
-                                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                    animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
                                 )
                             }
-                            delay(140)
-                            rowHeightPx.animateTo(
-                                targetValue = 0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioNoBouncy,
-                                    stiffness = Spring.StiffnessMedium
-                                )
-                            )
+                            delay(160)
                             viewModel.dismissDirectAction(action)
                         }
                     }
@@ -881,11 +873,11 @@ fun SearchOverlayScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .animateItem()
                             .graphicsLayer {
-                                scaleY = rowHeightPx.value
-                                transformOrigin = TransformOrigin(0.5f, 0f)
+                                translationX = offsetX.value
+                                alpha = rowAlpha.value
                             }
-                            .alpha(rowAlpha.value)
                     ) {
                         val actionIcon = when (action.iconType) {
                             "link" -> Icons.Default.Link
@@ -1116,28 +1108,31 @@ fun SearchOverlayScreen(
                         }
                     }
                 }
-                item(key = "top_hit_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             if (settingsState.searchPreviousSearches && uiState.query.isEmpty() && uiState.recentSearches.isNotEmpty()) {
                 item(key = "recent_label") {
-                    Text("Recent", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    Text(
+                        text = "Recent",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        fontFamily = GoogleSansFlex,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
                 }
                 items(uiState.recentSearches, key = { "recent_$it" }) { recentQuery ->
-                    // Manual spring-physics swipe dismiss — bidirectional, zero background color, pure motion.
                     var dismissed by remember { mutableStateOf(false) }
-                    var dismissDirection by remember { mutableStateOf(1f) } // 1f = right, -1f = left
+                    var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
                     val rowAlpha = remember { Animatable(1f) }
-                    val rowHeightPx = remember { Animatable(1f) }
                     val scope = rememberCoroutineScope()
 
                     LaunchedEffect(dismissed) {
                         if (dismissed) {
-                            // Phase 1: spring slide-out in drag direction + fade in parallel
                             launch {
                                 offsetX.animateTo(
-                                    targetValue = dismissDirection * 1400f,
+                                    targetValue = dismissDirection * 1500f,
                                     animationSpec = spring(
                                         dampingRatio = Spring.DampingRatioMediumBouncy,
                                         stiffness = Spring.StiffnessMediumLow
@@ -1147,18 +1142,10 @@ fun SearchOverlayScreen(
                             launch {
                                 rowAlpha.animateTo(
                                     targetValue = 0f,
-                                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                    animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
                                 )
                             }
-                            // Phase 2: collapse height smoothly after slide
-                            delay(140)
-                            rowHeightPx.animateTo(
-                                targetValue = 0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioNoBouncy,
-                                    stiffness = Spring.StiffnessMedium
-                                )
-                            )
+                            delay(160)
                             viewModel.removeSearchHistory(recentQuery)
                         }
                     }
@@ -1166,52 +1153,27 @@ fun SearchOverlayScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .animateItem()
                             .graphicsLayer {
-                                scaleY = rowHeightPx.value
-                                transformOrigin = TransformOrigin(0.5f, 0f)
+                                translationX = offsetX.value
+                                alpha = rowAlpha.value
                             }
-                            .alpha(rowAlpha.value)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp)
-                                .graphicsLayer { translationX = offsetX.value }
-                                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(32.dp))
-                                .clip(RoundedCornerShape(32.dp))
-                                .pointerInput(recentQuery) {
-                                    detectHorizontalDragGestures(
-                                        onHorizontalDrag = { change, dragAmount ->
-                                            change.consume()
-                                            scope.launch {
-                                                val newOffset = offsetX.value + dragAmount
-                                                offsetX.snapTo(newOffset)
-                                                val dragProgress = (kotlin.math.abs(newOffset) / 600f).coerceIn(0f, 0.6f)
-                                                rowAlpha.snapTo(1f - dragProgress)
-                                            }
-                                        },
-                                        onDragEnd = {
-                                            if (kotlin.math.abs(offsetX.value) > 130f) {
-                                                dismissDirection = if (offsetX.value >= 0f) 1f else -1f
-                                                dismissed = true
-                                            } else {
-                                                scope.launch {
-                                                    launch {
-                                                        offsetX.animateTo(
-                                                            0f,
-                                                            spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)
-                                                        )
-                                                    }
-                                                    launch {
-                                                        rowAlpha.animateTo(
-                                                            1f,
-                                                            spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        onDragCancel = {
+                            .pointerInput(recentQuery) {
+                                detectHorizontalDragGestures(
+                                    onHorizontalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        scope.launch {
+                                            val newOffset = offsetX.value + dragAmount
+                                            offsetX.snapTo(newOffset)
+                                            val dragProgress = (kotlin.math.abs(newOffset) / 500f).coerceIn(0f, 0.7f)
+                                            rowAlpha.snapTo(1f - dragProgress)
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        if (kotlin.math.abs(offsetX.value) > 120f) {
+                                            dismissDirection = if (offsetX.value >= 0f) 1f else -1f
+                                            dismissed = true
+                                        } else {
                                             scope.launch {
                                                 launch {
                                                     offsetX.animateTo(
@@ -1227,21 +1189,56 @@ fun SearchOverlayScreen(
                                                 }
                                             }
                                         }
-                                    )
-                                }
+                                    },
+                                    onDragCancel = {
+                                        scope.launch {
+                                            launch {
+                                                offsetX.animateTo(
+                                                    0f,
+                                                    spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)
+                                                )
+                                            }
+                                            launch {
+                                                rowAlpha.animateTo(
+                                                    1f,
+                                                    spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)
+                                                )
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
                                 .bouncyClickable { launchWebSearch(recentQuery) }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(imageVector = Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                            Icon(
+                                imageVector = Icons.Default.History,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
                             Spacer(modifier = Modifier.width(16.dp))
-                            Text(text = recentQuery, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp, fontFamily = GoogleSansFlex)
+                            Text(
+                                text = recentQuery,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 16.sp,
+                                fontFamily = GoogleSansFlex
+                            )
                             Spacer(modifier = Modifier.weight(1f))
-                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
                 }
-                item(key = "recent_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
@@ -1250,14 +1247,13 @@ fun SearchOverlayScreen(
                     var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
                     val rowAlpha = remember { Animatable(1f) }
-                    val rowHeightPx = remember { Animatable(1f) }
                     val scope = rememberCoroutineScope()
 
                     LaunchedEffect(dismissed) {
                         if (dismissed) {
                             launch {
                                 offsetX.animateTo(
-                                    targetValue = dismissDirection * 1400f,
+                                    targetValue = dismissDirection * 1500f,
                                     animationSpec = spring(
                                         dampingRatio = Spring.DampingRatioMediumBouncy,
                                         stiffness = Spring.StiffnessMediumLow
@@ -1267,17 +1263,10 @@ fun SearchOverlayScreen(
                             launch {
                                 rowAlpha.animateTo(
                                     targetValue = 0f,
-                                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                    animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
                                 )
                             }
-                            delay(140)
-                            rowHeightPx.animateTo(
-                                targetValue = 0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioNoBouncy,
-                                    stiffness = Spring.StiffnessMedium
-                                )
-                            )
+                            delay(160)
                             viewModel.dismissCalendarEvent(event)
                         }
                     }
@@ -1285,11 +1274,11 @@ fun SearchOverlayScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .animateItem()
                             .graphicsLayer {
-                                scaleY = rowHeightPx.value
-                                transformOrigin = TransformOrigin(0.5f, 0f)
+                                translationX = offsetX.value
+                                alpha = rowAlpha.value
                             }
-                            .alpha(rowAlpha.value)
                     ) {
                         Row(
                             modifier = Modifier
@@ -1642,13 +1631,11 @@ fun SearchOverlayScreen(
         if (settingsState.showWallpaper) {
             Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = (settingsState.backgroundTransparency / 100f) * 0.7f * morphProgress)))
         } else {
-            // Tie background alpha to morphProgress so no black flash on open
-            Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = morphProgress }.background(MaterialTheme.colorScheme.background))
+            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f * morphProgress)))
         }
 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-            if (prefs.getBoolean("matrix_animation_enabled", true)) {
-                // Fade matrix in with the overlay so it never flashes alone on a black screen
+            if (prefs.getBoolean("matrix_animation_enabled", false)) {
                 Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = morphProgress }) {
                     AnimatedMatrixBackground()
                 }

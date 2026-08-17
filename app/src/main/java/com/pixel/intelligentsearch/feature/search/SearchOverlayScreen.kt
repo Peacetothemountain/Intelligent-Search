@@ -1122,15 +1122,20 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchPreviousSearches && uiState.query.isEmpty() && uiState.recentSearches.isNotEmpty()) {
-                item(key = "recent_label") {
-                    Text(
-                        text = "Recent",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                        fontFamily = GoogleSansFlex,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                    )
+                val isSingleRecent = uiState.recentSearches.size == 1
+                if (!isSingleRecent) {
+                    item(key = "recent_label") {
+                        Text(
+                            text = "Recent",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp,
+                            fontFamily = GoogleSansFlex,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(horizontal = 24.dp, vertical = 6.dp)
+                        )
+                    }
                 }
                 items(uiState.recentSearches, key = { "recent_$it" }) { recentQuery ->
                     var dismissed by remember { mutableStateOf(false) }
@@ -1220,45 +1225,57 @@ fun SearchOverlayScreen(
                                 )
                             }
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp)
-                                .background(
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                    shape = RoundedCornerShape(32.dp)
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            if (isSingleRecent) {
+                                Text(
+                                    text = "Recent",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 13.sp,
+                                    fontFamily = GoogleSansFlex,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)
                                 )
-                                .border(
-                                    width = 1.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                                    shape = RoundedCornerShape(32.dp)
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        shape = RoundedCornerShape(32.dp)
+                                    )
+                                    .border(
+                                        width = 1.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                                        shape = RoundedCornerShape(32.dp)
+                                    )
+                                    .clip(RoundedCornerShape(32.dp))
+                                    .bouncyClickable { launchWebSearch(recentQuery) }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.History,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
                                 )
-                                .clip(RoundedCornerShape(32.dp))
-                                .bouncyClickable { launchWebSearch(recentQuery) }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.History,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Text(
-                                text = recentQuery,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 15.sp,
-                                fontFamily = GoogleSansFlex,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Spacer(modifier = Modifier.weight(1f))
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier.size(18.dp)
-                            )
+                                Spacer(modifier = Modifier.width(14.dp))
+                                Text(
+                                    text = recentQuery,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 15.sp,
+                                    fontFamily = GoogleSansFlex,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.weight(1f))
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
                 }

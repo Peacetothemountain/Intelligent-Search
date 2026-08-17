@@ -136,17 +136,19 @@ open class MainActivity : AppCompatActivity() {
                                 },
                                 onLaunchApp = { packageName ->
                                     searchViewModel.onQueryChanged("")
-                                    val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+                                    val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                                    }
                                     if (launchIntent != null) {
-                                if (settingsState.appAnimations) {
+                                        if (settingsState.appAnimations) {
                                             val dm = resources.displayMetrics
                                             val options = android.app.ActivityOptions.makeScaleUpAnimation(
                                                 window.decorView, dm.widthPixels / 2, dm.heightPixels / 2, 0, 0
                                             )
-                                            startActivityForResult(launchIntent, 0, options.toBundle())
+                                            startActivity(launchIntent, options.toBundle())
                                         } else {
                                             val options = android.app.ActivityOptions.makeCustomAnimation(this@MainActivity, 0, 0)
-                                            startActivityForResult(launchIntent, 0, options.toBundle())
+                                            startActivity(launchIntent, options.toBundle())
                                         }
                                     }
                                 },
@@ -163,29 +165,33 @@ open class MainActivity : AppCompatActivity() {
     private fun handleIntent(intent: Intent?): Boolean {
         if (intent?.action == "com.pixel.intelligentsearch.LAUNCH_LENS") {
             try {
-                val lensStandalone = packageManager.getLaunchIntentForPackage("com.google.ar.lens")
+                val lensStandalone = packageManager.getLaunchIntentForPackage("com.google.ar.lens")?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
                 if (lensStandalone != null) {
-                    startActivityForResult(lensStandalone, 0)
+                    startActivity(lensStandalone)
                     return true
                 }
             } catch (e: Exception) {}
             
             val lensIntent = Intent().apply {
                 setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             try {
-                startActivityForResult(lensIntent, 0)
+                startActivity(lensIntent)
             } catch (ex: Exception) {}
             return true
         }
         
         if (intent?.action == "com.pixel.intelligentsearch.LAUNCH_LENS_TRANSLATE") {
             try {
-                val lensStandalone = packageManager.getLaunchIntentForPackage("com.google.ar.lens")
+                val lensStandalone = packageManager.getLaunchIntentForPackage("com.google.ar.lens")?.apply {
+                    putExtra("lens_mode", "translate")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
                 if (lensStandalone != null) {
-                    // Try to pass translation mode to standalone lens
-                    lensStandalone.putExtra("lens_mode", "translate")
-                    startActivityForResult(lensStandalone, 0)
+                    startActivity(lensStandalone)
                     return true
                 }
             } catch (e: Exception) {}
@@ -193,9 +199,10 @@ open class MainActivity : AppCompatActivity() {
             val translateIntent = Intent().apply {
                 setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
                 putExtra("lens_mode", "translate")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             try {
-                startActivityForResult(translateIntent, 0)
+                startActivity(translateIntent)
             } catch (ex: Exception) {}
             return true
         }

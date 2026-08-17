@@ -38,6 +38,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -840,83 +842,147 @@ fun SearchOverlayScreen(
 
             if (settingsState.smartClipboardSuggestions && uiState.directActions.isNotEmpty()) {
                 itemsIndexed(uiState.directActions, key = { index, action -> "direct_action_${action.title}_$index" }) { _, action ->
-                    val dismissState = rememberSwipeToDismissBoxState()
-                    LaunchedEffect(dismissState.currentValue) {
-                        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+                    var dismissed by remember { mutableStateOf(false) }
+                    var dismissDirection by remember { mutableStateOf(1f) }
+                    val offsetX = remember { Animatable(0f) }
+                    val rowAlpha = remember { Animatable(1f) }
+                    val rowHeightPx = remember { Animatable(1f) }
+                    val scope = rememberCoroutineScope()
+
+                    LaunchedEffect(dismissed) {
+                        if (dismissed) {
+                            launch {
+                                offsetX.animateTo(
+                                    targetValue = dismissDirection * 1400f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                )
+                            }
+                            launch {
+                                rowAlpha.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                )
+                            }
+                            delay(140)
+                            rowHeightPx.animateTo(
+                                targetValue = 0f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMedium
+                                )
+                            )
                             viewModel.dismissDirectAction(action)
                         }
                     }
-                    SwipeToDismissBox(
-                        state = dismissState,
-                        backgroundContent = { Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) },
-                        content = {
-                            val actionIcon = when (action.iconType) {
-                                "link" -> Icons.Default.Link
-                                "phone" -> Icons.Default.Call
-                                "search" -> Icons.Default.Search
-                                "calendar" -> Icons.Default.Event
-                                "message" -> Icons.AutoMirrored.Filled.Message
-                                else -> Icons.Default.ContentPaste
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                scaleY = rowHeightPx.value
+                                transformOrigin = TransformOrigin(0.5f, 0f)
                             }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f), RoundedCornerShape(32.dp))
-                                    .clip(RoundedCornerShape(32.dp))
-                                    .bouncyClickable {
-                                        action.intent?.let { intent ->
-                                            try {
-                                                context.findActivity()?.startActivityForResult(intent, 1001)
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
+                            .alpha(rowAlpha.value)
+                    ) {
+                        val actionIcon = when (action.iconType) {
+                            "link" -> Icons.Default.Link
+                            "phone" -> Icons.Default.Call
+                            "search" -> Icons.Default.Search
+                            "calendar" -> Icons.Default.Event
+                            "message" -> Icons.AutoMirrored.Filled.Message
+                            else -> Icons.Default.ContentPaste
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                                .graphicsLayer { translationX = offsetX.value }
+                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f), RoundedCornerShape(32.dp))
+                                .clip(RoundedCornerShape(32.dp))
+                                .pointerInput(action) {
+                                    detectHorizontalDragGestures(
+                                        onHorizontalDrag = { change, dragAmount ->
+                                            change.consume()
+                                            scope.launch {
+                                                val newOffset = offsetX.value + dragAmount
+                                                offsetX.snapTo(newOffset)
+                                                val dragProgress = (kotlin.math.abs(newOffset) / 600f).coerceIn(0f, 0.6f)
+                                                rowAlpha.snapTo(1f - dragProgress)
+                                            }
+                                        },
+                                        onDragEnd = {
+                                            if (kotlin.math.abs(offsetX.value) > 130f) {
+                                                dismissDirection = if (offsetX.value >= 0f) 1f else -1f
+                                                dismissed = true
+                                            } else {
+                                                scope.launch {
+                                                    launch { offsetX.animateTo(0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) }
+                                                    launch { rowAlpha.animateTo(1f, spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) }
+                                                }
+                                            }
+                                        },
+                                        onDragCancel = {
+                                            scope.launch {
+                                                launch { offsetX.animateTo(0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) }
+                                                launch { rowAlpha.animateTo(1f, spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) }
                                             }
                                         }
-                                        /* closeOverlay() */
+                                    )
+                                }
+                                .bouncyClickable {
+                                    action.intent?.let { intent ->
+                                        try {
+                                            context.findActivity()?.startActivityForResult(intent, 1001)
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                        }
                                     }
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .background(MaterialTheme.colorScheme.primary, CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = actionIcon,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = action.title,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = GoogleSansFlex
-                                    )
-                                    Text(
-                                        text = action.subtitle,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                                        fontSize = 13.sp,
-                                        fontFamily = GoogleSansFlex,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    imageVector = actionIcon,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = action.title,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = GoogleSansFlex
+                                )
+                                Text(
+                                    text = action.subtitle,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                                    fontSize = 13.sp,
+                                    fontFamily = GoogleSansFlex,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
-                    )
+                    }
                 }
                 item(key = "direct_actions_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
@@ -1058,65 +1124,220 @@ fun SearchOverlayScreen(
                     Text("Recent", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 }
                 items(uiState.recentSearches, key = { "recent_$it" }) { recentQuery ->
-                    val dismissState = rememberSwipeToDismissBoxState()
-                    LaunchedEffect(dismissState.currentValue) {
-                        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+                    // Manual spring-physics swipe dismiss — bidirectional, zero background color, pure motion.
+                    var dismissed by remember { mutableStateOf(false) }
+                    var dismissDirection by remember { mutableStateOf(1f) } // 1f = right, -1f = left
+                    val offsetX = remember { Animatable(0f) }
+                    val rowAlpha = remember { Animatable(1f) }
+                    val rowHeightPx = remember { Animatable(1f) }
+                    val scope = rememberCoroutineScope()
+
+                    LaunchedEffect(dismissed) {
+                        if (dismissed) {
+                            // Phase 1: spring slide-out in drag direction + fade in parallel
+                            launch {
+                                offsetX.animateTo(
+                                    targetValue = dismissDirection * 1400f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                )
+                            }
+                            launch {
+                                rowAlpha.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                )
+                            }
+                            // Phase 2: collapse height smoothly after slide
+                            delay(140)
+                            rowHeightPx.animateTo(
+                                targetValue = 0f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMedium
+                                )
+                            )
                             viewModel.removeSearchHistory(recentQuery)
                         }
                     }
-                    SwipeToDismissBox(
-                        state = dismissState,
-                        backgroundContent = { Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) },
-                        content = {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(32.dp))
-                                    .clip(RoundedCornerShape(32.dp))
-                                    .bouncyClickable { launchWebSearch(recentQuery) }
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(imageVector = Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Text(text = recentQuery, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp, fontFamily = GoogleSansFlex)
-                                Spacer(modifier = Modifier.weight(1f))
-                                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                scaleY = rowHeightPx.value
+                                transformOrigin = TransformOrigin(0.5f, 0f)
                             }
+                            .alpha(rowAlpha.value)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                                .graphicsLayer { translationX = offsetX.value }
+                                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(32.dp))
+                                .clip(RoundedCornerShape(32.dp))
+                                .pointerInput(recentQuery) {
+                                    detectHorizontalDragGestures(
+                                        onHorizontalDrag = { change, dragAmount ->
+                                            change.consume()
+                                            scope.launch {
+                                                val newOffset = offsetX.value + dragAmount
+                                                offsetX.snapTo(newOffset)
+                                                val dragProgress = (kotlin.math.abs(newOffset) / 600f).coerceIn(0f, 0.6f)
+                                                rowAlpha.snapTo(1f - dragProgress)
+                                            }
+                                        },
+                                        onDragEnd = {
+                                            if (kotlin.math.abs(offsetX.value) > 130f) {
+                                                dismissDirection = if (offsetX.value >= 0f) 1f else -1f
+                                                dismissed = true
+                                            } else {
+                                                scope.launch {
+                                                    launch {
+                                                        offsetX.animateTo(
+                                                            0f,
+                                                            spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)
+                                                        )
+                                                    }
+                                                    launch {
+                                                        rowAlpha.animateTo(
+                                                            1f,
+                                                            spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        onDragCancel = {
+                                            scope.launch {
+                                                launch {
+                                                    offsetX.animateTo(
+                                                        0f,
+                                                        spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)
+                                                    )
+                                                }
+                                                launch {
+                                                    rowAlpha.animateTo(
+                                                        1f,
+                                                        spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                                .bouncyClickable { launchWebSearch(recentQuery) }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(imageVector = Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(text = recentQuery, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp, fontFamily = GoogleSansFlex)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                         }
-                    )
+                    }
                 }
                 item(key = "recent_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
                 items(uiState.calendarEvents, key = { "event_${it.title}_${it.startTime}" }) { event ->
-                    val dismissState = rememberSwipeToDismissBoxState()
-                    LaunchedEffect(dismissState.currentValue) {
-                        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+                    var dismissed by remember { mutableStateOf(false) }
+                    var dismissDirection by remember { mutableStateOf(1f) }
+                    val offsetX = remember { Animatable(0f) }
+                    val rowAlpha = remember { Animatable(1f) }
+                    val rowHeightPx = remember { Animatable(1f) }
+                    val scope = rememberCoroutineScope()
+
+                    LaunchedEffect(dismissed) {
+                        if (dismissed) {
+                            launch {
+                                offsetX.animateTo(
+                                    targetValue = dismissDirection * 1400f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                )
+                            }
+                            launch {
+                                rowAlpha.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                )
+                            }
+                            delay(140)
+                            rowHeightPx.animateTo(
+                                targetValue = 0f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMedium
+                                )
+                            )
                             viewModel.dismissCalendarEvent(event)
                         }
                     }
-                    SwipeToDismissBox(
-                        state = dismissState,
-                        backgroundContent = { Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) },
-                        content = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = verticalPad),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(modifier = Modifier.size(24.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
-                                    Text(event.startTime.split(":").first(), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                scaleY = rowHeightPx.value
+                                transformOrigin = TransformOrigin(0.5f, 0f)
+                            }
+                            .alpha(rowAlpha.value)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .graphicsLayer { translationX = offsetX.value }
+                                .pointerInput(event) {
+                                    detectHorizontalDragGestures(
+                                        onHorizontalDrag = { change, dragAmount ->
+                                            change.consume()
+                                            scope.launch {
+                                                val newOffset = offsetX.value + dragAmount
+                                                offsetX.snapTo(newOffset)
+                                                val dragProgress = (kotlin.math.abs(newOffset) / 600f).coerceIn(0f, 0.6f)
+                                                rowAlpha.snapTo(1f - dragProgress)
+                                            }
+                                        },
+                                        onDragEnd = {
+                                            if (kotlin.math.abs(offsetX.value) > 130f) {
+                                                dismissDirection = if (offsetX.value >= 0f) 1f else -1f
+                                                dismissed = true
+                                            } else {
+                                                scope.launch {
+                                                    launch { offsetX.animateTo(0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) }
+                                                    launch { rowAlpha.animateTo(1f, spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) }
+                                                }
+                                            }
+                                        },
+                                        onDragCancel = {
+                                            scope.launch {
+                                                launch { offsetX.animateTo(0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) }
+                                                launch { rowAlpha.animateTo(1f, spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) }
+                                            }
+                                        }
+                                    )
                                 }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column {
-                                    Text(event.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium, fontFamily = GoogleSansFlex)
-                                    Text(event.startTime, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
-                                }
+                                .padding(horizontal = 16.dp, vertical = verticalPad),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.size(24.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
+                                Text(event.startTime.split(":").first(), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column {
+                                Text(event.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium, fontFamily = GoogleSansFlex)
+                                Text(event.startTime, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
                             }
                         }
-                    )
+                    }
                 }
                 item(key = "calendar_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
@@ -1421,12 +1642,16 @@ fun SearchOverlayScreen(
         if (settingsState.showWallpaper) {
             Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = (settingsState.backgroundTransparency / 100f) * 0.7f * morphProgress)))
         } else {
-            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+            // Tie background alpha to morphProgress so no black flash on open
+            Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = morphProgress }.background(MaterialTheme.colorScheme.background))
         }
 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
             if (prefs.getBoolean("matrix_animation_enabled", true)) {
-                AnimatedMatrixBackground()
+                // Fade matrix in with the overlay so it never flashes alone on a black screen
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = morphProgress }) {
+                    AnimatedMatrixBackground()
+                }
             }
             
             val surfaceAlpha = if (settingsState.showWallpaper) ((100 - settingsState.backgroundTransparency) / 100f).coerceIn(0f, 1f) else 1f

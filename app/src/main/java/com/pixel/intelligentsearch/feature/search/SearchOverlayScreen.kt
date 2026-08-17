@@ -1635,7 +1635,7 @@ fun SearchOverlayScreen(
         }
 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-            if (prefs.getBoolean("matrix_animation_enabled", false)) {
+            if (prefs.getBoolean("matrix_animation_enabled", true)) {
                 Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = morphProgress }) {
                     AnimatedMatrixBackground()
                 }

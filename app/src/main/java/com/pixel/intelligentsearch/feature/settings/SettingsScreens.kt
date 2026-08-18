@@ -4314,9 +4314,39 @@ fun performClickHaptic(context: android.content.Context) {
 // -----------------------------------------------------------------------------------------
 // SEARCH PILLS SCREEN
 // -----------------------------------------------------------------------------------------
+private val nativeAppIconCache = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(256)
+
+fun getNativeAppIcon(context: Context, packageName: String): androidx.compose.ui.graphics.ImageBitmap? {
+    val cached = nativeAppIconCache.get(packageName)
+    if (cached != null) return cached
+    return try {
+        val pm = context.packageManager
+        val drawable = pm.getApplicationIcon(packageName)
+        val bitmap = if (drawable is android.graphics.drawable.BitmapDrawable && drawable.bitmap != null) {
+            drawable.bitmap
+        } else {
+            val bmp = android.graphics.Bitmap.createBitmap(
+                if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 96,
+                if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 96,
+                android.graphics.Bitmap.Config.ARGB_8888
+            )
+            val canvas = android.graphics.Canvas(bmp)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            bmp
+        }
+        val imgBitmap = bitmap.asImageBitmap()
+        nativeAppIconCache.put(packageName, imgBitmap)
+        imgBitmap
+    } catch (e: Exception) {
+        null
+    }
+}
+
 data class AppPickerItem(
     val packageName: String,
-    val label: String
+    val label: String,
+    val iconBitmap: androidx.compose.ui.graphics.ImageBitmap?
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -4397,7 +4427,8 @@ fun SearchPillsScreen(
                         .map {
                             val pkg = it.activityInfo.packageName
                             val label = it.loadLabel(pm).toString()
-                            AppPickerItem(packageName = pkg, label = label)
+                            val icon = getNativeAppIcon(context, pkg)
+                            AppPickerItem(packageName = pkg, label = label, iconBitmap = icon)
                         }
                         .sortedBy { it.label.lowercase() }
                         .toList()
@@ -4542,7 +4573,6 @@ fun SearchPillsScreen(
                             val packageName = appItem.packageName
                             val isSelected = selectedApps.contains(packageName)
                             val isAlreadyAdded = localPillList.contains(packageName)
-                            val appIcon = remember(packageName) { getThemedAppIcon(context, packageName) }
 
                             androidx.compose.foundation.layout.Box(
                                 modifier = Modifier
@@ -4552,7 +4582,7 @@ fun SearchPillsScreen(
                                 SettingsRow(
                                     title = appItem.label,
                                     subtitle = if (isAlreadyAdded) "Already in Quick Launch" else packageName,
-                                    icon = appIcon?.bitmap ?: Icons.Outlined.Apps,
+                                    icon = appItem.iconBitmap ?: Icons.Outlined.Apps,
                                     onClick = {
                                         if (multiSelectMode) {
                                             selectedApps = if (isSelected) selectedApps - packageName else selectedApps + packageName
@@ -4704,79 +4734,81 @@ fun SearchPillsScreen(
                             }
 
                             Box(modifier = draggingModifier) {
-                                val appName = remember(packageName) {
-                                    try {
-                                        val pm = context.packageManager
-                                        val info = pm.getApplicationInfo(packageName, 0)
-                                        pm.getApplicationLabel(info).toString()
-                                    } catch (e: Exception) {
-                                        packageName
+                                val dismissState = rememberSwipeToDismissBoxState(
+                                    positionalThreshold = { it * 0.5f }
+                                )
+                                LaunchedEffect(dismissState.currentValue) {
+                                    if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
+                                        val updated = localPillList.toMutableList()
+                                        updated.remove(packageName)
+                                        persistPills(updated)
                                     }
                                 }
-                                val appIcon = remember(packageName) {
-                                    getThemedAppIcon(context, packageName)
-                                }
 
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .shadow(elevation, RoundedCornerShape(24.dp))
-                                        .clip(RoundedCornerShape(24.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
-                                    color = Color.Transparent
+                                SwipeToDismissBox(
+                                    state = dismissState,
+                                    enableDismissFromStartToEnd = !isDragging,
+                                    enableDismissFromEndToStart = !isDragging,
+                                    backgroundContent = {
+                                        Box(modifier = Modifier.fillMaxSize())
+                                    }
                                 ) {
-                                    Row(
+                                    val appName = remember(packageName) {
+                                        try {
+                                            val pm = context.packageManager
+                                            val info = pm.getApplicationInfo(packageName, 0)
+                                            pm.getApplicationLabel(info).toString()
+                                        } catch (e: Exception) {
+                                            packageName
+                                        }
+                                    }
+                                    val appIcon = remember(packageName) {
+                                        getNativeAppIcon(context, packageName)
+                                    }
+
+                                    Surface(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                            .shadow(elevation, RoundedCornerShape(24.dp))
+                                            .clip(RoundedCornerShape(24.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
+                                        color = Color.Transparent
                                     ) {
                                         Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
                                             verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f)
+                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            if (appIcon != null) {
-                                                Image(
-                                                    bitmap = appIcon.bitmap,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(36.dp),
-                                                    colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
-                                                )
-                                                Spacer(modifier = Modifier.width(16.dp))
-                                            }
-                                            Column {
-                                                Text(
-                                                    text = appName,
-                                                    color = MaterialTheme.colorScheme.onSurface,
-                                                    fontSize = 16.sp,
-                                                    fontWeight = FontWeight.Medium
-                                                )
-                                                Text(
-                                                    text = packageName,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                                    fontSize = 12.sp
-                                                )
-                                            }
-                                        }
-
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            IconButton(
-                                                onClick = {
-                                                    val updated = localPillList.toMutableList()
-                                                    updated.remove(packageName)
-                                                    persistPills(updated)
-                                                }
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
                                             ) {
-                                                Icon(
-                                                    imageVector = Icons.Outlined.Close,
-                                                    contentDescription = "Remove",
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                                    modifier = Modifier.size(20.dp)
-                                                )
+                                                if (appIcon != null) {
+                                                    Image(
+                                                        bitmap = appIcon,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(36.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(16.dp))
+                                                }
+                                                Column {
+                                                    Text(
+                                                        text = appName,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                        fontSize = 16.sp,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                    Text(
+                                                        text = packageName,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                        fontSize = 12.sp
+                                                    )
+                                                }
                                             }
-                                            Spacer(modifier = Modifier.width(4.dp))
+
                                             val currentPkg by rememberUpdatedState(packageName)
                                             Icon(
                                                 imageVector = Icons.Outlined.DragHandle,

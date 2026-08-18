@@ -24,18 +24,29 @@ import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
 import android.app.SearchManager
 
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import com.pixel.intelligentsearch.feature.search.SearchViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 open class MainActivity : AppCompatActivity() {
 
+    private val searchViewModel: SearchViewModel by viewModels()
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        val queryExtra = intent.getStringExtra("query") ?: intent.getStringExtra(SearchManager.QUERY)
+        if (queryExtra != null) {
+            searchViewModel.onQueryChanged(queryExtra)
+        } else {
+            searchViewModel.onQueryChanged("")
+        }
         handleIntent(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         enableEdgeToEdge()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
@@ -49,19 +60,20 @@ open class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            overrideActivityTransition(
-                OVERRIDE_TRANSITION_OPEN,
-                R.anim.slide_in_right,
-                R.anim.slide_out_left
-            )
-            overrideActivityTransition(
-                OVERRIDE_TRANSITION_CLOSE,
-                R.anim.slide_in_left,
-                R.anim.slide_out_right
-            )
+            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
+            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
         }
 
         if (handleIntent(intent)) return
+
+        if (this::class.java == MainActivity::class.java && (intent?.action == Intent.ACTION_MAIN || intent?.action == null)) {
+            val settingsIntent = Intent(this, SettingsActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            startActivity(settingsIntent)
+            finish()
+            return
+        }
 
         val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", android.content.Context.MODE_PRIVATE)
         val searchOverlayEnabled = prefs.getBoolean("search_overlay_enabled", true)
@@ -123,20 +135,24 @@ open class MainActivity : AppCompatActivity() {
                                     startActivity(intent, options.toBundle())
                                 },
                                 onLaunchApp = { packageName ->
-                                    val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+                                    searchViewModel.onQueryChanged("")
+                                    val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                                    }
                                     if (launchIntent != null) {
-                                if (settingsState.appAnimations) {
+                                        if (settingsState.appAnimations) {
                                             val dm = resources.displayMetrics
                                             val options = android.app.ActivityOptions.makeScaleUpAnimation(
                                                 window.decorView, dm.widthPixels / 2, dm.heightPixels / 2, 0, 0
                                             )
-                                            startActivityForResult(launchIntent, 0, options.toBundle())
+                                            startActivity(launchIntent, options.toBundle())
                                         } else {
                                             val options = android.app.ActivityOptions.makeCustomAnimation(this@MainActivity, 0, 0)
-                                            startActivityForResult(launchIntent, 0, options.toBundle())
+                                            startActivity(launchIntent, options.toBundle())
                                         }
                                     }
                                 },
+                                viewModel = searchViewModel,
                                 isKeyboardDisabled = false
                             )
                         }
@@ -149,29 +165,33 @@ open class MainActivity : AppCompatActivity() {
     private fun handleIntent(intent: Intent?): Boolean {
         if (intent?.action == "com.pixel.intelligentsearch.LAUNCH_LENS") {
             try {
-                val lensStandalone = packageManager.getLaunchIntentForPackage("com.google.ar.lens")
+                val lensStandalone = packageManager.getLaunchIntentForPackage("com.google.ar.lens")?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
                 if (lensStandalone != null) {
-                    startActivityForResult(lensStandalone, 0)
+                    startActivity(lensStandalone)
                     return true
                 }
             } catch (e: Exception) {}
             
             val lensIntent = Intent().apply {
                 setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             try {
-                startActivityForResult(lensIntent, 0)
+                startActivity(lensIntent)
             } catch (ex: Exception) {}
             return true
         }
         
         if (intent?.action == "com.pixel.intelligentsearch.LAUNCH_LENS_TRANSLATE") {
             try {
-                val lensStandalone = packageManager.getLaunchIntentForPackage("com.google.ar.lens")
+                val lensStandalone = packageManager.getLaunchIntentForPackage("com.google.ar.lens")?.apply {
+                    putExtra("lens_mode", "translate")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
                 if (lensStandalone != null) {
-                    // Try to pass translation mode to standalone lens
-                    lensStandalone.putExtra("lens_mode", "translate")
-                    startActivityForResult(lensStandalone, 0)
+                    startActivity(lensStandalone)
                     return true
                 }
             } catch (e: Exception) {}
@@ -179,9 +199,10 @@ open class MainActivity : AppCompatActivity() {
             val translateIntent = Intent().apply {
                 setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
                 putExtra("lens_mode", "translate")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             try {
-                startActivityForResult(translateIntent, 0)
+                startActivity(translateIntent)
             } catch (ex: Exception) {}
             return true
         }
@@ -191,6 +212,7 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        searchViewModel.onQueryChanged("")
         
         // Force widget update when leaving the home screen app
         val updateIntent = Intent(this, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {

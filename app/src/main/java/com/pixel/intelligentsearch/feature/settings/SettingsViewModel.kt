@@ -23,7 +23,7 @@ class SettingsViewModel @Inject constructor(
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = IntelligentSearchSettings()
+            initialValue = settingsManager.getInitialSettings()
         )
 
     fun <T> updateSetting(key: Preferences.Key<T>, value: T) {

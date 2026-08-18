@@ -179,6 +179,61 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             )
         }
 
+    fun getInitialSettings(): IntelligentSearchSettings {
+        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val isSystemDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        val defaultTheme = if (isSystemDark) "Material Dark" else "Material Light"
+        return IntelligentSearchSettings(
+            theme = prefs.getString("night.mode", defaultTheme) ?: defaultTheme,
+            searchApps = prefs.getBoolean("search.apps", false),
+            searchContacts = prefs.getBoolean("search.contacts", false),
+            searchFiles = prefs.getBoolean("search.files", false),
+            searchWeb = prefs.getBoolean("search.web", false),
+            searchCalculator = prefs.getBoolean("search.calculator", true),
+            searchCalendar = prefs.getBoolean("search.calendar", true),
+            searchShortcuts = prefs.getBoolean("search.shortcuts", true),
+            backgroundBlur = prefs.getInt("search.background.blur", 50),
+            showWallpaper = prefs.getBoolean("search.background.show.wall", false),
+            backgroundTransparency = prefs.getInt("search.background.transparency", 50),
+            pillOpacity = prefs.getInt("search.pill.opacity", 50),
+            searchEngine = prefs.getString("search.engine", "Google") ?: "Google",
+            customSearchEngineUrl = prefs.getString("custom_search_engine_url", "") ?: "",
+            filesHiddenFiles = prefs.getBoolean("search.files.hidden.files", false),
+            filesThumbnails = prefs.getBoolean("search.files.thumbnails", true),
+            appAnimations = prefs.getBoolean("app_animations", true),
+            bottomSearch = prefs.getBoolean("settings.bottom.search", true),
+            bottomSearchResult = prefs.getBoolean("settings.bottom.search.result", true),
+            tutorialCompleted = prefs.getBoolean("tutorial_completed", false),
+            forceTutorial = prefs.getBoolean("force_tutorial", false),
+            tutorialStep = prefs.getInt("tutorial_step", 0),
+            gIconEnabled = prefs.getBoolean("g_icon_enabled", true),
+            widgetShowVoice = prefs.getBoolean("widget_show_voice", true),
+            widgetShowGemini = prefs.getBoolean("widget_show_gemini", true),
+            quickSearchYoutube = prefs.getBoolean("quick_search_youtube", true),
+            quickSearchWikipedia = prefs.getBoolean("quick_search_wikipedia", true),
+            quickSearchPlayStore = prefs.getBoolean("quick_search_play_store", true),
+            quickSearchMaps = prefs.getBoolean("quick_search_maps", true),
+            searchPills = prefs.getString("search_pills", "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files") ?: "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files",
+            widgetThemeStyle = prefs.getString("widget.theme.style", "System Default") ?: "System Default",
+            hiddenApps = prefs.getStringSet("hidden_apps", emptySet()) ?: emptySet(),
+            appQuickLaunch = prefs.getBoolean("app_quick_launch", false),
+            contactDirectCall = prefs.getBoolean("contact_direct_call", false),
+            shortcutInline = prefs.getBoolean("shortcut.inline", true),
+            appFuzzySearch = prefs.getBoolean("app.fuzzy.search", false),
+            quickSearchHorizontal = prefs.getBoolean("quick_search_horizontal", false),
+            webResultsCount = prefs.getInt("web_results_count", 5),
+            contactResultsCount = prefs.getInt("contact_results_count", 5),
+            fileResultsCount = prefs.getInt("file_results_count", 5),
+            shortcutResultsCount = prefs.getInt("shortcut_results_count", 6),
+            contextAwareQuickApps = prefs.getBoolean("context_aware_quick_apps", false),
+            smartClipboardSuggestions = prefs.getBoolean("smart_clipboard_suggestions", false),
+            activeIconPack = prefs.getString("active_icon_pack", "system_default") ?: "system_default",
+            customIconPills = prefs.getString("custom_icon_pills", "") ?: "",
+            neverShowIconPackWarning = prefs.getBoolean("never_show_icon_pack_warning", false),
+            searchPreviousSearches = prefs.getBoolean("search_previous_searches", true)
+        )
+    }
+
     suspend fun <T> updateSetting(key: Preferences.Key<T>, value: T) {
         context.dataStore.edit { preferences ->
             preferences[key] = value

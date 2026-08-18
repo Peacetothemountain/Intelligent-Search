@@ -4488,13 +4488,12 @@ fun SearchPillsScreen(
                         }
                     } else if (!showAppPicker) {
                         IconButton(onClick = {
-                            val savedState = getSavedProfilePills(activeProfile)
-                            val restoredPills = if (savedState.isNotBlank()) savedState else if (activeProfile == 1) defaultPills else ""
-                            val list = restoredPills.split(",").filter { it.isNotBlank() }
+                            val list = defaultPills.split(",").filter { it.isNotBlank() }
                             persistPills(list)
-                            Toast.makeText(context, "Profile $activeProfile Reset to Saved State", Toast.LENGTH_SHORT).show()
+                            prefs.edit().putString("app_search_profile_${activeProfile}_saved", defaultPills).apply()
+                            Toast.makeText(context, "Reset to Default", Toast.LENGTH_SHORT).show()
                         }) {
-                            Icon(Icons.Outlined.RestartAlt, contentDescription = "Reset to Saved State")
+                            Icon(Icons.Outlined.RestartAlt, contentDescription = "Reset to Default")
                         }
                         IconButton(onClick = {
                             val pillString = localPillList.joinToString(",")

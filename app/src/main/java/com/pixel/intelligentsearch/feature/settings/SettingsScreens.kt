@@ -4841,15 +4841,13 @@ fun SearchPillsScreen(
                                                                 val spacing = listState.layoutInfo.mainAxisItemSpacing.toFloat()
                                                                 val itemHeight = draggingItem.size.toFloat() + spacing
                                                                 val from = localPillList.indexOf(currentDraggingPackage)
+                                                                val distanceFromBottom = listState.layoutInfo.viewportSize.height - (draggingItem.offset + draggingItem.size)
 
-                                                                val distanceFromTop = draggingItem.offset + itemDragOffset
-                                                                val distanceFromBottom = listState.layoutInfo.viewportSize.height - (distanceFromTop + draggingItem.size)
-
-                                                                if (distanceFromTop < 80f && listState.canScrollBackward) {
+                                                                if (itemDragOffset < 0f && draggingItem.offset < 80f && listState.canScrollBackward) {
                                                                     coroutineScope.launch {
                                                                         listState.scrollBy(-16f)
                                                                     }
-                                                                } else if (distanceFromBottom < 80f && listState.canScrollForward) {
+                                                                } else if (itemDragOffset > 0f && distanceFromBottom < 80f && listState.canScrollForward) {
                                                                     coroutineScope.launch {
                                                                         listState.scrollBy(16f)
                                                                     }

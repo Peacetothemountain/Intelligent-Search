@@ -19,6 +19,8 @@ import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.App
 import com.pixel.intelligentsearch.feature.search.getAppName
+import com.pixel.intelligentsearch.feature.search.getThemedAppIcon
+import com.pixel.intelligentsearch.feature.search.AppIconResult
 import com.pixel.intelligentsearch.feature.search.AnimatedMatrixBackground
 import com.pixel.intelligentsearch.R
 import android.app.Application
@@ -2151,6 +2153,8 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
             SettingsCard {
                 var searchPills by rememberStringPreference(prefs, "search.pills", "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files")
                 var shortcutResultsCount by rememberIntPreference(prefs, "shortcut_results_count", 6)
+                val viewModel = LocalSettingsViewModel.current
+
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("Max Shortcuts Suggestions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -2158,14 +2162,22 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                         Android17Slider(
                             value = shortcutResultsCount.toFloat(),
                             onValueChange = { newValue -> 
-                                val newCount = newValue.toInt()
-                                if (newCount < shortcutResultsCount) {
-                                    val currentPills = searchPills.split(",").filter { it.isNotBlank() }
-                                    if (currentPills.size > newCount) {
-                                        searchPills = currentPills.take(newCount).joinToString(",")
-                                    }
-                                }
+                                val newCount = newValue.toInt().coerceIn(1, 20)
                                 shortcutResultsCount = newCount
+                                prefs.edit().putInt("shortcut_results_count", newCount).apply()
+                                viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, newCount)
+
+                                val currentPills = searchPills.split(",").filter { it.isNotBlank() }
+                                if (newCount < currentPills.size) {
+                                    val trimmed = currentPills.take(newCount).joinToString(",")
+                                    searchPills = trimmed
+                                    val activeProfile = prefs.getInt("active_app_search_profile", 1)
+                                    prefs.edit()
+                                        .putString("search.pills", trimmed)
+                                        .putString("app_search_profile_$activeProfile", trimmed)
+                                        .apply()
+                                    viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, trimmed)
+                                }
                             },
                             valueRange = 1f..20f,
                             steps = 18,
@@ -4302,6 +4314,11 @@ fun performClickHaptic(context: android.content.Context) {
 // -----------------------------------------------------------------------------------------
 // SEARCH PILLS SCREEN
 // -----------------------------------------------------------------------------------------
+data class AppPickerItem(
+    val packageName: String,
+    val label: String
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchPillsScreen(
@@ -4326,47 +4343,77 @@ fun SearchPillsScreen(
     }
 
     var searchPills by remember { mutableStateOf(getProfilePills(activeProfile)) }
-    val pillList = remember(searchPills) { searchPills.split(",").filter { it.isNotBlank() } }
-    
-    // Live Auto-Save Working State to Active Profile & DataStore
-    LaunchedEffect(searchPills, activeProfile) {
-        prefs.edit().putString("app_search_profile_$activeProfile", searchPills).apply()
-        prefs.edit().putString("search.pills", searchPills).apply()
-        viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, searchPills)
-        val count = if (searchPills.isBlank()) 0 else searchPills.split(",").filter { it.isNotBlank() }.size
-        viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, count)
-        prefs.edit().putInt("shortcut_results_count", count).apply()
+    var localPillList by remember(searchPills) {
+        mutableStateOf(searchPills.split(",").filter { it.isNotBlank() })
+    }
+
+    fun persistPills(newPills: List<String>) {
+        val pillString = newPills.joinToString(",")
+        localPillList = newPills
+        searchPills = pillString
+        prefs.edit()
+            .putString("app_search_profile_$activeProfile", pillString)
+            .putString("search.pills", pillString)
+            .putInt("shortcut_results_count", newPills.size)
+            .apply()
+        viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, pillString)
+        viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, newPills.size)
     }
 
     fun switchProfile(id: Int) {
         activeProfile = id
         prefs.edit().putInt("active_app_search_profile", id).apply()
-        searchPills = getProfilePills(id)
+        val pills = getProfilePills(id)
+        searchPills = pills
+        val list = pills.split(",").filter { it.isNotBlank() }
+        localPillList = list
+        prefs.edit()
+            .putString("search.pills", pills)
+            .putInt("shortcut_results_count", list.size)
+            .apply()
+        viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, pills)
+        viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, list.size)
     }
 
     var showAppPicker by remember { mutableStateOf(false) }
-    var installedApps by remember { mutableStateOf<List<android.content.pm.PackageInfo>>(emptyList()) }
+    var installedApps by remember { mutableStateOf<List<AppPickerItem>>(emptyList()) }
+    var isAppsLoading by remember { mutableStateOf(false) }
     var multiSelectMode by remember { mutableStateOf(false) }
     var selectedApps by remember { mutableStateOf(setOf<String>()) }
     var showMaxWarning by remember { mutableStateOf(false) }
 
     LaunchedEffect(showAppPicker) {
         if (showAppPicker && installedApps.isEmpty()) {
+            isAppsLoading = true
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                val intent = android.content.Intent(android.content.Intent.ACTION_MAIN, null).apply {
-                    addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+                try {
+                    val pm = context.packageManager
+                    val intent = android.content.Intent(android.content.Intent.ACTION_MAIN, null).apply {
+                        addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+                    }
+                    val resolveInfoList = pm.queryIntentActivities(intent, 0)
+                    val apps = resolveInfoList.asSequence()
+                        .distinctBy { it.activityInfo.packageName }
+                        .map {
+                            val pkg = it.activityInfo.packageName
+                            val label = it.loadLabel(pm).toString()
+                            AppPickerItem(packageName = pkg, label = label)
+                        }
+                        .sortedBy { it.label.lowercase() }
+                        .toList()
+                    installedApps = apps
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    isAppsLoading = false
                 }
-                val resolveInfoList = context.packageManager.queryIntentActivities(intent, 0)
-                installedApps = resolveInfoList.mapNotNull {
-                    try {
-                        context.packageManager.getPackageInfo(it.activityInfo.packageName, 0)
-                    } catch (e: Exception) { null }
-                }.distinctBy { it.packageName }.sortedBy { getAppName(context, it.packageName).lowercase() }
             }
         }
     }
 
-    Scaffold(containerColor = Color.Transparent, topBar = {
+    Scaffold(
+        containerColor = Color.Transparent,
+        topBar = {
             TopAppBar(
                 title = {
                     if (showAppPicker && multiSelectMode) {
@@ -4394,15 +4441,13 @@ fun SearchPillsScreen(
                 actions = {
                     if (showAppPicker && multiSelectMode) {
                         IconButton(onClick = {
-                            val currentList = searchPills.split(",").filter { it.isNotBlank() }.toMutableList()
-                            val newAppsCount = selectedApps.count { !currentList.contains(it) }
-                            if (currentList.size + newAppsCount > 20) {
+                            val currentList = localPillList.toMutableList()
+                            val newApps = selectedApps.filter { !currentList.contains(it) }
+                            if (currentList.size + newApps.size > 20) {
                                 showMaxWarning = true
                             } else {
-                                selectedApps.forEach { app ->
-                                    if (!currentList.contains(app)) currentList.add(app)
-                                }
-                                searchPills = currentList.joinToString(",")
+                                currentList.addAll(newApps)
+                                persistPills(currentList)
                                 multiSelectMode = false
                                 selectedApps = emptySet()
                                 showAppPicker = false
@@ -4414,18 +4459,26 @@ fun SearchPillsScreen(
                         IconButton(onClick = {
                             val savedState = getSavedProfilePills(activeProfile)
                             val restoredPills = if (savedState.isNotBlank()) savedState else if (activeProfile == 1) defaultPills else ""
-                            searchPills = restoredPills
+                            val list = restoredPills.split(",").filter { it.isNotBlank() }
+                            persistPills(list)
                             Toast.makeText(context, "Profile $activeProfile Reset to Saved State", Toast.LENGTH_SHORT).show()
                         }) {
                             Icon(Icons.Outlined.RestartAlt, contentDescription = "Reset to Saved State")
                         }
                         IconButton(onClick = {
-                            prefs.edit().putString("app_search_profile_${activeProfile}_saved", searchPills).apply()
+                            val pillString = localPillList.joinToString(",")
+                            prefs.edit().putString("app_search_profile_${activeProfile}_saved", pillString).apply()
                             Toast.makeText(context, "Profile $activeProfile State Saved", Toast.LENGTH_SHORT).show()
                         }) {
                             Icon(Icons.Outlined.Save, contentDescription = "Save Profile State")
                         }
-                        IconButton(onClick = { showAppPicker = true }) {
+                        IconButton(onClick = {
+                            if (localPillList.size >= 20) {
+                                showMaxWarning = true
+                            } else {
+                                showAppPicker = true
+                            }
+                        }) {
                             Icon(Icons.Outlined.Add, contentDescription = "Add Pill")
                         }
                     }
@@ -4448,6 +4501,14 @@ fun SearchPillsScreen(
 
         if (showAppPicker) {
             var appSearchQuery by remember { mutableStateOf("") }
+            val filteredApps = remember(installedApps, appSearchQuery) {
+                if (appSearchQuery.isBlank()) installedApps
+                else installedApps.filter {
+                    it.label.contains(appSearchQuery, ignoreCase = true) ||
+                    it.packageName.contains(appSearchQuery, ignoreCase = true)
+                }
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -4470,58 +4531,55 @@ fun SearchPillsScreen(
                         )
                     )
                 }
-                
-                val filteredApps = installedApps.filter { 
-                    val label = it.applicationInfo?.loadLabel(context.packageManager)?.toString() ?: ""
-                    label.contains(appSearchQuery, ignoreCase = true)
-                }
 
-                androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(filteredApps.size) { index ->
-                        val packageInfo = filteredApps[index]
-                        val packageName = packageInfo.packageName
-                        val label = packageInfo.applicationInfo?.loadLabel(context.packageManager)?.toString() ?: ""
-                        val isSelected = selectedApps.contains(packageName)
-                        val appIcon: Any = remember(packageInfo) {
-                            try {
-                                packageInfo.applicationInfo?.loadIcon(context.packageManager) ?: Icons.Outlined.Apps
-                            } catch (e: Exception) {
-                                Icons.Outlined.Apps
-                            }
-                        }
-                        androidx.compose.foundation.layout.Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .then(if (isSelected) Modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)) else Modifier)
-                        ) {
-                            SettingsRow(
-                                title = label,
-                                subtitle = packageName,
-                                icon = appIcon,
-                                onClick = {
-                                    if (multiSelectMode) {
-                                        selectedApps = if (isSelected) selectedApps - packageName else selectedApps + packageName
-                                        if (selectedApps.isEmpty()) multiSelectMode = false
-                                    } else {
-                                        if (!pillList.contains(packageName)) {
-                                            val newListList = if (searchPills.isEmpty()) listOf(packageName) else searchPills.split(",").filter { it.isNotBlank() } + packageName
-                                            if (newListList.size <= 20) {
-                                                searchPills = newListList.joinToString(",")
+                if (isAppsLoading) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(filteredApps, key = { it.packageName }) { appItem ->
+                            val packageName = appItem.packageName
+                            val isSelected = selectedApps.contains(packageName)
+                            val isAlreadyAdded = localPillList.contains(packageName)
+                            val appIcon = remember(packageName) { getThemedAppIcon(context, packageName) }
+
+                            androidx.compose.foundation.layout.Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .then(if (isSelected) Modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)) else Modifier)
+                            ) {
+                                SettingsRow(
+                                    title = appItem.label,
+                                    subtitle = if (isAlreadyAdded) "Already in Quick Launch" else packageName,
+                                    icon = appIcon?.bitmap ?: Icons.Outlined.Apps,
+                                    onClick = {
+                                        if (multiSelectMode) {
+                                            selectedApps = if (isSelected) selectedApps - packageName else selectedApps + packageName
+                                            if (selectedApps.isEmpty()) multiSelectMode = false
+                                        } else {
+                                            if (!isAlreadyAdded) {
+                                                if (localPillList.size >= 20) {
+                                                    showMaxWarning = true
+                                                } else {
+                                                    val updated = localPillList + packageName
+                                                    persistPills(updated)
+                                                    showAppPicker = false
+                                                }
                                             } else {
-                                                showMaxWarning = true
+                                                showAppPicker = false
                                             }
                                         }
-                                        if (!showMaxWarning) showAppPicker = false
-                                    }
-                                },
-                                onLongClick = {
-                                    if (!multiSelectMode) {
-                                        multiSelectMode = true
-                                        selectedApps = setOf(packageName)
-                                    }
-                                },
-                                showDivider = !isSelected && index < filteredApps.size - 1
-                            )
+                                    },
+                                    onLongClick = {
+                                        if (!multiSelectMode) {
+                                            multiSelectMode = true
+                                            selectedApps = setOf(packageName)
+                                        }
+                                    },
+                                    showDivider = true
+                                )
+                            }
                         }
                     }
                 }
@@ -4532,7 +4590,7 @@ fun SearchPillsScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                // Modern Android 17 Segmented Profile Bar
+                // Segmented Profile Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -4557,10 +4615,6 @@ fun SearchPillsScreen(
                             shape = RoundedCornerShape(16.dp)
                         )
                     }
-                }
-
-                var localPillList by remember(searchPills) {
-                    mutableStateOf(searchPills.split(",").filter { it.isNotBlank() })
                 }
 
                 if (localPillList.isEmpty()) {
@@ -4596,7 +4650,13 @@ fun SearchPillsScreen(
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
                             Button(
-                                onClick = { showAppPicker = true },
+                                onClick = {
+                                    if (localPillList.size >= 20) {
+                                        showMaxWarning = true
+                                    } else {
+                                        showAppPicker = true
+                                    }
+                                },
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -4609,7 +4669,7 @@ fun SearchPillsScreen(
                     var draggingPackage by remember { mutableStateOf<String?>(null) }
                     var itemDragOffset by remember { mutableFloatStateOf(0f) }
                     val listState = rememberLazyListState()
-                    
+
                     androidx.compose.foundation.lazy.LazyColumn(
                         state = listState,
                         modifier = Modifier
@@ -4619,63 +4679,43 @@ fun SearchPillsScreen(
                         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp)
                     ) {
                         items(localPillList, key = { it }) { packageName ->
-                        val isDragging = draggingPackage == packageName
-                        val elevation by androidx.compose.animation.core.animateDpAsState(targetValue = if (isDragging) 8.dp else 0.dp, label = "elevation")
-                        val scale by androidx.compose.animation.core.animateFloatAsState(targetValue = if (isDragging) 1.03f else 1f, label = "scale")
-                        val draggingModifier = if (isDragging) {
-                            Modifier.zIndex(10f).graphicsLayer {
-                                translationY = itemDragOffset
-                                scaleX = scale
-                                scaleY = scale
-                            }
-                        } else {
-                            Modifier.animateItem().zIndex(0f).graphicsLayer {
-                                translationY = 0f
-                                scaleX = scale
-                                scaleY = scale
-                            }
-                        }
-                        Box(modifier = draggingModifier) {
-                            val dismissState = rememberSwipeToDismissBoxState(
-                                positionalThreshold = { it * 0.5f }
+                            val isDragging = draggingPackage == packageName
+                            val elevation by androidx.compose.animation.core.animateDpAsState(
+                                targetValue = if (isDragging) 8.dp else 0.dp,
+                                label = "elevation"
                             )
-                            LaunchedEffect(dismissState.currentValue) {
-                                if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
-                                    val currentList = localPillList.toMutableList()
-                                    currentList.remove(packageName)
-                                    localPillList = currentList
-                                    searchPills = currentList.joinToString(",")
-                                    viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, currentList.size)
-                                    prefs.edit().putInt("shortcut_results_count", currentList.size).apply()
+                            val scale by androidx.compose.animation.core.animateFloatAsState(
+                                targetValue = if (isDragging) 1.03f else 1f,
+                                label = "scale"
+                            )
+
+                            val draggingModifier = if (isDragging) {
+                                Modifier.zIndex(10f).graphicsLayer {
+                                    translationY = itemDragOffset
+                                    scaleX = scale
+                                    scaleY = scale
+                                }
+                            } else {
+                                Modifier.animateItem().zIndex(0f).graphicsLayer {
+                                    translationY = 0f
+                                    scaleX = scale
+                                    scaleY = scale
                                 }
                             }
 
-                            SwipeToDismissBox(
-                                state = dismissState,
-                                enableDismissFromStartToEnd = !isDragging,
-                                enableDismissFromEndToStart = !isDragging,
-                                backgroundContent = {
-                                    Box(modifier = Modifier.fillMaxSize())
-                                }
-                            ) {
-                                val appNameState = remember(packageName) { mutableStateOf(packageName) }
-                                val iconState = remember(packageName) { mutableStateOf<android.graphics.drawable.Drawable?>(null) }
-                                
-                                LaunchedEffect(packageName) {
-                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                        try {
-                                            val pm = context.packageManager
-                                            val info = pm.getApplicationInfo(packageName, 0)
-                                            appNameState.value = pm.getApplicationLabel(info).toString()
-                                        } catch (e: Exception) {}
-                                        try {
-                                            val pm = context.packageManager
-                                            iconState.value = pm.getApplicationIcon(packageName)
-                                        } catch (e: Exception) {}
+                            Box(modifier = draggingModifier) {
+                                val appName = remember(packageName) {
+                                    try {
+                                        val pm = context.packageManager
+                                        val info = pm.getApplicationInfo(packageName, 0)
+                                        pm.getApplicationLabel(info).toString()
+                                    } catch (e: Exception) {
+                                        packageName
                                     }
                                 }
-                                val appName = appNameState.value
-                                val icon = iconState.value
+                                val appIcon = remember(packageName) {
+                                    getThemedAppIcon(context, packageName)
+                                }
 
                                 Surface(
                                     modifier = Modifier
@@ -4693,83 +4733,112 @@ fun SearchPillsScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            if (icon != null) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            if (appIcon != null) {
                                                 Image(
-                                                    bitmap = icon.toBitmap().asImageBitmap(),
+                                                    bitmap = appIcon.bitmap,
                                                     contentDescription = null,
-                                                    modifier = Modifier.size(32.dp)
+                                                    modifier = Modifier.size(36.dp),
+                                                    colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
                                                 )
                                                 Spacer(modifier = Modifier.width(16.dp))
                                             }
-                                            Text(
-                                                text = appName,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                fontSize = 18.sp,
-                                                fontWeight = FontWeight.Medium
-                                            )
+                                            Column {
+                                                Text(
+                                                    text = appName,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                                Text(
+                                                    text = packageName,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                    fontSize = 12.sp
+                                                )
+                                            }
                                         }
-                                        Icon(
-                                            imageVector = Icons.Outlined.DragHandle,
-                                            contentDescription = "Drag to reorder",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                            modifier = Modifier.pointerInput(packageName) {
-                                                detectVerticalDragGestures(
-                                                    onDragStart = {
-                                                        draggingPackage = packageName
-                                                        itemDragOffset = 0f
-                                                    },
-                                                    onDragEnd = {
-                                                        draggingPackage = null
-                                                        itemDragOffset = 0f
-                                                        searchPills = localPillList.joinToString(",")
-                                                    },
-                                                    onDragCancel = {
-                                                        draggingPackage = null
-                                                        itemDragOffset = 0f
-                                                    },
-                                                    onVerticalDrag = { change, dragAmount ->
-                                                        change.consume()
-                                                        itemDragOffset += dragAmount
-                                                        
-                                                        val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
-                                                        val draggingItem = listState.layoutInfo.visibleItemsInfo.find { it.key == currentDraggingPackage }
-                                                        if (draggingItem != null) {
-                                                            val spacing = listState.layoutInfo.mainAxisItemSpacing.toFloat()
-                                                            val itemHeight = draggingItem.size.toFloat() + spacing
-                                                            val from = localPillList.indexOf(currentDraggingPackage)
-                                                            
-                                                            if (from != -1) {
-                                                                if (itemDragOffset > itemHeight / 2f && from < localPillList.size - 1) {
-                                                                    val currentList = localPillList.toMutableList()
-                                                                    java.util.Collections.swap(currentList, from, from + 1)
-                                                                    localPillList = currentList
-                                                                    itemDragOffset -= itemHeight
-                                                                } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
-                                                                    val currentList = localPillList.toMutableList()
-                                                                    java.util.Collections.swap(currentList, from, from - 1)
-                                                                    localPillList = currentList
-                                                                    itemDragOffset += itemHeight
+
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(
+                                                onClick = {
+                                                    val updated = localPillList.toMutableList()
+                                                    updated.remove(packageName)
+                                                    persistPills(updated)
+                                                }
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.Close,
+                                                    contentDescription = "Remove",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            val currentPkg by rememberUpdatedState(packageName)
+                                            Icon(
+                                                imageVector = Icons.Outlined.DragHandle,
+                                                contentDescription = "Drag to reorder",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                modifier = Modifier.pointerInput(currentPkg) {
+                                                    detectVerticalDragGestures(
+                                                        onDragStart = {
+                                                            draggingPackage = currentPkg
+                                                            itemDragOffset = 0f
+                                                        },
+                                                        onDragEnd = {
+                                                            draggingPackage = null
+                                                            itemDragOffset = 0f
+                                                            persistPills(localPillList)
+                                                        },
+                                                        onDragCancel = {
+                                                            draggingPackage = null
+                                                            itemDragOffset = 0f
+                                                        },
+                                                        onVerticalDrag = { change, dragAmount ->
+                                                            change.consume()
+                                                            itemDragOffset += dragAmount
+
+                                                            val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
+                                                            val draggingItem = listState.layoutInfo.visibleItemsInfo.find { it.key == currentDraggingPackage }
+                                                            if (draggingItem != null) {
+                                                                val spacing = listState.layoutInfo.mainAxisItemSpacing.toFloat()
+                                                                val itemHeight = draggingItem.size.toFloat() + spacing
+                                                                val from = localPillList.indexOf(currentDraggingPackage)
+
+                                                                if (from != -1) {
+                                                                    if (itemDragOffset > itemHeight / 2f && from < localPillList.size - 1) {
+                                                                        val currentList = localPillList.toMutableList()
+                                                                        java.util.Collections.swap(currentList, from, from + 1)
+                                                                        localPillList = currentList
+                                                                        itemDragOffset -= itemHeight
+                                                                    } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
+                                                                        val currentList = localPillList.toMutableList()
+                                                                        java.util.Collections.swap(currentList, from, from - 1)
+                                                                        localPillList = currentList
+                                                                        itemDragOffset += itemHeight
+                                                                    }
                                                                 }
                                                             }
                                                         }
-                                                    }
-                                                )
-                                            }
-                                        )
+                                                    )
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                    item {
-                        Spacer(modifier = Modifier.height(16.dp))
+                        item {
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
                     }
                 }
             }
         }
     }
-}
 }
 
 // -----------------------------------------------------------------------------------------

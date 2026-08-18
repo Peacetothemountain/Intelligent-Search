@@ -144,7 +144,7 @@ private const val APP_WIDE_STARDUST_SHADER = """
 
 /**
  * A custom modifier that applies the Lifecycle-Aware GPU Shader loop to any container.
- * By extending Modifier directly, it paints the background flawlessly at 120fps 
+ * By extending Modifier directly, it paints the background smoothly
  * without adding heavy recomposition nodes to the UI tree.
  */
 @Composable

@@ -38,6 +38,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -315,6 +317,24 @@ private fun finishWithoutTransition(activity: android.app.Activity?) {
     }
 }
 
+private fun launchSafeIntent(context: Context, intent: Intent, options: android.os.Bundle? = null) {
+    try {
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+        if (options != null) {
+            context.startActivity(intent, options)
+        } else {
+            context.startActivity(intent)
+        }
+    } catch (e: Exception) {
+        try {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+            context.findActivity()?.startActivity(intent, options)
+        } catch (e2: Exception) {
+            e2.printStackTrace()
+        }
+    }
+}
+
 @Composable
 fun SearchOverlayScreen(
     onOpenSettings: (String) -> Unit,
@@ -392,6 +412,7 @@ fun SearchOverlayScreen(
 
     val closeOverlay = {
         keyboardController?.hide()
+        viewModel.onQueryChanged("")
         if (transitionState.targetState) {
             transitionState.targetState = false
         } else {
@@ -456,12 +477,16 @@ fun SearchOverlayScreen(
         }
         try {
             viewModel.addSearchHistory(searchQuery)
-            context.findActivity()?.startActivityForResult(intent, 1001)
+            viewModel.onQueryChanged("")
+            launchSafeIntent(context, intent)
         } catch (e: Exception) {
             val fallbackIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                 putExtra(SearchManager.QUERY, searchQuery)
             }
-            try { context.findActivity()?.startActivityForResult(fallbackIntent, 1001) } catch (ex: Exception) {}
+            try { 
+                viewModel.onQueryChanged("")
+                launchSafeIntent(context, fallbackIntent) 
+            } catch (ex: Exception) {}
         }
     }
 
@@ -483,6 +508,7 @@ fun SearchOverlayScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
                 keyboardController?.hide()
+                viewModel.onQueryChanged("")
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
                 if (forceTut) {
@@ -509,12 +535,17 @@ fun SearchOverlayScreen(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose {
+            viewModel.onQueryChanged("")
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
     
-    BackHandler(enabled = showTutorial) {
+    BackHandler(enabled = true) {
         if (showTutorial) {
             // Suppress exit during tutorial
+        } else {
+            closeOverlay()
         }
     }
 
@@ -654,7 +685,7 @@ fun SearchOverlayScreen(
                                 when (bestMatch) {
                                     is ContactItem -> {
                                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri))
-                                        try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {}
+                                        launchSafeIntent(context, intent)
                                     }
                                     is AppItem -> {
                                         onLaunchApp(bestMatch.packageName)
@@ -665,9 +696,11 @@ fun SearchOverlayScreen(
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             setPackage("com.google.android.apps.nbu.files")
                                         }
-                                        try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {
+                                        try {
+                                            launchSafeIntent(context, intent)
+                                        } catch (e: Exception) {
                                             intent.setPackage(null)
-                                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e2: Exception) {}
+                                            launchSafeIntent(context, intent)
                                         }
                                     }
                                 }
@@ -789,11 +822,7 @@ fun SearchOverlayScreen(
                                          }
                                     }
                                     if (intent != null) {
-                                        try {
-                                            context.findActivity()?.startActivityForResult(intent, 1001)
-                                        } catch (e: Exception) {
-                                            // Fallback if needed
-                                        }
+                                        launchSafeIntent(context, intent)
                                     }
                                     /* closeOverlay() */
                                 }
@@ -829,83 +858,135 @@ fun SearchOverlayScreen(
 
             if (settingsState.smartClipboardSuggestions && uiState.directActions.isNotEmpty()) {
                 itemsIndexed(uiState.directActions, key = { index, action -> "direct_action_${action.title}_$index" }) { _, action ->
-                    val dismissState = rememberSwipeToDismissBoxState()
-                    LaunchedEffect(dismissState.currentValue) {
-                        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+                    var dismissed by remember { mutableStateOf(false) }
+                    var dismissDirection by remember { mutableStateOf(1f) }
+                    val offsetX = remember { Animatable(0f) }
+                    val rowAlpha = remember { Animatable(1f) }
+                    val scope = rememberCoroutineScope()
+
+                    LaunchedEffect(dismissed) {
+                        if (dismissed) {
+                            launch {
+                                offsetX.animateTo(
+                                    targetValue = dismissDirection * 1500f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                )
+                            }
+                            launch {
+                                rowAlpha.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+                                )
+                            }
+                            delay(160)
                             viewModel.dismissDirectAction(action)
                         }
                     }
-                    SwipeToDismissBox(
-                        state = dismissState,
-                        backgroundContent = { Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) },
-                        content = {
-                            val actionIcon = when (action.iconType) {
-                                "link" -> Icons.Default.Link
-                                "phone" -> Icons.Default.Call
-                                "search" -> Icons.Default.Search
-                                "calendar" -> Icons.Default.Event
-                                "message" -> Icons.AutoMirrored.Filled.Message
-                                else -> Icons.Default.ContentPaste
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateItem()
+                            .graphicsLayer {
+                                translationX = offsetX.value
+                                alpha = rowAlpha.value
                             }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f), RoundedCornerShape(32.dp))
-                                    .clip(RoundedCornerShape(32.dp))
-                                    .bouncyClickable {
-                                        action.intent?.let { intent ->
-                                            try {
-                                                context.findActivity()?.startActivityForResult(intent, 1001)
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
+                    ) {
+                        val actionIcon = when (action.iconType) {
+                            "link" -> Icons.Default.Link
+                            "phone" -> Icons.Default.Call
+                            "search" -> Icons.Default.Search
+                            "calendar" -> Icons.Default.Event
+                            "message" -> Icons.AutoMirrored.Filled.Message
+                            else -> Icons.Default.ContentPaste
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                                .graphicsLayer { translationX = offsetX.value }
+                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f), RoundedCornerShape(32.dp))
+                                .clip(RoundedCornerShape(32.dp))
+                                .pointerInput(action) {
+                                    detectHorizontalDragGestures(
+                                        onHorizontalDrag = { change, dragAmount ->
+                                            change.consume()
+                                            scope.launch {
+                                                val newOffset = offsetX.value + dragAmount
+                                                offsetX.snapTo(newOffset)
+                                                val dragProgress = (kotlin.math.abs(newOffset) / 600f).coerceIn(0f, 0.6f)
+                                                rowAlpha.snapTo(1f - dragProgress)
+                                            }
+                                        },
+                                        onDragEnd = {
+                                            if (kotlin.math.abs(offsetX.value) > 130f) {
+                                                dismissDirection = if (offsetX.value >= 0f) 1f else -1f
+                                                dismissed = true
+                                            } else {
+                                                scope.launch {
+                                                    launch { offsetX.animateTo(0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) }
+                                                    launch { rowAlpha.animateTo(1f, spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) }
+                                                }
+                                            }
+                                        },
+                                        onDragCancel = {
+                                            scope.launch {
+                                                launch { offsetX.animateTo(0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) }
+                                                launch { rowAlpha.animateTo(1f, spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) }
                                             }
                                         }
-                                        /* closeOverlay() */
+                                    )
+                                }
+                                .bouncyClickable {
+                                    action.intent?.let { intent ->
+                                        launchSafeIntent(context, intent)
                                     }
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .background(MaterialTheme.colorScheme.primary, CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = actionIcon,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = action.title,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = GoogleSansFlex
-                                    )
-                                    Text(
-                                        text = action.subtitle,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                                        fontSize = 13.sp,
-                                        fontFamily = GoogleSansFlex,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    imageVector = actionIcon,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = action.title,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = GoogleSansFlex
+                                )
+                                Text(
+                                    text = action.subtitle,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                                    fontSize = 13.sp,
+                                    fontFamily = GoogleSansFlex,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
-                    )
+                    }
                 }
                 item(key = "direct_actions_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
@@ -926,8 +1007,7 @@ fun SearchOverlayScreen(
                                         } else {
                                             Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri))
                                         }
-                                        try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e: Exception) {}
-                                        /* closeOverlay() */
+                                        launchSafeIntent(context, intent)
                                     }
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -987,11 +1067,10 @@ fun SearchOverlayScreen(
                                                         if (action.dataUri != null) intent.data = android.net.Uri.parse(action.dataUri)
                                                         intent.setPackage(match.packageName)
                                                         try {
-                                                            context.findActivity()?.startActivityForResult(intent, 1001)
-                                                            /* closeOverlay() */
+                                                            launchSafeIntent(context, intent)
                                                         } catch (e: Exception) {
                                                             intent.setPackage(null)
-                                                            try { context.findActivity()?.startActivityForResult(intent, 1001); /* closeOverlay() */ } catch (e2: Exception) {}
+                                                            launchSafeIntent(context, intent)
                                                         }
                                                     },
                                                     label = { Text(action.title, color = MaterialTheme.colorScheme.onPrimaryContainer, fontFamily = GoogleSansFlex) },
@@ -1015,11 +1094,12 @@ fun SearchOverlayScreen(
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             setPackage("com.google.android.apps.nbu.files")
                                         }
-                                        try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e: Exception) {
+                                        try {
+                                            launchSafeIntent(context, intent)
+                                        } catch(e: Exception) {
                                             intent.setPackage(null)
-                                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e2: Exception) {}
+                                            launchSafeIntent(context, intent)
                                         }
-                                        /* closeOverlay() */
                                     }
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -1039,73 +1119,254 @@ fun SearchOverlayScreen(
                         }
                     }
                 }
-                item(key = "top_hit_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             if (settingsState.searchPreviousSearches && uiState.query.isEmpty() && uiState.recentSearches.isNotEmpty()) {
-                item(key = "recent_label") {
-                    Text("Recent", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                val isSingleRecent = uiState.recentSearches.size == 1
+                if (!isSingleRecent) {
+                    item(key = "recent_label") {
+                        Text(
+                            text = "Recent",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp,
+                            fontFamily = GoogleSansFlex,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(horizontal = 24.dp, vertical = 6.dp)
+                        )
+                    }
                 }
                 items(uiState.recentSearches, key = { "recent_$it" }) { recentQuery ->
-                    val dismissState = rememberSwipeToDismissBoxState()
-                    LaunchedEffect(dismissState.currentValue) {
-                        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+                    var dismissed by remember { mutableStateOf(false) }
+                    var dismissDirection by remember { mutableStateOf(1f) }
+                    val offsetX = remember { Animatable(0f) }
+                    val rowAlpha = remember { Animatable(1f) }
+                    val scope = rememberCoroutineScope()
+
+                    LaunchedEffect(dismissed) {
+                        if (dismissed) {
+                            launch {
+                                offsetX.animateTo(
+                                    targetValue = dismissDirection * 1500f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                )
+                            }
+                            launch {
+                                rowAlpha.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+                                )
+                            }
+                            delay(160)
                             viewModel.removeSearchHistory(recentQuery)
                         }
                     }
-                    SwipeToDismissBox(
-                        state = dismissState,
-                        backgroundContent = { Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) },
-                        content = {
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateItem()
+                            .graphicsLayer {
+                                translationX = offsetX.value
+                                alpha = rowAlpha.value
+                            }
+                            .pointerInput(recentQuery) {
+                                detectHorizontalDragGestures(
+                                    onHorizontalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        scope.launch {
+                                            val newOffset = offsetX.value + dragAmount
+                                            offsetX.snapTo(newOffset)
+                                            val dragProgress = (kotlin.math.abs(newOffset) / 500f).coerceIn(0f, 0.7f)
+                                            rowAlpha.snapTo(1f - dragProgress)
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        if (kotlin.math.abs(offsetX.value) > 120f) {
+                                            dismissDirection = if (offsetX.value >= 0f) 1f else -1f
+                                            dismissed = true
+                                        } else {
+                                            scope.launch {
+                                                launch {
+                                                    offsetX.animateTo(
+                                                        0f,
+                                                        spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)
+                                                    )
+                                                }
+                                                launch {
+                                                    rowAlpha.animateTo(
+                                                        1f,
+                                                        spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    },
+                                    onDragCancel = {
+                                        scope.launch {
+                                            launch {
+                                                offsetX.animateTo(
+                                                    0f,
+                                                    spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)
+                                                )
+                                            }
+                                            launch {
+                                                rowAlpha.animateTo(
+                                                    1f,
+                                                    spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)
+                                                )
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            if (isSingleRecent) {
+                                Text(
+                                    text = "Recent",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 13.sp,
+                                    fontFamily = GoogleSansFlex,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)
+                                )
+                            }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp, vertical = 4.dp)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(32.dp))
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        shape = RoundedCornerShape(32.dp)
+                                    )
+                                    .border(
+                                        width = 1.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                                        shape = RoundedCornerShape(32.dp)
+                                    )
                                     .clip(RoundedCornerShape(32.dp))
                                     .bouncyClickable { launchWebSearch(recentQuery) }
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(imageVector = Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Text(text = recentQuery, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp, fontFamily = GoogleSansFlex)
+                                Icon(
+                                    imageVector = Icons.Default.History,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(14.dp))
+                                Text(
+                                    text = recentQuery,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 15.sp,
+                                    fontFamily = GoogleSansFlex,
+                                    fontWeight = FontWeight.Medium
+                                )
                                 Spacer(modifier = Modifier.weight(1f))
-                                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         }
-                    )
+                    }
                 }
-                item(key = "recent_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
                 items(uiState.calendarEvents, key = { "event_${it.title}_${it.startTime}" }) { event ->
-                    val dismissState = rememberSwipeToDismissBoxState()
-                    LaunchedEffect(dismissState.currentValue) {
-                        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+                    var dismissed by remember { mutableStateOf(false) }
+                    var dismissDirection by remember { mutableStateOf(1f) }
+                    val offsetX = remember { Animatable(0f) }
+                    val rowAlpha = remember { Animatable(1f) }
+                    val scope = rememberCoroutineScope()
+
+                    LaunchedEffect(dismissed) {
+                        if (dismissed) {
+                            launch {
+                                offsetX.animateTo(
+                                    targetValue = dismissDirection * 1500f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                )
+                            }
+                            launch {
+                                rowAlpha.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+                                )
+                            }
+                            delay(160)
                             viewModel.dismissCalendarEvent(event)
                         }
                     }
-                    SwipeToDismissBox(
-                        state = dismissState,
-                        backgroundContent = { Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) },
-                        content = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = verticalPad),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(modifier = Modifier.size(24.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
-                                    Text(event.startTime.split(":").first(), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateItem()
+                            .graphicsLayer {
+                                translationX = offsetX.value
+                                alpha = rowAlpha.value
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .graphicsLayer { translationX = offsetX.value }
+                                .pointerInput(event) {
+                                    detectHorizontalDragGestures(
+                                        onHorizontalDrag = { change, dragAmount ->
+                                            change.consume()
+                                            scope.launch {
+                                                val newOffset = offsetX.value + dragAmount
+                                                offsetX.snapTo(newOffset)
+                                                val dragProgress = (kotlin.math.abs(newOffset) / 600f).coerceIn(0f, 0.6f)
+                                                rowAlpha.snapTo(1f - dragProgress)
+                                            }
+                                        },
+                                        onDragEnd = {
+                                            if (kotlin.math.abs(offsetX.value) > 130f) {
+                                                dismissDirection = if (offsetX.value >= 0f) 1f else -1f
+                                                dismissed = true
+                                            } else {
+                                                scope.launch {
+                                                    launch { offsetX.animateTo(0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) }
+                                                    launch { rowAlpha.animateTo(1f, spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) }
+                                                }
+                                            }
+                                        },
+                                        onDragCancel = {
+                                            scope.launch {
+                                                launch { offsetX.animateTo(0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) }
+                                                launch { rowAlpha.animateTo(1f, spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) }
+                                            }
+                                        }
+                                    )
                                 }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column {
-                                    Text(event.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium, fontFamily = GoogleSansFlex)
-                                    Text(event.startTime, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
-                                }
+                                .padding(horizontal = 16.dp, vertical = verticalPad),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.size(24.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
+                                Text(event.startTime.split(":").first(), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column {
+                                Text(event.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium, fontFamily = GoogleSansFlex)
+                                Text(event.startTime, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
                             }
                         }
-                    )
+                    }
                 }
                 item(key = "calendar_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
@@ -1236,7 +1497,7 @@ fun SearchOverlayScreen(
                                         R.anim.slide_in_right,
                                         R.anim.slide_out_left
                                     )
-                                    context.findActivity()?.startActivityForResult(intent, 1001, options.toBundle())
+                                    launchSafeIntent(context, intent, options.toBundle())
                                 }
                             }
                         }
@@ -1255,8 +1516,7 @@ fun SearchOverlayScreen(
                         title = "Search with Google Lens",
                         onClick = {
                             val intent = SearchWidgetProvider.getLensSearchIntent(context)
-                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {}
-                            /* closeOverlay() */
+                            launchSafeIntent(context, intent)
                         }
                     )
                 }
@@ -1266,8 +1526,7 @@ fun SearchOverlayScreen(
                         title = "Search with Voice",
                         onClick = {
                             val intent = SearchWidgetProvider.getVoiceSearchIntent(context)
-                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {}
-                            /* closeOverlay() */
+                            launchSafeIntent(context, intent)
                         }
                     )
                 }
@@ -1277,8 +1536,7 @@ fun SearchOverlayScreen(
                         title = "Ask Gemini",
                         onClick = {
                             val intent = SearchWidgetProvider.getGeminiSearchIntent(context)
-                            try { context.findActivity()?.startActivityForResult(intent, 1001) } catch (e: Exception) {}
-                            /* closeOverlay() */
+                            launchSafeIntent(context, intent)
                         }
                     )
                 }
@@ -1296,8 +1554,7 @@ fun SearchOverlayScreen(
                                 } else {
                                     Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri))
                                 }
-                                try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e: Exception) {}
-                                /* closeOverlay() */
+                                launchSafeIntent(context, intent)
                             }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -1325,8 +1582,7 @@ fun SearchOverlayScreen(
                                     setDataAndType(Uri.parse(file.uri), file.mimeType)
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
-                                try { context.findActivity()?.startActivityForResult(intent, 1001) } catch(e: Exception) {}
-                                /* closeOverlay() */
+                                launchSafeIntent(context, intent)
                             }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -1372,6 +1628,7 @@ fun SearchOverlayScreen(
                                 animationSpec = spring(dampingRatio = 0.92f, stiffness = 250f)
                             )
                             if (target == 0f) {
+                                viewModel.onQueryChanged("")
                                 val act = (context as? android.app.Activity)
                                 finishWithoutTransition(act)
                             }
@@ -1409,12 +1666,14 @@ fun SearchOverlayScreen(
         if (settingsState.showWallpaper) {
             Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = (settingsState.backgroundTransparency / 100f) * 0.7f * morphProgress)))
         } else {
-            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f * morphProgress)))
         }
 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
             if (prefs.getBoolean("matrix_animation_enabled", true)) {
-                AnimatedMatrixBackground()
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = morphProgress }) {
+                    AnimatedMatrixBackground()
+                }
             }
             
             val surfaceAlpha = if (settingsState.showWallpaper) ((100 - settingsState.backgroundTransparency) / 100f).coerceIn(0f, 1f) else 1f

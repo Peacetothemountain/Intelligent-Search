@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.system
 
+import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.app.UiModeManager
 import android.bluetooth.BluetoothAdapter
@@ -99,6 +100,7 @@ class SystemToggleManager(private val context: Context) {
     // 2. BLUETOOTH
     fun isBluetoothEnabled(): Boolean = try { bluetoothAdapter?.isEnabled == true } catch (e: Exception) { false }
 
+    @SuppressLint("MissingPermission")
     fun toggleBluetooth(enabled: Boolean) {
         try {
             @Suppress("DEPRECATION")
@@ -109,6 +111,7 @@ class SystemToggleManager(private val context: Context) {
         }
     }
 
+    @SuppressLint("MissingPermission")
     fun getBluetoothStatusText(enabled: Boolean): String {
         if (!enabled) return "Bluetooth is off"
         try {
@@ -147,6 +150,7 @@ class SystemToggleManager(private val context: Context) {
         }
     }
 
+    @SuppressLint("MissingPermission")
     fun getWifiStatusText(enabled: Boolean): String {
         if (!enabled) return "Wi-Fi is turned off"
         try {

@@ -57,7 +57,17 @@ object SystemDataProvider {
         "shop" to listOf("amazon", "ebay", "target", "walmart", "vending")
     )
 
-    suspend fun getAllApps(context: Context): List<AppItem> = withContext(Dispatchers.IO) {
+    @Volatile
+    private var cachedApps: List<AppItem>? = null
+
+    fun invalidateAppsCache() {
+        cachedApps = null
+    }
+
+    suspend fun getAllApps(context: Context, forceRefresh: Boolean = false): List<AppItem> = withContext(Dispatchers.IO) {
+        if (!forceRefresh && cachedApps != null) {
+            return@withContext cachedApps!!
+        }
         val pm = context.packageManager
         val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
@@ -68,7 +78,7 @@ object SystemDataProvider {
             @Suppress("DEPRECATION")
             pm.queryIntentActivities(mainIntent, 0)
         }
-        resolveInfos.asSequence()
+        val apps = resolveInfos.asSequence()
             .distinctBy { it.activityInfo.packageName }
             .map {
                 val label = it.loadLabel(pm).toString()
@@ -83,6 +93,8 @@ object SystemDataProvider {
             }
             .sortedBy { it.name.lowercase() }
             .toList()
+        cachedApps = apps
+        apps
     }
 
     suspend fun getRecentApps(context: Context, hiddenApps: Set<String> = emptySet()): List<AppItem> = withContext(Dispatchers.IO) {

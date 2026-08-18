@@ -91,20 +91,30 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-        fun loadInitialData() {
-        viewModelScope.launch {
+    fun loadInitialData() {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                kotlinx.coroutines.delay(400) // Delay to let enter transition animation complete
-                val allApps = SystemDataProvider.getAllApps(context)
-                
-                val launcherPredictedApps = nexusLauncherBridge.getPredictedApps().mapNotNull { pred ->
-                    try {
-                        val iconDrawable = context.packageManager.getApplicationIcon(pred.packageName)
-                        AppItem(name = pred.displayName, packageName = pred.packageName, icon = iconDrawable)
-                    } catch (e: Exception) {
-                        null
+                val appsDeferred = async { SystemDataProvider.getAllApps(context) }
+                val launcherPredictedDeferred = async {
+                    nexusLauncherBridge.getPredictedApps().mapNotNull { pred ->
+                        try {
+                            val iconDrawable = context.packageManager.getApplicationIcon(pred.packageName)
+                            AppItem(name = pred.displayName, packageName = pred.packageName, icon = iconDrawable)
+                        } catch (e: Exception) {
+                            null
+                        }
                     }
                 }
+                val eventsDeferred = async {
+                    if (settingsState.value.searchCalendar) {
+                        SystemDataProvider.getUpcomingEvents(context)
+                    } else {
+                        emptyList()
+                    }
+                }
+
+                val allApps = appsDeferred.await()
+                val launcherPredictedApps = launcherPredictedDeferred.await()
 
                 val recentApps = if (settingsState.value.contextAwareQuickApps) {
                     val quickApps = SystemDataProvider.getContextAwareQuickApps(context)
@@ -114,27 +124,13 @@ class SearchViewModel @Inject constructor(
                     if (launcherPredictedApps.isNotEmpty()) (launcherPredictedApps + standardRecents).distinctBy { it.packageName } else standardRecents
                 }
 
-                val events = if (settingsState.value.searchCalendar) {
-                    SystemDataProvider.getUpcomingEvents(context)
-                } else {
-                    emptyList()
-                }
+                val events = eventsDeferred.await()
 
-                val dockState = pixelEcosystemSync.getDeviceDockState()
-                if (dockState.isDocked) {
-                    android.util.Log.i("SearchViewModel", "Pixel Ecosystem Docked state active (Desk: ${dockState.isDeskDock}, Car: ${dockState.isCarDock})")
-                }
-
-                val profileState = privateSpaceManager.getProfileContainerState()
-                if (profileState.hasPrivateSpace && profileState.isPrivateSpaceLocked) {
-                    android.util.Log.i("SearchViewModel", "Android 15/16 Private Space container is locked.")
-                }
-                
                 val clipboardActions = mutableListOf<DirectAction>()
                 if (settingsState.value.smartClipboardSuggestions) {
                     try {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        if (clipboard.hasPrimaryClip() && clipboard.primaryClipDescription != null) {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                        if (clipboard?.hasPrimaryClip() == true && clipboard.primaryClipDescription != null) {
                             val item = clipboard.primaryClip?.getItemAt(0)
                             val text = item?.text?.toString() ?: item?.coerceToText(context)?.toString()
                             if (!text.isNullOrBlank()) {
@@ -224,10 +220,7 @@ class SearchViewModel @Inject constructor(
                 )
             )
             
-            delay(60)
-            if (simulateLatency) {
-                delay(2000)
-            }
+            val cachedSuggestions = if (settingsState.value.searchWeb) WebSearchProvider.getCachedSuggestions(newQuery) else null
             
             if (forceSearchError) {
                 _uiState.update { it.copy(
@@ -237,7 +230,10 @@ class SearchViewModel @Inject constructor(
                 return@launch
             }
             
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.update { it.copy(
+                isLoading = cachedSuggestions == null && settingsState.value.searchWeb,
+                webSuggestions = cachedSuggestions ?: it.webSuggestions
+            ) }
             
             val settings = settingsState.value
 
@@ -585,12 +581,10 @@ class SearchViewModel @Inject constructor(
                         filteredApps = filteredApps,
                         contacts = localContacts,
                         files = localFiles,
-                        webSuggestions = emptyList(), // clear old suggestions while waiting for new ones
                         shortcuts = localShortcuts,
                         mathResult = localMathResult,
                         instantAnswer = localInstantAnswer,
                         systemToggle = localSystemToggle,
-                        isLoading = settings.searchWeb,
                         lastQueryLatency = System.currentTimeMillis() - startTime
                     )
                 }
@@ -599,7 +593,7 @@ class SearchViewModel @Inject constructor(
                     val webSuggestions = webSuggestionsDeferred.await()
                     _uiState.update {
                         it.copy(
-                            webSuggestions = webSuggestions,
+                            webSuggestions = if (webSuggestions.isNotEmpty()) webSuggestions else it.webSuggestions,
                             isLoading = false
                         )
                     }

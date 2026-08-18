@@ -9,7 +9,7 @@
     <style name="Theme.IntelligentSearch" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowAnimationStyle">@style/Theme.IntelligentSearch.Animation</item>
     </style>
-    <style name="Theme.IntelligentSearch.Overlay" parent="Theme.IntelligentSearch">
+    <style name="Theme.IntelligentSearch.Overlay" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowShowWallpaper">true</item>
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
@@ -18,14 +18,21 @@
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowIsFloating">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowSplashScreenBackground">@android:color/transparent</item>
     </style>
 
     <style name="Theme.IntelligentSearch.Overlay.Widget" parent="Theme.IntelligentSearch.Overlay">
-        <item name="android:windowSplashScreenBackground">?android:attr/colorBackground</item>
+        <item name="android:windowSplashScreenBackground">@android:color/transparent</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowDisablePreview">true</item>
     </style>
 
     <style name="Theme.IntelligentSearch.Overlay.Launcher" parent="Theme.IntelligentSearch.Overlay">
-        <item name="android:windowSplashScreenBackground">?android:attr/colorBackground</item>
+        <item name="android:windowSplashScreenBackground">@android:color/transparent</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowDisablePreview">true</item>
     </style>
 </resources>
 

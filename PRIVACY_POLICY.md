@@ -25,6 +25,11 @@ When performing web searches or fetching autocomplete web suggestions:
 - **Proprietary Software**: The repository, source code, build scripts, and visual assets are proprietary intellectual property of NB Designs.
 - **Strict Non-Disclosure**: Unauthorized copying, distribution, or public disclosure of any source files or binaries is strictly prohibited under the project's Proprietary License.
 
-## 5. Contact Information
+## 5. Closed Beta Testing Email Governance
+For users who voluntarily sign up to participate in the **Google Play Store Closed Beta Testing Track**:
+- **Single-Purpose Collection**: Email addresses collected via the Closed Beta Signup form are used **exclusively** to import permissions into the Google Play Console testing list for your Google Play account.
+- **No Marketing & No Third-Party Sharing**: NB Designs will **never** send promotional marketing emails, newsletters, or advertisements. Email addresses are never sold, rented, shared, or transferred to any third party.
+
+## 6. Contact Information
 For any questions regarding privacy governance or security protocols, please contact:  
 **NB Designs Support**: [support.nbdesigns@gmail.com](mailto:support.nbdesigns@gmail.com)

@@ -18,6 +18,7 @@ import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.App
+import androidx.compose.foundation.gestures.scrollBy
 import com.pixel.intelligentsearch.feature.search.getAppName
 import com.pixel.intelligentsearch.feature.search.getThemedAppIcon
 import com.pixel.intelligentsearch.feature.search.AppIconResult
@@ -4698,9 +4699,11 @@ fun SearchPillsScreen(
                     var draggingPackage by remember { mutableStateOf<String?>(null) }
                     var itemDragOffset by remember { mutableFloatStateOf(0f) }
                     val listState = rememberLazyListState()
+                    val coroutineScope = rememberCoroutineScope()
 
                     androidx.compose.foundation.lazy.LazyColumn(
                         state = listState,
+                        userScrollEnabled = draggingPackage == null,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 16.dp),
@@ -4838,6 +4841,19 @@ fun SearchPillsScreen(
                                                                 val spacing = listState.layoutInfo.mainAxisItemSpacing.toFloat()
                                                                 val itemHeight = draggingItem.size.toFloat() + spacing
                                                                 val from = localPillList.indexOf(currentDraggingPackage)
+
+                                                                val distanceFromTop = draggingItem.offset + itemDragOffset
+                                                                val distanceFromBottom = listState.layoutInfo.viewportSize.height - (distanceFromTop + draggingItem.size)
+
+                                                                if (distanceFromTop < 80f && listState.canScrollBackward) {
+                                                                    coroutineScope.launch {
+                                                                        listState.scrollBy(-16f)
+                                                                    }
+                                                                } else if (distanceFromBottom < 80f && listState.canScrollForward) {
+                                                                    coroutineScope.launch {
+                                                                        listState.scrollBy(16f)
+                                                                    }
+                                                                }
 
                                                                 if (from != -1) {
                                                                     if (itemDragOffset > itemHeight / 2f && from < localPillList.size - 1) {

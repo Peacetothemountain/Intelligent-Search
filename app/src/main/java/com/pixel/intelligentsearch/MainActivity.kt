@@ -70,11 +70,11 @@ open class MainActivity : AppCompatActivity() {
 
         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         window.setDimAmount(0f)
-        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
-        @Suppress("DEPRECATION")
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-        @Suppress("DEPRECATION")
-        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            @Suppress("DEPRECATION")
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
 
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
@@ -83,34 +83,20 @@ open class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setInheritShowWhenLocked(true)
-        } else {
-            @Suppress("DEPRECATION")
-            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
         }
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         super.onCreate(savedInstanceState)
         
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackStarted(backEvent: androidx.activity.BackEventCompat) {}
+
+            override fun handleOnBackProgressed(backEvent: androidx.activity.BackEventCompat) {}
+
+            override fun handleOnBackCancelled() {}
+
             override fun handleOnBackPressed() {
-                searchViewModel.onQueryChanged("")
-                com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(this@MainActivity)
-                    .performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
-                moveTaskToBack(true)
-                try {
-                    val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                        addCategory(Intent.CATEGORY_HOME)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    startActivity(homeIntent)
-                } catch (e: Exception) {}
-                finish()
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
-                } else {
-                    @Suppress("DEPRECATION")
-                    overridePendingTransition(0, 0)
-                }
+                dismissOverlayToLauncher()
             }
         })
 
@@ -272,10 +258,26 @@ open class MainActivity : AppCompatActivity() {
         sendBroadcast(updateIntent)
     }
 
-    override fun finish() {
-        super.finish()
+    fun dismissOverlayToLauncher() {
+        searchViewModel.onQueryChanged("")
+        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(this)
+            .performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
+        moveTaskToBack(true)
+        try {
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(homeIntent)
+        } catch (_: Exception) {}
+        finish()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        }
     }
-
 }
 
 

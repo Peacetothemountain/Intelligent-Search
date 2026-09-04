@@ -3,9 +3,8 @@ import com.pixel.intelligentsearch.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
- * An empty subclass of MainActivity used exclusively as the entry point for widgets and tiles.
- * This allows us to declare a separate theme for widget launches (which suppresses the splash screen)
- * while letting the standard MainActivity (used by the launcher) display the default splash screen.
+ * Dedicated trampoline-free entry point for home screen widgets and Quick Settings tiles.
+ * Bypasses system splash latency on direct search overlay launches via overlay-specific theme.
  */
 @AndroidEntryPoint
 class WidgetActivity : MainActivity()

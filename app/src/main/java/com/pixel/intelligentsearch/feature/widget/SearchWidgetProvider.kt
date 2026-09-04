@@ -182,10 +182,10 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
         
         val actionIconRes = when (actionIconStr) {
-            "Search" -> R.drawable.ic_search_ai_colored
-            "Gemini" -> R.drawable.ic_gemini
+            "Search" -> R.drawable.ic_search_lens_expressive
+            "Assistant", "Voice", "Gemini" -> R.drawable.ic_lens_action
             "Now Playing" -> R.drawable.ic_music
-            else -> R.drawable.ic_search_ai_colored
+            else -> R.drawable.ic_search_lens_expressive
         }
         
         for (appWidgetId in appWidgetIds) {
@@ -300,7 +300,6 @@ class SearchWidgetProvider : AppWidgetProvider() {
             val enableSearchOverlay = prefs.getBoolean("search_overlay_enabled", true)
             val mainIntent = if (enableSearchOverlay) {
                 Intent(context, WidgetActivity::class.java).apply {
-                    putExtra("SHOW_GEMINI_OVERLAY", false)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
             } else {
@@ -318,34 +317,34 @@ class SearchWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_pill_container, mainPI)
             views.setOnClickPendingIntent(R.id.widget_g_logo, mainPI)
 
-            // Tap sparkle circle inside pill -> Gemini
-            val geminiPI = PendingIntent.getActivity(context, appWidgetId + 2500,
-                getGeminiSearchIntent(context),
+            // Tap action button inside search pill
+            val actionPI = PendingIntent.getActivity(context, appWidgetId + 2500,
+                getVoiceActionIntent(context),
                 PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            views.setOnClickPendingIntent(R.id.widget_gemini_search, geminiPI)
+            views.setOnClickPendingIntent(R.id.widget_action_search, actionPI)
             
             // Set up custom action icon (Circle Button) - Material Design ONLY
             if (!isMaterialYou || actionIconStr == "None") {
                 views.setViewVisibility(R.id.widget_sound_search, View.GONE)
             } else {
                 views.setViewVisibility(R.id.widget_sound_search, View.VISIBLE)
-                val actionIntent = when (actionIconStr) {
-                    "Gemini" -> getGeminiSearchIntent(context)
+                val circleActionIntent = when (actionIconStr) {
+                    "Assistant", "Voice", "Gemini" -> getVoiceActionIntent(context)
                     "Now Playing" -> getNowPlayingIntent(context)
-                    else -> getGeminiSearchIntent(context) // Search acts as Gemini
+                    else -> getVoiceActionIntent(context)
                 }
-                val actionPI = PendingIntent.getActivity(context, appWidgetId + 3000,
-                    actionIntent,
+                val circleActionPI = PendingIntent.getActivity(context, appWidgetId + 3000,
+                    circleActionIntent,
                     PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-                views.setOnClickPendingIntent(R.id.widget_sound_search, actionPI)
+                views.setOnClickPendingIntent(R.id.widget_sound_search, circleActionPI)
                 
                 // Set the icon
-                val actionIconRes = when (actionIconStr) {
-                    "Gemini" -> R.drawable.ic_gemini
+                val circleActionIconRes = when (actionIconStr) {
+                    "Assistant", "Voice", "Gemini" -> R.drawable.ic_lens_action
                     "Now Playing" -> R.drawable.ic_music
-                    else -> R.drawable.ic_search_ai_colored // Search
+                    else -> R.drawable.ic_search_lens_expressive // Search
                 }
-                views.setImageViewResource(R.id.widget_sound_icon, actionIconRes)
+                views.setImageViewResource(R.id.widget_sound_icon, circleActionIconRes)
                 views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", null)
             }
 
@@ -365,7 +364,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
             return when (shortcut) {
                 "Voice Search" -> if (isMaterialYou) R.drawable.ic_mic else R.drawable.ic_mic_original
                 "Google Lens" -> R.drawable.ic_camera
-                "Live" -> R.drawable.ic_gemini
+                "Assistant", "Live" -> R.drawable.ic_lens_action
                 "Translate (text)" -> R.drawable.ic_translate
                 "Translate (camera)" -> R.drawable.ic_document_scanner
                 "Weather" -> R.drawable.ic_weather
@@ -394,16 +393,19 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         // Triggers the system's native voice command overlay via Intent.ACTION_VOICE_COMMAND
-        fun getGeminiSearchIntent(context: Context): Intent {
+        fun getVoiceActionIntent(context: Context): Intent {
             return Intent(Intent.ACTION_VOICE_COMMAND).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
         }
         
+        // Backward compatibility alias
+        fun getGeminiSearchIntent(context: Context): Intent = getVoiceActionIntent(context)
+        
         fun getShortcutIntent(context: Context, shortcut: String): Intent {
             return when (shortcut) {
                 "Voice Search" -> getVoiceSearchIntent(context)
-                "Live" -> getGeminiSearchIntent(context)
+                "Assistant", "Live" -> getVoiceActionIntent(context)
                 "Translate (text)" -> context.packageManager.getLaunchIntentForPackage("com.google.android.apps.translate") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://translate.google.com")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
                 "Translate (camera)" -> getLensTranslateIntent(context)
                 "Weather" -> getCustomIntentOrDefault(context, "Weather") {

@@ -25,6 +25,17 @@ enum class PixelHapticType {
 
 class PixelHapticEngine(private val context: Context) {
 
+    companion object {
+        @Volatile
+        private var instance: PixelHapticEngine? = null
+
+        fun get(context: Context): PixelHapticEngine {
+            return instance ?: synchronized(this) {
+                instance ?: PixelHapticEngine(context.applicationContext).also { instance = it }
+            }
+        }
+    }
+
     private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
         vibratorManager?.defaultVibrator

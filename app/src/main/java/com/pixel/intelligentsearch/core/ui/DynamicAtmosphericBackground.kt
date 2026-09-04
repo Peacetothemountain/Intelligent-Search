@@ -2,7 +2,6 @@ package com.pixel.intelligentsearch.core.ui
 
 import android.graphics.RuntimeShader
 import android.os.Build
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -60,7 +59,7 @@ fun resolveGlobalStardustColor(
 // ==============================================================================
 // 2. FULL-SCREEN OPTIMIZED AGSL GPU SHADER 
 // ==============================================================================
-// The math is 100% identical to your approved design. It simply scales to the display size.
+// AGSL full-screen atmospheric stardust particle shader scaled to viewport dimensions.
 
 @Language("AGSL")
 private const val APP_WIDE_STARDUST_SHADER = """
@@ -96,7 +95,6 @@ private const val APP_WIDE_STARDUST_SHADER = """
         float ambientWave = smoothstep(0.0, 1.0, waveDistance) * waveFlow * breath * 0.25;
 
         // --- STARDUST PARTICLES ---
-        // Density matches original design, scaled by aspect ratio to stay round
         float2 dustUv = uv * float2(resolution.x / resolution.y, 1.0) * 80.0;
         
         dustUv.y -= time * 2.5; 
@@ -130,7 +128,6 @@ private const val APP_WIDE_STARDUST_SHADER = """
         // --- BLENDING ---
         float stardustMask = smoothstep(1.0, 0.0, y * 1.5); 
         
-        // PERFORMANCE BOOST: 16-bit half precision calculation for Android 17 GPU speeds
         half finalAlpha = half(ambientWave + (stardust * stardustMask * 0.8));
         finalAlpha = clamp(finalAlpha, 0.0, 1.0);
         
@@ -143,20 +140,17 @@ private const val APP_WIDE_STARDUST_SHADER = """
 // ==============================================================================
 
 /**
- * A custom modifier that applies the Lifecycle-Aware GPU Shader loop to any container.
- * By extending Modifier directly, it paints the background smoothly
- * without adding heavy recomposition nodes to the UI tree.
+ * Custom modifier applying the Lifecycle-Aware GPU Shader loop to the backdrop container.
  */
 @Composable
 private fun Modifier.appWideStardustShader(color: Color): Modifier {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-        return this.background(color.copy(alpha = 0.1f)) // Safe fallback for older API versions
+        return this.background(color.copy(alpha = 0.1f))
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     val timeState = remember { mutableFloatStateOf(0f) }
     
-    // Lifecycle-aware frame loop: pauses animation when activity is not in foreground
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             var lastFrame = 0L
@@ -192,7 +186,7 @@ private fun Modifier.appWideStardustShader(color: Color): Modifier {
 // ==============================================================================
 
 @Composable
-fun GeminiAppBackgroundContainer(
+fun DynamicAtmosphericBackgroundContainer(
     appDesign: AppDesignTheme,
     appTheme: AppColorTheme,
     customColor: GlobalCustomColor?,
@@ -210,5 +204,3 @@ fun GeminiAppBackgroundContainer(
         content()
     }
 }
-
-

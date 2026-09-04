@@ -1,11 +1,17 @@
 package com.pixel.intelligentsearch.core.security
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
+import android.security.keystore.StrongBoxUnavailableException
 import android.util.Log
+import java.security.KeyFactory
+import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.KeyStore
+import java.security.ProviderException
 import java.security.cert.X509Certificate
 
 data class AttestationResult(
@@ -35,27 +41,25 @@ class KeyAttestationVerifier(private val context: Context) {
                 keyStore.deleteEntry(ATTESTATION_ALIAS)
             }
 
-            val keyPairGenerator = KeyPairGenerator.getInstance(
-                KeyProperties.KEY_ALGORITHM_EC,
-                ANDROID_KEYSTORE
-            )
-
-            val specBuilder = KeyGenParameterSpec.Builder(
-                ATTESTATION_ALIAS,
-                KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
-            ).apply {
-                setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA512)
-                setAttestationChallenge(challenge)
-                if (context.packageManager.hasSystemFeature("android.hardware.strongbox_keystore")) {
-                    setIsStrongBoxBacked(true)
+            val hasStrongBox = context.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
+            val keyPair: KeyPair = if (hasStrongBox) {
+                try {
+                    generateEcKeyPair(challenge, isStrongBox = true)
+                } catch (e: Exception) {
+                    when (e) {
+                        is StrongBoxUnavailableException, is ProviderException -> {
+                            Log.w(TAG, "StrongBox attestation key generation failed; falling back to TEE", e)
+                            generateEcKeyPair(challenge, isStrongBox = false)
+                        }
+                        else -> throw e
+                    }
                 }
+            } else {
+                generateEcKeyPair(challenge, isStrongBox = false)
             }
 
-            keyPairGenerator.initialize(specBuilder.build())
-            keyPairGenerator.generateKeyPair()
-
             val certChain = keyStore.getCertificateChain(ATTESTATION_ALIAS)
-            if (certChain == null || certChain.isEmpty()) {
+            if (certChain.isNullOrEmpty()) {
                 return AttestationResult(
                     isHardwareAttested = false,
                     securityLevel = HardwareSecurityLevel.SOFTWARE,
@@ -69,10 +73,12 @@ class KeyAttestationVerifier(private val context: Context) {
             val hasAttestationExtension = leafCert?.getExtensionValue(ATTESTATION_OID) != null
             val issuerName = leafCert?.issuerX500Principal?.name ?: "Unknown"
 
-            val securityLevel = if (context.packageManager.hasSystemFeature("android.hardware.strongbox_keystore")) {
-                HardwareSecurityLevel.STRONGBOX
-            } else {
-                HardwareSecurityLevel.TEE
+            val factory = KeyFactory.getInstance(KeyProperties.KEY_ALGORITHM_EC, ANDROID_KEYSTORE)
+            val keyInfo = factory.getKeySpec(keyPair.private, KeyInfo::class.java)
+            val securityLevel = when (keyInfo.securityLevel) {
+                KeyProperties.SECURITY_LEVEL_STRONGBOX -> HardwareSecurityLevel.STRONGBOX
+                KeyProperties.SECURITY_LEVEL_TRUSTED_ENVIRONMENT -> HardwareSecurityLevel.TEE
+                else -> HardwareSecurityLevel.SOFTWARE
             }
 
             AttestationResult(
@@ -91,6 +97,35 @@ class KeyAttestationVerifier(private val context: Context) {
                 certificateCount = 0,
                 issuerName = "Fallback/TEE"
             )
+        } finally {
+            try {
+                if (keyStore.containsAlias(ATTESTATION_ALIAS)) {
+                    keyStore.deleteEntry(ATTESTATION_ALIAS)
+                }
+            } catch (cleanupEx: Exception) {
+                Log.w(TAG, "Failed to clean up attestation key", cleanupEx)
+            }
         }
+    }
+
+    private fun generateEcKeyPair(challenge: ByteArray, isStrongBox: Boolean): KeyPair {
+        val keyPairGenerator = KeyPairGenerator.getInstance(
+            KeyProperties.KEY_ALGORITHM_EC,
+            ANDROID_KEYSTORE
+        )
+
+        val specBuilder = KeyGenParameterSpec.Builder(
+            ATTESTATION_ALIAS,
+            KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
+        ).apply {
+            setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA512)
+            setAttestationChallenge(challenge)
+            if (isStrongBox) {
+                setIsStrongBoxBacked(true)
+            }
+        }
+
+        keyPairGenerator.initialize(specBuilder.build())
+        return keyPairGenerator.generateKeyPair()
     }
 }

@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -55,36 +56,48 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier) {
         val cols = (width / spacing).toInt() + 1
         val rows = (height / spacing).toInt() + 1
         
-        val points = mutableListOf<Pair<Offset, Float>>()
+        val sparklePath = Path().apply {
+            val s = sparkleSize
+            moveTo(0f, -s)
+            quadraticTo(0f, 0f, s, 0f)
+            quadraticTo(0f, 0f, 0f, s)
+            quadraticTo(0f, 0f, -s, 0f)
+            quadraticTo(0f, 0f, 0f, -s)
+            close()
+        }
+
+        val totalPoints = (cols + 1) * (rows + 1)
+        val pointData = FloatArray(totalPoints * 3)
+        var ptr = 0
         for (c in 0..cols) {
             for (r in 0..rows) {
                 val cx = c * spacing + (r % 2) * (spacing / 2f)
                 val cy = r * spacing
                 val offsetPhase = if (isDark) (cx + cy) / 200f else (cx + cy) / 150f
-                points.add(Offset(cx, cy) to offsetPhase)
+                pointData[ptr++] = cx
+                pointData[ptr++] = cy
+                pointData[ptr++] = offsetPhase
             }
         }
-        
+
         onDrawBehind {
-            points.forEach { (offset, offsetPhase) ->
-                val baseAlpha = if (isDark) 0.8f else 0.75f
-                val minAlpha = if (isDark) 0.2f else 0.45f
-                val alpha = ((sin((phase + offsetPhase).toDouble()).toFloat() + 1f) / 2f) * baseAlpha + minAlpha
-                val s = sparkleSize
-                val cx = offset.x
-                val cy = offset.y
-                val path = Path().apply {
-                    moveTo(cx, cy - s)
-                    quadraticTo(cx, cy, cx + s, cy)
-                    quadraticTo(cx, cy, cx, cy + s)
-                    quadraticTo(cx, cy, cx - s, cy)
-                    quadraticTo(cx, cy, cx, cy - s)
-                    close()
+            val currentPhase = phase
+            val baseAlpha = if (isDark) 0.8f else 0.75f
+            val minAlpha = if (isDark) 0.2f else 0.45f
+            var i = 0
+            val limit = ptr
+            while (i < limit) {
+                val cx = pointData[i++]
+                val cy = pointData[i++]
+                val offsetPhase = pointData[i++]
+                val alpha = (((sin((currentPhase + offsetPhase).toDouble()).toFloat() + 1f) * 0.5f) * baseAlpha + minAlpha).coerceIn(0f, 1f)
+                translate(left = cx, top = cy) {
+                    drawPath(
+                        path = sparklePath,
+                        color = baseColor,
+                        alpha = alpha
+                    )
                 }
-                drawPath(
-                    path = path,
-                    color = baseColor.copy(alpha = alpha.coerceIn(0f, 1f))
-                )
             }
         }
     })

@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Process
 import androidx.annotation.RequiresApi
 
+@androidx.compose.runtime.Immutable
 data class AppShortcutItem(
     val id: String,
     val packageName: String,

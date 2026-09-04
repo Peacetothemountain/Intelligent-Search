@@ -13,12 +13,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class AppAction(
     val title: String,
     val action: String,
     val dataUri: String? = null
 )
 
+@Immutable
 data class AppItem(
     val name: String,
     val packageName: String,
@@ -26,17 +30,20 @@ data class AppItem(
     val actions: List<AppAction> = emptyList()
 )
 
+@Immutable
 data class CalendarEvent(
     val title: String,
     val startTime: String
 )
 
+@Immutable
 data class ContactItem(
     val name: String,
     val phoneNumber: String,
     val lookupUri: String
 )
 
+@Immutable
 data class FileItem(
     val name: String,
     val path: String,

@@ -68,6 +68,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.animation.AnimatedVisibility
+import androidx.navigation.compose.currentBackStackEntryAsState
 
 
 import androidx.compose.foundation.background
@@ -132,7 +133,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import com.pixel.intelligentsearch.core.data.SettingsManager
 
 @Language("AGSL")
-private const val GEMINI_STARDUST_SHADER = """
+private const val DYNAMIC_ATMOSPHERIC_SHADER = """
     uniform float2 resolution;
     uniform float time;
     uniform half4 targetColor;
@@ -204,9 +205,10 @@ private const val GEMINI_STARDUST_SHADER = """
 """
 
 @Composable
-fun GeminiBackgroundLayer(color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
+fun DynamicAtmosphericBackgroundLayer(color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-        val shader = remember { android.graphics.RuntimeShader(GEMINI_STARDUST_SHADER) }
+        val shader = remember { android.graphics.RuntimeShader(DYNAMIC_ATMOSPHERIC_SHADER) }
+        val brush = remember(shader) { androidx.compose.ui.graphics.ShaderBrush(shader) }
         var time by remember { mutableFloatStateOf(0f) }
         LaunchedEffect(Unit) {
             var lastFrame = androidx.compose.runtime.withFrameNanos { it }
@@ -221,7 +223,7 @@ fun GeminiBackgroundLayer(color: androidx.compose.ui.graphics.Color, modifier: M
             shader.setFloatUniform("resolution", size.width, size.height)
             shader.setFloatUniform("time", time)
             shader.setFloatUniform("targetColor", color.red, color.green, color.blue, color.alpha)
-            drawRect(brush = androidx.compose.ui.graphics.ShaderBrush(shader))
+            drawRect(brush = brush)
         }
     }
 }
@@ -566,8 +568,17 @@ fun SettingsScreensHub(
             }
         }
 
-        androidx.activity.compose.BackHandler {
-            onBack()
+        val backStackEntry by navController.currentBackStackEntryAsState()
+        val canPop = navController.previousBackStackEntry != null
+        val backToOverlayEnabled = prefs.getBoolean("settings_back_to_search_overlay", false)
+
+        if (!canPop && backToOverlayEnabled) {
+            androidx.activity.compose.PredictiveBackHandler(enabled = true) { progressFlow ->
+                try {
+                    progressFlow.collect { }
+                    handleExitBack()
+                } catch (_: java.util.concurrent.CancellationException) {}
+            }
         }
 
         val startRoute: com.pixel.intelligentsearch.core.navigation.Route = when (initialScreen) {
@@ -2722,17 +2733,19 @@ fun SettingsRow(
     showDivider: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val iconBitmap = remember(icon) {
+        if (icon is android.graphics.drawable.Drawable) {
+            runCatching { icon.toBitmap().asImageBitmap() }.getOrNull()
+        } else null
+    }
     Column(modifier = modifier) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .bouncyClickable(
                     onLongClick = onLongClick,
-                    onClick = {
-                    performClickHaptic(context)
-                    onClick()
-                })
+                    onClick = onClick
+                )
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -2746,11 +2759,13 @@ fun SettingsRow(
                     )
                 }
                 is android.graphics.drawable.Drawable -> {
-                    Image(
-                        bitmap = icon.toBitmap().asImageBitmap(),
-                        contentDescription = title,
-                        modifier = Modifier.size(32.dp)
-                    )
+                    if (iconBitmap != null) {
+                        Image(
+                            bitmap = iconBitmap,
+                            contentDescription = title,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
                 }
                 is androidx.compose.ui.graphics.ImageBitmap -> {
                     Image(
@@ -2836,7 +2851,7 @@ fun SettingsDropdownRow(
                             text = { Text(option) },
                             leadingIcon = if (optionIcons != null && optionIcons.containsKey(option)) {
                                 {
-                                    if (title == "Widget Action Icon" && option in listOf("Search", "Gemini", "Now Playing")) {
+                                    if (title == "Widget Action Icon" && option in listOf("Search", "Assistant", "Gemini", "Now Playing")) {
                                         ComposeActionIcon(
                                             iconType = option,
                                             modifier = Modifier.size(24.dp),
@@ -2884,7 +2899,12 @@ fun SettingsRowToggle(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val view = androidx.compose.ui.platform.LocalView.current
-    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context) }
+    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
+    val iconBitmap = remember(icon) {
+        if (icon is android.graphics.drawable.Drawable) {
+            runCatching { icon.toBitmap().asImageBitmap() }.getOrNull()
+        } else null
+    }
     Column(modifier = modifier) {
         Row(
             modifier = Modifier
@@ -2912,11 +2932,13 @@ fun SettingsRowToggle(
                         )
                     }
                     is android.graphics.drawable.Drawable -> {
-                        Image(
-                            bitmap = icon.toBitmap().asImageBitmap(),
-                            contentDescription = title,
-                            modifier = Modifier.size(32.dp)
-                        )
+                        if (iconBitmap != null) {
+                            Image(
+                                bitmap = iconBitmap,
+                                contentDescription = title,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
                     }
                     is androidx.compose.ui.graphics.ImageBitmap -> {
                         Image(
@@ -3232,7 +3254,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     }
 
-                    GeminiBackgroundLayer(
+                    DynamicAtmosphericBackgroundLayer(
                         color = activeColor,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -3388,10 +3410,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 contentAlignment = Alignment.Center
                             ) {
                                 val actIcon = when (localActionIcon) {
-                                    "Search" -> com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored
-                                    "Gemini" -> com.pixel.intelligentsearch.R.drawable.ic_gemini
+                                    "Search" -> com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive
+                                    "Assistant", "Gemini" -> com.pixel.intelligentsearch.R.drawable.ic_lens_action
                                     "Now Playing" -> com.pixel.intelligentsearch.R.drawable.ic_music
-                                    else -> com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored
+                                    else -> com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive
                                 }
                                 Icon(
                                     painter = androidx.compose.ui.res.painterResource(id = actIcon),
@@ -3413,10 +3435,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     customIcon = {
                         if (localThemeStyle == "System Default") {
                             Image(
-                                bitmap = androidx.core.content.ContextCompat.getDrawable(
-                                    LocalContext.current,
-                                    R.drawable.ic_g_logo_colored
-                                )!!.toBitmap().asImageBitmap(),
+                                painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_g_logo_colored),
                                 contentDescription = "G Icon",
                                 modifier = Modifier.size(24.dp)
                             )
@@ -3831,13 +3850,13 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 )
                             }
                         },
-                        options = listOf("None", "Search", "Gemini", "Now Playing"),
-                        selectedOption = localActionIcon,
+                        options = listOf("None", "Search", "Assistant", "Now Playing"),
+                        selectedOption = if (localActionIcon == "Gemini") "Assistant" else localActionIcon,
                         onOptionSelected = { localActionIcon = it },
                         showDivider = false,
                         optionIcons = mapOf(
-                            "Search" to com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored,
-                            "Gemini" to com.pixel.intelligentsearch.R.drawable.ic_gemini,
+                            "Search" to com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive,
+                            "Assistant" to com.pixel.intelligentsearch.R.drawable.ic_lens_action,
                             "Now Playing" to com.pixel.intelligentsearch.R.drawable.ic_music
                         )
                     )
@@ -4293,7 +4312,7 @@ fun ComposeActionIcon(
                         color = primaryColor
                     )
                 }
-                "Gemini" -> {
+                "Assistant", "Gemini" -> {
                     drawPath(
                         path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,2L14.8,9.2L22,12L14.8,14.8L12,22L9.2,14.8L2,12L9.2,9.2L12,2Z").toPath(),
                         color = primaryColor
@@ -4502,7 +4521,7 @@ fun Android17Slider(
 }
 
 fun performClickHaptic(context: android.content.Context) {
-    com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+    com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
 }
 
 // -----------------------------------------------------------------------------------------
@@ -5126,7 +5145,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 @android.annotation.SuppressLint("WrongConstant")
                                 val statusBarManager = context.getSystemService("statusbar") as? android.app.StatusBarManager
                                 val componentName = android.content.ComponentName(context, com.pixel.intelligentsearch.feature.widget.SearchTileService::class.java)
-                                val icon = android.graphics.drawable.Icon.createWithResource(context, com.pixel.intelligentsearch.R.drawable.ic_search_ai_colored)
+                                val icon = android.graphics.drawable.Icon.createWithResource(context, com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive)
                                 statusBarManager?.requestAddTileService(
                                     componentName,
                                     "Intelligent Search",
@@ -5265,7 +5284,7 @@ private fun generate40MaterialShapes(): List<RoundedPolygon> {
 class MorphAnimationEngine(val coroutineScope: CoroutineScope) {
     val shapePool = generate40MaterialShapes()
     
-    // Pre-shuffle starting configurations to ensure a different opening animation every time
+    // Pre-shuffle initial layout configurations for varied opening sequence
     val startXs = listOf(0.15f, 0.40f, 0.65f, 0.85f).shuffled()
     val startFromBottom = listOf(true, true, false, false).shuffled()
 
@@ -5427,8 +5446,8 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine, val startX:
                     }
                 }
                 
-                // Continuous Animation: Relaunch shapes if they settle on the ground for too long
-                // This ensures they animate correctly as long as the user remains inside the setting pages
+                // Continuous Animation: Relaunch shapes if settled on boundary
+                // Retain continuous animation loop while settings session is active
                 val isSettled = touchingGround && vy == 0f && kotlin.math.abs(vx) < 5f
                 if (isSettled) {
                     timeSinceSettled += safeDt
@@ -5459,6 +5478,17 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val smallestWidthDp = configuration.smallestScreenWidthDp
     val fontScale = density.fontScale
 
+    val baseAccentColor = MaterialTheme.colorScheme.primary
+    val variant1 = MaterialTheme.colorScheme.secondary
+    val variant2 = MaterialTheme.colorScheme.tertiary
+    val variant3 = MaterialTheme.colorScheme.primaryContainer
+    val colors = remember(baseAccentColor, variant1, variant2, variant3) {
+        listOf(baseAccentColor, variant1, variant2, variant3)
+    }
+
+    val sharedNativePath = remember { android.graphics.Path() }
+    val sharedComposePath = remember(sharedNativePath) { sharedNativePath.asComposePath() }
+
     BoxWithConstraints(modifier = modifier.clipToBounds()) {
         val width = constraints.maxWidth.toFloat()
         val height = constraints.maxHeight.toFloat()
@@ -5466,28 +5496,27 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
         if (width > 0f && height > 0f) {
             engine.bouncers.forEach { it.updateBounds(width, height, deviceWidth, deviceHeight, smallestWidthDp, fontScale) }
 
-            val baseAccentColor = MaterialTheme.colorScheme.primary
-            val variant1 = MaterialTheme.colorScheme.secondary
-            val variant2 = MaterialTheme.colorScheme.tertiary
-            val variant3 = MaterialTheme.colorScheme.primaryContainer
-
-            val colors = listOf(baseAccentColor, variant1, variant2, variant3)
-
-            engine.bouncers.forEachIndexed { index, bouncer ->
-                Canvas(modifier = Modifier.fillMaxSize()) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val bouncers = engine.bouncers
+                for (index in bouncers.indices) {
+                    val bouncer = bouncers[index]
                     val sizePx = bouncer.sizePx
-                    if (sizePx <= 0f) return@Canvas
+                    if (sizePx <= 0f) continue
                     
                     val boundedX = bouncer.x.coerceIn(0f, (width - sizePx).coerceAtLeast(0f))
                     val boundedY = bouncer.y.coerceIn(0f, (height - sizePx).coerceAtLeast(0f))
                     
                     translate(left = boundedX, top = boundedY) {
                         rotate(bouncer.rotation.value) {
-                            val path = android.graphics.Path()
-                            bouncer.morph.toPath(progress = bouncer.morphProgress.value, path = path)
+                            sharedNativePath.rewind()
+                            bouncer.morph.toPath(progress = bouncer.morphProgress.value, path = sharedNativePath)
                             
                             scale(scale = sizePx, pivot = Offset.Zero) {
-                                drawPath(path.asComposePath(), colors[index].copy(alpha = bouncer.alpha.value * 0.9f))
+                                drawPath(
+                                    path = sharedComposePath,
+                                    color = colors[index],
+                                    alpha = (bouncer.alpha.value * 0.9f).coerceIn(0f, 1f)
+                                )
                             }
                         }
                     }

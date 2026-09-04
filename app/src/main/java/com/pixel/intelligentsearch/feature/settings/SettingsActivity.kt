@@ -21,8 +21,14 @@ import dagger.hilt.android.AndroidEntryPoint
 class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            @Suppress("DEPRECATION")
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
         enableEdgeToEdge()
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
+        com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         super.onCreate(savedInstanceState)
         
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -30,11 +36,6 @@ class SettingsActivity : AppCompatActivity() {
                 OVERRIDE_TRANSITION_OPEN,
                 com.pixel.intelligentsearch.R.anim.slide_in_right,
                 com.pixel.intelligentsearch.R.anim.slide_out_left
-            )
-            overrideActivityTransition(
-                OVERRIDE_TRANSITION_CLOSE,
-                com.pixel.intelligentsearch.R.anim.slide_in_left,
-                com.pixel.intelligentsearch.R.anim.slide_out_right
             )
         }
         
@@ -68,7 +69,7 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             IntelligentSearchTheme(darkTheme = darkTheme) {
-                com.pixel.intelligentsearch.core.ui.GeminiAppBackgroundContainer(
+                com.pixel.intelligentsearch.core.ui.DynamicAtmosphericBackgroundContainer(
                     appDesign = com.pixel.intelligentsearch.core.ui.AppDesignTheme.SYSTEM,
                     appTheme = appTheme,
                     customColor = null

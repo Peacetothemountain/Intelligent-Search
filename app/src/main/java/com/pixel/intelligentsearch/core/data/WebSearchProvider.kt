@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.core.data
+
 import android.util.LruCache
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -39,7 +41,6 @@ object WebSearchProvider {
 
             if (connection.responseCode == 200) {
                 val response = connection.inputStream.bufferedReader().use { it.readText() }
-                // Response format: ["query", ["suggestion1", "suggestion2", ...]]
                 val jsonArray = JSONArray(response)
                 if (jsonArray.length() >= 2) {
                     val suggestionsArray = jsonArray.getJSONArray(1)
@@ -53,6 +54,8 @@ object WebSearchProvider {
                     }
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             // Non-fatal network timeout / connection error
         } finally {

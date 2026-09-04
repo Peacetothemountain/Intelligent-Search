@@ -21,6 +21,7 @@ import com.pixel.intelligentsearch.core.data.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
+@androidx.compose.runtime.Immutable
 data class DirectAction(
     val title: String,
     val subtitle: String,
@@ -28,12 +29,14 @@ data class DirectAction(
     val intent: android.content.Intent?
 )
 
+@androidx.compose.runtime.Immutable
 data class InstantAnswer(
     val title: String,
     val subtitle: String,
     val iconType: String
 )
 
+@androidx.compose.runtime.Immutable
 data class SearchUiState(
     val query: String = "",
     val allApps: List<AppItem> = emptyList(),
@@ -72,7 +75,7 @@ class SearchViewModel @Inject constructor(
 
     private var searchJob: Job? = null
 
-    private val liteRtEngine = com.pixel.intelligentsearch.core.ai.LiteRtEngine(context)
+    private val localInferenceEngine = com.pixel.intelligentsearch.core.local.LocalInferenceEngine(context)
     private val adpfThermalManager = com.pixel.intelligentsearch.core.performance.ADPFThermalManager(context)
     private val appSearchEngine = com.pixel.intelligentsearch.core.data.AppSearchEngine(context)
     private val privateSpaceManager = com.pixel.intelligentsearch.core.data.PrivateSpaceManager(context)
@@ -179,7 +182,7 @@ class SearchViewModel @Inject constructor(
         if (newQuery.isBlank()) {
             if (mockZeroState) {
                 _uiState.update { it.copy(
-                    webSuggestions = listOf("Trending: Pixel 10 Leaks", "Trending: Android 17", "Trending: AI Overviews"),
+                    webSuggestions = listOf("Trending: Pixel 10 Pro", "Trending: Android 17", "Trending: Material 3 Expressive"),
                     filteredApps = emptyList(),
                     contacts = emptyList(),
                     files = emptyList(),
@@ -213,7 +216,7 @@ class SearchViewModel @Inject constructor(
             launch(kotlinx.coroutines.Dispatchers.IO) {
                 kotlinx.coroutines.delay(250)
                 try {
-                    liteRtEngine.generateTextEmbedding(newQuery)
+                    localInferenceEngine.generateTextEmbedding(newQuery)
                     appSearchEngine.indexDocument(
                         com.pixel.intelligentsearch.core.data.IndexedSearchDocument(
                             id = newQuery.hashCode().toString(),

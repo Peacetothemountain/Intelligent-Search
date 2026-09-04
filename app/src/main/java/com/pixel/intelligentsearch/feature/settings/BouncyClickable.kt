@@ -34,12 +34,32 @@ fun Modifier.bouncyClickable(
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val view = androidx.compose.ui.platform.LocalView.current
-    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context) }
+    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
+
+    val currentOnClick by androidx.compose.runtime.rememberUpdatedState(onClick)
+    val currentOnLongClick by androidx.compose.runtime.rememberUpdatedState(onLongClick)
 
     androidx.compose.runtime.LaunchedEffect(isPressed) {
         if (isPressed) {
             hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
         }
+    }
+
+    val clickAction = remember(view, hapticEngine) {
+        {
+            hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+            currentOnClick()
+        }
+    }
+
+    val longClickAction: (() -> Unit)? = remember(view, hapticEngine, onLongClick != null) {
+        if (onLongClick != null) {
+            {
+                hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.HEAVY_IMPACT)
+                currentOnLongClick?.invoke()
+                Unit
+            }
+        } else null
     }
 
     this
@@ -51,15 +71,7 @@ fun Modifier.bouncyClickable(
             interactionSource = interactionSource,
             indication = null,
             enabled = enabled,
-            onLongClick = onLongClick?.let { orig ->
-                {
-                    hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.HEAVY_IMPACT)
-                    orig()
-                }
-            },
-            onClick = {
-                hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
-                onClick()
-            }
+            onLongClick = longClickAction,
+            onClick = clickAction
         )
 }

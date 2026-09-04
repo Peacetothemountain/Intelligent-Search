@@ -1,5 +1,12 @@
 # Changelog
 
+## Release Version 8.9 - System Architecture & Security Hardening
+- **Titan M3+ Hardware Security**: Integrated StrongBox KeyStore (`KeyGenParameterSpec`) with hardware-backed key attestation verification, TEE fallbacks, and biometrically gated cryptographic operations.
+- **Trampoline-Free Window Acceleration**: Direct subclassing of `MainActivity` in `SearchActivity` and `WidgetActivity`, eliminating cold-boot trampoline latency.
+- **Continuous 120 FPS Rendering**: Memory zero-allocation in AGSL atmospheric shader loops and draw scopes, utilizing `derivedStateOf`, Choreographer pacing, and predictive back gestures.
+- **On-Device Local Inference Engine**: Decoupled on-device vector embeddings (`LocalInferenceEngine`) with zero cloud telemetry or external AI dependencies.
+- **Architectural Standards**: Clean unidirectional data flow (MVI/MVVM), strict edge-to-edge system insets via `WindowInsetsAnimationCompat`, and complete purge of legacy boilerplate metadata.
+
 ## Release Version 7.0 - Recent Updates
 
 ### Motion & Navigation Physics

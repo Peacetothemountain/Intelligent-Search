@@ -5,13 +5,10 @@
     <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
     
     <!-- System Toggles & Hardware Permissions -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
@@ -74,7 +71,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.IntelligentSearch">
 
-        <!-- Launcher activity overrides icon to display your custom Serif Uppercase "I" in app drawer -->
+        <!-- Launcher activity override for Serif uppercase "I" brand icon in application drawer -->
         <activity
             android:name="com.pixel.intelligentsearch.MainActivity"
             android:icon="@mipmap/ic_launcher"
@@ -122,17 +119,6 @@
                 android:resource="@xml/searchable" />
         </activity>
 
-        <service
-            android:name="com.pixel.intelligentsearch.core.service.QuickSearchTileService"
-            android:icon="@drawable/ic_search_ai_colored"
-            android:label="Quick Search"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
-
         <activity
             android:name="com.pixel.intelligentsearch.feature.widget.WidgetActivity"
             android:theme="@style/Theme.IntelligentSearch.Overlay.Widget"
@@ -142,7 +128,7 @@
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
             android:excludeFromRecents="true"
-            android:exported="true" />
+            android:exported="false" />
 
         <activity
             android:name="com.pixel.intelligentsearch.feature.settings.SettingsActivity"
@@ -195,7 +181,7 @@
 
         <service android:name=".feature.widget.SearchTileService"
                  android:label="Intelligent Search"
-                 android:icon="@drawable/ic_search_ai_colored"
+                 android:icon="@drawable/ic_search_lens_expressive"
                  android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
                  android:exported="true">
             <intent-filter>

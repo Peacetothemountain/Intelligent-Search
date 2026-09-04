@@ -64,7 +64,7 @@ android {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
       jniLibs {
-        useLegacyPackaging = true
+        useLegacyPackaging = false
       }
     }
 }
@@ -120,8 +120,6 @@ dependencies {
   // Preferences DataStore
   implementation(libs.androidx.datastore.preferences)
 
-  // Google Generative AI
-  implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
 
   // Lottie for Animations
   implementation("com.airbnb.android:lottie-compose:6.7.1")

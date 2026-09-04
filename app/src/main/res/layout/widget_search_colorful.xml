@@ -111,13 +111,13 @@
                     android:focusable="true" />
 
                 <ImageView
-                    android:id="@+id/widget_gemini_search"
+                    android:id="@+id/widget_action_search"
                     android:layout_width="22dp"
                     android:layout_height="22dp"
                     android:layout_marginStart="16dp"
-                    android:src="@drawable/ic_gemini"
+                    android:src="@drawable/ic_lens_action"
                     android:scaleType="fitCenter"
-                    android:contentDescription="Gemini"
+                    android:contentDescription="Voice Command"
                     android:visibility="gone"
                     android:clickable="true"
                     android:focusable="true" />

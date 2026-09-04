@@ -18,6 +18,8 @@ import android.os.Build
 import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
+import androidx.activity.BackEventCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.speech.RecognizerIntent
@@ -55,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -106,6 +109,9 @@ fun AppGridItem(app: AppItem, onClick: () -> Unit) {
         }
     }
     val appIcon = appIconState.value
+    val fallbackBitmap = remember(app.packageName) {
+        runCatching { app.icon.toBitmap().asImageBitmap() }.getOrNull()
+    }
 
     Column(
         modifier = Modifier
@@ -121,9 +127,9 @@ fun AppGridItem(app: AppItem, onClick: () -> Unit) {
                 modifier = Modifier.size(48.dp),
                 colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
             )
-        } else {
+        } else if (fallbackBitmap != null) {
             Image(
-                bitmap = app.icon.toBitmap().asImageBitmap(),
+                bitmap = fallbackBitmap,
                 contentDescription = app.name,
                 modifier = Modifier.size(48.dp)
             )
@@ -368,8 +374,8 @@ fun SearchOverlayScreen(
     val coroutineScope = rememberCoroutineScope()
     // Animatable for the overlay expansion progress: 0f = collapsed pill, 1f = fully expanded
     val overlayProgressAnim = remember { Animatable(if (isFromBackSwipe) 1f else 0f) }
-    
-    val morphProgress = overlayProgressAnim.value.coerceIn(0f, 1f)
+    val predictiveBackProgress = remember { Animatable(0f) }
+    var predictiveBackEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
 
     LaunchedEffect(isOpening) {
         if (isOpening) {
@@ -399,7 +405,6 @@ fun SearchOverlayScreen(
             act?.finish()
         }
     }
-    val overlayProgress = overlayProgressAnim.value
 
     val focusRequester = remember { FocusRequester() }
     
@@ -416,7 +421,7 @@ fun SearchOverlayScreen(
     val hapticContext = LocalContext.current
 
     val closeOverlay = {
-        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
+        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
         keyboardController?.hide()
         viewModel.onQueryChanged("")
         if (transitionState.targetState) {
@@ -429,7 +434,7 @@ fun SearchOverlayScreen(
     }
 
     val goToHomeScreen: () -> Unit = {
-        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
+        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
         keyboardController?.hide()
         viewModel.onQueryChanged("")
         val act = context.findActivity()
@@ -566,11 +571,26 @@ fun SearchOverlayScreen(
         }
     }
     
-    BackHandler(enabled = true) {
-        if (showTutorial) {
-            // Suppress exit during tutorial
-        } else {
+    PredictiveBackHandler(enabled = !showTutorial) { progressFlow ->
+        try {
+            progressFlow.collect { backEvent ->
+                predictiveBackEdge = backEvent.swipeEdge
+                predictiveBackProgress.snapTo(backEvent.progress)
+            }
+            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context)
+                .performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
+            keyboardController?.hide()
+            viewModel.onQueryChanged("")
+            overlayProgressAnim.animateTo(
+                targetValue = 0f,
+                animationSpec = spring(dampingRatio = 0.92f, stiffness = 280f)
+            )
             goToHomeScreen()
+        } catch (_: java.util.concurrent.CancellationException) {
+            predictiveBackProgress.animateTo(
+                targetValue = 0f,
+                animationSpec = spring(dampingRatio = 0.85f, stiffness = 300f)
+            )
         }
     }
 
@@ -680,7 +700,7 @@ fun SearchOverlayScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.ic_search_ai_colored),
+                    painter = painterResource(id = R.drawable.ic_search_lens_expressive),
                     contentDescription = "Google",
                     modifier = Modifier.size(28.dp)
                 )
@@ -785,20 +805,22 @@ fun SearchOverlayScreen(
 
     val quickAppPanelContent = @Composable {
         if (settingsState.quickSearchHorizontal) {
+            val pillPackages = remember(settingsState.contextAwareQuickApps, settingsState.searchPills, settingsState.shortcutResultsCount, uiState.recentApps) {
+                if (settingsState.contextAwareQuickApps) {
+                    uiState.recentApps.take(settingsState.shortcutResultsCount).map { it.packageName }
+                } else {
+                    settingsState.searchPills.split(",").filter { it.isNotBlank() }.take(settingsState.shortcutResultsCount)
+                }
+            }
+            val dynamicScale = if (pillPackages.size > 6) (6f / pillPackages.size.toFloat()).coerceIn(0.6f, 1f) else 1f
             LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 12.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                                            val pillPackages = if (settingsState.contextAwareQuickApps) {
-                        uiState.recentApps.take(settingsState.shortcutResultsCount).map { it.packageName }
-                    } else {
-                        settingsState.searchPills.split(",").filter { it.isNotBlank() }.take(settingsState.shortcutResultsCount)
-                    }
-                        val dynamicScale = if (pillPackages.size > 6) (6f / pillPackages.size.toFloat()).coerceIn(0.6f, 1f) else 1f
-                        items(pillPackages, key = { it }) { packageName ->
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(pillPackages, key = { it }) { packageName ->
                             val appIconState = remember(packageName, settingsState.activeIconPack) { mutableStateOf<AppIconResult?>(null) }
                             val appNameState = remember(packageName) { mutableStateOf("App") }
                             LaunchedEffect(packageName, settingsState.activeIconPack) {
@@ -872,8 +894,7 @@ fun SearchOverlayScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .animateContentSize(animationSpec = tween(180, easing = androidx.compose.animation.core.FastOutSlowInEasing)),
+                .statusBarsPadding(),
             contentPadding = PaddingValues(
                 top = if (settingsState.bottomSearch && settingsState.bottomSearchResult) 72.dp else 8.dp,
                 bottom = 8.dp
@@ -943,7 +964,6 @@ fun SearchOverlayScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 4.dp)
-                                .graphicsLayer { translationX = offsetX.value }
                                 .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f), RoundedCornerShape(32.dp))
                                 .clip(RoundedCornerShape(32.dp))
                                 .pointerInput(action) {
@@ -1066,7 +1086,9 @@ fun SearchOverlayScreen(
                                     appIconState.value = icon
                                 }
                             }
-                            val appIcon = appIconState.value
+                            val fallbackBitmap = remember(match.packageName) {
+                                runCatching { match.icon.toBitmap().asImageBitmap() }.getOrNull()
+                            }
 
                             Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                                 Column {
@@ -1074,6 +1096,7 @@ fun SearchOverlayScreen(
                                         modifier = Modifier.fillMaxWidth().bouncyClickable { onLaunchApp(match.packageName) },
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        val appIcon = appIconState.value
                                         if (appIcon != null) {
                                             Image(
                                                 bitmap = appIcon.bitmap,
@@ -1081,8 +1104,8 @@ fun SearchOverlayScreen(
                                                 modifier = Modifier.size(48.dp),
                                                 colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
                                             )
-                                        } else {
-                                            Image(bitmap = match.icon.toBitmap().asImageBitmap(), contentDescription = null, modifier = Modifier.size(48.dp))
+                                        } else if (fallbackBitmap != null) {
+                                            Image(bitmap = fallbackBitmap, contentDescription = null, modifier = Modifier.size(48.dp))
                                         }
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Column {
@@ -1359,7 +1382,6 @@ fun SearchOverlayScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .graphicsLayer { translationX = offsetX.value }
                                 .pointerInput(event) {
                                     detectHorizontalDragGestures(
                                         onHorizontalDrag = { change, dragAmount ->
@@ -1567,12 +1589,12 @@ fun SearchOverlayScreen(
                         }
                     )
                 }
-                item(key = "gemini_shortcut") {
+                item(key = "assistant_shortcut") {
                     ShortcutRow(
-                        iconRes = R.drawable.ic_gemini,
-                        title = "Ask Gemini",
+                        iconRes = R.drawable.ic_lens_action,
+                        title = "Digital Assistant",
                         onClick = {
-                            val intent = SearchWidgetProvider.getGeminiSearchIntent(context)
+                            val intent = SearchWidgetProvider.getVoiceActionIntent(context)
                             launchSafeIntent(context, intent)
                         }
                     )
@@ -1638,20 +1660,14 @@ fun SearchOverlayScreen(
         }
     }
 
-    val imeState = WindowInsets.ime
     val density = LocalDensity.current
-    val imeBottom = if (isKeyboardDisabled) 0 else imeState.getBottom(density)
-    val animatedImeBottom by animateFloatAsState(
-        targetValue = imeBottom.toFloat(),
-        animationSpec = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessLow),
-        label = "imeBounce"
-    )
     val maxDragDistance = with(density) { 400.dp.toPx() } // Approx swipe distance
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(bottom = (animatedImeBottom / density.density).coerceAtLeast(0f).dp)
+            .navigationBarsPadding()
+            .then(if (!isKeyboardDisabled) Modifier.imePadding() else Modifier)
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
@@ -1720,15 +1736,26 @@ fun SearchOverlayScreen(
             },
         contentAlignment = Alignment.BottomCenter
     ) {
-        if (settingsState.showWallpaper) {
-            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = (settingsState.backgroundTransparency / 100f) * 0.7f * morphProgress)))
-        } else {
-            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f * morphProgress)))
-        }
+        val scrimColor = MaterialTheme.colorScheme.scrim
+        val scrimAlphaFactor = if (settingsState.showWallpaper) (settingsState.backgroundTransparency / 100f) * 0.7f else 0.65f
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                    drawRect(color = scrimColor, alpha = scrimAlphaFactor * p)
+                }
+        )
 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
             if (prefs.getBoolean("matrix_animation_enabled", true)) {
-                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = morphProgress }) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = overlayProgressAnim.value.coerceIn(0f, 1f)
+                        }
+                ) {
                     AnimatedMatrixBackground()
                 }
             }
@@ -1745,35 +1772,34 @@ fun SearchOverlayScreen(
             val targetWidth = screenWidth - 32.dp
             val initialWidth = screenWidth - 64.dp
 
-            val searchBarAlpha = morphProgress
-            val quickAppPanelAlpha = (morphProgress - 0.1f).coerceIn(0f, 0.9f) / 0.9f
-            val searchResultsAlpha = (morphProgress - 0.2f).coerceIn(0f, 0.8f) / 0.8f
-
-            val searchBarOffset = (1f - searchBarAlpha) * 40f
-            val quickAppPanelOffset = (1f - quickAppPanelAlpha) * 40f
-            val searchResultsOffset = (1f - searchResultsAlpha) * 40f
-
             Box(
                 modifier = Modifier
                     .width(targetWidth)
                     .height(targetHeight)
                     .padding(bottom = 16.dp)
                     .graphicsLayer {
-                        val progress = morphProgress.coerceIn(0.001f, 1f)
-                        val currentW = initialWidth.toPx() + (targetWidth.toPx() - initialWidth.toPx()) * progress
-                        val currentH = initialHeight.toPx() + (targetHeight.toPx() - initialHeight.toPx()) * progress
+                        val progress = overlayProgressAnim.value.coerceIn(0.001f, 1f)
+                        val backProg = predictiveBackProgress.value.coerceIn(0f, 1f)
+                        val predictiveScale = 1f - (backProg * 0.10f)
+
+                        val currentW = (initialWidth.toPx() + (targetWidth.toPx() - initialWidth.toPx()) * progress) * predictiveScale
+                        val currentH = (initialHeight.toPx() + (targetHeight.toPx() - initialHeight.toPx()) * progress) * predictiveScale
                         
                         scaleX = currentW / targetWidth.toPx()
                         scaleY = currentH / targetHeight.toPx()
+
+                        val edgeMultiplier = if (predictiveBackEdge == BackEventCompat.EDGE_LEFT) 1f else -1f
+                        translationX = backProg * 28.dp.toPx() * edgeMultiplier
+
                         transformOrigin = TransformOrigin(0.5f, 1.0f)
-                        alpha = progress
+                        alpha = (progress * (1f - backProg * 0.12f)).coerceIn(0f, 1f)
                     }
                     .clip(RoundedCornerShape(24.dp))
                     .then(
                         if (settingsState.bottomSearch) {
                             Modifier
                                 .background(MaterialTheme.colorScheme.surface.copy(alpha = surfaceAlpha))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = morphProgress), RoundedCornerShape(24.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp))
                         } else {
                             Modifier.background(Color.Transparent)
                         }
@@ -1785,18 +1811,46 @@ fun SearchOverlayScreen(
             ) {
                 
                 Column(
-                    modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+                    modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (!settingsState.bottomSearch) {
                         Spacer(modifier = Modifier.fillMaxHeight(0.2f))
-                        Box(modifier = Modifier.graphicsLayer { alpha = searchBarAlpha; translationY = searchBarOffset }) { searchBarContent() }
-                        Box(modifier = Modifier.graphicsLayer { alpha = quickAppPanelAlpha; translationY = quickAppPanelOffset }) { quickAppPanelContent() }
-                        Box(modifier = Modifier.weight(1f).graphicsLayer { alpha = searchResultsAlpha; translationY = searchResultsOffset }) { searchResultsContent() }
+                        Box(modifier = Modifier.graphicsLayer {
+                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            alpha = p
+                            translationY = (1f - p) * 40f
+                        }) { searchBarContent() }
+                        Box(modifier = Modifier.graphicsLayer {
+                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
+                            alpha = a
+                            translationY = (1f - a) * 40f
+                        }) { quickAppPanelContent() }
+                        Box(modifier = Modifier.weight(1f).graphicsLayer {
+                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
+                            alpha = a
+                            translationY = (1f - a) * 40f
+                        }) { searchResultsContent() }
                     } else {
-                        Box(modifier = Modifier.weight(1f).graphicsLayer { alpha = searchResultsAlpha; translationY = -searchResultsOffset }) { searchResultsContent() }
-                        Box(modifier = Modifier.graphicsLayer { alpha = quickAppPanelAlpha; translationY = -quickAppPanelOffset }) { quickAppPanelContent() }
-                        Box(modifier = Modifier.graphicsLayer { alpha = searchBarAlpha; translationY = -searchBarOffset }) { searchBarContent() }
+                        Box(modifier = Modifier.weight(1f).graphicsLayer {
+                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
+                            alpha = a
+                            translationY = -(1f - a) * 40f
+                        }) { searchResultsContent() }
+                        Box(modifier = Modifier.graphicsLayer {
+                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
+                            alpha = a
+                            translationY = -(1f - a) * 40f
+                        }) { quickAppPanelContent() }
+                        Box(modifier = Modifier.graphicsLayer {
+                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            alpha = p
+                            translationY = -(1f - p) * 40f
+                        }) { searchBarContent() }
                     }
                 }
             }

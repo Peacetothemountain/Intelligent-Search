@@ -1,42 +1,57 @@
-# ProGuard rules for Intelligent Search
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.kts.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# ProGuard and R8 rules for Intelligent Search - NG Designs
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Preserve source file and line numbers for deobfuscated crash reports
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
-# Aggressive Obfuscation Rules
+# Optimization & Obfuscation
 -repackageclasses ""
 -allowaccessmodification
--overloadaggressively
 
-# Remove logging in release builds
+# Strip debug and verbose logging in release builds while preserving errors and warnings
 -assumenosideeffects class android.util.Log {
     public static boolean isLoggable(java.lang.String, int);
     public static int v(...);
-    public static int i(...);
-    public static int w(...);
     public static int d(...);
-    public static int e(...);
 }
 
-# Keep Navigation Routes (Kotlin Serialization)
--keep @kotlinx.serialization.Serializable class * { *; }
+# Titan M3+ Hardware Security, Keystore & Biometrics
+-keep class com.pixel.intelligentsearch.core.security.** { *; }
+-keepclassmembers enum com.pixel.intelligentsearch.core.security.HardwareSecurityLevel { *; }
+-keepclassmembers class com.pixel.intelligentsearch.core.security.AttestationResult { *; }
+-keepclassmembers class com.pixel.intelligentsearch.core.security.EncryptedPayload { *; }
 
-# Keep Compose Navigation destinations intact to prevent crashes
+# Kotlin Serialization
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.SerializationKt
+-keepclassmembers class * {
+    *** Companion;
+}
+-keepclasseswithmembers class * {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-keep,allowobfuscation class * implements kotlinx.serialization.KSerializer {
+    <init>(...);
+}
+-keepclassmembers @kotlinx.serialization.Serializable class * {
+    <init>(...);
+    *** Companion;
+}
+
+# Jetpack Compose Navigation & Destinations
 -keepnames class androidx.navigation.compose.** { *; }
+-keepnames class androidx.navigation3.** { *; }
+
+# Room Database
+-keep class * extends androidx.room.RoomDatabase
+-dontwarn androidx.room.paging.**
+
+# Lottie Animations
+-keep class com.airbnb.lottie.** { *; }
+
+# Google Generative AI SDK
+-keep class com.google.ai.client.generativeai.** { *; }
+-dontwarn com.google.ai.client.generativeai.**
+
+# Coroutines
+-dontwarn kotlinx.coroutines.**

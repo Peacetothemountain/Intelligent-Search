@@ -13,6 +13,7 @@ import javax.inject.Singleton
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "intelligent_search_settings")
 
+@androidx.compose.runtime.Immutable
 data class IntelligentSearchSettings(
     val theme: String = "system",
     val searchApps: Boolean = false,

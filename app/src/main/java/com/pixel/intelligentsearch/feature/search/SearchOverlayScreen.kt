@@ -402,7 +402,6 @@ fun SearchOverlayScreen(
             )
             val act = context.findActivity()
             finishWithoutTransition(act)
-            act?.finish()
         }
     }
 
@@ -421,7 +420,6 @@ fun SearchOverlayScreen(
     val hapticContext = LocalContext.current
 
     val closeOverlay = {
-        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
         keyboardController?.hide()
         viewModel.onQueryChanged("")
         if (transitionState.targetState) {
@@ -429,12 +427,10 @@ fun SearchOverlayScreen(
         } else {
             val act = context.findActivity()
             finishWithoutTransition(act)
-            act?.finish()
         }
     }
 
     val goToHomeScreen: () -> Unit = {
-        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
         keyboardController?.hide()
         viewModel.onQueryChanged("")
         val act = context.findActivity()
@@ -449,7 +445,6 @@ fun SearchOverlayScreen(
             e.printStackTrace()
         }
         finishWithoutTransition(act)
-        act?.finish()
     }
 
     val launchWebSearch: (String) -> Unit = { searchQuery ->
@@ -550,9 +545,26 @@ fun SearchOverlayScreen(
                 
                 transitionState.targetState = true
                 viewModel.loadInitialData()
+
+                val fromBack = activity?.intent?.getBooleanExtra("FROM_BACK_SWIPE", false) == true
+                coroutineScope.launch {
+                    if (!fromBack) {
+                        overlayProgressAnim.snapTo(0f)
+                        overlayProgressAnim.animateTo(
+                            targetValue = 1f,
+                            animationSpec = spring(
+                                dampingRatio = 0.86f,
+                                stiffness = 180f
+                            )
+                        )
+                    } else {
+                        overlayProgressAnim.snapTo(1f)
+                    }
+                }
+
                 try {
                     coroutineScope.launch {
-                        delay(50)
+                        delay(220)
                         focusRequester.requestFocus()
                         keyboardController?.show()
                     }
@@ -577,14 +589,8 @@ fun SearchOverlayScreen(
                 predictiveBackEdge = backEvent.swipeEdge
                 predictiveBackProgress.snapTo(backEvent.progress)
             }
-            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context)
-                .performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
             keyboardController?.hide()
             viewModel.onQueryChanged("")
-            overlayProgressAnim.animateTo(
-                targetValue = 0f,
-                animationSpec = spring(dampingRatio = 0.92f, stiffness = 280f)
-            )
             goToHomeScreen()
         } catch (_: java.util.concurrent.CancellationException) {
             predictiveBackProgress.animateTo(
@@ -1684,7 +1690,6 @@ fun SearchOverlayScreen(
                                 viewModel.onQueryChanged("")
                                 val act = context.findActivity()
                                 finishWithoutTransition(act)
-                                act?.finish()
                             }
                         }
                     },

@@ -5052,7 +5052,11 @@ fun SearchPillsScreen(
                                                             itemDragOffset += dragAmount
 
                                                             val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
-                                                            val draggingItem = listState.layoutInfo.visibleItemsInfo.find { it.key == currentDraggingPackage }
+                                                            val draggingItem = listState.layoutInfo.visibleItemsInfo.find {
+                                                                it.key == "$resetCounter-$currentDraggingPackage" ||
+                                                                it.key == currentDraggingPackage ||
+                                                                it.key.toString().endsWith(currentDraggingPackage)
+                                                            }
                                                             if (draggingItem != null) {
                                                                 val spacing = listState.layoutInfo.mainAxisItemSpacing.toFloat()
                                                                 val itemHeight = draggingItem.size.toFloat() + spacing

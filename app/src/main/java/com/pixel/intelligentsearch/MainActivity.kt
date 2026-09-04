@@ -260,8 +260,6 @@ open class MainActivity : AppCompatActivity() {
 
     fun dismissOverlayToLauncher() {
         searchViewModel.onQueryChanged("")
-        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(this)
-            .performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
         moveTaskToBack(true)
         try {
             val homeIntent = Intent(Intent.ACTION_MAIN).apply {

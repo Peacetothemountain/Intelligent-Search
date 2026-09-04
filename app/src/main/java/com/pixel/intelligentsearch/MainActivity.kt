@@ -24,6 +24,7 @@ import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
 import android.app.SearchManager
 
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.SystemBarStyle
 import androidx.activity.viewModels
 import com.pixel.intelligentsearch.feature.search.SearchViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -35,6 +36,12 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        }
         setIntent(intent)
         val queryExtra = intent.getStringExtra("query") ?: intent.getStringExtra(SearchManager.QUERY)
         if (queryExtra != null) {
@@ -47,7 +54,32 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        enableEdgeToEdge()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        }
+
+        // Immediately dismiss system splash screen to avoid any black splash or flicker
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            splashScreen.setOnExitAnimationListener { splashScreenView ->
+                splashScreenView.remove()
+            }
+        }
+
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+        window.setDimAmount(0f)
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        @Suppress("DEPRECATION")
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        @Suppress("DEPRECATION")
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+        )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setInheritShowWhenLocked(true)
@@ -59,10 +91,28 @@ open class MainActivity : AppCompatActivity() {
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         super.onCreate(savedInstanceState)
         
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
-            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
-        }
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                searchViewModel.onQueryChanged("")
+                com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(this@MainActivity)
+                    .performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
+                moveTaskToBack(true)
+                try {
+                    val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                        addCategory(Intent.CATEGORY_HOME)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    startActivity(homeIntent)
+                } catch (e: Exception) {}
+                finish()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+                } else {
+                    @Suppress("DEPRECATION")
+                    overridePendingTransition(0, 0)
+                }
+            }
+        })
 
         if (handleIntent(intent)) return
 
@@ -90,13 +140,6 @@ open class MainActivity : AppCompatActivity() {
             finish()
             return
         }
-
-        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
-        @Suppress("DEPRECATION")
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-        @Suppress("DEPRECATION")
-        window.navigationBarColor = android.graphics.Color.TRANSPARENT
         
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
@@ -141,14 +184,19 @@ open class MainActivity : AppCompatActivity() {
                                     }
                                     if (launchIntent != null) {
                                         if (settingsState.appAnimations) {
-                                            val dm = resources.displayMetrics
-                                            val options = android.app.ActivityOptions.makeScaleUpAnimation(
-                                                window.decorView, dm.widthPixels / 2, dm.heightPixels / 2, 0, 0
-                                            )
+                                            val options = android.app.ActivityOptions.makeBasic()
                                             startActivity(launchIntent, options.toBundle())
+                                            finish()
                                         } else {
                                             val options = android.app.ActivityOptions.makeCustomAnimation(this@MainActivity, 0, 0)
                                             startActivity(launchIntent, options.toBundle())
+                                            finish()
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                                                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+                                            } else {
+                                                @Suppress("DEPRECATION")
+                                                overridePendingTransition(0, 0)
+                                            }
                                         }
                                     }
                                 },

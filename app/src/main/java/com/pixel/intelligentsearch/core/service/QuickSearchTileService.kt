@@ -5,7 +5,7 @@ import android.content.Intent
 import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
-import com.pixel.intelligentsearch.MainActivity
+import com.pixel.intelligentsearch.feature.widget.WidgetActivity
 
 class QuickSearchTileService : TileService() {
 
@@ -21,7 +21,7 @@ class QuickSearchTileService : TileService() {
     @android.annotation.SuppressLint("StartActivityAndCollapseDeprecated")
     override fun onClick() {
         super.onClick()
-        val intent = Intent(this, MainActivity::class.java).apply {
+        val intent = Intent(this, WidgetActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("EXTRA_SOURCE", "QUICK_SETTINGS_TILE")
         }

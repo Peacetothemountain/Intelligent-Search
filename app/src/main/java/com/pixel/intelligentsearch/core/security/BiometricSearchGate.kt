@@ -62,16 +62,24 @@ class BiometricSearchGate(private val context: Context) {
 
                 override fun onAuthenticationFailed() {
                     super.onAuthenticationFailed()
-                    onError("Biometric authentication failed.")
+                    // Soft failure: finger not recognized on this touch.
+                    // Keep prompt active for user to retry.
                 }
             }
 
             try {
-                val prompt = BiometricPrompt.Builder(activity)
+                val builder = BiometricPrompt.Builder(activity)
                     .setTitle("Authenticate to Access Hidden Apps")
-                    .setNegativeButton("Cancel", executor) { _, _ -> onError("Cancelled") }
-                    .build()
 
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    builder.setAllowedAuthenticators(
+                        BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                    )
+                } else {
+                    builder.setNegativeButton("Cancel", executor) { _, _ -> onError("Cancelled") }
+                }
+
+                val prompt = builder.build()
                 prompt.authenticate(cancellationSignal, executor, callback)
             } catch (e: Exception) {
                 e.printStackTrace()

@@ -15,8 +15,8 @@ android {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
         targetSdk = 37
-        versionCode = 81
-        versionName = "8.1"
+        versionCode = 91
+        versionName = "8.9"
     }
 
     signingConfigs {
@@ -26,10 +26,13 @@ android {
             if (localPropertiesFile.exists()) {
                 localProperties.load(localPropertiesFile.inputStream())
             }
-            storeFile = file(localProperties.getProperty("RELEASE_STORE_FILE") ?: "release.keystore")
-            storePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD") ?: "password"
-            keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS") ?: "release"
-            keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD") ?: "password"
+            val customStore = localProperties.getProperty("RELEASE_STORE_FILE")
+            if (customStore != null && file(customStore).exists()) {
+                storeFile = file(customStore)
+                storePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD") ?: "password"
+                keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS") ?: "release"
+                keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD") ?: "password"
+            }
         }
     }
 
@@ -38,7 +41,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release")
+            val relConfig = signingConfigs.getByName("release")
+            signingConfig = if (relConfig.storeFile != null && relConfig.storeFile!!.exists()) relConfig else signingConfigs.getByName("debug")
             ndk {
                 debugSymbolLevel = "SYMBOL_TABLE"
             }
@@ -99,7 +103,7 @@ dependencies {
   androidTestImplementation(libs.androidx.test.espresso.core)
 
   // Navigation
-  implementation("androidx.navigation:navigation-compose:2.9.8")
+  implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
 

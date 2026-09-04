@@ -98,6 +98,7 @@
             android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:launchMode="singleTask"
+            android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
             android:excludeFromRecents="true"
             android:exported="true">
             <intent-filter>
@@ -139,8 +140,9 @@
             android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:launchMode="singleTask"
+            android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
             android:excludeFromRecents="true"
-            android:exported="false" />
+            android:exported="true" />
 
         <activity
             android:name="com.pixel.intelligentsearch.feature.settings.SettingsActivity"

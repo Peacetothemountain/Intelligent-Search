@@ -24,13 +24,23 @@ fun Modifier.bouncyClickable(
     val isPressed by interactionSource.collectIsPressedAsState()
 
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.94f else 1f,
+        targetValue = if (isPressed) 0.96f else 1f,
         animationSpec = spring(
-            stiffness = Spring.StiffnessMediumLow,
-            dampingRatio = Spring.DampingRatioLowBouncy
+            stiffness = 380f,
+            dampingRatio = 0.78f
         ),
         label = "bouncy_click"
     )
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context) }
+
+    androidx.compose.runtime.LaunchedEffect(isPressed) {
+        if (isPressed) {
+            hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
+        }
+    }
 
     this
         .graphicsLayer {
@@ -41,7 +51,15 @@ fun Modifier.bouncyClickable(
             interactionSource = interactionSource,
             indication = null,
             enabled = enabled,
-            onLongClick = onLongClick,
-            onClick = onClick
+            onLongClick = onLongClick?.let { orig ->
+                {
+                    hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.HEAVY_IMPACT)
+                    orig()
+                }
+            },
+            onClick = {
+                hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                onClick()
+            }
         )
 }

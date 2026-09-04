@@ -209,16 +209,24 @@ class SearchViewModel @Inject constructor(
             if (verboseLogging) android.util.Log.d("SearchDebug", "Query started: $newQuery")
             val startTime = System.currentTimeMillis()
 
-            val queryEmbedding = liteRtEngine.generateTextEmbedding(newQuery)
-            appSearchEngine.indexDocument(
-                com.pixel.intelligentsearch.core.data.IndexedSearchDocument(
-                    id = newQuery.hashCode().toString(),
-                    namespace = "search_history",
-                    title = newQuery,
-                    snippet = "User search query",
-                    timestampMs = System.currentTimeMillis()
-                )
-            )
+            // Asynchronously debounce embedding and AppSearch history indexing to prevent CPU/IO churn during rapid typing
+            launch(kotlinx.coroutines.Dispatchers.IO) {
+                kotlinx.coroutines.delay(250)
+                try {
+                    liteRtEngine.generateTextEmbedding(newQuery)
+                    appSearchEngine.indexDocument(
+                        com.pixel.intelligentsearch.core.data.IndexedSearchDocument(
+                            id = newQuery.hashCode().toString(),
+                            namespace = "search_history",
+                            title = newQuery,
+                            snippet = "User search query",
+                            timestampMs = System.currentTimeMillis()
+                        )
+                    )
+                } catch (e: Exception) {
+                    // Non-fatal
+                }
+            }
             
             val cachedSuggestions = if (settingsState.value.searchWeb) WebSearchProvider.getCachedSuggestions(newQuery) else null
             
@@ -310,6 +318,9 @@ class SearchViewModel @Inject constructor(
 
                 val webSuggestionsDeferred = async {
                     if (settings.searchWeb) {
+                        if (WebSearchProvider.getCachedSuggestions(newQuery) == null) {
+                            kotlinx.coroutines.delay(120)
+                        }
                         WebSearchProvider.getWebSuggestions(newQuery).take(settings.webResultsCount)
                     } else {
                         emptyList()

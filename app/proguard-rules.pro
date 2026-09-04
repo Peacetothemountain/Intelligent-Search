@@ -49,9 +49,5 @@
 # Lottie Animations
 -keep class com.airbnb.lottie.** { *; }
 
-# Google Generative AI SDK
--keep class com.google.ai.client.generativeai.** { *; }
--dontwarn com.google.ai.client.generativeai.**
-
 # Coroutines
 -dontwarn kotlinx.coroutines.**

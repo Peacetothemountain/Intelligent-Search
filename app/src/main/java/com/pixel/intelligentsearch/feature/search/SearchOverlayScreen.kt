@@ -92,12 +92,16 @@ tailrec fun android.content.Context.findActivity(): android.app.Activity? = when
 @Composable
 fun AppGridItem(app: AppItem, onClick: () -> Unit) {
     val context = LocalContext.current
-    val appIconState = remember(app.packageName) { mutableStateOf<AppIconResult?>(getThemedAppIcon(context, app.packageName)) }
+    val appIconState = remember(app.packageName) { mutableStateOf<AppIconResult?>(peekThemedAppIcon(app.packageName)) }
     LaunchedEffect(app.packageName) {
         if (appIconState.value == null) {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val icon = getThemedAppIcon(context, app.packageName)
-                appIconState.value = icon
+                if (icon != null) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        appIconState.value = icon
+                    }
+                }
             }
         }
     }
@@ -195,6 +199,11 @@ private val themedIconCache = android.util.LruCache<String, AppIconResult>(256)
 
 fun clearThemedIconCache() {
     themedIconCache.evictAll()
+}
+
+fun peekThemedAppIcon(packageName: String, activePackOverride: String? = null): AppIconResult? {
+    val activePack = activePackOverride ?: "system_default"
+    return themedIconCache.get("$activePack:$packageName")
 }
 
 fun getThemedAppIcon(context: Context, packageName: String, activePackOverride: String? = null): AppIconResult? {
@@ -348,15 +357,10 @@ fun SearchOverlayScreen(
     val settingsState by settingsViewModel.settingsState.collectAsStateWithLifecycle()
     
     val prefs = remember(context) { context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE) }
-    val transitionState = remember { MutableTransitionState(false) }
-    LaunchedEffect(Unit) {
-        // Trigger the entrance animation immediately to prevent startup hesitation.
-        // With the matrix background optimized, we no longer need to wait for frame flushes.
-        transitionState.targetState = true
-    }
+    val transitionState = remember { MutableTransitionState(false).apply { targetState = true } }
     val isOpening = transitionState.targetState
     
-    val activity = context as? android.app.Activity
+    val activity = context.findActivity()
     val isFromBackSwipe = remember(activity) {
         activity?.intent?.getBooleanExtra("FROM_BACK_SWIPE", false) == true
     }
@@ -390,8 +394,9 @@ fun SearchOverlayScreen(
                     stiffness = 250f
                 )
             )
-            val act = context as? android.app.Activity
+            val act = context.findActivity()
             finishWithoutTransition(act)
+            act?.finish()
         }
     }
     val overlayProgress = overlayProgressAnim.value
@@ -411,14 +416,35 @@ fun SearchOverlayScreen(
     val hapticContext = LocalContext.current
 
     val closeOverlay = {
+        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
         keyboardController?.hide()
         viewModel.onQueryChanged("")
         if (transitionState.targetState) {
             transitionState.targetState = false
         } else {
-            val act = context as? android.app.Activity
+            val act = context.findActivity()
+            finishWithoutTransition(act)
             act?.finish()
         }
+    }
+
+    val goToHomeScreen: () -> Unit = {
+        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
+        keyboardController?.hide()
+        viewModel.onQueryChanged("")
+        val act = context.findActivity()
+        act?.moveTaskToBack(true)
+        try {
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(homeIntent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        finishWithoutTransition(act)
+        act?.finish()
     }
 
     val launchWebSearch: (String) -> Unit = { searchQuery ->
@@ -492,7 +518,6 @@ fun SearchOverlayScreen(
 
     LaunchedEffect(transitionState.targetState) {
         if (transitionState.targetState) {
-            performClickHaptic(hapticContext)
             if (!showTutorial) {
                 try {
                     delay(220)
@@ -545,7 +570,7 @@ fun SearchOverlayScreen(
         if (showTutorial) {
             // Suppress exit during tutorial
         } else {
-            closeOverlay()
+            goToHomeScreen()
         }
     }
 
@@ -640,8 +665,13 @@ fun SearchOverlayScreen(
                     .tutorialTarget(1, prefs)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f),
+                        RoundedCornerShape(percent = 50)
+                    )
                     .background(
-                        MaterialTheme.colorScheme.surfaceVariant.copy(
+                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(
                             alpha = (settingsState.pillOpacity / 100f).coerceIn(0f, 1f)
                         ),
                         RoundedCornerShape(percent = 50)
@@ -786,45 +816,51 @@ fun SearchOverlayScreen(
                                     if (uiState.query.isNotEmpty()) viewModel.addSearchHistory(uiState.query)
                                     
                                     val searchStr = uiState.query
-                                    val intent = when (packageName) {
-                                        "com.android.chrome" -> {
-                                            val url = if (searchStr.isEmpty()) "https://google.com" else "https://google.com/search?q=${Uri.encode(searchStr)}"
-                                            Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply { setPackage(packageName) }
-                                        }
-                                        "com.google.android.apps.maps" -> {
-                                            Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(searchStr.ifEmpty { "Restaurants" })}")).apply { setPackage(packageName) }
-                                        }
-                                        "com.google.android.youtube" -> {
-                                            Intent(Intent.ACTION_SEARCH).apply { setPackage(packageName); putExtra("query", searchStr.ifEmpty { "Music" }) }
-                                        }
-                                        "com.android.vending" -> {
-                                            Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=${Uri.encode(searchStr)}"))
-                                        }
-                                        "com.google.android.contacts" -> {
-                                            context.packageManager.getLaunchIntentForPackage(packageName) 
-                                                ?: Intent(Intent.ACTION_PICK).apply { type = android.provider.ContactsContract.Contacts.CONTENT_TYPE }
-                                        }
-                                        "com.google.android.apps.nbu.files" -> {
-                                            context.packageManager.getLaunchIntentForPackage(packageName) ?: Intent(Intent.ACTION_GET_CONTENT).apply { type = "*/*" }
-                                        }
-                                        else -> {
-                                             val searchIntent = Intent(Intent.ACTION_SEARCH).apply {
-                                                 setPackage(packageName)
-                                                 putExtra("query", searchStr)
+                                    if (searchStr.isEmpty()) {
+                                        onLaunchApp(packageName)
+                                    } else {
+                                        val intent = when (packageName) {
+                                            "com.android.chrome" -> {
+                                                val url = "https://google.com/search?q=${Uri.encode(searchStr)}"
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply { setPackage(packageName) }
+                                            }
+                                            "com.google.android.apps.maps" -> {
+                                                Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(searchStr.ifEmpty { "Restaurants" })}")).apply { setPackage(packageName) }
+                                            }
+                                            "com.google.android.youtube" -> {
+                                                Intent(Intent.ACTION_SEARCH).apply { setPackage(packageName); putExtra("query", searchStr.ifEmpty { "Music" }) }
+                                            }
+                                            "com.android.vending" -> {
+                                                Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=${Uri.encode(searchStr)}"))
+                                            }
+                                            "com.google.android.contacts" -> {
+                                                context.packageManager.getLaunchIntentForPackage(packageName) 
+                                                    ?: Intent(Intent.ACTION_PICK).apply { type = android.provider.ContactsContract.Contacts.CONTENT_TYPE }
+                                            }
+                                            "com.google.android.apps.nbu.files" -> {
+                                                context.packageManager.getLaunchIntentForPackage(packageName) ?: Intent(Intent.ACTION_GET_CONTENT).apply { type = "*/*" }
+                                            }
+                                            else -> {
+                                                 val searchIntent = Intent(Intent.ACTION_SEARCH).apply {
+                                                     setPackage(packageName)
+                                                     putExtra("query", searchStr)
+                                                 }
+                                                 val resolved = context.packageManager.queryIntentActivities(searchIntent, 0)
+                                                 val hasExportedSearch = resolved.any { it.activityInfo.exported }
+                                                 if (hasExportedSearch) {
+                                                     searchIntent
+                                                 } else {
+                                                     context.packageManager.getLaunchIntentForPackage(packageName)
+                                                 }
                                              }
-                                             val resolved = context.packageManager.queryIntentActivities(searchIntent, 0)
-                                             val hasExportedSearch = resolved.any { it.activityInfo.exported }
-                                             if (hasExportedSearch) {
-                                                 searchIntent
-                                             } else {
-                                                 context.packageManager.getLaunchIntentForPackage(packageName)
-                                             }
-                                         }
+                                        }
+                                        if (intent != null) {
+                                            launchSafeIntent(context, intent)
+                                            val act = context.findActivity()
+                                            finishWithoutTransition(act)
+                                            act?.finish()
+                                        }
                                     }
-                                    if (intent != null) {
-                                        launchSafeIntent(context, intent)
-                                    }
-                                    /* closeOverlay() */
                                 }
                             }
                         }
@@ -988,7 +1024,7 @@ fun SearchOverlayScreen(
                         }
                     }
                 }
-                item(key = "direct_actions_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                item(key = "direct_actions_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             if (bestMatch != null) {
@@ -1368,7 +1404,7 @@ fun SearchOverlayScreen(
                         }
                     }
                 }
-                item(key = "calendar_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                item(key = "calendar_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             if (settingsState.searchShortcuts && uiState.shortcuts.isNotEmpty()) {
@@ -1388,7 +1424,7 @@ fun SearchOverlayScreen(
                         Text(shortcut.shortLabel, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
                     }
                 }
-                item(key = "shortcuts_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                item(key = "shortcuts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             if (settingsState.searchWeb) {
@@ -1403,7 +1439,7 @@ fun SearchOverlayScreen(
                                     fadeOutSpec = androidx.compose.animation.core.tween(150)
                                 )
                                 .padding(horizontal = 16.dp, vertical = 4.dp)
-                                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(32.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(32.dp))
                                 .clip(RoundedCornerShape(32.dp))
                                 .bouncyClickable {
                                     viewModel.onQueryChanged(suggestion)
@@ -1435,7 +1471,7 @@ fun SearchOverlayScreen(
                         Text(text = uiState.mathResult ?: "", color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = GoogleSansFlex)
                     }
                 }
-                item(key = "math_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                item(key = "math_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             val instantAnswer = uiState.instantAnswer
@@ -1459,7 +1495,8 @@ fun SearchOverlayScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                             .clip(RoundedCornerShape(32.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f), RoundedCornerShape(32.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainer)
                             .padding(20.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1485,7 +1522,7 @@ fun SearchOverlayScreen(
                 }
             }
             if (settingsState.searchApps && filteredApps.isNotEmpty()) {
-                item(key = "apps_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                item(key = "apps_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                 item(key = "apps_row") {
                     LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                         if (uiState.query.isEmpty()) {
@@ -1509,7 +1546,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.shortcutInline && uiState.query.isNotEmpty()) {
-                item(key = "inline_shortcuts_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                item(key = "inline_shortcuts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                 item(key = "lens_shortcut") {
                     ShortcutRow(
                         iconRes = R.drawable.ic_camera,
@@ -1543,7 +1580,7 @@ fun SearchOverlayScreen(
             }
             
             if (settingsState.searchContacts && filteredContacts.isNotEmpty()) {
-                item(key = "contacts_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                item(key = "contacts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                 itemsIndexed(filteredContacts, key = { index, contact -> "contact_${contact.lookupUri}_${contact.phoneNumber}_$index" }) { index, contact ->
                     Row(
                         modifier = Modifier
@@ -1559,7 +1596,7 @@ fun SearchOverlayScreen(
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape), contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape), contentAlignment = Alignment.Center) {
                             Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Spacer(modifier = Modifier.width(16.dp))
@@ -1572,7 +1609,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchFiles && filteredFiles.isNotEmpty()) {
-                item(key = "files_divider") { HorizontalDivider(color = Color(0xFF2C2C35), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                item(key = "files_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                 itemsIndexed(filteredFiles, key = { index, file -> "file_${file.uri}_$index" }) { index, file ->
                     Row(
                         modifier = Modifier
@@ -1587,7 +1624,7 @@ fun SearchOverlayScreen(
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
                             Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Spacer(modifier = Modifier.width(16.dp))
@@ -1629,8 +1666,9 @@ fun SearchOverlayScreen(
                             )
                             if (target == 0f) {
                                 viewModel.onQueryChanged("")
-                                val act = (context as? android.app.Activity)
+                                val act = context.findActivity()
                                 finishWithoutTransition(act)
+                                act?.finish()
                             }
                         }
                     },
@@ -1652,6 +1690,25 @@ fun SearchOverlayScreen(
                                 }
                             }
                         }
+                    }
+                )
+            }
+            .pointerInput(Unit) {
+                var totalHorizontalDrag = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { totalHorizontalDrag = 0f },
+                    onDragEnd = {
+                        if (kotlin.math.abs(totalHorizontalDrag) > 50f) {
+                            if (!showTutorial) {
+                                goToHomeScreen()
+                            }
+                        }
+                        totalHorizontalDrag = 0f
+                    },
+                    onDragCancel = { totalHorizontalDrag = 0f },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        totalHorizontalDrag += dragAmount
                     }
                 )
             }
@@ -1759,13 +1816,17 @@ fun SearchOverlayScreen(
         }
     }
 
+private val fileThumbnailCache = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(128)
+
 @Composable
 fun FileIconThumbnail(uri: String, mimeType: String) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var bitmap by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    var bitmap by androidx.compose.runtime.remember(uri) { 
+        androidx.compose.runtime.mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(fileThumbnailCache.get(uri)) 
+    }
 
     androidx.compose.runtime.LaunchedEffect(uri) {
-        if (mimeType.startsWith("image/") || mimeType.startsWith("video/")) {
+        if (bitmap == null && (mimeType.startsWith("image/") || mimeType.startsWith("video/"))) {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
                     val bmp = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
@@ -1780,8 +1841,10 @@ fun FileIconThumbnail(uri: String, mimeType: String) {
                     } else null
                     
                     if (bmp != null) {
+                        val img = bmp.asImageBitmap()
+                        fileThumbnailCache.put(uri, img)
                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                            bitmap = bmp.asImageBitmap()
+                            bitmap = img
                         }
                     }
                 } catch (e: Exception) {

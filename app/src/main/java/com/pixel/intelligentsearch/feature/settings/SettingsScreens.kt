@@ -492,17 +492,10 @@ fun SettingsScreensHub(
 ) {
     val viewModel: SettingsViewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel()
     val settingsState by viewModel.settingsState.collectAsStateWithLifecycle()
-    
-    val animationTime by androidx.compose.runtime.produceState(0L) {
-        while (true) {
-            androidx.compose.runtime.withFrameMillis { value = it }
-        }
-    }
 
     CompositionLocalProvider(
         LocalSettingsViewModel provides viewModel,
-        LocalSettingsState provides settingsState,
-        LocalAnimationTime provides animationTime
+        LocalSettingsState provides settingsState
     ) {
         val navController = androidx.navigation.compose.rememberNavController()
         
@@ -897,12 +890,12 @@ fun MainSettingsScreen(
                     // 1. Google Pixel Family
                     isPixel -> {
                         val pixelChip = when {
-                            // Pixel 11 / Tensor G6 generation (Titan M4)
-                            model.contains("pixel 11") || model.contains("pixel11") || socModel.contains("tensor g6") || socModel.contains("malibu") || board.contains("malibu") || hardware.contains("malibu") -> "Google Titan M4"
+                            // Pixel 11 / Tensor G6 generation (Titan M3+)
+                            model.contains("pixel 11") || model.contains("pixel11") || socModel.contains("tensor g6") || socModel.contains("malibu") || board.contains("malibu") || hardware.contains("malibu") -> "Google Titan M3+"
                             
-                            // Pixel 10 / Tensor G5 generation (Titan M3)
+                            // Pixel 10 / Tensor G5 generation (Titan M3+)
                             model.contains("pixel 10") || model.contains("pixel10") || socModel.contains("tensor g5") || socModel.contains("laguna") || board.contains("laguna") || hardware.contains("laguna") ||
-                            device.contains("frankel") || device.contains("blazer") || device.contains("mustang") || device.contains("rango") -> "Google Titan M3"
+                            device.contains("frankel") || device.contains("blazer") || device.contains("mustang") || device.contains("rango") -> "Google Titan M3+"
 
                             // Legacy Pixel 3, 4, 5 series (Snapdragon SoCs + 1st Gen Titan M)
                             model.contains("pixel 3") || model.contains("pixel 4") || model.contains("pixel 5") ||
@@ -1240,7 +1233,7 @@ fun MainSettingsScreen(
         ) {
             SettingsCard {
                 SettingsRow(
-                    title = "Apperence",
+                    title = "Appearance",
                     subtitle = "Theme, Wallpaper, Material Design layouts.",
                     icon = Icons.Outlined.Palette,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.Appearance) },
@@ -1249,7 +1242,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Search Shortcuts",
-                    subtitle = "Apps, Contacts, Files, Ect.",
+                    subtitle = "Apps, Contacts, Files, etc.",
                     icon = Icons.AutoMirrored.Outlined.ManageSearch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchSources) },
                     showDivider = true,
@@ -1257,15 +1250,15 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Search Behavior",
-                    subtitle = "Custom Search Over Display Settings.",
+                    subtitle = "Custom search overlay and display settings.",
                     icon = Icons.Outlined.Settings,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior) },
                     showDivider = true,
 
                 )
                 SettingsRow(
-                    title = "Widget Custimization",
-                    subtitle = "Custimize widget colors, themes, and Actions.",
+                    title = "Widget Customization",
+                    subtitle = "Customize widget colors, themes, and actions.",
                     icon = Icons.Outlined.Widgets,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization) },
                     showDivider = true,
@@ -1283,7 +1276,7 @@ fun MainSettingsScreen(
             SettingsCard {
                 SettingsRow(
                     title = "Default Digital Assistant",
-                    subtitle = "Mange Android Assistant Settings.",
+                    subtitle = "Manage Android Assistant settings.",
                     icon = Icons.Outlined.Assistant,
                     onClick = {
                         val intent = Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS)
@@ -1306,7 +1299,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Google Activity",
-                    subtitle = "View and mange your Google Activity.",
+                    subtitle = "View and manage your Google Activity.",
                     icon = Icons.Outlined.History,
                     onClick = {
                         val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity"))
@@ -1326,7 +1319,7 @@ fun MainSettingsScreen(
                 }
                 SettingsRow(
                     title = "Browser History",
-                    subtitle = "View your Chrome/Webpage History.",
+                    subtitle = "View your Chrome and webpage history.",
                     icon = Icons.Outlined.HistoryEdu,
                     onClick = {
                         val intent = when (searchEngine) {
@@ -1673,6 +1666,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
 @Composable
 fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
+    val viewModel = LocalSettingsViewModel.current
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
         Scaffold(
@@ -1731,18 +1725,129 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                     },
                     showDivider = true
                 )
-                var searchContacts by rememberBooleanPreference(prefs, "search.contacts", false)
-                val contactsPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
-                    if (results.values.all { it }) {
-                        searchContacts = true
+                var showContactsRationaleDialog by remember { mutableStateOf(false) }
+                var showContactsSettingsDialog by remember { mutableStateOf(false) }
+                var showFilesRationaleDialog by remember { mutableStateOf(false) }
+                var showFilesSettingsDialog by remember { mutableStateOf(false) }
+
+                val filePermissions = remember {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                        arrayOf(
+                            android.Manifest.permission.READ_MEDIA_IMAGES,
+                            android.Manifest.permission.READ_MEDIA_VIDEO,
+                            android.Manifest.permission.READ_MEDIA_AUDIO
+                        )
                     } else {
-                        Toast.makeText(context, "Permission denied. Please enable in Settings.", Toast.LENGTH_LONG).show()
-                        val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = android.net.Uri.fromParts("package", context.packageName, null)
-                        }
-                        context.startActivity(intent)
+                        arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
                     }
                 }
+
+                var searchContacts by rememberBooleanPreference(prefs, "search.contacts", false)
+                var searchFiles by rememberBooleanPreference(prefs, "search.files", false)
+
+                val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+                DisposableEffect(lifecycleOwner) {
+                    val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                        if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                            val hasContacts = context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+                            if (searchContacts != hasContacts) {
+                                searchContacts = hasContacts
+                                prefs.edit().putBoolean("search.contacts", hasContacts).apply()
+                                viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, hasContacts)
+                            }
+                            val hasFiles = filePermissions.any { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+                            if (searchFiles != hasFiles) {
+                                searchFiles = hasFiles
+                                prefs.edit().putBoolean("search.files", hasFiles).apply()
+                                viewModel?.updateSetting(SettingsManager.SEARCH_FILES, hasFiles)
+                            }
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose {
+                        lifecycleOwner.lifecycle.removeObserver(observer)
+                    }
+                }
+
+                val contactsPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+                    val granted = results.values.isNotEmpty() && results.values.all { it }
+                    if (granted) {
+                        searchContacts = true
+                        prefs.edit().putBoolean("search.contacts", true).apply()
+                        viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, true)
+                        Toast.makeText(context, "Contacts search enabled", Toast.LENGTH_SHORT).show()
+                    } else {
+                        searchContacts = false
+                        prefs.edit().putBoolean("search.contacts", false).apply()
+                        viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, false)
+                        showContactsSettingsDialog = true
+                    }
+                }
+
+                if (showContactsRationaleDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showContactsRationaleDialog = false },
+                        title = { Text("Allow Contacts Access?", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
+                        text = {
+                            Text(
+                                "Intelligent Search needs permission to access your contacts so you can search, call, message, and view contact details directly from the search bar. Your contacts remain securely on your device.",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showContactsRationaleDialog = false
+                                    contactsPermissionLauncher.launch(arrayOf(android.Manifest.permission.READ_CONTACTS))
+                                }
+                            ) {
+                                Text("Allow", style = MaterialTheme.typography.labelLarge)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = {
+                                    showContactsRationaleDialog = false
+                                    searchContacts = false
+                                }
+                            ) {
+                                Text("Not Now", style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    )
+                }
+
+                if (showContactsSettingsDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showContactsSettingsDialog = false },
+                        title = { Text("Contacts Permission Required", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
+                        text = {
+                            Text(
+                                "Contacts permission is required to search your contacts. Please enable Contacts permission in Android App Settings.",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showContactsSettingsDialog = false
+                                    val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                        data = android.net.Uri.fromParts("package", context.packageName, null)
+                                    }
+                                    context.startActivity(intent)
+                                }
+                            ) {
+                                Text("Open Settings", style = MaterialTheme.typography.labelLarge)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showContactsSettingsDialog = false }) {
+                                Text("Cancel", style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    )
+                }
+
                 SettingsRowToggle(
                     title = "Contacts",
                     subtitle = "Search Contacts.",
@@ -1752,11 +1857,15 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                         if (isChecked) {
                             if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
                                 searchContacts = true
+                                prefs.edit().putBoolean("search.contacts", true).apply()
+                                viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, true)
                             } else {
-                                contactsPermissionLauncher.launch(arrayOf(android.Manifest.permission.READ_CONTACTS))
+                                showContactsRationaleDialog = true
                             }
                         } else {
                             searchContacts = false
+                            prefs.edit().putBoolean("search.contacts", false).apply()
+                            viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, false)
                         }
                     },
                     onClick = { 
@@ -1769,18 +1878,85 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                     showDivider = true
                 )
                 
-                var searchFiles by rememberBooleanPreference(prefs, "search.files", false)
                 val filesPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
-                    if (results.values.any { it }) {
+                    val granted = results.values.any { it }
+                    if (granted) {
                         searchFiles = true
+                        prefs.edit().putBoolean("search.files", true).apply()
+                        viewModel?.updateSetting(SettingsManager.SEARCH_FILES, true)
+                        Toast.makeText(context, "Files search enabled", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(context, "Permission denied. Please enable in Settings.", Toast.LENGTH_LONG).show()
-                        val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = android.net.Uri.fromParts("package", context.packageName, null)
-                        }
-                        context.startActivity(intent)
+                        searchFiles = false
+                        prefs.edit().putBoolean("search.files", false).apply()
+                        viewModel?.updateSetting(SettingsManager.SEARCH_FILES, false)
+                        showFilesSettingsDialog = true
                     }
                 }
+
+                if (showFilesRationaleDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showFilesRationaleDialog = false },
+                        title = { Text("Allow Files & Media Access?", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
+                        text = {
+                            Text(
+                                "Intelligent Search needs file and media permissions to find and open files, photos, audio, videos, and documents directly from the search bar.",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showFilesRationaleDialog = false
+                                    filesPermissionLauncher.launch(filePermissions)
+                                }
+                            ) {
+                                Text("Allow", style = MaterialTheme.typography.labelLarge)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = {
+                                    showFilesRationaleDialog = false
+                                    searchFiles = false
+                                }
+                            ) {
+                                Text("Not Now", style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    )
+                }
+
+                if (showFilesSettingsDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showFilesSettingsDialog = false },
+                        title = { Text("Files Permission Required", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
+                        text = {
+                            Text(
+                                "File access permission is required to search files on your device. Please enable file and media access in Android App Settings.",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showFilesSettingsDialog = false
+                                    val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                        data = android.net.Uri.fromParts("package", context.packageName, null)
+                                    }
+                                    context.startActivity(intent)
+                                }
+                            ) {
+                                Text("Open Settings", style = MaterialTheme.typography.labelLarge)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showFilesSettingsDialog = false }) {
+                                Text("Cancel", style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    )
+                }
+
                 SettingsRowToggle(
                     title = "Files",
                     subtitle = "Search Local Files.",
@@ -1788,18 +1964,17 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                     isChecked = searchFiles,
                     onCheckedChange = { isChecked -> 
                         if (isChecked) {
-                            val perms = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                                arrayOf(android.Manifest.permission.READ_MEDIA_IMAGES, android.Manifest.permission.READ_MEDIA_VIDEO, android.Manifest.permission.READ_MEDIA_AUDIO)
-                            } else {
-                                arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-                            }
-                            if (perms.any { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) {
+                            if (filePermissions.any { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) {
                                 searchFiles = true
+                                prefs.edit().putBoolean("search.files", true).apply()
+                                viewModel?.updateSetting(SettingsManager.SEARCH_FILES, true)
                             } else {
-                                filesPermissionLauncher.launch(perms)
+                                showFilesRationaleDialog = true
                             }
                         } else {
                             searchFiles = false
+                            prefs.edit().putBoolean("search.files", false).apply()
+                            viewModel?.updateSetting(SettingsManager.SEARCH_FILES, false)
                         }
                     },
                     onClick = { 
@@ -2107,7 +2282,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.ManageHiddenApps) },
                     showDivider = true
                 )
-                var fuzzySearch by rememberBooleanPreference(prefs, "app.fuzzy.search", false)
+                var fuzzySearch by rememberBooleanPreference(prefs, "app.fuzzy.search", true)
                 SettingsRowToggle(
                     title = "Fuzzy Search",
                     subtitle = "Allow Typos When Searching for Apps.",
@@ -2525,8 +2700,9 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 @Composable
 fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
-        shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
     ) {
@@ -2707,6 +2883,8 @@ fun SettingsRowToggle(
     modifier: Modifier = Modifier
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context) }
     Column(modifier = modifier) {
         Row(
             modifier = Modifier
@@ -2714,8 +2892,9 @@ fun SettingsRowToggle(
                 .bouncyClickable(
                     onLongClick = onLongClick,
                     onClick = {
-                    performClickHaptic(context)
-                    if (onClick != null) onClick() else onCheckedChange(!isChecked)
+                    val next = !isChecked
+                    hapticEngine.performHaptic(view, if (next) com.pixel.intelligentsearch.core.haptics.PixelHapticType.TOGGLE_ON else com.pixel.intelligentsearch.core.haptics.PixelHapticType.TOGGLE_OFF)
+                    if (onClick != null) onClick() else onCheckedChange(next)
                 })
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -2755,9 +2934,24 @@ fun SettingsRowToggle(
             }
             Switch(
                 checked = isChecked,
-                onCheckedChange = {
-                    performClickHaptic(context)
-                    onCheckedChange(it)
+                onCheckedChange = { next ->
+                    hapticEngine.performHaptic(view, if (next) com.pixel.intelligentsearch.core.haptics.PixelHapticType.TOGGLE_ON else com.pixel.intelligentsearch.core.haptics.PixelHapticType.TOGGLE_OFF)
+                    onCheckedChange(next)
+                },
+                thumbContent = {
+                    if (isChecked) {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(SwitchDefaults.IconSize)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = null,
+                            modifier = Modifier.size(SwitchDefaults.IconSize)
+                        )
+                    }
                 },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
@@ -4308,8 +4502,7 @@ fun Android17Slider(
 }
 
 fun performClickHaptic(context: android.content.Context) {
-    // No-op: Haptics are now handled globally inside Modifier.bouncyClickable 
-    // using view.performHapticFeedback to follow Material Design principles.
+    com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
 }
 
 // -----------------------------------------------------------------------------------------
@@ -4377,6 +4570,7 @@ fun SearchPillsScreen(
     var localPillList by remember(searchPills) {
         mutableStateOf(searchPills.split(",").filter { it.isNotBlank() })
     }
+    var resetCounter by remember { mutableIntStateOf(0) }
 
     fun persistPills(newPills: List<String>) {
         val pillString = newPills.joinToString(",")
@@ -4398,6 +4592,7 @@ fun SearchPillsScreen(
         searchPills = pills
         val list = pills.split(",").filter { it.isNotBlank() }
         localPillList = list
+        resetCounter++
         prefs.edit()
             .putString("search.pills", pills)
             .putInt("shortcut_results_count", list.size)
@@ -4489,12 +4684,14 @@ fun SearchPillsScreen(
                         }
                     } else if (!showAppPicker) {
                         IconButton(onClick = {
-                            val list = defaultPills.split(",").filter { it.isNotBlank() }
+                            val savedState = getSavedProfilePills(activeProfile)
+                            val restoredPills = if (savedState.isNotBlank()) savedState else if (activeProfile == 1) defaultPills else ""
+                            val list = restoredPills.split(",").filter { it.isNotBlank() }
+                            resetCounter++
                             persistPills(list)
-                            prefs.edit().putString("app_search_profile_${activeProfile}_saved", defaultPills).apply()
-                            Toast.makeText(context, "Reset to Default", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Profile $activeProfile Reset to Saved State", Toast.LENGTH_SHORT).show()
                         }) {
-                            Icon(Icons.Outlined.RestartAlt, contentDescription = "Reset to Default")
+                            Icon(Icons.Outlined.RestartAlt, contentDescription = "Reset to Saved State")
                         }
                         IconButton(onClick = {
                             val pillString = localPillList.joinToString(",")
@@ -4710,7 +4907,7 @@ fun SearchPillsScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp)
                     ) {
-                        items(localPillList, key = { it }) { packageName ->
+                        items(localPillList, key = { "$resetCounter-$it" }) { packageName ->
                             val isDragging = draggingPackage == packageName
                             val elevation by androidx.compose.animation.core.animateDpAsState(
                                 targetValue = if (isDragging) 8.dp else 0.dp,

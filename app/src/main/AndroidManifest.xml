@@ -128,7 +128,7 @@
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
             android:excludeFromRecents="true"
-            android:exported="false" />
+            android:exported="true" />
 
         <activity
             android:name="com.pixel.intelligentsearch.feature.settings.SettingsActivity"

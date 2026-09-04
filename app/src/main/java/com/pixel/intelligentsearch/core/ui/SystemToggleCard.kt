@@ -77,6 +77,8 @@ fun SystemToggleCard(
     val activeColor = MaterialTheme.colorScheme.primary
     val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant
 
+    val context = LocalContext.current
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -86,6 +88,7 @@ fun SystemToggleCard(
                     if (toggleState.isActionOnly) {
                         toggleState.onOpenSettings()
                     } else {
+                        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
                         val newState = !isChecked
                         isChecked = newState
                         toggleState.onToggle(newState)
@@ -181,6 +184,7 @@ fun SystemToggleCard(
                 Switch(
                     checked = isChecked,
                     onCheckedChange = { newState ->
+                        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
                         isChecked = newState
                         toggleState.onToggle(newState)
                     },

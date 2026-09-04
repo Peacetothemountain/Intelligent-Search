@@ -26,10 +26,11 @@ object WebSearchProvider {
         }
 
         val suggestions = mutableListOf<String>()
+        var connection: HttpURLConnection? = null
         try {
             val encodedQuery = URLEncoder.encode(trimmed, "UTF-8")
             val url = java.net.URI.create("https://suggestqueries.google.com/complete/search?client=chrome&q=$encodedQuery").toURL()
-            val connection = url.openConnection() as HttpURLConnection
+            connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Mobile)")
             connection.setRequestProperty("Connection", "keep-alive")
@@ -54,6 +55,10 @@ object WebSearchProvider {
             }
         } catch (e: Exception) {
             // Non-fatal network timeout / connection error
+        } finally {
+            try {
+                connection?.disconnect()
+            } catch (ignored: Exception) {}
         }
         return@withContext suggestions
     }

@@ -646,6 +646,11 @@ fun SettingsScreensHub(
                     composable<com.pixel.intelligentsearch.core.navigation.Route.FileSearch> { FileSearchScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization> { WidgetSettingsScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.ManageHiddenApps> { ManageHiddenAppsScreen(prefs, onBack) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchBangs> { SearchBangsScreen(prefs, onBack) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchWeighting> { SourceWeightingScreen(prefs, onBack) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.IconShaping> { AdaptiveIconShapingScreen(prefs, onBack) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.BackupRestore> { BackupRestoreScreen(prefs, onBack) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.DiagnosticsDashboard> { DiagnosticsDashboardScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Debug> {
                         if (prefs.getBoolean("debug_unlocked", false)) {
                             DebugScreen(
@@ -1286,6 +1291,37 @@ fun MainSettingsScreen(
 
             SettingsCard {
                 SettingsRow(
+                    title = "Search Bangs (!g, !yt, !w)",
+                    subtitle = "Instant command bangs with custom web/app dispatch.",
+                    icon = Icons.Outlined.Bolt,
+                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchBangs) },
+                    showDivider = true
+                )
+                SettingsRow(
+                    title = "Search Source Weighting",
+                    subtitle = "Reorder categories, priority weights, and result limits.",
+                    icon = Icons.Outlined.Tune,
+                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchWeighting) },
+                    showDivider = true
+                )
+                SettingsRow(
+                    title = "Encrypted Backup & Restore",
+                    subtitle = "AES-GCM export and restore with biometric verification.",
+                    icon = Icons.Outlined.Shield,
+                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.BackupRestore) },
+                    showDivider = true
+                )
+                SettingsRow(
+                    title = "Diagnostics & Benchmark",
+                    subtitle = "Real-time latency profiler, 120Hz frame pacing & stress test.",
+                    icon = Icons.Outlined.Speed,
+                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.DiagnosticsDashboard) },
+                    showDivider = false
+                )
+            }
+
+            SettingsCard {
+                SettingsRow(
                     title = "Default Digital Assistant",
                     subtitle = "Manage Android Assistant settings.",
                     icon = Icons.Outlined.Assistant,
@@ -1577,6 +1613,14 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                             showDivider = true
                         )
 
+                        SettingsRow(
+                            title = "Adaptive Icon Shaping",
+                            subtitle = "Squircle, Teardrop, Circle, Hexagon, and dynamic masking.",
+                            icon = Icons.Outlined.Category,
+                            onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.IconShaping) },
+                            showDivider = true
+                        )
+
                         var settingsBackToSearchOverlay by rememberBooleanPreference(prefs, "settings_back_to_search_overlay", false) {}
                         SettingsRowToggle(
                             title = "Back Swipe to Enter Search Overlay Page",
@@ -1704,6 +1748,13 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
             SettingsCard {
+                SettingsRow(
+                    title = "Priority Weighting & Limits",
+                    subtitle = "Reorder categories, priority weights, and result limits.",
+                    icon = Icons.Outlined.Tune,
+                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchWeighting) },
+                    showDivider = true
+                )
                 var searchApps by rememberBooleanPreference(prefs, "search.apps", false)
                 SettingsRowToggle(
                     title = "Apps",
@@ -2899,7 +2950,7 @@ fun SettingsRowToggle(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val view = androidx.compose.ui.platform.LocalView.current
-    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
+    val sensoryEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context) }
     val iconBitmap = remember(icon) {
         if (icon is android.graphics.drawable.Drawable) {
             runCatching { icon.toBitmap().asImageBitmap() }.getOrNull()
@@ -2911,9 +2962,10 @@ fun SettingsRowToggle(
                 .fillMaxWidth()
                 .bouncyClickable(
                     onLongClick = onLongClick,
+                    suppressClickHaptic = true,
                     onClick = {
                     val next = !isChecked
-                    hapticEngine.performHaptic(view, if (next) com.pixel.intelligentsearch.core.haptics.PixelHapticType.TOGGLE_ON else com.pixel.intelligentsearch.core.haptics.PixelHapticType.TOGGLE_OFF)
+                    sensoryEngine.toggle(view, next)
                     if (onClick != null) onClick() else onCheckedChange(next)
                 })
                 .padding(horizontal = 16.dp, vertical = 16.dp),
@@ -2957,27 +3009,14 @@ fun SettingsRowToggle(
             Switch(
                 checked = isChecked,
                 onCheckedChange = { next ->
-                    hapticEngine.performHaptic(view, if (next) com.pixel.intelligentsearch.core.haptics.PixelHapticType.TOGGLE_ON else com.pixel.intelligentsearch.core.haptics.PixelHapticType.TOGGLE_OFF)
+                    sensoryEngine.toggle(view, next)
                     onCheckedChange(next)
                 },
-                thumbContent = {
-                    if (isChecked) {
-                        Icon(
-                            imageVector = Icons.Filled.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(SwitchDefaults.IconSize)
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = null,
-                            modifier = Modifier.size(SwitchDefaults.IconSize)
-                        )
-                    }
-                },
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             )
         }
@@ -3821,7 +3860,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     onCheckedChange = { localLockBlack = it },
                                     colors = androidx.compose.material3.SwitchDefaults.colors(
                                         checkedThumbColor = MaterialTheme.colorScheme.primary,
-                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                                        uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                                        uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                                     )
                                 )
                             }
@@ -4521,7 +4562,7 @@ fun Android17Slider(
 }
 
 fun performClickHaptic(context: android.content.Context) {
-    com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+    com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click()
 }
 
 // -----------------------------------------------------------------------------------------
@@ -5303,9 +5344,30 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine, val startX:
     val morphProgress = Animatable(0f)
     val alpha = Animatable(1f)
     
+    var poolIdx = index * 5
     var morph by mutableStateOf(
-        engine.shapePool.shuffled().let { Morph(it[0], it[1]) }
+        Morph(engine.shapePool[poolIdx], engine.shapePool[(poolIdx + 1) % engine.shapePool.size])
     )
+    private var isMorphing = false
+    private var lastBounceTime = 0L
+
+    fun onBounce() {
+        val now = System.currentTimeMillis()
+        if (now - lastBounceTime < 250L || isMorphing) return
+        lastBounceTime = now
+
+        engine.coroutineScope.launch {
+            isMorphing = true
+            try {
+                morphProgress.animateTo(1f, tween(400, easing = FastOutSlowInEasing))
+                poolIdx = (poolIdx + 1) % engine.shapePool.size
+                morphProgress.snapTo(0f)
+                morph = Morph(engine.shapePool[poolIdx], engine.shapePool[(poolIdx + 1) % engine.shapePool.size])
+            } finally {
+                isMorphing = false
+            }
+        }
+    }
 
     var vx = 0f
     var vy = 0f
@@ -5336,17 +5398,6 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine, val startX:
             rotation.animateTo(360f, infiniteRepeatable(tween(8000, easing = LinearEasing)))
         }
         
-        // Morph loop
-        engine.coroutineScope.launch {
-            var poolIdx = index * 5
-            while (true) {
-                morphProgress.animateTo(1f, tween(1500, easing = FastOutSlowInEasing))
-                poolIdx = (poolIdx + 1) % engine.shapePool.size
-                morphProgress.snapTo(0f)
-                morph = Morph(engine.shapePool[poolIdx], engine.shapePool[(poolIdx + 1) % engine.shapePool.size])
-            }
-        }
-        
         engine.coroutineScope.launch {
             
             while (boundsWidth == 0f || boundsHeight == 0f) {
@@ -5372,6 +5423,7 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine, val startX:
                 vy = -kotlin.math.sqrt(2f * gravity * targetApex)
                 // Shoot from bottom and arc immediately
                 vx = (if (Math.random() > 0.5) 1f else -1f) * (deviceWidth * 0.1f + Math.random().toFloat() * deviceWidth * 0.15f)
+                onBounce()
             } else {
                 y = 0f
                 vy = 0f
@@ -5411,9 +5463,12 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine, val startX:
                         // Prevent micro-vibrations going infinitely (Zeno's paradox for physics engines)
                         if (kotlin.math.abs(vy) < 15f) {
                             vy = 0f
-                        } else if (vx == 0f) {
-                            // "bounces before arcing away": kick horizontal velocity on the first ground impact
-                            vx = (if (Math.random() > 0.5) 1f else -1f) * (deviceWidth * 0.08f + Math.random().toFloat() * deviceWidth * 0.12f)
+                        } else {
+                            onBounce()
+                            if (vx == 0f) {
+                                // "bounces before arcing away": kick horizontal velocity on the first ground impact
+                                vx = (if (Math.random() > 0.5) 1f else -1f) * (deviceWidth * 0.08f + Math.random().toFloat() * deviceWidth * 0.12f)
+                            }
                         }
                     }
                 } else if (y <= minY) {
@@ -5429,11 +5484,13 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine, val startX:
                     x = minX
                     if (vx < 0) {
                         vx = -vx * wallRestitution
+                        onBounce()
                     }
                 } else if (x >= maxX) {
                     x = maxX
                     if (vx > 0) {
                         vx = -vx * wallRestitution
+                        onBounce()
                     }
                 }
                 
@@ -5461,6 +5518,7 @@ class BouncerState(val index: Int, val engine: MorphAnimationEngine, val startX:
                         vy = -kotlin.math.sqrt(2f * gravity * targetApex)
                         vx = (if (Math.random() > 0.5) 1f else -1f) * (deviceWidth * 0.08f + Math.random().toFloat() * deviceWidth * 0.12f)
                         timeSinceSettled = 0f
+                        onBounce()
                     }
                 } else {
                     timeSinceSettled = 0f
@@ -5764,7 +5822,13 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                     activatePack("system_default")
                                                 }
                                             }
-                                        }
+                                        },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                                            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                                        )
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     val currentPkg by rememberUpdatedState(packageName)

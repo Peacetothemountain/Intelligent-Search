@@ -22,12 +22,24 @@ data class AppAction(
     val dataUri: String? = null
 )
 
+enum class ProfileType {
+    PERSONAL,
+    WORK,
+    PRIVATE,
+    CLONE
+}
+
 @Immutable
 data class AppItem(
     val name: String,
     val packageName: String,
     val icon: Drawable,
-    val actions: List<AppAction> = emptyList()
+    val actions: List<AppAction> = emptyList(),
+    val userHandle: android.os.UserHandle? = null,
+    val profileType: ProfileType = ProfileType.PERSONAL,
+    val isPrivateProfile: Boolean = false,
+    val isQuietMode: Boolean = false,
+    val activityName: String? = null
 )
 
 @Immutable
@@ -75,6 +87,19 @@ object SystemDataProvider {
         if (!forceRefresh && cachedApps != null) {
             return@withContext cachedApps!!
         }
+
+        // 1. Try multi-profile retrieval first (handles Personal, Work, Private Space, Clone)
+        try {
+            val multiProfileManager = com.pixel.intelligentsearch.core.profile.MultiProfileManager(context)
+            val profileApps = multiProfileManager.getAllProfileApps(forceRefresh)
+            if (profileApps.isNotEmpty()) {
+                cachedApps = profileApps
+                return@withContext profileApps
+            }
+        } catch (_: Exception) {
+            // Fall back to standard PM query below
+        }
+
         val pm = context.packageManager
         val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
@@ -95,7 +120,8 @@ object SystemDataProvider {
                     name = label,
                     packageName = packageName,
                     icon = icon,
-                    actions = getAppActions(packageName)
+                    actions = getAppActions(packageName),
+                    activityName = it.activityInfo.name
                 )
             }
             .sortedBy { it.name.lowercase() }

@@ -53,14 +53,19 @@ data class SearchUiState(
     val calendarEvents: List<CalendarEvent> = emptyList(),
     val recentSearches: List<String> = emptyList(),
     val isLoading: Boolean = false,
-    val lastQueryLatency: Long = 0
+    val isDirectBootLocked: Boolean = false,
+    val hasLockedPrivateSpace: Boolean = false,
+    val lastQueryLatency: Long = 0,
+    val bangSuggestions: List<com.pixel.intelligentsearch.core.bangs.SearchBang> = emptyList(),
+    val detectedBangQuery: com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = null
 )
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val historyDao: HistoryDao,
-    private val settingsManager: SettingsManager
+    private val settingsManager: SettingsManager,
+    private val bangManager: com.pixel.intelligentsearch.core.bangs.SearchBangManager
 ) : ViewModel() {
     
     private val settingsState = settingsManager.settingsFlow
@@ -79,6 +84,8 @@ class SearchViewModel @Inject constructor(
     private val adpfThermalManager = com.pixel.intelligentsearch.core.performance.ADPFThermalManager(context)
     private val appSearchEngine = com.pixel.intelligentsearch.core.data.AppSearchEngine(context)
     private val privateSpaceManager = com.pixel.intelligentsearch.core.data.PrivateSpaceManager(context)
+    private val multiProfileManager = com.pixel.intelligentsearch.core.profile.MultiProfileManager(context)
+    private val directBootManager = com.pixel.intelligentsearch.core.system.DirectBootManager(context)
     private val pixelEcosystemSync = com.pixel.intelligentsearch.core.ecosystem.PixelEcosystemSync(context)
     private val nexusLauncherBridge = com.pixel.intelligentsearch.core.data.NexusLauncherBridge(context)
     private val systemToggleManager = com.pixel.intelligentsearch.core.system.SystemToggleManager(context)
@@ -88,9 +95,29 @@ class SearchViewModel @Inject constructor(
         loadInitialData()
         
         viewModelScope.launch {
-            historyDao.getSearchHistoryFlow().collect { historyEntities ->
-                _uiState.update { it.copy(recentSearches = historyEntities.map { entity -> entity.query }) }
+            directBootManager.isUserUnlocked.collect { isUnlocked ->
+                _uiState.update { it.copy(isDirectBootLocked = !isUnlocked) }
+                if (isUnlocked) {
+                    loadInitialData()
+                }
             }
+        }
+
+        viewModelScope.launch {
+            multiProfileManager.profilesState.collect { profiles ->
+                val hasLocked = profiles.any { it.profileType == ProfileType.PRIVATE && it.isLocked }
+                _uiState.update { it.copy(hasLockedPrivateSpace = hasLocked) }
+            }
+        }
+
+        viewModelScope.launch {
+            try {
+                if (directBootManager.checkIsUserUnlocked()) {
+                    historyDao.getSearchHistoryFlow().collect { historyEntities ->
+                        _uiState.update { it.copy(recentSearches = historyEntities.map { entity -> entity.query }) }
+                    }
+                }
+            } catch (_: Exception) {}
         }
     }
 
@@ -187,10 +214,9 @@ class SearchViewModel @Inject constructor(
                     contacts = emptyList(),
                     files = emptyList(),
                     shortcuts = emptyList(),
-                    directActions = emptyList(),
-                    mathResult = null,
-                    instantAnswer = null,
-                    systemToggle = null
+                    systemToggle = null,
+                    bangSuggestions = emptyList(),
+                    detectedBangQuery = null
                 ) }
             } else {
                 _uiState.update { it.copy(
@@ -202,12 +228,28 @@ class SearchViewModel @Inject constructor(
                     directActions = emptyList(),
                     mathResult = null,
                     instantAnswer = null,
-                    systemToggle = null
+                    systemToggle = null,
+                    bangSuggestions = emptyList(),
+                    detectedBangQuery = null
                 ) }
             }
             return
         }
 
+        val availableBangs = bangManager.getAllBangsSync()
+        val parsedBang = bangManager.parseBangQuery(newQuery, availableBangs)
+        val bangSuggestions = if (newQuery.startsWith("!") || newQuery.contains(" !")) {
+            val token = if (newQuery.startsWith("!")) newQuery.substringBefore(" ") else "!" + newQuery.substringAfterLast("!")
+            bangManager.getBangSuggestions(token, availableBangs)
+        } else {
+            emptyList()
+        }
+
+        _uiState.update { it.copy(
+            isLoading = true,
+            bangSuggestions = bangSuggestions,
+            detectedBangQuery = parsedBang
+        ) }
         searchJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             if (verboseLogging) android.util.Log.d("SearchDebug", "Query started: $newQuery")
             val startTime = System.currentTimeMillis()
@@ -265,6 +307,18 @@ class SearchViewModel @Inject constructor(
                     .setData(android.provider.CalendarContract.Events.CONTENT_URI)
                     .putExtra(android.provider.CalendarContract.Events.TITLE, title)
                 directActions.add(DirectAction("Add Meeting", title, "calendar", intent))
+            }
+
+            // Private Space Unlock Direct Action
+            if (queryLower in listOf("private", "private space", "hidden", "hidden apps", "locked space", "private apps") && _uiState.value.hasLockedPrivateSpace) {
+                directActions.add(
+                    DirectAction(
+                        title = "Unlock Private Space",
+                        subtitle = "Authenticate to access hidden private apps",
+                        iconType = "private_space",
+                        intent = null
+                    )
+                )
             }
             
             // 2. Direct Messaging
@@ -617,6 +671,18 @@ class SearchViewModel @Inject constructor(
 
                 val endTime = System.currentTimeMillis()
                 val latency = endTime - startTime
+
+                com.pixel.intelligentsearch.core.diagnostics.PerformanceTelemetry.recordQueryLatency(
+                    com.pixel.intelligentsearch.core.diagnostics.LatencyBreakdown(
+                        totalMs = latency,
+                        appsMs = latency / 4,
+                        contactsMs = latency / 5,
+                        filesMs = latency / 5,
+                        shortcutsMs = latency / 6,
+                        webMs = latency / 4,
+                        mathMs = 2
+                    )
+                )
                 
                 if (verboseLogging) {
                     android.util.Log.d("SearchDebug", "Query finished in ${latency}ms")

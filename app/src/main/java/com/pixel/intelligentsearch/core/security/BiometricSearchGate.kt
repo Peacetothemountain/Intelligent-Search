@@ -8,12 +8,36 @@ import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
 import android.os.CancellationSignal
 import android.util.Log
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class BiometricSearchGate(private val context: Context) {
+/**
+ * Military-grade biometric gating engine for private search, hidden applications,
+ * and encrypted data access.
+ *
+ * Enforces true hardware cryptographic gating via KeyMint StrongBox CryptoObjects,
+ * window-level FLAG_SECURE visual protection, and zero-memory-leak credential scrubbing.
+ *
+ * Engineered by NG Designs.
+ */
+@Singleton
+class BiometricSearchGate @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val securityManager: StrongBoxSecurityManager,
+    private val encryptedVault: EncryptedDataVault
+) {
+    constructor(context: Context) : this(
+        context = context,
+        securityManager = StrongBoxSecurityManager(context),
+        encryptedVault = EncryptedDataVault(context, StrongBoxSecurityManager(context))
+    )
 
     companion object {
         private const val TAG = "BiometricSearchGate"
     }
+
+    private val sessionLock = SecuritySessionLock.instance
 
     fun getActivity(): Activity? {
         var currentContext = context
@@ -55,17 +79,33 @@ class BiometricSearchGate(private val context: Context) {
         return keyguardManager?.isDeviceSecure == true
     }
 
+    fun isSessionUnlocked(timeoutMs: Long = 30_000L): Boolean {
+        return sessionLock.isUnlocked(timeoutMs)
+    }
+
+    fun lockSession() {
+        sessionLock.lockdown()
+    }
+
+    /**
+     * Executes standard or crypto-bound biometric authentication with screen shielding.
+     */
     fun authenticate(
         activity: Activity,
         cryptoObject: BiometricPrompt.CryptoObject? = null,
-        title: String = "Authenticate to Access Hidden Apps",
+        title: String = "Authenticate to Access Hidden Items",
         subtitle: String? = null,
         description: String? = null,
         cancellationSignal: CancellationSignal = CancellationSignal(),
+        enableScreenShield: Boolean = true,
         onSuccess: (BiometricPrompt.AuthenticationResult) -> Unit,
         onError: (errorCode: Int, errString: String) -> Unit,
         onCancel: () -> Unit = {}
     ) {
+        if (enableScreenShield) {
+            WindowSecurityGuard.enableScreenShield(activity)
+        }
+
         val executor = activity.mainExecutor
         val builder = BiometricPrompt.Builder(activity).setTitle(title)
         subtitle?.let { builder.setSubtitle(it) }
@@ -73,7 +113,12 @@ class BiometricSearchGate(private val context: Context) {
 
         if (cryptoObject != null) {
             builder.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            builder.setNegativeButton("Cancel", executor) { _, _ -> onCancel() }
+            builder.setNegativeButton("Cancel", executor) { _, _ ->
+                if (enableScreenShield && !sessionLock.isUnlocked()) {
+                    WindowSecurityGuard.disableScreenShield(activity)
+                }
+                onCancel()
+            }
         } else {
             builder.setAllowedAuthenticators(
                 BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
@@ -83,11 +128,15 @@ class BiometricSearchGate(private val context: Context) {
         val callback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 super.onAuthenticationSucceeded(result)
+                sessionLock.notifyAuthenticated()
                 onSuccess(result)
             }
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
                 super.onAuthenticationError(errorCode, errString)
+                if (enableScreenShield && !sessionLock.isUnlocked()) {
+                    WindowSecurityGuard.disableScreenShield(activity)
+                }
                 if (errorCode == BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED ||
                     errorCode == BiometricPrompt.BIOMETRIC_ERROR_CANCELED
                 ) {
@@ -111,10 +160,69 @@ class BiometricSearchGate(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch BiometricPrompt", e)
+            if (enableScreenShield && !sessionLock.isUnlocked()) {
+                WindowSecurityGuard.disableScreenShield(activity)
+            }
             onError(-1, e.message ?: "Authentication initialization failed")
         }
     }
 
+    /**
+     * Hardware Cryptographic Gating Pipeline:
+     * Unlocks an [EncryptedVaultRecord] bound to a per-operation KeyMint biometric key.
+     * Guarantees that data cannot be decrypted by hooking callbacks without authenticating
+     * the underlying StrongBox / TEE Cipher.
+     */
+    fun authenticateForCryptographicAccess(
+        activity: Activity,
+        record: EncryptedVaultRecord,
+        profileId: String = "default",
+        title: String = "Biometric Verification Required",
+        onDecrypted: (SecureByteArray) -> Unit,
+        onError: (String) -> Unit,
+        onCancel: () -> Unit = {}
+    ) {
+        if (!isBiometricHardwareAvailable()) {
+            onError("Biometric hardware is not available on this device.")
+            return
+        }
+
+        try {
+            val iv = encryptedVault.extractIv(record.payload)
+            val cryptoObject = securityManager.initBiometricDecryptCryptoObject(iv)
+
+            authenticate(
+                activity = activity,
+                cryptoObject = cryptoObject,
+                title = title,
+                subtitle = "Hardware-bound KeyMint verification",
+                enableScreenShield = true,
+                onSuccess = { result ->
+                    val cipher = result.cryptoObject?.cipher
+                    if (cipher == null) {
+                        onError("Hardware cipher is null after authentication.")
+                        return@authenticate
+                    }
+                    try {
+                        val secureBytes = encryptedVault.decryptWithBiometricCipher(cipher, record, profileId)
+                        onDecrypted(secureBytes)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Biometric decryption failed", e)
+                        onError("Decryption failed: ${e.message}")
+                    }
+                },
+                onError = { _, errString -> onError(errString) },
+                onCancel = onCancel
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Cryptographic gate preparation failed", e)
+            onError("Gate initialization error: ${e.message}")
+        }
+    }
+
+    /**
+     * Backward-compatible private search gate.
+     */
     fun authenticateForPrivateSearch(
         activity: Activity,
         onSuccess: () -> Unit,

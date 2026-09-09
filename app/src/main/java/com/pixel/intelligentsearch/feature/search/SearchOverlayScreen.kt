@@ -7,6 +7,12 @@ import com.pixel.intelligentsearch.feature.settings.TutorialSpotlightOverlay
 import com.pixel.intelligentsearch.feature.settings.TutorialManager
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
 import com.pixel.intelligentsearch.feature.settings.performClickHaptic
+import com.pixel.intelligentsearch.core.haptics.TactileSonicEngine
+import com.pixel.intelligentsearch.core.haptics.PixelHapticType
+import com.pixel.intelligentsearch.core.haptics.rememberTactileSonicEngine
+import com.pixel.intelligentsearch.core.haptics.rememberScrollDetentController
+import com.pixel.intelligentsearch.core.haptics.rememberMagneticDismissController
+import androidx.compose.foundation.lazy.rememberLazyListState
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.AppItem
@@ -32,6 +38,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -83,6 +90,10 @@ import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.feature.settings.SettingsActivity
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
+import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveShapeMorphLoader
+import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveSegmentedTabItem
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -205,6 +216,7 @@ private val themedIconCache = android.util.LruCache<String, AppIconResult>(256)
 
 fun clearThemedIconCache() {
     themedIconCache.evictAll()
+    com.pixel.intelligentsearch.core.util.MaterialOutlineManager.clearCache()
 }
 
 fun peekThemedAppIcon(packageName: String, activePackOverride: String? = null): AppIconResult? {
@@ -265,6 +277,22 @@ fun getThemedAppIcon(context: Context, packageName: String, activePackOverride: 
             }
         }
 
+        if (activePack == "system_default") {
+            val appLabel = try {
+                val info = pm.getApplicationInfo(packageName, 0)
+                pm.getApplicationLabel(info).toString()
+            } catch (e: Exception) { null }
+
+            val outlineBitmap = com.pixel.intelligentsearch.core.util.MaterialOutlineManager.getMaterialOutlineIcon(
+                context, packageName, appLabel, icon
+            )
+            if (outlineBitmap != null) {
+                val res = AppIconResult(outlineBitmap.asImageBitmap(), isMonochrome = true)
+                themedIconCache.put(cacheKey, res)
+                return res
+            }
+        }
+
         val res = AppIconResult(drawableToBitmap(icon).asImageBitmap(), isMonochrome = false)
         themedIconCache.put(cacheKey, res)
         return res
@@ -290,12 +318,27 @@ fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: S
     val iconSize = (18 * scale).dp
     val textSize = (14 * scale).sp
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val cornerRadius by animateDpAsState(
+        targetValue = if (isPressed) 12.dp else 24.dp,
+        animationSpec = ExpressiveMotionTokens.morphSpring(),
+        label = "pill_corner_morph"
+    )
+
+    val shape = remember(cornerRadius) { RoundedCornerShape(cornerRadius) }
+
     Row(
         modifier = Modifier
             .padding(end = (8 * scale).dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(percent = 50))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(percent = 50))
-            .bouncyClickable(onClick = onClick)
+            .graphicsLayer {
+                this.shape = shape
+                clip = true
+            }
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isPressed) 0.65f else 0.4f), shape)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = if (isPressed) 0.35f else 0.15f), shape)
+            .bouncyClickable(interactionSource = interactionSource, onClick = onClick)
             .padding(horizontal = hPadding, vertical = vPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -383,8 +426,27 @@ fun SearchOverlayScreen(
     val horizontalSwipeOffset = remember { Animatable(0f) }
     var predictiveBackEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
 
+    val sensoryEngine = rememberTactileSonicEngine()
+    val view = androidx.compose.ui.platform.LocalView.current
+    val searchResultsListState = rememberLazyListState()
+    rememberScrollDetentController(searchResultsListState, sensoryEngine)
+
+    val performAppLaunch: (String) -> Unit = remember(sensoryEngine, view, onLaunchApp) {
+        { packageName ->
+            sensoryEngine.appLaunch(view)
+            onLaunchApp(packageName)
+        }
+    }
+
+    LaunchedEffect(uiState.mathResult) {
+        if (!uiState.mathResult.isNullOrBlank()) {
+            sensoryEngine.mathCalculation(view)
+        }
+    }
+
     LaunchedEffect(isOpening) {
         if (isOpening) {
+            sensoryEngine.overlayOpen(view)
             if (!isFromBackSwipe) {
                 overlayProgressAnim.animateTo(
                     targetValue = 1f,
@@ -397,6 +459,7 @@ fun SearchOverlayScreen(
                 overlayProgressAnim.snapTo(1f)
             }
         } else {
+            sensoryEngine.overlayDismiss(view)
             val currentVel = overlayProgressAnim.velocity
             overlayProgressAnim.animateTo(
                 targetValue = 0f,
@@ -412,6 +475,13 @@ fun SearchOverlayScreen(
     }
 
     val focusRequester = remember { FocusRequester() }
+    
+    var selectedCategory by rememberSaveable { mutableStateOf("All") }
+    LaunchedEffect(uiState.query) {
+        if (uiState.query.isEmpty()) {
+            selectedCategory = "All"
+        }
+    }
     
     val isForceTutorial = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
     var showTutorial by remember {
@@ -453,7 +523,18 @@ fun SearchOverlayScreen(
         finishWithoutTransition(act)
     }
 
-    val launchWebSearch: (String) -> Unit = { searchQuery ->
+    val launchWebSearch: (String) -> Unit = launchWebSearch@{ searchQuery ->
+        val bangMgr = com.pixel.intelligentsearch.core.bangs.SearchBangManager(context, com.pixel.intelligentsearch.core.data.SettingsManager(context))
+        val parsedBang = bangMgr.parseBangQuery(searchQuery)
+        if (parsedBang != null) {
+            val bangIntent = bangMgr.dispatchBangSearch(parsedBang)
+            launchSafeIntent(context, bangIntent)
+            val act = context.findActivity()
+            finishWithoutTransition(act)
+            act?.finish()
+            return@launchWebSearch
+        }
+
         val engine = settingsState.searchEngine
         val customUrl = settingsState.customSearchEngineUrl
         val encodedQuery = Uri.encode(searchQuery)
@@ -592,12 +673,18 @@ fun SearchOverlayScreen(
     
     PredictiveBackHandler(enabled = !showTutorial) { progressFlow ->
         try {
+            var lastEmittedBackProg = 0f
             progressFlow.collect { backEvent ->
                 predictiveBackEdge = backEvent.swipeEdge
                 predictiveBackProgress.snapTo(backEvent.progress)
+                if (backEvent.progress > 0.15f && kotlin.math.abs(backEvent.progress - lastEmittedBackProg) > 0.18f) {
+                    lastEmittedBackProg = backEvent.progress
+                    sensoryEngine.magneticResistance(view, backEvent.progress)
+                }
             }
             keyboardController?.hide()
             viewModel.onQueryChanged("")
+            sensoryEngine.springReleaseSnap(view)
             val screenWidthPx = with(density) { screenWidth.toPx() }
             if (predictiveBackEdge == BackEventCompat.EDGE_RIGHT) {
                 // Swiped from right edge: animate off to the left
@@ -614,6 +701,7 @@ fun SearchOverlayScreen(
             }
             goToHomeScreen()
         } catch (_: java.util.concurrent.CancellationException) {
+            sensoryEngine.tick(view, scale = 0.5f)
             predictiveBackProgress.animateTo(
                 targetValue = 0f,
                 animationSpec = spring(dampingRatio = 0.85f, stiffness = 300f)
@@ -765,7 +853,7 @@ fun SearchOverlayScreen(
                                         launchSafeIntent(context, intent)
                                     }
                                     is AppItem -> {
-                                        onLaunchApp(bestMatch.packageName)
+                                        performAppLaunch(bestMatch.packageName)
                                     }
                                     is FileItem -> {
                                         val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -783,7 +871,7 @@ fun SearchOverlayScreen(
                                 }
                                 /* closeOverlay() */
                             } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
-                                onLaunchApp(visibleApps.first().packageName)
+                                performAppLaunch(visibleApps.first().packageName)
                             } else {
                                 launchWebSearch(uiState.query)
                              }
@@ -814,6 +902,38 @@ fun SearchOverlayScreen(
                     }
                 )
 
+                AnimatedVisibility(
+                    visible = uiState.query.isNotEmpty() && uiState.isLoading,
+                    enter = fadeIn(ExpressiveMotionTokens.bouncySpring()) + scaleIn(ExpressiveMotionTokens.bouncySpring()),
+                    exit = fadeOut(ExpressiveMotionTokens.gentleSpring()) + scaleOut(ExpressiveMotionTokens.gentleSpring())
+                ) {
+                    ExpressiveShapeMorphLoader(
+                        size = 28.dp,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                }
+
+                AnimatedVisibility(
+                    visible = uiState.query.isNotEmpty() && !uiState.isLoading,
+                    enter = fadeIn(ExpressiveMotionTokens.bouncySpring()) + scaleIn(ExpressiveMotionTokens.bouncySpring()),
+                    exit = fadeOut(ExpressiveMotionTokens.gentleSpring()) + scaleOut(ExpressiveMotionTokens.gentleSpring())
+                ) {
+                    IconButton(
+                        onClick = { viewModel.onQueryChanged("") },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .bouncyClickable { viewModel.onQueryChanged("") }
+                            .padding(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
                 IconButton(
                     onClick = { onOpenSettings("main") },
                     modifier = Modifier
@@ -823,6 +943,40 @@ fun SearchOverlayScreen(
                         .padding(12.dp)
                 ) {
                     Icon(Icons.Default.MoreVert, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            AnimatedVisibility(
+                visible = uiState.bangSuggestions.isNotEmpty(),
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(uiState.bangSuggestions, key = { it.prefix }) { bang ->
+                        AssistChip(
+                            onClick = {
+                                val currentQ = uiState.query
+                                val newQ = if (currentQ.startsWith("!")) {
+                                    "${bang.prefix} "
+                                } else {
+                                    "${currentQ.substringBeforeLast("!")}${bang.prefix} "
+                                }
+                                viewModel.onQueryChanged(newQ)
+                            },
+                            label = { Text("${bang.prefix} ${bang.name}", fontSize = 12.sp, fontFamily = GoogleSansFlex) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            border = null,
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                    }
                 }
             }
         }
@@ -866,7 +1020,7 @@ fun SearchOverlayScreen(
                                     
                                     val searchStr = uiState.query
                                     if (searchStr.isEmpty()) {
-                                        onLaunchApp(packageName)
+                                        performAppLaunch(packageName)
                                     } else {
                                         val intent = when (packageName) {
                                             "com.android.chrome" -> {
@@ -919,6 +1073,7 @@ fun SearchOverlayScreen(
 
     val searchResultsContent = @Composable {
         LazyColumn(
+            state = searchResultsListState,
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding(),
@@ -929,6 +1084,72 @@ fun SearchOverlayScreen(
             reverseLayout = if (!settingsState.bottomSearch) false else settingsState.bottomSearchResult,
             verticalArrangement = if (settingsState.bottomSearch) Arrangement.Bottom else Arrangement.Top
         ) {
+            val showApps = selectedCategory == "All" || selectedCategory == "Apps"
+            val showWeb = selectedCategory == "All" || selectedCategory == "Web"
+            val showPeople = selectedCategory == "All" || selectedCategory == "People"
+            val showFiles = selectedCategory == "All" || selectedCategory == "Files"
+
+            if (uiState.query.isNotBlank()) {
+                item(key = "expressive_category_filter_bar") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        ExpressiveSegmentedTabItem(
+                            selected = selectedCategory == "All",
+                            onClick = { selectedCategory = "All" },
+                            label = "All",
+                            icon = Icons.Default.Search,
+                            activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            inactiveContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        ExpressiveSegmentedTabItem(
+                            selected = selectedCategory == "Apps",
+                            onClick = { selectedCategory = "Apps" },
+                            label = "Apps",
+                            icon = Icons.Default.Apps,
+                            activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            inactiveContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        ExpressiveSegmentedTabItem(
+                            selected = selectedCategory == "Web",
+                            onClick = { selectedCategory = "Web" },
+                            label = "Web",
+                            icon = Icons.Default.Public,
+                            activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            inactiveContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        ExpressiveSegmentedTabItem(
+                            selected = selectedCategory == "People",
+                            onClick = { selectedCategory = "People" },
+                            label = "People",
+                            icon = Icons.Default.Person,
+                            activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            inactiveContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        ExpressiveSegmentedTabItem(
+                            selected = selectedCategory == "Files",
+                            onClick = { selectedCategory = "Files" },
+                            label = "Files",
+                            icon = Icons.Default.Folder,
+                            activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            inactiveContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
 
             val systemToggle = uiState.systemToggle
             if (systemToggle != null) {
@@ -950,6 +1171,7 @@ fun SearchOverlayScreen(
 
                     LaunchedEffect(dismissed) {
                         if (dismissed) {
+                            sensoryEngine.deleteThud(view)
                             launch {
                                 offsetX.animateTo(
                                     targetValue = dismissDirection * 1500f,
@@ -1120,7 +1342,7 @@ fun SearchOverlayScreen(
                             Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                                 Column {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth().bouncyClickable { onLaunchApp(match.packageName) },
+                                        modifier = Modifier.fillMaxWidth().bouncyClickable { performAppLaunch(match.packageName) },
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         val appIcon = appIconState.value
@@ -1232,6 +1454,7 @@ fun SearchOverlayScreen(
 
                     LaunchedEffect(dismissed) {
                         if (dismissed) {
+                            sensoryEngine.deleteThud(view)
                             launch {
                                 offsetX.animateTo(
                                     targetValue = dismissDirection * 1500f,
@@ -1377,6 +1600,7 @@ fun SearchOverlayScreen(
 
                     LaunchedEffect(dismissed) {
                         if (dismissed) {
+                            sensoryEngine.deleteThud(view)
                             launch {
                                 offsetX.animateTo(
                                     targetValue = dismissDirection * 1500f,
@@ -1476,7 +1700,7 @@ fun SearchOverlayScreen(
                 item(key = "shortcuts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
-            if (settingsState.searchWeb) {
+            if (showWeb && settingsState.searchWeb) {
                 if (uiState.webSuggestions.isNotEmpty()) {
                     items(uiState.webSuggestions.take(settingsState.webResultsCount), key = { "web_suggest_$it" }) { suggestion ->
                         Row(
@@ -1570,7 +1794,7 @@ fun SearchOverlayScreen(
                     }
                 }
             }
-            if (settingsState.searchApps && filteredApps.isNotEmpty()) {
+            if (showApps && settingsState.searchApps && filteredApps.isNotEmpty()) {
                 item(key = "apps_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                 item(key = "apps_row") {
                     LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
@@ -1588,7 +1812,7 @@ fun SearchOverlayScreen(
                             }
                         }
                         items(filteredApps, key = { it.packageName }) { app ->
-                            AppGridItem(app) { onLaunchApp(app.packageName) }
+                            AppGridItem(app) { performAppLaunch(app.packageName) }
                         }
                     }
                 }
@@ -1628,7 +1852,7 @@ fun SearchOverlayScreen(
                 }
             }
             
-            if (settingsState.searchContacts && filteredContacts.isNotEmpty()) {
+            if (showPeople && settingsState.searchContacts && filteredContacts.isNotEmpty()) {
                 item(key = "contacts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                 itemsIndexed(filteredContacts, key = { index, contact -> "contact_${contact.lookupUri}_${contact.phoneNumber}_$index" }) { index, contact ->
                     Row(
@@ -1657,7 +1881,7 @@ fun SearchOverlayScreen(
                 }
             }
 
-            if (settingsState.searchFiles && filteredFiles.isNotEmpty()) {
+            if (showFiles && settingsState.searchFiles && filteredFiles.isNotEmpty()) {
                 item(key = "files_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                 itemsIndexed(filteredFiles, key = { index, file -> "file_${file.uri}_$index" }) { index, file ->
                     Row(
@@ -1736,25 +1960,34 @@ fun SearchOverlayScreen(
             }
             .pointerInput(Unit) {
                 var totalHorizontalDrag = 0f
+                val magneticDismissController = com.pixel.intelligentsearch.core.haptics.MagneticDismissController(
+                    thresholdPx = 60f,
+                    engine = sensoryEngine,
+                    view = view
+                )
                 detectHorizontalDragGestures(
                     onDragStart = { totalHorizontalDrag = 0f },
                     onDragEnd = {
                         val screenWidthPx = with(density) { screenWidth.toPx() }
-                        if (!showTutorial && totalHorizontalDrag < -60f) {
-                            coroutineScope.launch {
-                                horizontalSwipeOffset.animateTo(
-                                    targetValue = -screenWidthPx,
-                                    animationSpec = tween(durationMillis = 200, easing = FastOutLinearInEasing)
-                                )
-                                goToHomeScreen()
-                            }
-                        } else if (!showTutorial && totalHorizontalDrag > 60f) {
-                            coroutineScope.launch {
-                                horizontalSwipeOffset.animateTo(
-                                    targetValue = screenWidthPx,
-                                    animationSpec = tween(durationMillis = 200, easing = FastOutLinearInEasing)
-                                )
-                                goToHomeScreen()
+                        val willDismiss = !showTutorial && kotlin.math.abs(totalHorizontalDrag) > 60f
+                        magneticDismissController.onDragEnd(willDismiss)
+                        if (willDismiss) {
+                            if (totalHorizontalDrag < -60f) {
+                                coroutineScope.launch {
+                                    horizontalSwipeOffset.animateTo(
+                                        targetValue = -screenWidthPx,
+                                        animationSpec = tween(durationMillis = 200, easing = FastOutLinearInEasing)
+                                    )
+                                    goToHomeScreen()
+                                }
+                            } else {
+                                coroutineScope.launch {
+                                    horizontalSwipeOffset.animateTo(
+                                        targetValue = screenWidthPx,
+                                        animationSpec = tween(durationMillis = 200, easing = FastOutLinearInEasing)
+                                    )
+                                    goToHomeScreen()
+                                }
                             }
                         } else {
                             coroutineScope.launch {
@@ -1764,6 +1997,7 @@ fun SearchOverlayScreen(
                         totalHorizontalDrag = 0f
                     },
                     onDragCancel = {
+                        magneticDismissController.onDragCancel()
                         coroutineScope.launch {
                             horizontalSwipeOffset.animateTo(0f, spring(dampingRatio = 0.85f, stiffness = 350f))
                         }
@@ -1772,6 +2006,7 @@ fun SearchOverlayScreen(
                     onHorizontalDrag = { change, dragAmount ->
                         change.consume()
                         totalHorizontalDrag += dragAmount
+                        magneticDismissController.onDrag(totalHorizontalDrag)
                         coroutineScope.launch {
                             horizontalSwipeOffset.snapTo(horizontalSwipeOffset.value + dragAmount)
                         }

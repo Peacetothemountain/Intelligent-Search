@@ -15,8 +15,11 @@ android {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
         targetSdk = 37
-        versionCode = 91
+        versionCode = 92
         versionName = "8.9"
+        ndk {
+            abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86"))
+        }
     }
 
     signingConfigs {
@@ -27,8 +30,15 @@ android {
                 localProperties.load(localPropertiesFile.inputStream())
             }
             val customStore = localProperties.getProperty("RELEASE_STORE_FILE")
-            if (customStore != null && file(customStore).exists()) {
-                storeFile = file(customStore)
+            val targetStore = when {
+                customStore != null && file(customStore).exists() -> file(customStore)
+                customStore != null && rootProject.file(customStore).exists() -> rootProject.file(customStore)
+                file("F:/release.keystore").exists() -> file("F:/release.keystore")
+                rootProject.file("release.keystore").exists() -> rootProject.file("release.keystore")
+                else -> null
+            }
+            if (targetStore != null && targetStore.exists()) {
+                storeFile = targetStore
                 storePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD") ?: "password"
                 keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS") ?: "release"
                 keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD") ?: "password"
@@ -59,6 +69,12 @@ android {
       shaders = false
     }
 
+    testOptions {
+      unitTests {
+        isReturnDefaultValues = true
+      }
+    }
+
     packaging {
       resources {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -76,7 +92,9 @@ dependencies {
   // Core
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation("androidx.lifecycle:lifecycle-process:2.8.7")
   implementation(libs.androidx.activity.compose)
+  implementation("androidx.profileinstaller:profileinstaller:1.4.1")
   implementation(platform(libs.androidx.compose.bom))
 
   // Compose

@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.ShaderBrush
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pixel.intelligentsearch.core.performance.ADPFThermalManager
 import kotlinx.coroutines.isActive
 import org.intellij.lang.annotations.Language
 
@@ -140,18 +142,35 @@ private const val APP_WIDE_STARDUST_SHADER = """
 // ==============================================================================
 
 /**
- * Custom modifier applying the Lifecycle-Aware GPU Shader loop to the backdrop container.
+ * Custom modifier applying the Lifecycle-Aware GPU Shader loop to the backdrop container,
+ * dynamically gated by ADPF thermal headroom to prevent GPU overheating.
  */
 @Composable
 private fun Modifier.appWideStardustShader(color: Color): Modifier {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-        return this.background(color.copy(alpha = 0.1f))
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val adpfThermalManager = remember(context) { ADPFThermalManager.getInstance(context) }
+    val throttleLevel by adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
+
+    val shouldThrottleShader = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            throttleLevel >= ADPFThermalManager.ThermalThrottleLevel.MODERATE
+
+    if (shouldThrottleShader) {
+        // Zero-overhead linear gradient fallback when thermally throttled or on legacy Android
+        return this.background(
+            androidx.compose.ui.graphics.Brush.verticalGradient(
+                colors = listOf(
+                    color.copy(alpha = 0.12f),
+                    color.copy(alpha = 0.03f),
+                    androidx.compose.ui.graphics.Color.Transparent
+                )
+            )
+        )
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     val timeState = remember { mutableFloatStateOf(0f) }
     
-    LaunchedEffect(lifecycleOwner) {
+    LaunchedEffect(lifecycleOwner, throttleLevel) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             var lastFrame = 0L
             while (isActive) {

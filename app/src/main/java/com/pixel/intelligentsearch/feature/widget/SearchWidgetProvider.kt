@@ -47,7 +47,15 @@ class SearchWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        updateWidgetsSync(context, appWidgetManager, appWidgetIds)
+        val pendingResult = goAsync()
+        val asyncScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Default)
+        asyncScope.launch {
+            try {
+                updateWidgetsSync(context, appWidgetManager, appWidgetIds)
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     private fun updateWidgetsSync(
@@ -108,10 +116,10 @@ class SearchWidgetProvider : AppWidgetProvider() {
             } else actualCustomColor
         } else {
             when (subthemeStr) {
-                "Light" -> 0xFFF8F9FA.toInt()
+                "Light" -> 0xFFF1F3F4.toInt()
                 "Dark" -> 0xFF303134.toInt()
                 "Custom" -> actualCustomColor
-                else -> if (isDark) 0xFF303134.toInt() else 0xFFF8F9FA.toInt()
+                else -> if (isDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
             }
         }
 
@@ -154,6 +162,9 @@ class SearchWidgetProvider : AppWidgetProvider() {
         // Luminance helper for custom color
         val customColorLuminance = (0.299 * android.graphics.Color.red(actualCustomColor) + 0.587 * android.graphics.Color.green(actualCustomColor) + 0.114 * android.graphics.Color.blue(actualCustomColor)) / 255
         val customIconTint = if (customColorLuminance > 0.5) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+        val isPillLight = if (!isMaterialYou) {
+            subthemeStr == "Light" || (subthemeStr == "System" && !isDark) || (subthemeStr == "Custom" && customColorLuminance > 0.5)
+        } else false
 
         // Determine Icon Tint
         val iconTint = when {
@@ -203,7 +214,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
                 views.setInt(R.id.widget_sound_background, "setImageAlpha", circleAlphaInt)
                 
-                bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme, subthemeStr, isMaterialYou)
+                bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme, subthemeStr, isMaterialYou, context, isPillLight)
                 if (materialGIconTheme == "Accented G Icon") {
                     views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
                     views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
@@ -222,7 +233,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
                 views.setInt(R.id.widget_sound_background, "setImageAlpha", circleAlphaInt)
                 
-                bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme, subthemeStr, isMaterialYou)
+                bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme, subthemeStr, isMaterialYou, context, isPillLight)
             }
 
             // Bind 4 ordered shortcut and microphone slots
@@ -273,10 +284,19 @@ class SearchWidgetProvider : AppWidgetProvider() {
 
                     if (materialGIconTheme == "Accented G Icon") {
                         views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
+                    } else if (isPillLight) {
+                        if (item.first == "mic" && materialGIconTheme == "System G Icon") {
+                            views.setColorStateList(targetViewId, "setImageTintList", null)
+                        } else {
+                            val darkIconTint = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                context.getColor(android.R.color.system_accent1_700)
+                            } else {
+                                android.graphics.Color.parseColor("#3C4043")
+                            }
+                            views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(darkIconTint))
+                        }
                     } else if (materialGIconTheme == "Material G Icon") {
                         views.setColorStateList(targetViewId, "setImageTintList", null)
-                    } else if (!isMaterialYou && subthemeStr == "Light") {
-                        views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(android.graphics.Color.DKGRAY))
                     } else if (item.first == "mic" && materialGIconTheme == "System G Icon") {
                         views.setColorStateList(targetViewId, "setImageTintList", null)
                     } else if (!isMaterialYou) {
@@ -379,6 +399,20 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         fun getLensSearchIntent(context: Context): Intent {
+            try {
+                val lensStandalone = context.packageManager.getLaunchIntentForPackage("com.google.ar.lens")?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (lensStandalone != null) return lensStandalone
+
+                val lensIntent = Intent().apply {
+                    setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (context.packageManager.resolveActivity(lensIntent, 0) != null) {
+                    return lensIntent
+                }
+            } catch (e: Exception) {}
             return Intent(context, WidgetActivity::class.java).apply {
                 action = "com.pixel.intelligentsearch.LAUNCH_LENS"
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -386,6 +420,22 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         fun getLensTranslateIntent(context: Context): Intent {
+            try {
+                val lensStandalone = context.packageManager.getLaunchIntentForPackage("com.google.ar.lens")?.apply {
+                    putExtra("lens_mode", "translate")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (lensStandalone != null) return lensStandalone
+
+                val translateIntent = Intent().apply {
+                    setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
+                    putExtra("lens_mode", "translate")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (context.packageManager.resolveActivity(translateIntent, 0) != null) {
+                    return translateIntent
+                }
+            } catch (e: Exception) {}
             return Intent(context, WidgetActivity::class.java).apply {
                 action = "com.pixel.intelligentsearch.LAUNCH_LENS_TRANSLATE"
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -483,13 +533,22 @@ class SearchWidgetProvider : AppWidgetProvider() {
             iconTint: Int,
             materialGIconTheme: String,
             subthemeStr: String,
-            isMaterialYou: Boolean
+            isMaterialYou: Boolean,
+            context: Context,
+            isPillLight: Boolean
         ) {
             views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
             views.setImageViewResource(R.id.widget_g_logo, gIconRes)
             if (materialGIconTheme == "Accented G Icon") {
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
-            } else if (!isMaterialYou && subthemeStr == "Light" && materialGIconTheme != "System G Icon") {
+            } else if (isPillLight && materialGIconTheme == "Material G Icon") {
+                val darkGTint = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    context.getColor(android.R.color.system_accent1_700)
+                } else {
+                    android.graphics.Color.parseColor("#1F1F1F")
+                }
+                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(darkGTint))
+            } else if (isPillLight && materialGIconTheme != "System G Icon") {
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(android.graphics.Color.DKGRAY))
             } else {
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)

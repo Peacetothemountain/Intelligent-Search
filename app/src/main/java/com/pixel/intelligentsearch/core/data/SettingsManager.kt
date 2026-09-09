@@ -62,7 +62,12 @@ data class IntelligentSearchSettings(
     val searchOverlayEnabled: Boolean = true,
     val customIconPills: String = "",
     val neverShowIconPackWarning: Boolean = false,
-    val searchPreviousSearches: Boolean = true
+    val searchPreviousSearches: Boolean = true,
+    val customBangsJson: String = "[]",
+    val searchSectionsConfigJson: String = "",
+    val adaptiveIconShape: String = "SYSTEM_DEFAULT",
+    val dynamicIconMasking: Boolean = true,
+    val diagnosticsOverlayEnabled: Boolean = false
 )
 
 @Singleton
@@ -116,6 +121,11 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val SEARCH_OVERLAY_ENABLED = booleanPreferencesKey("search_overlay_enabled")
         val CUSTOM_ICON_PILLS = stringPreferencesKey("custom_icon_pills")
         val NEVER_SHOW_ICON_PACK_WARNING = booleanPreferencesKey("never_show_icon_pack_warning")
+        val CUSTOM_BANGS_JSON = stringPreferencesKey("custom_bangs_json")
+        val SEARCH_SECTIONS_CONFIG_JSON = stringPreferencesKey("search_sections_config_json")
+        val ADAPTIVE_ICON_SHAPE = stringPreferencesKey("adaptive_icon_shape")
+        val DYNAMIC_ICON_MASKING = booleanPreferencesKey("dynamic_icon_masking")
+        val DIAGNOSTICS_OVERLAY_ENABLED = booleanPreferencesKey("diagnostics_overlay_enabled")
     }
 
     val settingsFlow: Flow<IntelligentSearchSettings> = context.dataStore.data
@@ -176,7 +186,12 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 activeIconPack = preferences[ACTIVE_ICON_PACK] ?: "system_default",
                 customIconPills = preferences[CUSTOM_ICON_PILLS] ?: "",
                 neverShowIconPackWarning = preferences[NEVER_SHOW_ICON_PACK_WARNING] ?: false,
-                searchPreviousSearches = preferences[SEARCH_PREVIOUS_SEARCHES] ?: true
+                searchPreviousSearches = preferences[SEARCH_PREVIOUS_SEARCHES] ?: true,
+                customBangsJson = preferences[CUSTOM_BANGS_JSON] ?: "[]",
+                searchSectionsConfigJson = preferences[SEARCH_SECTIONS_CONFIG_JSON] ?: "",
+                adaptiveIconShape = preferences[ADAPTIVE_ICON_SHAPE] ?: "SYSTEM_DEFAULT",
+                dynamicIconMasking = preferences[DYNAMIC_ICON_MASKING] ?: true,
+                diagnosticsOverlayEnabled = preferences[DIAGNOSTICS_OVERLAY_ENABLED] ?: false
             )
         }
 
@@ -231,7 +246,12 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             activeIconPack = prefs.getString("active_icon_pack", "system_default") ?: "system_default",
             customIconPills = prefs.getString("custom_icon_pills", "") ?: "",
             neverShowIconPackWarning = prefs.getBoolean("never_show_icon_pack_warning", false),
-            searchPreviousSearches = prefs.getBoolean("search_previous_searches", true)
+            searchPreviousSearches = prefs.getBoolean("search_previous_searches", true),
+            customBangsJson = prefs.getString("custom_bangs_json", "[]") ?: "[]",
+            searchSectionsConfigJson = prefs.getString("search_sections_config_json", "") ?: "",
+            adaptiveIconShape = prefs.getString("adaptive_icon_shape", "SYSTEM_DEFAULT") ?: "SYSTEM_DEFAULT",
+            dynamicIconMasking = prefs.getBoolean("dynamic_icon_masking", true),
+            diagnosticsOverlayEnabled = prefs.getBoolean("diagnostics_overlay_enabled", false)
         )
     }
 
@@ -241,4 +261,3 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         }
     }
 }
-

@@ -1,0 +1,152 @@
+# Baseline Profile for Intelligent Search - NG Designs
+# Human-Readable Profile Rules (ART AOT Compilation Specification)
+# Flags: H = Hot, S = Startup, P = Post-Startup
+
+# ----------------------------------------------------------------------
+# 1. Application Lifecycle & Core Singletons
+# ----------------------------------------------------------------------
+HSPLcom/pixel/intelligentsearch/App;-><init>()V
+HSPLcom/pixel/intelligentsearch/App;->onCreate()V
+Lcom/pixel/intelligentsearch/App;
+
+# ----------------------------------------------------------------------
+# 2. Main Entry Activities
+# ----------------------------------------------------------------------
+HSPLcom/pixel/intelligentsearch/MainActivity;-><init>()V
+HSPLcom/pixel/intelligentsearch/MainActivity;->onCreate(Landroid/os/Bundle;)V
+HSPLcom/pixel/intelligentsearch/MainActivity;->onStart()V
+HSPLcom/pixel/intelligentsearch/MainActivity;->onResume()V
+HSPLcom/pixel/intelligentsearch/MainActivity;->onPause()V
+HSPLcom/pixel/intelligentsearch/MainActivity;->onStop()V
+HSPLcom/pixel/intelligentsearch/MainActivity;->handleIntent(Landroid/content/Intent;)Z
+HSPLcom/pixel/intelligentsearch/MainActivity;->dismissOverlayToLauncher()V
+Lcom/pixel/intelligentsearch/MainActivity;
+
+HSPLcom/pixel/intelligentsearch/feature/search/SearchActivity;-><init>()V
+HSPLcom/pixel/intelligentsearch/feature/search/SearchActivity;->onCreate(Landroid/os/Bundle;)V
+Lcom/pixel/intelligentsearch/feature/search/SearchActivity;
+
+# ----------------------------------------------------------------------
+# 3. ADPF Thermal Management & Frame Pacing Engine
+# ----------------------------------------------------------------------
+HSPLcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;-><init>(Landroid/content/Context;)V
+HSPLcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;->getInstance(Landroid/content/Context;)Lcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;
+HSPLcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;->initHintSession(I)V
+HSPLcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;->updateTargetFps(I)V
+HSPLcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;->reportActualWorkDuration(J)V
+HSPLcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;->reportFrameMetrics(JJ)V
+HSPLcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;->getThermalHeadroom()F
+HSPLcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;->updateThermalHeadroom()F
+HSPLcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;->shouldThrottleBlurEffects()Z
+HSPLcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;->shouldThrottleAGSLShaders()Z
+HSPLcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;->getRecommendedBlurRadius(F)F
+HSPLcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;->getRecommendedRefreshRate(F)F
+HSPLcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;->applyTopAppThreadPriority()V
+Lcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;
+Lcom/pixel/intelligentsearch/core/performance/ADPFThermalManager$ThermalThrottleLevel;
+
+HSPLcom/pixel/intelligentsearch/core/performance/FrameMetricsMonitor;-><init>(Lcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;)V
+HSPLcom/pixel/intelligentsearch/core/performance/FrameMetricsMonitor;->attach(Landroid/app/Activity;)V
+HSPLcom/pixel/intelligentsearch/core/performance/FrameMetricsMonitor;->detach()V
+HSPLcom/pixel/intelligentsearch/core/performance/FrameMetricsMonitor;->processFrameMetrics(Landroid/view/FrameMetrics;I)V
+Lcom/pixel/intelligentsearch/core/performance/FrameMetricsMonitor;
+Lcom/pixel/intelligentsearch/core/performance/FrameMetricsMonitor$FrameJankStats;
+
+HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setHighRefreshRateCategory(Landroid/app/Activity;)V
+HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setNormalRefreshRateCategory(Landroid/app/Activity;)V
+HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setLowRefreshRateCategory(Landroid/app/Activity;)V
+HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setFrameRateCategory(Landroid/app/Activity;I)V
+HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setContentVelocity(Landroid/view/View;F)V
+HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->lockMaxDisplayRefreshRate(Landroid/app/Activity;)V
+HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->getDisplayMaxRefreshRate(Landroid/app/Activity;)F
+HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setSurfacePacing(Landroid/view/Surface;F)V
+HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->postPacedFrame(Lkotlin/jvm/functions/Function1;)V
+HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->postVsyncPacedFrame(Lkotlin/jvm/functions/Function3;)V
+Lcom/pixel/intelligentsearch/core/ui/WindowFramePacing;
+
+# ----------------------------------------------------------------------
+# 4. Search ViewModel & State Architecture
+# ----------------------------------------------------------------------
+HSPLcom/pixel/intelligentsearch/feature/search/SearchViewModel;-><init>(Landroid/content/Context;Lcom/pixel/intelligentsearch/core/data/HistoryDao;Lcom/pixel/intelligentsearch/core/data/SettingsManager;)V
+HSPLcom/pixel/intelligentsearch/feature/search/SearchViewModel;->loadInitialData()V
+HSPLcom/pixel/intelligentsearch/feature/search/SearchViewModel;->onQueryChanged(Ljava/lang/String;)V
+HSPLcom/pixel/intelligentsearch/feature/search/SearchViewModel;->getUiState()Lkotlinx/coroutines/flow/StateFlow;
+Lcom/pixel/intelligentsearch/feature/search/SearchViewModel;
+Lcom/pixel/intelligentsearch/feature/search/SearchUiState;
+Lcom/pixel/intelligentsearch/feature/search/InstantAnswer;
+
+# ----------------------------------------------------------------------
+# 5. UI Layer & Compose Screens
+# ----------------------------------------------------------------------
+HSPLcom/pixel/intelligentsearch/feature/search/SearchOverlayScreenKt;->SearchOverlayScreen(Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lcom/pixel/intelligentsearch/feature/search/SearchViewModel;Lcom/pixel/intelligentsearch/feature/settings/SettingsViewModel;ZLandroidx/compose/runtime/Composer;II)V
+HSPLcom/pixel/intelligentsearch/feature/search/SearchOverlayScreenKt;->AppGridItem(Lcom/pixel/intelligentsearch/core/data/AppItem;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;I)V
+HSPLcom/pixel/intelligentsearch/feature/search/SearchOverlayScreenKt;->peekThemedAppIcon(Ljava/lang/String;Ljava/lang/String;)Lcom/pixel/intelligentsearch/feature/search/AppIconResult;
+HSPLcom/pixel/intelligentsearch/feature/search/SearchOverlayScreenKt;->getThemedAppIcon(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Lcom/pixel/intelligentsearch/feature/search/AppIconResult;
+Lcom/pixel/intelligentsearch/feature/search/SearchOverlayScreenKt;
+Lcom/pixel/intelligentsearch/feature/search/AppIconResult;
+
+HSPLcom/pixel/intelligentsearch/feature/search/AnimatedMatrixBackgroundKt;->AnimatedMatrixBackground(Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
+Lcom/pixel/intelligentsearch/feature/search/AnimatedMatrixBackgroundKt;
+
+HSPLcom/pixel/intelligentsearch/core/ui/DynamicAtmosphericBackgroundKt;->DynamicAtmosphericBackgroundContainer(Lcom/pixel/intelligentsearch/core/ui/AppDesignTheme;Lcom/pixel/intelligentsearch/core/ui/AppColorTheme;Lcom/pixel/intelligentsearch/core/ui/GlobalCustomColor;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+HSPLcom/pixel/intelligentsearch/core/ui/DynamicAtmosphericBackgroundKt;->resolveGlobalStardustColor(Lcom/pixel/intelligentsearch/core/ui/AppDesignTheme;Lcom/pixel/intelligentsearch/core/ui/AppColorTheme;Lcom/pixel/intelligentsearch/core/ui/GlobalCustomColor;Landroidx/compose/runtime/Composer;I)J
+Lcom/pixel/intelligentsearch/core/ui/DynamicAtmosphericBackgroundKt;
+Lcom/pixel/intelligentsearch/core/ui/AppDesignTheme;
+Lcom/pixel/intelligentsearch/core/ui/AppColorTheme;
+Lcom/pixel/intelligentsearch/core/ui/GlobalCustomColor;
+
+# ----------------------------------------------------------------------
+# 6. Data Models & Providers
+# ----------------------------------------------------------------------
+HSPLcom/pixel/intelligentsearch/core/data/SystemDataProvider;->getAllApps(Landroid/content/Context;)Ljava/util/List;
+HSPLcom/pixel/intelligentsearch/core/data/SystemDataProvider;->getRecentApps(Landroid/content/Context;Ljava/util/Set;)Ljava/util/List;
+HSPLcom/pixel/intelligentsearch/core/data/SystemDataProvider;->getContextAwareQuickApps(Landroid/content/Context;)Ljava/util/List;
+Lcom/pixel/intelligentsearch/core/data/SystemDataProvider;
+Lcom/pixel/intelligentsearch/core/data/AppItem;
+Lcom/pixel/intelligentsearch/core/data/AppAction;
+Lcom/pixel/intelligentsearch/core/data/ContactItem;
+Lcom/pixel/intelligentsearch/core/data/FileItem;
+Lcom/pixel/intelligentsearch/core/data/CalendarEvent;
+
+HSPLcom/pixel/intelligentsearch/core/data/SettingsManager;-><init>(Landroid/content/Context;)V
+HSPLcom/pixel/intelligentsearch/core/data/SettingsManager;->getSettingsFlow()Lkotlinx/coroutines/flow/Flow;
+Lcom/pixel/intelligentsearch/core/data/SettingsManager;
+Lcom/pixel/intelligentsearch/core/data/IntelligentSearchSettings;
+
+HSPLcom/pixel/intelligentsearch/core/data/AppSearchEngine;-><init>(Landroid/content/Context;)V
+HSPLcom/pixel/intelligentsearch/core/data/AppSearchEngine;->search(Ljava/lang/String;)Ljava/util/List;
+Lcom/pixel/intelligentsearch/core/data/AppSearchEngine;
+Lcom/pixel/intelligentsearch/core/data/IndexedSearchDocument;
+
+HSPLcom/pixel/intelligentsearch/core/data/HistoryDao;->getSearchHistoryFlow()Lkotlinx/coroutines/flow/Flow;
+Lcom/pixel/intelligentsearch/core/data/HistoryDao;
+Lcom/pixel/intelligentsearch/core/data/HistoryEntity;
+Lcom/pixel/intelligentsearch/core/data/IntelligentSearchDatabase;
+
+# ----------------------------------------------------------------------
+# 7. Jetpack Compose Theme & Expressive Motion
+# ----------------------------------------------------------------------
+HSPLcom/pixel/intelligentsearch/core/theme/ThemeKt;->IntelligentSearchTheme(ZZLkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+Lcom/pixel/intelligentsearch/core/theme/ThemeKt;
+Lcom/pixel/intelligentsearch/core/theme/ColorKt;
+Lcom/pixel/intelligentsearch/core/theme/TypeKt;
+Lcom/pixel/intelligentsearch/core/theme/ShapeKt;
+
+HSPLcom/pixel/intelligentsearch/core/ui/expressive/ExpressiveMotionTokens;-><clinit>()V
+Lcom/pixel/intelligentsearch/core/ui/expressive/ExpressiveMotionTokens;
+Lcom/pixel/intelligentsearch/core/ui/expressive/ExpressiveCardKt;
+Lcom/pixel/intelligentsearch/core/ui/expressive/ExpressiveSegmentedTabKt;
+Lcom/pixel/intelligentsearch/core/ui/expressive/ExpressiveShapeMorphLoaderKt;
+
+# ----------------------------------------------------------------------
+# 8. Compose Runtime Core & Fast Skipping
+# ----------------------------------------------------------------------
+HSPLandroidx/compose/runtime/ComposerKt;->isTraceInProgress()Z
+HSPLandroidx/compose/runtime/ComposerImpl;->startRestartGroup(I)Landroidx/compose/runtime/Composer;
+HSPLandroidx/compose/runtime/ComposerImpl;->endRestartGroup()Landroidx/compose/runtime/ScopeUpdateScope;
+HSPLandroidx/compose/runtime/SnapshotStateKt;->mutableStateOf(Ljava/lang/Object;Landroidx/compose/runtime/SnapshotMutationPolicy;)Landroidx/compose/runtime/MutableState;
+HSPLandroidx/compose/runtime/SnapshotStateKt;->derivedStateOf(Lkotlin/jvm/functions/Function0;)Landroidx/compose/runtime/State;
+Landroidx/compose/runtime/ComposerImpl;
+Landroidx/compose/runtime/RecomposeScopeImpl;
+Landroidx/compose/ui/platform/AndroidComposeView;
+Landroidx/compose/ui/node/LayoutNode;

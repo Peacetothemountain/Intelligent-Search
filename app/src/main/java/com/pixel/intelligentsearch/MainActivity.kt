@@ -33,6 +33,18 @@ import dagger.hilt.android.AndroidEntryPoint
 open class MainActivity : AppCompatActivity() {
 
     private val searchViewModel: SearchViewModel by viewModels()
+    private val adpfThermalManager by lazy { com.pixel.intelligentsearch.core.performance.ADPFThermalManager.getInstance(this) }
+    private val frameMetricsMonitor by lazy { com.pixel.intelligentsearch.core.performance.FrameMetricsMonitor(adpfThermalManager) }
+
+    override fun onStart() {
+        super.onStart()
+        frameMetricsMonitor.attach(this)
+    }
+
+    override fun onStop() {
+        frameMetricsMonitor.detach()
+        super.onStop()
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -87,29 +99,8 @@ open class MainActivity : AppCompatActivity() {
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         super.onCreate(savedInstanceState)
-        
-        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
-            override fun handleOnBackStarted(backEvent: androidx.activity.BackEventCompat) {}
-
-            override fun handleOnBackProgressed(backEvent: androidx.activity.BackEventCompat) {}
-
-            override fun handleOnBackCancelled() {}
-
-            override fun handleOnBackPressed() {
-                dismissOverlayToLauncher()
-            }
-        })
 
         if (handleIntent(intent)) return
-
-        if (this::class.java == MainActivity::class.java && (intent?.action == Intent.ACTION_MAIN || intent?.action == null)) {
-            val settingsIntent = Intent(this, SettingsActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            }
-            startActivity(settingsIntent)
-            finish()
-            return
-        }
 
         val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", android.content.Context.MODE_PRIVATE)
         val searchOverlayEnabled = prefs.getBoolean("search_overlay_enabled", true)
@@ -142,9 +133,19 @@ open class MainActivity : AppCompatActivity() {
                      modifier = Modifier.fillMaxSize(),
                       color = androidx.compose.ui.graphics.Color.Transparent
                 ) {
-                    SideEffect {
-                        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                        window.setBackgroundBlurRadius(settingsState.backgroundBlur)
+                    val throttleLevel by adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
+                    DisposableEffect(settingsState.backgroundBlur, throttleLevel) {
+                        val recommendedBlur = adpfThermalManager.getRecommendedBlurRadius(settingsState.backgroundBlur.toFloat()).toInt()
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            if (recommendedBlur > 0) {
+                                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                                window.setBackgroundBlurRadius(recommendedBlur)
+                            } else {
+                                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                                window.setBackgroundBlurRadius(0)
+                            }
+                        }
+                        onDispose {}
                     }
 
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -165,17 +166,12 @@ open class MainActivity : AppCompatActivity() {
                                 },
                                 onLaunchApp = { packageName ->
                                     searchViewModel.onQueryChanged("")
-                                    val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
-                                    }
-                                    if (launchIntent != null) {
+                                    val multiProfileManager = com.pixel.intelligentsearch.core.profile.MultiProfileManager(this@MainActivity)
+                                    val launched = multiProfileManager.launchApp(packageName = packageName)
+                                    if (launched) {
                                         if (settingsState.appAnimations) {
-                                            val options = android.app.ActivityOptions.makeBasic()
-                                            startActivity(launchIntent, options.toBundle())
                                             finish()
                                         } else {
-                                            val options = android.app.ActivityOptions.makeCustomAnimation(this@MainActivity, 0, 0)
-                                            startActivity(launchIntent, options.toBundle())
                                             finish()
                                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                                                 overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
@@ -204,17 +200,21 @@ open class MainActivity : AppCompatActivity() {
                 }
                 if (lensStandalone != null) {
                     startActivity(lensStandalone)
-                    return true
+                } else {
+                    val lensIntent = Intent().apply {
+                        setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(lensIntent)
                 }
             } catch (e: Exception) {}
-            
-            val lensIntent = Intent().apply {
-                setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+            } else {
+                @Suppress("DEPRECATION")
+                overridePendingTransition(0, 0)
             }
-            try {
-                startActivity(lensIntent)
-            } catch (ex: Exception) {}
+            finish()
             return true
         }
         
@@ -226,18 +226,22 @@ open class MainActivity : AppCompatActivity() {
                 }
                 if (lensStandalone != null) {
                     startActivity(lensStandalone)
-                    return true
+                } else {
+                    val translateIntent = Intent().apply {
+                        setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
+                        putExtra("lens_mode", "translate")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(translateIntent)
                 }
-            } catch (e: Exception) {}
-            
-            val translateIntent = Intent().apply {
-                setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
-                putExtra("lens_mode", "translate")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            try {
-                startActivity(translateIntent)
             } catch (ex: Exception) {}
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+            } else {
+                @Suppress("DEPRECATION")
+                overridePendingTransition(0, 0)
+            }
+            finish()
             return true
         }
 
@@ -261,13 +265,6 @@ open class MainActivity : AppCompatActivity() {
     fun dismissOverlayToLauncher() {
         searchViewModel.onQueryChanged("")
         moveTaskToBack(true)
-        try {
-            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                addCategory(Intent.CATEGORY_HOME)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            startActivity(homeIntent)
-        } catch (_: Exception) {}
         finish()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)

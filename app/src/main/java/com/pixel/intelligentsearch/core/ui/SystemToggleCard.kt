@@ -86,13 +86,15 @@ fun SystemToggleCard(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .bouncyClickable(
+                suppressClickHaptic = true,
                 onClick = {
                     if (toggleState.isActionOnly) {
+                        com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click()
                         toggleState.onOpenSettings()
                     } else {
-                        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
                         val newState = !isChecked
                         isChecked = newState
+                        com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).toggle(isChecked = newState)
                         toggleState.onToggle(newState)
                     }
                 },
@@ -189,13 +191,13 @@ fun SystemToggleCard(
                 Switch(
                     checked = isChecked,
                     onCheckedChange = { newState ->
-                        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                        com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).toggle(isChecked = newState)
                         isChecked = newState
                         toggleState.onToggle(newState)
                     },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                        checkedTrackColor = activeColor,
+                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
                         uncheckedThumbColor = MaterialTheme.colorScheme.outline,
                         uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                     )

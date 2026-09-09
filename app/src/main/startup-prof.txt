@@ -1,0 +1,30 @@
+# Startup Profile for Intelligent Search - NG Designs
+# DEX Layout Sorting Rules: Places cold-boot classes into primary classes.dex contiguous pages
+
+Lcom/pixel/intelligentsearch/App;
+Lcom/pixel/intelligentsearch/MainActivity;
+Lcom/pixel/intelligentsearch/feature/search/SearchActivity;
+Lcom/pixel/intelligentsearch/feature/search/SearchViewModel;
+Lcom/pixel/intelligentsearch/feature/search/SearchUiState;
+Lcom/pixel/intelligentsearch/core/performance/ADPFThermalManager;
+Lcom/pixel/intelligentsearch/core/performance/ADPFThermalManager$ThermalThrottleLevel;
+Lcom/pixel/intelligentsearch/core/performance/FrameMetricsMonitor;
+Lcom/pixel/intelligentsearch/core/performance/FrameMetricsMonitor$FrameJankStats;
+Lcom/pixel/intelligentsearch/core/ui/WindowFramePacing;
+Lcom/pixel/intelligentsearch/core/data/SystemDataProvider;
+Lcom/pixel/intelligentsearch/core/data/AppItem;
+Lcom/pixel/intelligentsearch/core/data/SettingsManager;
+Lcom/pixel/intelligentsearch/core/data/IntelligentSearchSettings;
+Lcom/pixel/intelligentsearch/core/data/AppSearchEngine;
+Lcom/pixel/intelligentsearch/core/data/IndexedSearchDocument;
+Lcom/pixel/intelligentsearch/core/data/HistoryDao;
+Lcom/pixel/intelligentsearch/core/data/HistoryEntity;
+Lcom/pixel/intelligentsearch/core/data/IntelligentSearchDatabase;
+Lcom/pixel/intelligentsearch/feature/search/SearchOverlayScreenKt;
+Lcom/pixel/intelligentsearch/core/theme/ThemeKt;
+Lcom/pixel/intelligentsearch/core/theme/ColorKt;
+Lcom/pixel/intelligentsearch/core/theme/TypeKt;
+Landroidx/compose/runtime/ComposerImpl;
+Landroidx/compose/ui/platform/AndroidComposeView;
+Landroidx/compose/ui/node/LayoutNode;
+Ldagger/hilt/android/HiltAndroidApp;

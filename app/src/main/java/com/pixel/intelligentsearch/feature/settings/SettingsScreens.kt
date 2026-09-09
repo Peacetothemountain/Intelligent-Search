@@ -284,6 +284,7 @@ fun rememberBooleanPreference(
         "smart_clipboard_suggestions" -> SettingsManager.SMART_CLIPBOARD_SUGGESTIONS
         "search_previous_searches" -> SettingsManager.SEARCH_PREVIOUS_SEARCHES
         "search_overlay_enabled" -> SettingsManager.SEARCH_OVERLAY_ENABLED
+        "matrix_animation_enabled" -> SettingsManager.MATRIX_ANIMATION_ENABLED
         else -> null
     }
 
@@ -318,6 +319,8 @@ fun rememberBooleanPreference(
         "context_aware_quick_apps" -> settingsState?.contextAwareQuickApps ?: prefs.getBoolean(key, defaultValue)
         "smart_clipboard_suggestions" -> settingsState?.smartClipboardSuggestions ?: prefs.getBoolean(key, defaultValue)
         "search_previous_searches" -> settingsState?.searchPreviousSearches ?: prefs.getBoolean(key, defaultValue)
+        "search_overlay_enabled" -> settingsState?.searchOverlayEnabled ?: prefs.getBoolean(key, defaultValue)
+        "matrix_animation_enabled" -> settingsState?.matrixAnimationEnabled ?: prefs.getBoolean(key, defaultValue)
         else -> prefs.getBoolean(key, defaultValue)
     }
 
@@ -1295,8 +1298,8 @@ fun MainSettingsScreen(
                     showDivider = true,
                 )
                 SettingsRow(
-                    title = "Encrypted Backup & Restore",
-                    subtitle = "AES-GCM export and restore with biometric verification.",
+                    title = "Encrypted Backup",
+                    subtitle = "Import, Export, and Restore Backup App Data",
                     icon = Icons.Outlined.Shield,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.BackupRestore) },
                     showDivider = false
@@ -1606,7 +1609,12 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                             showDivider = true
                         )
 
-                        var enableSearchOverlay by rememberBooleanPreference(prefs, "search_overlay_enabled", true) { updateWidgets(context) }
+                        var enableSearchOverlay by rememberBooleanPreference(prefs, "search_overlay_enabled", true) {
+                            updateWidgets(context)
+                            if (!prefs.getBoolean("search_overlay_enabled", true)) {
+                                context.sendBroadcast(Intent("com.pixel.intelligentsearch.DISMISS_OVERLAY").setPackage(context.packageName))
+                            }
+                        }
                         SettingsRowToggle(
                             title = "Enable Search Overlay Page",
                             subtitle = "When Turned Off, Search Bar Widget Opens Native Google Search.",
@@ -2423,6 +2431,62 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
 }
 // Removed ShortcutSearchScreen
 
+@Composable
+fun SynchronizedMorphingShortcutBadge(
+    shortcut: String,
+    rotationAngle: Float,
+    morphPhase: Float,
+    modifier: Modifier = Modifier
+) {
+    val containerColor = MaterialTheme.colorScheme.secondaryContainer
+    val contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+
+    Box(
+        modifier = modifier.size(46.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val maxR = size.minDimension / 2f
+
+            val path = androidx.compose.ui.graphics.Path()
+            val points = 72
+            val baseRadius = maxR * 0.82f
+            val amplitude = maxR * 0.14f
+            val radOffset = Math.toRadians(rotationAngle.toDouble()).toFloat()
+
+            for (i in 0 until points) {
+                val angle = (i.toFloat() / points) * 2f * Math.PI.toFloat()
+                val r = baseRadius + amplitude * kotlin.math.sin(6f * angle + morphPhase)
+                val finalAngle = angle + radOffset
+                val x = center.x + r * kotlin.math.cos(finalAngle)
+                val y = center.y + r * kotlin.math.sin(finalAngle)
+                if (i == 0) {
+                    path.moveTo(x, y)
+                } else {
+                    path.lineTo(x, y)
+                }
+            }
+            path.close()
+
+            drawPath(
+                path = path,
+                color = containerColor
+            )
+        }
+
+        Text(
+            text = shortcut,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = if (shortcut.length > 3) 11.sp else 13.sp,
+            color = contentColor,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
@@ -2625,8 +2689,13 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 fontWeight = FontWeight.Medium,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
+                                            val subtext = if (!bang.targetPackage.isNullOrBlank()) {
+                                                "${bang.urlTemplate} • ${bang.targetPackage}"
+                                            } else {
+                                                bang.urlTemplate
+                                            }
                                             Text(
-                                                text = bang.urlTemplate,
+                                                text = subtext,
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 maxLines = 1,
@@ -2658,6 +2727,25 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        val infiniteTransition = rememberInfiniteTransition(label = "morphingShortcutsSync")
+                        val rotationAngle by infiniteTransition.animateFloat(
+                            initialValue = 0f,
+                            targetValue = 360f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(durationMillis = 12000, easing = LinearEasing),
+                                repeatMode = RepeatMode.Restart
+                            ),
+                            label = "shortcutBadgeRotation"
+                        )
+                        val morphPhase by infiniteTransition.animateFloat(
+                            initialValue = 0f,
+                            targetValue = (2 * Math.PI).toFloat(),
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(durationMillis = 4000, easing = LinearEasing),
+                                repeatMode = RepeatMode.Restart
+                            ),
+                            label = "shortcutBadgeMorph"
+                        )
                         val builtInShortcuts = listOf(
                             "!w" to "Wikipedia",
                             "!yt" to "YouTube",
@@ -2674,19 +2762,11 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.secondaryContainer
-                                ) {
-                                    Text(
-                                        text = prefix,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                    )
-                                }
+                                SynchronizedMorphingShortcutBadge(
+                                    shortcut = prefix,
+                                    rotationAngle = rotationAngle,
+                                    morphPhase = morphPhase
+                                )
                                 Text(
                                     text = name,
                                     style = MaterialTheme.typography.bodyMedium,
@@ -2699,8 +2779,28 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     if (showAddDialog) {
                         var prefixInput by remember { mutableStateOf("!") }
                         var nameInput by remember { mutableStateOf("") }
+                        var targetPackageInput by remember { mutableStateOf("") }
                         var urlInput by remember { mutableStateOf("") }
                         var errorMsg by remember { mutableStateOf<String?>(null) }
+                        var appsDropdownExpanded by remember { mutableStateOf(false) }
+
+                        val context = LocalContext.current
+                        val installedApps = remember(context) {
+                            try {
+                                val pm = context.packageManager
+                                val intent = Intent(Intent.ACTION_MAIN, null).apply {
+                                    addCategory(Intent.CATEGORY_LAUNCHER)
+                                }
+                                val resolveInfos = pm.queryIntentActivities(intent, 0)
+                                resolveInfos.map { resolveInfo ->
+                                    val label = resolveInfo.loadLabel(pm).toString()
+                                    val packageName = resolveInfo.activityInfo.packageName
+                                    label to packageName
+                                }.distinctBy { it.second }.sortedBy { it.first.lowercase() }
+                            } catch (_: Exception) {
+                                emptyList<Pair<String, String>>()
+                            }
+                        }
 
                         AlertDialog(
                             onDismissRequest = { showAddDialog = false },
@@ -2729,18 +2829,120 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         shape = RoundedCornerShape(16.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     )
+
+                                    Box(modifier = Modifier.fillMaxWidth()) {
+                                        OutlinedTextField(
+                                            value = nameInput,
+                                            onValueChange = {
+                                                nameInput = it
+                                                errorMsg = null
+                                            },
+                                            label = { Text("Platform Name") },
+                                            placeholder = { Text("e.g. YouTube, Spotify") },
+                                            trailingIcon = {
+                                                IconButton(onClick = { appsDropdownExpanded = !appsDropdownExpanded }) {
+                                                    Icon(
+                                                        imageVector = Icons.Outlined.Apps,
+                                                        contentDescription = "Select installed app",
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            },
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(16.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+
+                                        DropdownMenu(
+                                            expanded = appsDropdownExpanded,
+                                            onDismissRequest = { appsDropdownExpanded = false },
+                                            modifier = Modifier
+                                                .fillMaxWidth(0.85f)
+                                                .heightIn(max = 280.dp)
+                                        ) {
+                                            val filtered = if (nameInput.isBlank()) {
+                                                installedApps
+                                            } else {
+                                                val query = nameInput.trim().lowercase()
+                                                val matches = installedApps.filter {
+                                                    it.first.lowercase().contains(query) || it.second.lowercase().contains(query)
+                                                }
+                                                if (matches.isEmpty()) installedApps else matches
+                                            }
+
+                                            if (filtered.isEmpty()) {
+                                                DropdownMenuItem(
+                                                    text = { Text("No installed apps found", style = MaterialTheme.typography.bodySmall) },
+                                                    onClick = { appsDropdownExpanded = false }
+                                                )
+                                            } else {
+                                                filtered.forEach { (appName, pkgName) ->
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Column {
+                                                                Text(appName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                                                Text(pkgName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                            }
+                                                        },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                Icons.Outlined.Android,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(20.dp),
+                                                                tint = MaterialTheme.colorScheme.primary
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            nameInput = appName
+                                                            targetPackageInput = pkgName
+                                                            if (prefixInput == "!" || prefixInput.length < 2) {
+                                                                val cleanPrefix = appName.lowercase().filter { it.isLetterOrDigit() }.take(4)
+                                                                if (cleanPrefix.isNotEmpty()) {
+                                                                    prefixInput = "!$cleanPrefix"
+                                                                }
+                                                            }
+                                                            if (urlInput.isBlank()) {
+                                                                urlInput = when (pkgName) {
+                                                                    "com.google.android.youtube" -> "https://www.youtube.com/results?search_query=%s"
+                                                                    "com.spotify.music" -> "https://open.spotify.com/search/%s"
+                                                                    "org.wikipedia" -> "https://en.wikipedia.org/wiki/%s"
+                                                                    "com.reddit.frontpage" -> "https://www.reddit.com/search/?q=%s"
+                                                                    "com.github.android" -> "https://github.com/search?q=%s"
+                                                                    "com.google.android.apps.maps" -> "https://www.google.com/maps/search/%s"
+                                                                    "com.amazon.mShop.android.shopping" -> "https://www.amazon.com/s?k=%s"
+                                                                    "com.twitter.android" -> "https://x.com/search?q=%s"
+                                                                    "tv.twitch.android.app" -> "https://www.twitch.tv/search?term=%s"
+                                                                    "com.instagram.android" -> "https://www.instagram.com/explore/tags/%s"
+                                                                    "com.pinterest" -> "https://www.pinterest.com/search/pins/?q=%s"
+                                                                    "com.imdb.mobile" -> "https://www.imdb.com/find/?q=%s"
+                                                                    else -> {
+                                                                        val domain = appName.lowercase().filter { it.isLetterOrDigit() }
+                                                                        "https://www.${domain}.com/search?q=%s"
+                                                                    }
+                                                                }
+                                                            }
+                                                            appsDropdownExpanded = false
+                                                            errorMsg = null
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
                                     OutlinedTextField(
-                                        value = nameInput,
+                                        value = targetPackageInput,
                                         onValueChange = {
-                                            nameInput = it
+                                            targetPackageInput = it
                                             errorMsg = null
                                         },
-                                        label = { Text("Platform Name") },
-                                        placeholder = { Text("Wikipedia") },
+                                        label = { Text("Package Name (Optional)") },
+                                        placeholder = { Text("com.example.app") },
                                         singleLine = true,
                                         shape = RoundedCornerShape(16.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     )
+
                                     OutlinedTextField(
                                         value = urlInput,
                                         onValueChange = {
@@ -2795,6 +2997,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             prefix = trimmedPrefix.lowercase(),
                                             name = trimmedName,
                                             urlTemplate = trimmedUrl,
+                                            targetPackage = targetPackageInput.trim().ifBlank { null },
                                             isBuiltIn = false,
                                             description = "Custom shortcut for $trimmedName"
                                         )
@@ -4822,6 +5025,40 @@ fun Android17Slider(
     val inactiveColor = MaterialTheme.colorScheme.surfaceVariant
     val thumbColor = MaterialTheme.colorScheme.primary
 
+    val view = androidx.compose.ui.platform.LocalView.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
+
+    val stepSize = if (steps > 0) {
+        (valueRange.endInclusive - valueRange.start) / (steps + 1)
+    } else {
+        0f
+    }
+
+    var lastHapticStep by remember { mutableFloatStateOf(value) }
+
+    fun snapValue(rawFraction: Float): Float {
+        val raw = valueRange.start + rawFraction * (valueRange.endInclusive - valueRange.start)
+        return if (steps > 0 && stepSize > 0f) {
+            val stepIndex = Math.round((raw - valueRange.start) / stepSize)
+            (valueRange.start + stepIndex * stepSize).coerceIn(valueRange.start, valueRange.endInclusive)
+        } else {
+            raw.coerceIn(valueRange.start, valueRange.endInclusive)
+        }
+    }
+
+    fun processChange(rawFraction: Float) {
+        val snapped = snapValue(rawFraction)
+        if (snapped != value) {
+            onValueChange(snapped)
+            val threshold = if (steps > 0 && stepSize > 0f) stepSize * 0.5f else 1f
+            if (Math.abs(snapped - lastHapticStep) >= threshold) {
+                hapticEngine.performPredictiveBackHaptic(view)
+                lastHapticStep = snapped
+            }
+        }
+    }
+
     var width by remember { mutableFloatStateOf(1f) }
 
     Box(
@@ -4829,18 +5066,18 @@ fun Android17Slider(
             .fillMaxWidth()
             .height(48.dp)
             .onSizeChanged { width = it.width.toFloat().coerceAtLeast(1f) }
-            .pointerInput(Unit) {
+            .pointerInput(steps, valueRange) {
                 detectTapGestures(
                     onPress = { offset ->
                         val newFraction = (offset.x / width).coerceIn(0f, 1f)
-                        onValueChange(valueRange.start + newFraction * (valueRange.endInclusive - valueRange.start))
+                        processChange(newFraction)
                     }
                 )
             }
-            .pointerInput(Unit) {
-                detectDragGestures { change, dragAmount ->
+            .pointerInput(steps, valueRange) {
+                detectDragGestures { change, _ ->
                     val newFraction = (change.position.x / width).coerceIn(0f, 1f)
-                    onValueChange(valueRange.start + newFraction * (valueRange.endInclusive - valueRange.start))
+                    processChange(newFraction)
                 }
             },
         contentAlignment = Alignment.CenterStart
@@ -6315,7 +6552,7 @@ fun BackupRestoreScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Encrypted Backup & Restore", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+                title = { Text("Encrypted Backup", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")

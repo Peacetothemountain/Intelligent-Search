@@ -113,37 +113,10 @@ class PixelHapticEngine(private val context: Context) {
             }
         }
 
-        // Graceful fallback to Android predefined vibration effects
+        // Graceful fallback to Android predefined vibration effects (standardized to subtle tick)
         if (vibrator != null && vibrator.hasVibrator()) {
             try {
-                val effect = when (type) {
-                    PixelHapticType.CLICK,
-                    PixelHapticType.MATH_CALCULATION,
-                    PixelHapticType.OVERLAY_OPEN ->
-                        VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
-
-                    PixelHapticType.TICK,
-                    PixelHapticType.LOW_TICK,
-                    PixelHapticType.SPIN_TICK,
-                    PixelHapticType.SCROLL_DETENT,
-                    PixelHapticType.MAGNETIC_RESISTANCE,
-                    PixelHapticType.TOGGLE_OFF ->
-                        VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
-
-                    PixelHapticType.HEAVY_IMPACT,
-                    PixelHapticType.DELETE_THUD,
-                    PixelHapticType.APP_LAUNCH,
-                    PixelHapticType.OVERLAY_DISMISS,
-                    PixelHapticType.SPRING_RELEASE ->
-                        VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK)
-
-                    PixelHapticType.CONFIRM,
-                    PixelHapticType.SECURITY_HEARTBEAT ->
-                        VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK)
-
-                    else ->
-                        VibrationEffect.createOneShot(20, (scale * 255).toInt().coerceIn(1, 255))
-                }
+                val effect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
                 vibrateWithAttributes(effect)
                 return
             } catch (_: Exception) {
@@ -441,59 +414,17 @@ class PixelHapticEngine(private val context: Context) {
     }
 
     private fun performViewFallback(view: View, type: PixelHapticType) {
-        when (type) {
-            PixelHapticType.CLICK,
-            PixelHapticType.MATH_CALCULATION,
-            PixelHapticType.APP_LAUNCH ->
-                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-
-            PixelHapticType.TICK,
-            PixelHapticType.LOW_TICK,
-            PixelHapticType.SPIN_TICK,
-            PixelHapticType.SCROLL_DETENT,
-            PixelHapticType.MAGNETIC_RESISTANCE ->
-                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-
-            PixelHapticType.REORDER_SWAP -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    view.performHapticFeedback(HapticFeedbackConstants.SEGMENT_TICK)
-                } else {
-                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                }
-            }
-
-            PixelHapticType.OVERLAY_OPEN,
-            PixelHapticType.OVERLAY_DISMISS,
-            PixelHapticType.GESTURE_THRESHOLD,
-            PixelHapticType.SPRING_RELEASE,
-            PixelHapticType.HEAVY_IMPACT,
-            PixelHapticType.DELETE_THUD ->
-                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-
-            PixelHapticType.TOGGLE_ON -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    view.performHapticFeedback(HapticFeedbackConstants.TOGGLE_ON)
-                } else {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                }
-            }
-
-            PixelHapticType.TOGGLE_OFF -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    view.performHapticFeedback(HapticFeedbackConstants.TOGGLE_OFF)
-                } else {
-                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                }
-            }
-
-            PixelHapticType.CONFIRM,
-            PixelHapticType.SECURITY_HEARTBEAT -> {
-                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-            }
-
-            PixelHapticType.REJECT -> {
-                view.performHapticFeedback(HapticFeedbackConstants.REJECT)
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            view.performHapticFeedback(HapticFeedbackConstants.SEGMENT_TICK)
+        } else {
+            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
         }
+    }
+
+    /**
+     * Subtle predictive-back level micro-haptic tick used consistently throughout the application.
+     */
+    fun performPredictiveBackHaptic(view: View? = null) {
+        performHaptic(view, PixelHapticType.LOW_TICK, 0.40f)
     }
 }

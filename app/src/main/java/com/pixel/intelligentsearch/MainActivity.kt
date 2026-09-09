@@ -36,14 +36,34 @@ open class MainActivity : AppCompatActivity() {
     private val adpfThermalManager by lazy { com.pixel.intelligentsearch.core.performance.ADPFThermalManager.getInstance(this) }
     private val frameMetricsMonitor by lazy { com.pixel.intelligentsearch.core.performance.FrameMetricsMonitor(adpfThermalManager) }
 
+    private val dismissOverlayReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            finish()
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         frameMetricsMonitor.attach(this)
+        val filter = android.content.IntentFilter("com.pixel.intelligentsearch.DISMISS_OVERLAY")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(dismissOverlayReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(dismissOverlayReceiver, filter)
+        }
     }
 
     override fun onStop() {
+        try {
+            unregisterReceiver(dismissOverlayReceiver)
+        } catch (_: Exception) {}
         frameMetricsMonitor.detach()
         super.onStop()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (checkAndForwardIfSearchOverlayDisabled()) return
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -55,6 +75,7 @@ open class MainActivity : AppCompatActivity() {
             overridePendingTransition(0, 0)
         }
         setIntent(intent)
+        if (checkAndForwardIfSearchOverlayDisabled()) return
         val queryExtra = intent.getStringExtra("query") ?: intent.getStringExtra(SearchManager.QUERY)
         if (queryExtra != null) {
             searchViewModel.onQueryChanged(queryExtra)
@@ -100,23 +121,8 @@ open class MainActivity : AppCompatActivity() {
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         super.onCreate(savedInstanceState)
 
+        if (checkAndForwardIfSearchOverlayDisabled()) return
         if (handleIntent(intent)) return
-
-        val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", android.content.Context.MODE_PRIVATE)
-        val searchOverlayEnabled = prefs.getBoolean("search_overlay_enabled", true)
-        if (!searchOverlayEnabled) {
-            val fallbackIntent = Intent("android.search.action.GLOBAL_SEARCH").apply {
-                setPackage("com.google.android.googlequicksearchbox")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            }
-            if (packageManager.resolveActivity(fallbackIntent, 0) != null) {
-                startActivity(fallbackIntent)
-            } else {
-                startActivity(Intent(Intent.ACTION_WEB_SEARCH).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
-            }
-            finish()
-            return
-        }
         
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
@@ -260,6 +266,43 @@ open class MainActivity : AppCompatActivity() {
             putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
         }
         sendBroadcast(updateIntent)
+    }
+
+    private fun checkAndForwardIfSearchOverlayDisabled(): Boolean {
+        val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", android.content.Context.MODE_PRIVATE)
+        val searchOverlayEnabled = prefs.getBoolean("search_overlay_enabled", true)
+        if (!searchOverlayEnabled) {
+            val queryExtra = intent?.getStringExtra("query") ?: intent?.getStringExtra(SearchManager.QUERY) ?: ""
+            val fallbackIntent = Intent("android.search.action.GLOBAL_SEARCH").apply {
+                setPackage("com.google.android.googlequicksearchbox")
+                if (queryExtra.isNotEmpty()) {
+                    putExtra(SearchManager.QUERY, queryExtra)
+                }
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            if (packageManager.resolveActivity(fallbackIntent, 0) != null) {
+                startActivity(fallbackIntent)
+            } else {
+                val webIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
+                    if (queryExtra.isNotEmpty()) {
+                        putExtra(SearchManager.QUERY, queryExtra)
+                    }
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (packageManager.resolveActivity(webIntent, 0) != null) {
+                    startActivity(webIntent)
+                }
+            }
+            finish()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+            } else {
+                @Suppress("DEPRECATION")
+                overridePendingTransition(0, 0)
+            }
+            return true
+        }
+        return false
     }
 
     fun dismissOverlayToLauncher() {

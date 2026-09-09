@@ -1962,7 +1962,7 @@ fun SearchOverlayScreen(
         )
 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-            if (prefs.getBoolean("matrix_animation_enabled", true)) {
+            if (settingsState.matrixAnimationEnabled) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()

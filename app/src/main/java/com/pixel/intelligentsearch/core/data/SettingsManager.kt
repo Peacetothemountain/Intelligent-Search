@@ -67,7 +67,8 @@ data class IntelligentSearchSettings(
     val searchSectionsConfigJson: String = "",
     val adaptiveIconShape: String = "SYSTEM_DEFAULT",
     val dynamicIconMasking: Boolean = true,
-    val diagnosticsOverlayEnabled: Boolean = false
+    val diagnosticsOverlayEnabled: Boolean = false,
+    val matrixAnimationEnabled: Boolean = true
 )
 
 @Singleton
@@ -126,6 +127,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val ADAPTIVE_ICON_SHAPE = stringPreferencesKey("adaptive_icon_shape")
         val DYNAMIC_ICON_MASKING = booleanPreferencesKey("dynamic_icon_masking")
         val DIAGNOSTICS_OVERLAY_ENABLED = booleanPreferencesKey("diagnostics_overlay_enabled")
+        val MATRIX_ANIMATION_ENABLED = booleanPreferencesKey("matrix_animation_enabled")
     }
 
     val settingsFlow: Flow<IntelligentSearchSettings> = context.dataStore.data
@@ -191,7 +193,9 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 searchSectionsConfigJson = preferences[SEARCH_SECTIONS_CONFIG_JSON] ?: "",
                 adaptiveIconShape = preferences[ADAPTIVE_ICON_SHAPE] ?: "SYSTEM_DEFAULT",
                 dynamicIconMasking = preferences[DYNAMIC_ICON_MASKING] ?: true,
-                diagnosticsOverlayEnabled = preferences[DIAGNOSTICS_OVERLAY_ENABLED] ?: false
+                diagnosticsOverlayEnabled = preferences[DIAGNOSTICS_OVERLAY_ENABLED] ?: false,
+                searchOverlayEnabled = preferences[SEARCH_OVERLAY_ENABLED] ?: true,
+                matrixAnimationEnabled = preferences[MATRIX_ANIMATION_ENABLED] ?: true
             )
         }
 
@@ -251,7 +255,9 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             searchSectionsConfigJson = prefs.getString("search_sections_config_json", "") ?: "",
             adaptiveIconShape = prefs.getString("adaptive_icon_shape", "SYSTEM_DEFAULT") ?: "SYSTEM_DEFAULT",
             dynamicIconMasking = prefs.getBoolean("dynamic_icon_masking", true),
-            diagnosticsOverlayEnabled = prefs.getBoolean("diagnostics_overlay_enabled", false)
+            diagnosticsOverlayEnabled = prefs.getBoolean("diagnostics_overlay_enabled", false),
+            searchOverlayEnabled = prefs.getBoolean("search_overlay_enabled", true),
+            matrixAnimationEnabled = prefs.getBoolean("matrix_animation_enabled", true)
         )
     }
 

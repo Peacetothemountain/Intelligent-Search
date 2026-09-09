@@ -24,7 +24,7 @@ data class IntelligentSearchSettings(
     val searchCalendar: Boolean = true,
     val searchShortcuts: Boolean = true,
     val backgroundBlur: Int = 50,
-    val showWallpaper: Boolean = true,
+    val showWallpaper: Boolean = false,
     val backgroundTransparency: Int = 50,
     val pillOpacity: Int = 50,
     val searchEngine: String = "Google",

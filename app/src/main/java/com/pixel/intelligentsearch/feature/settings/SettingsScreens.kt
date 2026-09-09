@@ -2387,6 +2387,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                             },
                             valueRange = 1f..20f,
                             steps = 18,
+                            isSquiggly = false,
                             modifier = Modifier.weight(1f).padding(vertical = 16.dp)
                         )
                     }
@@ -2412,6 +2413,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                         onValueChange = { appWeight = it.toInt() },
                         valueRange = 0f..100f,
                         steps = 19,
+                        isSquiggly = false,
                         modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
                     )
                 }
@@ -2494,6 +2496,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         onValueChange = { webResultsCount = it.toInt() },
                         valueRange = 1f..20f,
                         steps = 18,
+                        isSquiggly = false,
                         modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
                     )
                 }
@@ -2518,6 +2521,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         onValueChange = { webWeight = it.toInt() },
                         valueRange = 0f..100f,
                         steps = 19,
+                        isSquiggly = false,
                         modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
                     )
                 }
@@ -2541,12 +2545,113 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     showDivider = quickShortcutsEnabled
                 )
                 if (quickShortcutsEnabled) {
+                    val viewModel = LocalSettingsViewModel.current
+                    val allBangs by (viewModel?.bangsFlow ?: kotlinx.coroutines.flow.flowOf(emptyList()))
+                        .collectAsStateWithLifecycle(initialValue = viewModel?.bangsFlow?.value ?: emptyList())
+                    val customBangs = allBangs.filter { !it.isBuiltIn }
+                    var showAddDialog by remember { mutableStateOf(false) }
+
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        // Header row for Custom Shortcuts
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Custom Shortcuts",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            FilledTonalButton(
+                                onClick = { showAddDialog = true },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Add", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            }
+                        }
+
+                        if (customBangs.isEmpty()) {
+                            Text(
+                                "No custom shortcuts added yet. Tap Add to create one (e.g. !wiki, !r).",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        } else {
+                            customBangs.forEach { bang ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.primaryContainer
+                                        ) {
+                                            Text(
+                                                text = bang.displayPrefix,
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text(
+                                                text = bang.name,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = bang.urlTemplate,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            viewModel?.deleteCustomBang(bang.displayPrefix)
+                                        },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.DeleteOutline,
+                                            contentDescription = "Delete shortcut",
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
                         Text(
                             "Supported Direct Shortcuts",
                             style = MaterialTheme.typography.labelLarge,
@@ -2589,6 +2694,123 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 )
                             }
                         }
+                    }
+
+                    if (showAddDialog) {
+                        var prefixInput by remember { mutableStateOf("!") }
+                        var nameInput by remember { mutableStateOf("") }
+                        var urlInput by remember { mutableStateOf("") }
+                        var errorMsg by remember { mutableStateOf<String?>(null) }
+
+                        AlertDialog(
+                            onDismissRequest = { showAddDialog = false },
+                            title = {
+                                Text(
+                                    "Add Web Shortcut",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            },
+                            text = {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = prefixInput,
+                                        onValueChange = {
+                                            val clean = if (it.startsWith("!")) it else "!$it"
+                                            prefixInput = clean.filter { c -> !c.isWhitespace() }
+                                            errorMsg = null
+                                        },
+                                        label = { Text("Shortcut Trigger") },
+                                        placeholder = { Text("!wiki") },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    OutlinedTextField(
+                                        value = nameInput,
+                                        onValueChange = {
+                                            nameInput = it
+                                            errorMsg = null
+                                        },
+                                        label = { Text("Platform Name") },
+                                        placeholder = { Text("Wikipedia") },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    OutlinedTextField(
+                                        value = urlInput,
+                                        onValueChange = {
+                                            urlInput = it
+                                            errorMsg = null
+                                        },
+                                        label = { Text("Search URL (use %s for query)") },
+                                        placeholder = { Text("https://en.wikipedia.org/wiki/%s") },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    if (errorMsg != null) {
+                                        Text(
+                                            text = errorMsg!!,
+                                            color = MaterialTheme.colorScheme.error,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        val trimmedPrefix = prefixInput.trim()
+                                        val trimmedName = nameInput.trim()
+                                        var trimmedUrl = urlInput.trim()
+
+                                        if (trimmedPrefix.length < 2 || !trimmedPrefix.startsWith("!")) {
+                                            errorMsg = "Trigger must start with '!' and be at least 2 characters (e.g. !wiki)"
+                                            return@TextButton
+                                        }
+                                        if (trimmedName.isBlank()) {
+                                            errorMsg = "Name cannot be empty"
+                                            return@TextButton
+                                        }
+                                        if (trimmedUrl.isBlank() || (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://"))) {
+                                            errorMsg = "URL must start with http:// or https://"
+                                            return@TextButton
+                                        }
+                                        if (!trimmedUrl.contains("%s")) {
+                                            trimmedUrl = if (trimmedUrl.endsWith("/") || trimmedUrl.endsWith("=")) {
+                                                "${trimmedUrl}%s"
+                                            } else if (trimmedUrl.contains("?")) {
+                                                "${trimmedUrl}&q=%s"
+                                            } else {
+                                                "${trimmedUrl}/?q=%s"
+                                            }
+                                        }
+
+                                        val newBang = com.pixel.intelligentsearch.core.bangs.SearchBang(
+                                            prefix = trimmedPrefix.lowercase(),
+                                            name = trimmedName,
+                                            urlTemplate = trimmedUrl,
+                                            isBuiltIn = false,
+                                            description = "Custom shortcut for $trimmedName"
+                                        )
+                                        viewModel?.saveCustomBang(newBang)
+                                        showAddDialog = false
+                                    }
+                                ) {
+                                    Text("Add")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showAddDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -2645,6 +2867,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         onValueChange = { contactResultsCount = it.toInt() },
                         valueRange = 1f..20f,
                         steps = 18,
+                        isSquiggly = false,
                         modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
                     )
                 }
@@ -2664,6 +2887,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         onValueChange = { contactWeight = it.toInt() },
                         valueRange = 0f..100f,
                         steps = 19,
+                        isSquiggly = false,
                         modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
                     )
                 }
@@ -2731,6 +2955,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         onValueChange = { fileResultsCount = it.toInt() },
                         valueRange = 1f..20f,
                         steps = 18,
+                        isSquiggly = false,
                         modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
                     )
                 }
@@ -2750,6 +2975,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         onValueChange = { fileWeight = it.toInt() },
                         valueRange = 0f..100f,
                         steps = 19,
+                        isSquiggly = false,
                         modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
                     )
                 }
@@ -4572,20 +4798,25 @@ fun Android17Slider(
     valueRange: ClosedFloatingPointRange<Float>,
     modifier: Modifier = Modifier,
     steps: Int = 0,
-    showTrack: Boolean = true
+    showTrack: Boolean = true,
+    isSquiggly: Boolean = true
 ) {
     val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
     
     val infiniteTransition = rememberInfiniteTransition(label = "squiggle")
-    val phase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 2f * Math.PI.toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phase"
-    )
+    val phase by if (isSquiggly) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 2f * Math.PI.toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1500, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "phase"
+        )
+    } else {
+        remember { mutableFloatStateOf(0f) }
+    }
 
     val activeColor = MaterialTheme.colorScheme.primary
     val inactiveColor = MaterialTheme.colorScheme.surfaceVariant
@@ -4641,26 +4872,38 @@ fun Android17Slider(
                 }
             }
 
-            // Draw active track (Squiggle)
+            // Draw active track
             if (showTrack) {
-                val path = androidx.compose.ui.graphics.Path()
-                path.moveTo(0f, centerY)
-                var x = 0f
-                while (x < thumbX) {
-                    // To move towards the right, we subtract the phase
-                    val y = centerY + Math.sin((x * frequency - phase).toDouble()).toFloat() * amplitude
-                    path.lineTo(x, y)
-                    x += 2f
-                }
-                
-                drawPath(
-                    path = path,
-                    color = activeColor,
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(
-                        width = trackHeight,
-                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                if (isSquiggly) {
+                    val path = androidx.compose.ui.graphics.Path()
+                    path.moveTo(0f, centerY)
+                    var x = 0f
+                    while (x < thumbX) {
+                        // To move towards the right, we subtract the phase
+                        val y = centerY + Math.sin((x * frequency - phase).toDouble()).toFloat() * amplitude
+                        path.lineTo(x, y)
+                        x += 2f
+                    }
+                    
+                    drawPath(
+                        path = path,
+                        color = activeColor,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width = trackHeight,
+                            cap = androidx.compose.ui.graphics.StrokeCap.Round
+                        )
                     )
-                )
+                } else {
+                    if (thumbX > 0f) {
+                        drawLine(
+                            color = activeColor,
+                            start = androidx.compose.ui.geometry.Offset(0f, centerY),
+                            end = androidx.compose.ui.geometry.Offset(thumbX, centerY),
+                            strokeWidth = trackHeight,
+                            cap = androidx.compose.ui.graphics.StrokeCap.Round
+                        )
+                    }
+                }
     
                 // Draw inactive track (Straight line)
                 if (thumbX < size.width) {
@@ -6089,31 +6332,6 @@ fun BackupRestoreScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
-            ) {
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(MaterialTheme.colorScheme.primary, androidx.compose.foundation.shape.CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Security, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column {
-                        Text("AES-GCM 256-Bit Hardware Keystore", fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
-                        Text(
-                            "Protected by PBKDF2-HMAC-SHA256 key derivation with Titan M3+ / KeyMint StrongBox and biometric authentication gating.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                        )
-                    }
-                }
-            }
-
             SettingsCard {
                 Text(
                     "Encryption Passphrase",

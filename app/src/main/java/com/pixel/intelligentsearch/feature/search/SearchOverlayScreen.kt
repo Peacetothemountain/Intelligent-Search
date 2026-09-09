@@ -1950,14 +1950,14 @@ fun SearchOverlayScreen(
             },
         contentAlignment = Alignment.BottomCenter
     ) {
-        val scrimColor = MaterialTheme.colorScheme.scrim
-        val scrimAlphaFactor = if (settingsState.showWallpaper) (settingsState.backgroundTransparency / 100f) * 0.7f else 0.65f
+        val scrimColor = if (settingsState.showWallpaper) MaterialTheme.colorScheme.scrim else MaterialTheme.colorScheme.background
+        val scrimAlphaFactor = if (settingsState.showWallpaper) ((settingsState.backgroundTransparency / 100f) * 0.7f).coerceIn(0f, 1f) else 1.0f
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .drawBehind {
                     val p = overlayProgressAnim.value.coerceIn(0f, 1f)
-                    drawRect(color = scrimColor, alpha = scrimAlphaFactor * p)
+                    drawRect(color = scrimColor, alpha = if (settingsState.showWallpaper) scrimAlphaFactor * p else p)
                 }
         )
 
@@ -2001,7 +2001,7 @@ fun SearchOverlayScreen(
                         translationX = 0f
 
                         transformOrigin = TransformOrigin(0.5f, 1.0f)
-                        alpha = (progress * (1f - backProg * 0.12f)).coerceIn(0f, 1f)
+                        alpha = if (settingsState.showWallpaper) (progress * (1f - backProg * 0.12f)).coerceIn(0f, 1f) else progress
                     }
                     .clip(RoundedCornerShape(24.dp))
                     .then(

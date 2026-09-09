@@ -134,10 +134,10 @@ open class MainActivity : AppCompatActivity() {
                       color = androidx.compose.ui.graphics.Color.Transparent
                 ) {
                     val throttleLevel by adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
-                    DisposableEffect(settingsState.backgroundBlur, throttleLevel) {
+                    DisposableEffect(settingsState.backgroundBlur, settingsState.showWallpaper, throttleLevel) {
                         val recommendedBlur = adpfThermalManager.getRecommendedBlurRadius(settingsState.backgroundBlur.toFloat()).toInt()
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            if (recommendedBlur > 0) {
+                            if (settingsState.showWallpaper && recommendedBlur > 0) {
                                 window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
                                 window.setBackgroundBlurRadius(recommendedBlur)
                             } else {

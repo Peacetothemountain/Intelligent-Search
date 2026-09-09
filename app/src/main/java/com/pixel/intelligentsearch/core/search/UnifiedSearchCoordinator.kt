@@ -259,12 +259,24 @@ class UnifiedSearchCoordinator @Inject constructor(
 
         // 7. Multi-Factor Relevance Scoring Matrix
         val now = System.currentTimeMillis()
+        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val appWeightMul = (prefs.getInt("search_weight_apps", 100) / 100f).coerceAtLeast(0.01f)
+        val contactWeightMul = (prefs.getInt("search_weight_contacts", 70) / 100f).coerceAtLeast(0.01f)
+        val fileWeightMul = (prefs.getInt("search_weight_files", 50) / 100f).coerceAtLeast(0.01f)
+
         val rankedResults = candidates.map { item ->
+            val domainMul = when (item.domain) {
+                SearchScoringEngine.EntityDomain.APPLICATION, SearchScoringEngine.EntityDomain.APP_SHORTCUT -> appWeightMul
+                SearchScoringEngine.EntityDomain.CONTACT -> contactWeightMul
+                SearchScoringEngine.EntityDomain.FILE -> fileWeightMul
+                else -> 1.0f
+            }
             val scoreBreakdown = SearchScoringEngine.evaluateScore(
                 query = query,
                 targetTitle = item.title,
                 metadata = item.metadata,
-                currentTimeMs = now
+                currentTimeMs = now,
+                domainWeightMultiplier = domainMul
             )
             RankedSearchResult(item, scoreBreakdown)
         }.sortedByDescending { it.scoreBreakdown.totalScore }

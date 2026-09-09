@@ -35,16 +35,14 @@ class UniversalIconEngine @Inject constructor(
         private val BITMAP_CACHE = LruCache<String, Bitmap>(512)
         private val APP_FILTER_CACHE = ConcurrentHashMap<String, Map<String, String>>()
         private val THEME_CONFIG_CACHE = ConcurrentHashMap<String, IconPackThemeConfig>()
-        private val SHAPE_PATH_CACHE = ConcurrentHashMap<String, Path>()
     }
 
     fun getIcon(
         targetPackage: String,
         activeIconPack: String = "system_default",
-        shape: AdaptiveIconShape = AdaptiveIconShape.SYSTEM_DEFAULT,
         dynamicMasking: Boolean = true
     ): Bitmap? {
-        val cacheKey = "$activeIconPack:$targetPackage:${shape.name}:$dynamicMasking"
+        val cacheKey = "$activeIconPack:$targetPackage:$dynamicMasking"
         val cached = BITMAP_CACHE.get(cacheKey)
         if (cached != null && !cached.isRecycled) {
             return cached
@@ -70,9 +68,6 @@ class UniversalIconEngine @Inject constructor(
                 if (activeIconPack != "system_default" && dynamicMasking) {
                     // Compose icon pack dynamic mask (iconback, mask, iconupon, scale)
                     resolvedBitmap = applyIconPackDynamicMask(pm, activeIconPack, originalDrawable, targetPackage)
-                } else if (shape != AdaptiveIconShape.SYSTEM_DEFAULT) {
-                    // Apply our native Adaptive Icon Shape
-                    resolvedBitmap = applyNativeAdaptiveShape(originalDrawable, shape)
                 } else {
                     // Default rendering
                     resolvedBitmap = drawableToBitmap(originalDrawable, ICON_SIZE_PX, ICON_SIZE_PX)
@@ -195,25 +190,6 @@ class UniversalIconEngine @Inject constructor(
         return baseBitmap
     }
 
-    private fun applyNativeAdaptiveShape(drawable: Drawable, shape: AdaptiveIconShape): Bitmap {
-        val output = Bitmap.createBitmap(ICON_SIZE_PX, ICON_SIZE_PX, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(output)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-
-        val pathKey = "${shape.name}:$ICON_SIZE_PX"
-        val clipPath = SHAPE_PATH_CACHE.computeIfAbsent(pathKey) {
-            shape.createPath(ICON_SIZE_PX.toFloat(), ICON_SIZE_PX.toFloat())
-        }
-
-        canvas.save()
-        canvas.clipPath(clipPath)
-        val srcBitmap = drawableToBitmap(drawable, ICON_SIZE_PX, ICON_SIZE_PX)
-        canvas.drawBitmap(srcBitmap, 0f, 0f, paint)
-        canvas.restore()
-
-        return output
-    }
-
     private fun parseIconPackThemeConfig(iconPackPackage: String): IconPackThemeConfig {
         var backs = mutableListOf<String>()
         var mask: String? = null
@@ -323,6 +299,5 @@ class UniversalIconEngine @Inject constructor(
         BITMAP_CACHE.evictAll()
         APP_FILTER_CACHE.clear()
         THEME_CONFIG_CACHE.clear()
-        SHAPE_PATH_CACHE.clear()
     }
 }

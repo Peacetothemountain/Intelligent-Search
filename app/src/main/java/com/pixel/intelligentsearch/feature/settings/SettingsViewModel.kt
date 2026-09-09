@@ -11,10 +11,6 @@ import com.pixel.intelligentsearch.core.bangs.SearchBangManager
 import com.pixel.intelligentsearch.core.data.HistoryDao
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.diagnostics.BenchmarkRunState
-import com.pixel.intelligentsearch.core.diagnostics.DiagnosticsState
-import com.pixel.intelligentsearch.core.diagnostics.PerformanceTelemetry
-import com.pixel.intelligentsearch.core.diagnostics.SearchBenchmarkManager
 import com.pixel.intelligentsearch.core.icons.UniversalIconEngine
 import com.pixel.intelligentsearch.core.weighting.SearchSectionConfig
 import com.pixel.intelligentsearch.core.weighting.SearchWeightingDefaults
@@ -33,7 +29,6 @@ class SettingsViewModel @Inject constructor(
     private val historyDao: HistoryDao,
     private val bangManager: SearchBangManager,
     private val backupManager: BackupManager,
-    private val benchmarkManager: SearchBenchmarkManager,
     private val iconEngine: UniversalIconEngine
 ) : ViewModel() {
 
@@ -58,10 +53,6 @@ class SettingsViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = SearchWeightingDefaults.parseConfigs(settingsManager.getInitialSettings().searchSectionsConfigJson)
         )
-
-    val diagnosticsState: StateFlow<DiagnosticsState> = PerformanceTelemetry.state
-
-    val benchmarkState: StateFlow<BenchmarkRunState> = benchmarkManager.benchmarkState
 
     fun <T> updateSetting(key: Preferences.Key<T>, value: T) {
         viewModelScope.launch {
@@ -153,17 +144,6 @@ class SettingsViewModel @Inject constructor(
                 onError = onError
             )
         }
-    }
-
-    // --- In-App Diagnostics & Benchmark ---
-    fun runLiveBenchmark(totalRuns: Int = 100) {
-        viewModelScope.launch {
-            benchmarkManager.runBenchmark(totalRuns)
-        }
-    }
-
-    fun generateDiagnosticReport(): String {
-        return benchmarkManager.generateDiagnosticReportJson()
     }
 
     fun clearIconCaches() {

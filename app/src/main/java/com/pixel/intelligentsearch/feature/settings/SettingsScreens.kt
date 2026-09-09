@@ -595,6 +595,7 @@ fun SettingsScreensHub(
             "widget" -> com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization
             "manage_hidden_apps" -> com.pixel.intelligentsearch.core.navigation.Route.ManageHiddenApps
             "custom_icons" -> com.pixel.intelligentsearch.core.navigation.Route.CustomIcons
+            "backup_restore" -> com.pixel.intelligentsearch.core.navigation.Route.BackupRestore
             "debug" -> com.pixel.intelligentsearch.core.navigation.Route.Debug
             else -> com.pixel.intelligentsearch.core.navigation.Route.Main
         }
@@ -646,11 +647,7 @@ fun SettingsScreensHub(
                     composable<com.pixel.intelligentsearch.core.navigation.Route.FileSearch> { FileSearchScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization> { WidgetSettingsScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.ManageHiddenApps> { ManageHiddenAppsScreen(prefs, onBack) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchBangs> { SearchBangsScreen(prefs, onBack) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchWeighting> { SourceWeightingScreen(prefs, onBack) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.IconShaping> { AdaptiveIconShapingScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.BackupRestore> { BackupRestoreScreen(prefs, onBack) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.DiagnosticsDashboard> { DiagnosticsDashboardScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Debug> {
                         if (prefs.getBoolean("debug_unlocked", false)) {
                             DebugScreen(
@@ -1087,7 +1084,7 @@ fun MainSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (pagerState.currentPage == 0) "Developer Note" else "Hardware Security",
+                            text = if (pagerState.currentPage == 0) "Developer Note" else "Hardware & Security",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -1198,6 +1195,16 @@ fun MainSettingsScreen(
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
+                                        val actMgr = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+                                        val memInfo = android.app.ActivityManager.MemoryInfo()
+                                        actMgr?.getMemoryInfo(memInfo)
+                                        val totalRamGb = String.format(java.util.Locale.US, "%.1f", memInfo.totalMem.toDouble() / (1024.0 * 1024.0 * 1024.0))
+                                        val availRamGb = String.format(java.util.Locale.US, "%.1f", memInfo.availMem.toDouble() / (1024.0 * 1024.0 * 1024.0))
+                                        Text(
+                                            text = "System RAM: ${availRamGb} GB free of ${totalRamGb} GB",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                 }
                             }
@@ -1285,37 +1292,13 @@ fun MainSettingsScreen(
                     subtitle = "Quick Search Tile and App Shortcuts",
                     icon = Icons.AutoMirrored.Outlined.Launch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal) },
-                    showDivider = false,
-                )
-            }
-
-            SettingsCard {
-                SettingsRow(
-                    title = "Search Bangs (!g, !yt, !w)",
-                    subtitle = "Instant command bangs with custom web/app dispatch.",
-                    icon = Icons.Outlined.Bolt,
-                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchBangs) },
-                    showDivider = true
-                )
-                SettingsRow(
-                    title = "Search Source Weighting",
-                    subtitle = "Reorder categories, priority weights, and result limits.",
-                    icon = Icons.Outlined.Tune,
-                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchWeighting) },
-                    showDivider = true
+                    showDivider = true,
                 )
                 SettingsRow(
                     title = "Encrypted Backup & Restore",
                     subtitle = "AES-GCM export and restore with biometric verification.",
                     icon = Icons.Outlined.Shield,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.BackupRestore) },
-                    showDivider = true
-                )
-                SettingsRow(
-                    title = "Diagnostics & Benchmark",
-                    subtitle = "Real-time latency profiler, 120Hz frame pacing & stress test.",
-                    icon = Icons.Outlined.Speed,
-                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.DiagnosticsDashboard) },
                     showDivider = false
                 )
             }
@@ -1613,14 +1596,6 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                             showDivider = true
                         )
 
-                        SettingsRow(
-                            title = "Adaptive Icon Shaping",
-                            subtitle = "Squircle, Teardrop, Circle, Hexagon, and dynamic masking.",
-                            icon = Icons.Outlined.Category,
-                            onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.IconShaping) },
-                            showDivider = true
-                        )
-
                         var settingsBackToSearchOverlay by rememberBooleanPreference(prefs, "settings_back_to_search_overlay", false) {}
                         SettingsRowToggle(
                             title = "Back Swipe to Enter Search Overlay Page",
@@ -1748,13 +1723,6 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
             SettingsCard {
-                SettingsRow(
-                    title = "Priority Weighting & Limits",
-                    subtitle = "Reorder categories, priority weights, and result limits.",
-                    icon = Icons.Outlined.Tune,
-                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchWeighting) },
-                    showDivider = true
-                )
                 var searchApps by rememberBooleanPreference(prefs, "search.apps", false)
                 SettingsRowToggle(
                     title = "Apps",
@@ -2423,6 +2391,30 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                         )
                     }
                 }
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                var appWeight by rememberIntPreference(prefs, "search_weight_apps", 100)
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(
+                        text = "App Priority Weight: $appWeight%",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Adjusts ranking priority of installed apps in search results.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Android17Slider(
+                        value = appWeight.toFloat(),
+                        onValueChange = { appWeight = it.toInt() },
+                        valueRange = 0f..100f,
+                        steps = 19,
+                        modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
+                    )
+                }
             }
         }
     }
@@ -2505,6 +2497,100 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
                     )
                 }
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                var webWeight by rememberIntPreference(prefs, "search_weight_web", 80)
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(
+                        text = "Result Priority Weight: $webWeight%",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Adjusts ranking priority of web results in mixed query feeds.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Android17Slider(
+                        value = webWeight.toFloat(),
+                        onValueChange = { webWeight = it.toInt() },
+                        valueRange = 0f..100f,
+                        steps = 19,
+                        modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
+                    )
+                }
+            }
+
+            Text(
+                "Quick Web Shortcuts",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+            )
+            SettingsCard {
+                var quickShortcutsEnabled by rememberBooleanPreference(prefs, "search_quick_shortcuts", true)
+                SettingsRowToggle(
+                    title = "Enable Quick Web Shortcuts",
+                    subtitle = "Prefix queries with ! to jump directly to specific web platforms.",
+                    icon = Icons.Outlined.TravelExplore,
+                    isChecked = quickShortcutsEnabled,
+                    onCheckedChange = { quickShortcutsEnabled = it },
+                    showDivider = quickShortcutsEnabled
+                )
+                if (quickShortcutsEnabled) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "Supported Direct Shortcuts",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        val builtInShortcuts = listOf(
+                            "!w" to "Wikipedia",
+                            "!yt" to "YouTube",
+                            "!gh" to "GitHub",
+                            "!maps" to "Google Maps",
+                            "!g" to "Google Web",
+                            "!r" to "Reddit"
+                        )
+                        builtInShortcuts.forEach { (prefix, name) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.secondaryContainer
+                                ) {
+                                    Text(
+                                        text = prefix,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Text(
+                                    text = name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -2559,6 +2645,25 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         onValueChange = { contactResultsCount = it.toInt() },
                         valueRange = 1f..20f,
                         steps = 18,
+                        modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                var contactWeight by rememberIntPreference(prefs, "search_weight_contacts", 70)
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text("Contact Priority Weight: $contactWeight%", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        text = "Adjusts ranking priority of contacts in search results.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Android17Slider(
+                        value = contactWeight.toFloat(),
+                        onValueChange = { contactWeight = it.toInt() },
+                        valueRange = 0f..100f,
+                        steps = 19,
                         modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
                     )
                 }
@@ -2626,6 +2731,25 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         onValueChange = { fileResultsCount = it.toInt() },
                         valueRange = 1f..20f,
                         steps = 18,
+                        modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                var fileWeight by rememberIntPreference(prefs, "search_weight_files", 50)
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text("File Priority Weight: $fileWeight%", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        text = "Adjusts ranking priority of indexed files in search results.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Android17Slider(
+                        value = fileWeight.toFloat(),
+                        onValueChange = { fileWeight = it.toInt() },
+                        valueRange = 0f..100f,
+                        steps = 19,
                         modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
                     )
                 }
@@ -5887,6 +6011,187 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BackupRestoreScreen(
+    prefs: SharedPreferences,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val activity = context as? android.app.Activity
+    val viewModel = LocalSettingsViewModel.current
+    val hapticEngine = remember { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
+
+    var passphrase by remember { mutableStateOf("") }
+    var usePasswordProtection by remember { mutableStateOf(true) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null && activity != null) {
+            viewModel?.exportBackup(
+                activity = activity,
+                uri = uri,
+                passphrase = if (usePasswordProtection) passphrase else null,
+                onSuccess = {
+                    Toast.makeText(context, "Encrypted backup exported successfully!", Toast.LENGTH_LONG).show()
+                },
+                onError = { err ->
+                    Toast.makeText(context, "Export error: $err", Toast.LENGTH_LONG).show()
+                }
+            )
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null && activity != null) {
+            viewModel?.importBackup(
+                activity = activity,
+                uri = uri,
+                passphrase = if (usePasswordProtection) passphrase else null,
+                onSuccess = { count ->
+                    Toast.makeText(context, "Restored $count configuration items!", Toast.LENGTH_LONG).show()
+                },
+                onError = { err ->
+                    Toast.makeText(context, "Restore error: $err", Toast.LENGTH_LONG).show()
+                }
+            )
+        }
+    }
+
+    Scaffold(
+        containerColor = Color.Transparent,
+        topBar = {
+            TopAppBar(
+                title = { Text("Encrypted Backup & Restore", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+            ) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(MaterialTheme.colorScheme.primary, androidx.compose.foundation.shape.CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Security, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text("AES-GCM 256-Bit Hardware Keystore", fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
+                        Text(
+                            "Protected by PBKDF2-HMAC-SHA256 key derivation with Titan M3+ / KeyMint StrongBox and biometric authentication gating.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+
+            SettingsCard {
+                Text(
+                    "Encryption Passphrase",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+                Text(
+                    "Optional passphrase for cross-device portability. If left blank, backup is bound to this device's Titan KeyStore.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                )
+                OutlinedTextField(
+                    value = passphrase,
+                    onValueChange = { passphrase = it },
+                    label = { Text("Passphrase") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true
+                )
+            }
+
+            // Export Card
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text("Export Configuration", fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
+                    Text(
+                        "Includes settings, search history, shortcuts, and priority weights.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Button(
+                        onClick = {
+                            hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                            exportLauncher.launch("intelligent_search_backup_${System.currentTimeMillis()}.json")
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Icon(Icons.Default.FileDownload, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Export Encrypted Backup", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
+                    }
+                }
+            }
+
+            // Restore Card
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text("Restore from Backup", fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
+                    Text(
+                        "Select an existing .json backup file to decrypt, verify SHA-256 integrity, and restore.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    OutlinedButton(
+                        onClick = {
+                            hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                            importLauncher.launch(arrayOf("application/json", "*/*"))
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Icon(Icons.Default.FileUpload, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Select Backup to Restore", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
                     }
                 }
             }

@@ -16,9 +16,5 @@ sealed class Route {
     @Serializable data object ManageHiddenApps : Route()
     @Serializable data object CustomIcons : Route()
     @Serializable data object Debug : Route()
-    @Serializable data object SearchBangs : Route()
-    @Serializable data object SearchWeighting : Route()
-    @Serializable data object IconShaping : Route()
     @Serializable data object BackupRestore : Route()
-    @Serializable data object DiagnosticsDashboard : Route()
 }

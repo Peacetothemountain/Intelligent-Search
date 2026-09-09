@@ -423,7 +423,6 @@ fun SearchOverlayScreen(
     // Animatable for the overlay expansion progress: 0f = collapsed pill, 1f = fully expanded
     val overlayProgressAnim = remember { Animatable(if (isFromBackSwipe) 1f else 0f) }
     val predictiveBackProgress = remember { Animatable(0f) }
-    val horizontalSwipeOffset = remember { Animatable(0f) }
     var predictiveBackEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
 
     val sensoryEngine = rememberTactileSonicEngine()
@@ -635,7 +634,6 @@ fun SearchOverlayScreen(
 
                 val fromBack = activity?.intent?.getBooleanExtra("FROM_BACK_SWIPE", false) == true
                 coroutineScope.launch {
-                    horizontalSwipeOffset.snapTo(0f)
                     if (!fromBack) {
                         overlayProgressAnim.snapTo(0f)
                         overlayProgressAnim.animateTo(
@@ -685,20 +683,6 @@ fun SearchOverlayScreen(
             keyboardController?.hide()
             viewModel.onQueryChanged("")
             sensoryEngine.springReleaseSnap(view)
-            val screenWidthPx = with(density) { screenWidth.toPx() }
-            if (predictiveBackEdge == BackEventCompat.EDGE_RIGHT) {
-                // Swiped from right edge: animate off to the left
-                horizontalSwipeOffset.animateTo(
-                    targetValue = -screenWidthPx,
-                    animationSpec = tween(durationMillis = 200, easing = FastOutLinearInEasing)
-                )
-            } else {
-                // Swiped from left edge: animate off to the right
-                horizontalSwipeOffset.animateTo(
-                    targetValue = screenWidthPx,
-                    animationSpec = tween(durationMillis = 200, easing = FastOutLinearInEasing)
-                )
-            }
             goToHomeScreen()
         } catch (_: java.util.concurrent.CancellationException) {
             sensoryEngine.tick(view, scale = 0.5f)
@@ -1958,61 +1942,6 @@ fun SearchOverlayScreen(
                     }
                 )
             }
-            .pointerInput(Unit) {
-                var totalHorizontalDrag = 0f
-                val magneticDismissController = com.pixel.intelligentsearch.core.haptics.MagneticDismissController(
-                    thresholdPx = 60f,
-                    engine = sensoryEngine,
-                    view = view
-                )
-                detectHorizontalDragGestures(
-                    onDragStart = { totalHorizontalDrag = 0f },
-                    onDragEnd = {
-                        val screenWidthPx = with(density) { screenWidth.toPx() }
-                        val willDismiss = !showTutorial && kotlin.math.abs(totalHorizontalDrag) > 60f
-                        magneticDismissController.onDragEnd(willDismiss)
-                        if (willDismiss) {
-                            if (totalHorizontalDrag < -60f) {
-                                coroutineScope.launch {
-                                    horizontalSwipeOffset.animateTo(
-                                        targetValue = -screenWidthPx,
-                                        animationSpec = tween(durationMillis = 200, easing = FastOutLinearInEasing)
-                                    )
-                                    goToHomeScreen()
-                                }
-                            } else {
-                                coroutineScope.launch {
-                                    horizontalSwipeOffset.animateTo(
-                                        targetValue = screenWidthPx,
-                                        animationSpec = tween(durationMillis = 200, easing = FastOutLinearInEasing)
-                                    )
-                                    goToHomeScreen()
-                                }
-                            }
-                        } else {
-                            coroutineScope.launch {
-                                horizontalSwipeOffset.animateTo(0f, spring(dampingRatio = 0.85f, stiffness = 350f))
-                            }
-                        }
-                        totalHorizontalDrag = 0f
-                    },
-                    onDragCancel = {
-                        magneticDismissController.onDragCancel()
-                        coroutineScope.launch {
-                            horizontalSwipeOffset.animateTo(0f, spring(dampingRatio = 0.85f, stiffness = 350f))
-                        }
-                        totalHorizontalDrag = 0f
-                    },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        totalHorizontalDrag += dragAmount
-                        magneticDismissController.onDrag(totalHorizontalDrag)
-                        coroutineScope.launch {
-                            horizontalSwipeOffset.snapTo(horizontalSwipeOffset.value + dragAmount)
-                        }
-                    }
-                )
-            }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -2028,8 +1957,7 @@ fun SearchOverlayScreen(
                 .fillMaxSize()
                 .drawBehind {
                     val p = overlayProgressAnim.value.coerceIn(0f, 1f)
-                    val swipeFraction = (kotlin.math.abs(horizontalSwipeOffset.value) / size.width).coerceIn(0f, 1f)
-                    drawRect(color = scrimColor, alpha = scrimAlphaFactor * p * (1f - swipeFraction))
+                    drawRect(color = scrimColor, alpha = scrimAlphaFactor * p)
                 }
         )
 
@@ -2070,17 +1998,10 @@ fun SearchOverlayScreen(
                         scaleX = currentW / targetWidth.toPx()
                         scaleY = currentH / targetHeight.toPx()
 
-                        val screenWidthPx = screenWidth.toPx()
-                        val edgeMultiplier = if (predictiveBackEdge == BackEventCompat.EDGE_LEFT) 1f else -1f
-                        val predictiveOffset = backProg * 36.dp.toPx() * edgeMultiplier
-
-                        translationX = horizontalSwipeOffset.value + predictiveOffset
-
-                        val swipeFraction = (kotlin.math.abs(horizontalSwipeOffset.value) / screenWidthPx).coerceIn(0f, 1f)
-                        val exitAlpha = (1f - swipeFraction).coerceIn(0f, 1f)
+                        translationX = 0f
 
                         transformOrigin = TransformOrigin(0.5f, 1.0f)
-                        alpha = (progress * (1f - backProg * 0.12f) * exitAlpha).coerceIn(0f, 1f)
+                        alpha = (progress * (1f - backProg * 0.12f)).coerceIn(0f, 1f)
                     }
                     .clip(RoundedCornerShape(24.dp))
                     .then(

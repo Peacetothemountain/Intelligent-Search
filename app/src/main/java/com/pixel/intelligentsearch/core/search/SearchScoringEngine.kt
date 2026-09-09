@@ -67,14 +67,15 @@ object SearchScoringEngine {
         query: String,
         targetTitle: String,
         metadata: ScoringMetadata,
-        currentTimeMs: Long = System.currentTimeMillis()
+        currentTimeMs: Long = System.currentTimeMillis(),
+        domainWeightMultiplier: Float = 1.0f
     ): ScoreBreakdown {
         val q = query.trim().lowercase()
         val title = targetTitle.trim().lowercase()
         val rawTitle = targetTitle.trim()
 
         if (q.isEmpty() || title.isEmpty()) {
-            return ScoreBreakdown(0f, 0f, 0f, 0f, 0f, metadata.domain.weight)
+            return ScoreBreakdown(0f, 0f, 0f, 0f, 0f, metadata.domain.weight * domainWeightMultiplier)
         }
 
         // 1. Text & Structural Match Scoring
@@ -95,7 +96,8 @@ object SearchScoringEngine {
 
         // 5. Domain-Weighted Total
         val rawSum = matchScore + frequencyScore + recencyScore + pinScore
-        val totalScore = rawSum * metadata.domain.weight
+        val effectiveMultiplier = metadata.domain.weight * domainWeightMultiplier
+        val totalScore = rawSum * effectiveMultiplier
 
         return ScoreBreakdown(
             totalScore = totalScore,
@@ -103,7 +105,7 @@ object SearchScoringEngine {
             frequencyScore = frequencyScore,
             recencyScore = recencyScore,
             pinScore = pinScore,
-            domainMultiplier = metadata.domain.weight
+            domainMultiplier = effectiveMultiplier
         )
     }
 

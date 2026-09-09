@@ -672,18 +672,6 @@ class SearchViewModel @Inject constructor(
                 val endTime = System.currentTimeMillis()
                 val latency = endTime - startTime
 
-                com.pixel.intelligentsearch.core.diagnostics.PerformanceTelemetry.recordQueryLatency(
-                    com.pixel.intelligentsearch.core.diagnostics.LatencyBreakdown(
-                        totalMs = latency,
-                        appsMs = latency / 4,
-                        contactsMs = latency / 5,
-                        filesMs = latency / 5,
-                        shortcutsMs = latency / 6,
-                        webMs = latency / 4,
-                        mathMs = 2
-                    )
-                )
-                
                 if (verboseLogging) {
                     android.util.Log.d("SearchDebug", "Query finished in ${latency}ms")
                 }

@@ -110,6 +110,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.composed
@@ -176,9 +178,21 @@ private const val GEMINI_CORNER_SWIPE_SHADER = """
         half4 mixedColor = mix(c1, c2, smoothstep(0.35, 0.65, t));
         
         float pulse = 0.88 + 0.12 * sin(time * 2.8);
-        float finalAlpha = intensity * mixedColor.a * pulse;
+
+        // Google Gemini signature halftone dot matrix embedded within the light animation
+        float2 gridUv = uv * float2(64.0, 20.0);
+        float2 cellCenter = floor(gridUv) + 0.5;
+        float distToCenter = length(gridUv - cellCenter);
+        float dotAlpha = 1.0 - smoothstep(0.20, 0.35, distToCenter);
+
+        // Lit dots with ambient wave glow between dots
+        float dotLight = dotAlpha * intensity;
+        float ambientLight = (1.0 - dotAlpha) * intensity * 0.32;
+        float finalIntensity = clamp(dotLight + ambientLight, 0.0, 1.0);
+
+        float finalAlpha = finalIntensity * mixedColor.a * pulse;
         
-        return half4(mixedColor.rgb * intensity, finalAlpha);
+        return half4(mixedColor.rgb * finalIntensity, finalAlpha);
     }
 """
 
@@ -241,6 +255,29 @@ fun GeminiCornerSwipeWaveLayer(
                 close()
             }
             drawPath(path, brush = gradientBrush, alpha = 0.85f)
+
+            // Halftone dots within fallback
+            val cols = 36
+            val rows = 8
+            val colStep = w / cols
+            val rowStep = h / rows
+            for (c in 0 until cols) {
+                for (r in 0 until rows) {
+                    val cx = (c + 0.5f) * colStep
+                    val cy = (r + 0.5f) * rowStep
+                    val normX = cx / w
+                    val waveOffset = kotlin.math.sin((normX * 6.28f + phase).toDouble()).toFloat() * (h * 0.25f)
+                    val waveY = (h * 0.45f) + waveOffset
+                    if (cy >= waveY) {
+                        val dotIntensity = ((cy - waveY) / (h - waveY).coerceAtLeast(1f)).coerceIn(0f, 1f)
+                        drawCircle(
+                            color = colorPrimary.copy(alpha = dotIntensity * 0.65f),
+                            radius = 1.6.dp.toPx() * (0.5f + 0.5f * dotIntensity),
+                            center = androidx.compose.ui.geometry.Offset(cx, cy)
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -894,14 +931,16 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
     var batteryVolt by remember { mutableFloatStateOf(0f) }
     var batteryHealth by remember { mutableStateOf("Good") }
     var isCharging by remember { mutableStateOf(false) }
+    var chargingRateStr by remember { mutableStateOf("Calculating...") }
+    var timeEstimateStr by remember { mutableStateOf("Calculating...") }
 
     var totalRamGb by remember { mutableStateOf("0.0") }
     var usedRamGb by remember { mutableStateOf("0.0") }
     var usedRamPercent by remember { mutableIntStateOf(0) }
     var appPssMb by remember { mutableStateOf("0.0") }
-    val ramHistory = remember { mutableStateListOf<Float>() }
 
     val actMgr = remember(context) { context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager }
+    val bm = remember(context) { context.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -921,6 +960,8 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
                 isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
 
+                val plugged = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) ?: 0
+
                 val h = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_HEALTH, android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN) ?: 0
                 batteryHealth = when (h) {
                     android.os.BatteryManager.BATTERY_HEALTH_GOOD -> "Good"
@@ -929,6 +970,73 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     android.os.BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over Voltage"
                     android.os.BatteryManager.BATTERY_HEALTH_COLD -> "Cold"
                     else -> "Normal"
+                }
+
+                val rawCurrentNow = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: 0
+                val absCurrent = kotlin.math.abs(rawCurrentNow)
+                val currentMa = if (absCurrent > 10_000) (absCurrent / 1000f) else absCurrent.toFloat()
+                val watts = if (batteryVolt > 0f && currentMa > 0f) (batteryVolt * currentMa) / 1000f else 0f
+
+                if (isCharging) {
+                    val pluggedType = when (plugged) {
+                        android.os.BatteryManager.BATTERY_PLUGGED_AC -> "AC"
+                        android.os.BatteryManager.BATTERY_PLUGGED_USB -> "USB"
+                        android.os.BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Wireless"
+                        else -> "Charger"
+                    }
+                    chargingRateStr = if (watts >= 15f) {
+                        "Rapid ($pluggedType) · ${String.format(java.util.Locale.US, "%.1f", watts)}W"
+                    } else if (watts > 0f) {
+                        "Charging ($pluggedType) · ${String.format(java.util.Locale.US, "%.1f", watts)}W"
+                    } else {
+                        "Charging ($pluggedType)"
+                    }
+
+                    if (batteryLevel >= 100) {
+                        timeEstimateStr = "Fully Charged"
+                    } else {
+                        var timeRemainingMs = -1L
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                            try {
+                                timeRemainingMs = bm?.computeChargeTimeRemaining() ?: -1L
+                            } catch (_: Exception) {}
+                        }
+                        if (timeRemainingMs > 0L) {
+                            val totalMinutes = (timeRemainingMs / 60_000L).toInt()
+                            val hours = totalMinutes / 60
+                            val mins = totalMinutes % 60
+                            timeEstimateStr = if (hours > 0) "${hours}h ${mins}m until full" else "${mins}m until full"
+                        } else {
+                            val chargeCounter = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) ?: -1
+                            val currentChargeMah = if (chargeCounter > 0) (chargeCounter / 1000f) else (batteryLevel / 100f * 4800f)
+                            val estTotalMah = if (batteryLevel > 0) (currentChargeMah / batteryLevel) * 100f else 4800f
+                            val remainingMah = ((100 - batteryLevel) / 100f * estTotalMah).coerceAtLeast(0f)
+                            if (currentMa > 120f) {
+                                val estHours = (remainingMah / currentMa) * 1.15f
+                                val totalMinutes = (estHours * 60f).toInt().coerceIn(1, 600)
+                                val hours = totalMinutes / 60
+                                val mins = totalMinutes % 60
+                                timeEstimateStr = if (hours > 0) "${hours}h ${mins}m until full" else "${mins}m until full"
+                            } else {
+                                timeEstimateStr = "Calculating..."
+                            }
+                        }
+                    }
+                } else {
+                    chargingRateStr = if (watts > 0f && currentMa > 10f) {
+                        "Discharge · ${String.format(java.util.Locale.US, "%.1f", watts)}W (${currentMa.toInt()}mA)"
+                    } else {
+                        "Discharging"
+                    }
+
+                    val chargeCounter = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) ?: -1
+                    val currentChargeMah = if (chargeCounter > 0) (chargeCounter / 1000f) else (batteryLevel / 100f * 4800f)
+                    val effectiveDrainMa = if (currentMa in 50f..3500f) currentMa else 350f
+                    val estHours = (currentChargeMah / effectiveDrainMa).coerceIn(0.5f, 72f)
+                    val totalMinutes = (estHours * 60f).toInt()
+                    val hours = totalMinutes / 60
+                    val mins = totalMinutes % 60
+                    timeEstimateStr = if (hours > 0) "${hours}h ${mins}m until depleted" else "${mins}m until depleted"
                 }
             } catch (_: Exception) {}
 
@@ -971,11 +1079,6 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 val pMem = actMgr?.getProcessMemoryInfo(intArrayOf(myPid))
                 val pss = (pMem?.firstOrNull()?.totalPss ?: 0) / 1024f
                 appPssMb = String.format(java.util.Locale.US, "%.1f", pss)
-
-                if (ramHistory.size >= 12) {
-                    ramHistory.removeAt(0)
-                }
-                ramHistory.add(pct.toFloat())
             } catch (_: Exception) {}
 
             kotlinx.coroutines.delay(1200)
@@ -1079,26 +1182,30 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
 
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = "Status: $batteryHealth",
+                        text = chargingRateStr,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1
                     )
                     Text(
-                        text = "Temp: ${String.format(java.util.Locale.US, "%.1f", batteryTemp)} °C",
+                        text = timeEstimateStr,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
                     )
                     Text(
-                        text = "Voltage: ${String.format(java.util.Locale.US, "%.2f", batteryVolt)} V",
+                        text = "${String.format(java.util.Locale.US, "%.1f", batteryTemp)} °C  •  ${String.format(java.util.Locale.US, "%.2f", batteryVolt)} V",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
                     )
                 }
             }
         }
 
-        // --- RIGHT: System RAM Usage ---
+        // --- RIGHT: System RAM Usage (Cybernetic Animated Gauge) ---
         Surface(
             modifier = Modifier
                 .weight(1f)
@@ -1133,6 +1240,8 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 }
 
                 val secondaryColor = MaterialTheme.colorScheme.secondary
+                val tertiaryColor = MaterialTheme.colorScheme.tertiary
+                val outlineColor = MaterialTheme.colorScheme.outlineVariant
 
                 Box(
                     modifier = Modifier
@@ -1142,60 +1251,90 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (ramHistory.isNotEmpty()) {
-                        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 6.dp)) {
-                            val w = size.width
-                            val h = size.height
-                            val count = ramHistory.size
-                            val stepX = if (count > 1) w / (count - 1) else w
+                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize().padding(4.dp)) {
+                        val w = size.width
+                        val h = size.height
+                        val center = androidx.compose.ui.geometry.Offset(w / 2f, h * 0.54f)
+                        val radius = (minOf(w, h) * 0.44f)
+                        val strokeWidth = 5.dp.toPx()
 
-                            val linePath = androidx.compose.ui.graphics.Path()
-                            val fillPath = androidx.compose.ui.graphics.Path()
+                        val startAngle = 145f
+                        val sweepRange = 250f
+                        val activeSweep = sweepRange * (usedRamPercent / 100f).coerceIn(0.05f, 1f)
 
-                            ramHistory.forEachIndexed { idx, pct ->
-                                val x = idx * stepX
-                                val y = (h - (h * (pct / 100f).coerceIn(0.08f, 0.92f)))
-                                if (idx == 0) {
-                                    linePath.moveTo(x, y)
-                                    fillPath.moveTo(x, h)
-                                    fillPath.lineTo(x, y)
-                                } else {
-                                    linePath.lineTo(x, y)
-                                    fillPath.lineTo(x, y)
-                                }
-                            }
-                            fillPath.lineTo((count - 1) * stepX, h)
-                            fillPath.close()
+                        // Outer track
+                        drawArc(
+                            color = outlineColor.copy(alpha = 0.35f),
+                            startAngle = startAngle,
+                            sweepAngle = sweepRange,
+                            useCenter = false,
+                            topLeft = androidx.compose.ui.geometry.Offset(center.x - radius, center.y - radius),
+                            size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                        )
 
-                            drawPath(
-                                path = fillPath,
-                                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                    listOf(secondaryColor.copy(alpha = 0.35f), Color.Transparent)
-                                )
+                        // Active gradient arc
+                        drawArc(
+                            brush = androidx.compose.ui.graphics.Brush.sweepGradient(
+                                listOf(secondaryColor, tertiaryColor, secondaryColor)
+                            ),
+                            startAngle = startAngle,
+                            sweepAngle = activeSweep,
+                            useCenter = false,
+                            topLeft = androidx.compose.ui.geometry.Offset(center.x - radius, center.y - radius),
+                            size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                        )
+
+                        // Head spark
+                        val headAngleRad = Math.toRadians((startAngle + activeSweep).toDouble())
+                        val sparkX = center.x + (radius * kotlin.math.cos(headAngleRad)).toFloat()
+                        val sparkY = center.y + (radius * kotlin.math.sin(headAngleRad)).toFloat()
+
+                        drawCircle(
+                            color = secondaryColor.copy(alpha = 0.4f),
+                            radius = pointPulse.dp.toPx() * 1.5f,
+                            center = androidx.compose.ui.geometry.Offset(sparkX, sparkY)
+                        )
+                        drawCircle(
+                            color = Color.White,
+                            radius = 2.5.dp.toPx(),
+                            center = androidx.compose.ui.geometry.Offset(sparkX, sparkY)
+                        )
+
+                        // Orbital cyber ticks
+                        val tickCount = 10
+                        for (i in 0..tickCount) {
+                            val tickFrac = i.toFloat() / tickCount
+                            val tickAngle = startAngle + sweepRange * tickFrac
+                            val tickRad = Math.toRadians(tickAngle.toDouble())
+                            val innerR = radius - strokeWidth * 0.9f
+                            val outerR = radius + strokeWidth * 0.9f
+                            val isActive = (usedRamPercent / 100f) >= tickFrac
+                            val x1 = center.x + (innerR * kotlin.math.cos(tickRad)).toFloat()
+                            val y1 = center.y + (innerR * kotlin.math.sin(tickRad)).toFloat()
+                            val x2 = center.x + (outerR * kotlin.math.cos(tickRad)).toFloat()
+                            val y2 = center.y + (outerR * kotlin.math.sin(tickRad)).toFloat()
+                            drawLine(
+                                color = if (isActive) secondaryColor.copy(alpha = 0.85f) else outlineColor.copy(alpha = 0.35f),
+                                start = androidx.compose.ui.geometry.Offset(x1, y1),
+                                end = androidx.compose.ui.geometry.Offset(x2, y2),
+                                strokeWidth = 1.5.dp.toPx(),
+                                cap = androidx.compose.ui.graphics.StrokeCap.Round
                             )
-
-                            drawPath(
-                                path = linePath,
-                                color = secondaryColor,
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                    width = 2.dp.toPx(),
-                                    cap = androidx.compose.ui.graphics.StrokeCap.Round,
-                                    join = androidx.compose.ui.graphics.StrokeJoin.Round
-                                )
-                            )
-
-                            ramHistory.forEachIndexed { idx, pct ->
-                                val x = idx * stepX
-                                val y = (h - (h * (pct / 100f).coerceIn(0.08f, 0.92f)))
-                                val isLast = idx == count - 1
-                                val radius = if (isLast) pointPulse.dp.toPx() else 2.5.dp.toPx()
-                                drawCircle(
-                                    color = secondaryColor,
-                                    radius = radius,
-                                    center = androidx.compose.ui.geometry.Offset(x, y)
-                                )
-                            }
                         }
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "$usedRamPercent%",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
 
@@ -1204,17 +1343,25 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         text = "${usedRamGb} / ${totalRamGb} GB ($usedRamPercent%)",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
                     )
                     Text(
                         text = "App RAM: ${appPssMb} MB PSS",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
                     )
+                    val freeRamGb = remember(totalRamGb, usedRamGb) {
+                        val total = totalRamGb.toDoubleOrNull() ?: 0.0
+                        val used = usedRamGb.toDoubleOrNull() ?: 0.0
+                        String.format(java.util.Locale.US, "%.1f", (total - used).coerceAtLeast(0.0))
+                    }
                     Text(
-                        text = "Kernel Status: Accurate",
+                        text = "Available: ${freeRamGb} GB Free",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.secondary,
+                        maxLines = 1
                     )
                 }
             }
@@ -3172,6 +3319,126 @@ fun SynchronizedMorphingShortcutBadge(
     }
 }
 
+@Composable
+fun SlideToRemoveAllBar(
+    onRemoveAll: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val view = LocalView.current
+    val context = LocalContext.current
+    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
+
+    var dragOffsetX by remember { mutableFloatStateOf(0f) }
+    var trackWidthPx by remember { mutableFloatStateOf(0f) }
+    val thumbSizeDp = 40.dp
+    val thumbSizePx = with(LocalDensity.current) { thumbSizeDp.toPx() }
+    val maxDragPx = (trackWidthPx - thumbSizePx - with(LocalDensity.current) { 8.dp.toPx() }).coerceAtLeast(0f)
+
+    val dragFraction = if (maxDragPx > 0f) (dragOffsetX / maxDragPx).coerceIn(0f, 1f) else 0f
+    val isThresholdReached = dragFraction >= 0.82f
+
+    val animDragOffsetX by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = dragOffsetX,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+        ),
+        label = "removeSliderSpring"
+    )
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .onSizeChanged { trackWidthPx = it.width.toFloat() }
+            .clip(RoundedCornerShape(24.dp))
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.error.copy(alpha = 0.25f + 0.35f * dragFraction),
+                RoundedCornerShape(24.dp)
+            ),
+        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.12f + 0.20f * dragFraction)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            // Fill background behind dragging thumb
+            if (trackWidthPx > 0f && animDragOffsetX > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(with(LocalDensity.current) { (animDragOffsetX + thumbSizePx + 8.dp.toPx()).toDp() })
+                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.18f + 0.25f * dragFraction))
+                )
+            }
+
+            // Central Prompt label
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 48.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isThresholdReached) "Release to Remove All" else "Slide to Remove All",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isThresholdReached) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = (1f - dragFraction * 0.7f).coerceIn(0.2f, 1f))
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = if (isThresholdReached) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = (1f - dragFraction * 0.7f).coerceIn(0.2f, 1f)),
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+
+            // Draggable Thumb Handle
+            Box(
+                modifier = Modifier
+                    .offset { androidx.compose.ui.unit.IntOffset((animDragOffsetX + 4.dp.toPx()).toInt(), 0) }
+                    .size(thumbSizeDp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(
+                        if (isThresholdReached) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
+                    )
+                    .pointerInput(maxDragPx) {
+                        detectHorizontalDragGestures(
+                            onDragEnd = {
+                                if (dragOffsetX >= maxDragPx * 0.82f) {
+                                    hapticEngine.performPredictiveBackHaptic(view)
+                                    onRemoveAll()
+                                }
+                                dragOffsetX = 0f
+                            },
+                            onDragCancel = {
+                                dragOffsetX = 0f
+                            },
+                            onHorizontalDrag = { change, dragAmount ->
+                                change.consume()
+                                dragOffsetX = (dragOffsetX + dragAmount).coerceIn(0f, maxDragPx)
+                                if (dragOffsetX >= maxDragPx * 0.82f && !isThresholdReached) {
+                                    hapticEngine.performPredictiveBackHaptic(view)
+                                }
+                            }
+                        )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.DeleteSweep,
+                    contentDescription = "Slide to remove all",
+                    tint = MaterialTheme.colorScheme.onError,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
@@ -3542,6 +3809,20 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 )
                             }
                         } else {
+                            SlideToRemoveAllBar(
+                                onRemoveAll = {
+                                    localDismissedPrefixes = localDismissedPrefixes + displayedActiveBangs.map { it.displayPrefix }
+                                    displayedActiveBangs.forEach { bang ->
+                                        if (bang.isBuiltIn) {
+                                            viewModel?.disableBuiltInBang(bang.displayPrefix)
+                                        } else {
+                                            viewModel?.deleteCustomBang(bang.displayPrefix)
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 displayedActiveBangs.forEach { bang ->
                                     key(bang.displayPrefix) {

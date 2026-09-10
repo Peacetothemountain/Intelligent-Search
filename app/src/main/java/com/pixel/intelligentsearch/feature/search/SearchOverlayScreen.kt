@@ -92,8 +92,7 @@ import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
-import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveShapeMorphLoader
-import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveSegmentedTabItem
+
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -475,12 +474,7 @@ fun SearchOverlayScreen(
 
     val focusRequester = remember { FocusRequester() }
     
-    var selectedCategory by rememberSaveable { mutableStateOf("All") }
-    LaunchedEffect(uiState.query) {
-        if (uiState.query.isEmpty()) {
-            selectedCategory = "All"
-        }
-    }
+
     
     val isForceTutorial = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
     var showTutorial by remember {
@@ -909,16 +903,7 @@ fun SearchOverlayScreen(
                     }
                 )
 
-                AnimatedVisibility(
-                    visible = uiState.query.isNotEmpty() && uiState.isLoading,
-                    enter = fadeIn(ExpressiveMotionTokens.bouncySpring()) + scaleIn(ExpressiveMotionTokens.bouncySpring()),
-                    exit = fadeOut(ExpressiveMotionTokens.gentleSpring()) + scaleOut(ExpressiveMotionTokens.gentleSpring())
-                ) {
-                    ExpressiveShapeMorphLoader(
-                        size = 28.dp,
-                        modifier = Modifier.padding(end = 4.dp)
-                    )
-                }
+
 
                 AnimatedVisibility(
                     visible = uiState.query.isNotEmpty() && !uiState.isLoading,
@@ -1107,72 +1092,10 @@ fun SearchOverlayScreen(
             reverseLayout = if (!settingsState.bottomSearch) false else settingsState.bottomSearchResult,
             verticalArrangement = if (settingsState.bottomSearch) Arrangement.Bottom else Arrangement.Top
         ) {
-            val showApps = selectedCategory == "All" || selectedCategory == "Apps"
-            val showWeb = selectedCategory == "All" || selectedCategory == "Web"
-            val showPeople = selectedCategory == "All" || selectedCategory == "People"
-            val showFiles = selectedCategory == "All" || selectedCategory == "Files"
-
-            if (uiState.query.isNotBlank()) {
-                item(key = "expressive_category_filter_bar") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        ExpressiveSegmentedTabItem(
-                            selected = selectedCategory == "All",
-                            onClick = { selectedCategory = "All" },
-                            label = "All",
-                            icon = Icons.Default.Search,
-                            activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            inactiveContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                            inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        ExpressiveSegmentedTabItem(
-                            selected = selectedCategory == "Apps",
-                            onClick = { selectedCategory = "Apps" },
-                            label = "Apps",
-                            icon = Icons.Default.Apps,
-                            activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            inactiveContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                            inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        ExpressiveSegmentedTabItem(
-                            selected = selectedCategory == "Web",
-                            onClick = { selectedCategory = "Web" },
-                            label = "Web",
-                            icon = Icons.Default.Public,
-                            activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            inactiveContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                            inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        ExpressiveSegmentedTabItem(
-                            selected = selectedCategory == "People",
-                            onClick = { selectedCategory = "People" },
-                            label = "People",
-                            icon = Icons.Default.Person,
-                            activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            inactiveContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                            inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        ExpressiveSegmentedTabItem(
-                            selected = selectedCategory == "Files",
-                            onClick = { selectedCategory = "Files" },
-                            label = "Files",
-                            icon = Icons.Default.Folder,
-                            activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            inactiveContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                            inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
+            val showApps = true
+            val showWeb = true
+            val showPeople = true
+            val showFiles = true
 
             val systemToggle = uiState.systemToggle
             if (systemToggle != null) {

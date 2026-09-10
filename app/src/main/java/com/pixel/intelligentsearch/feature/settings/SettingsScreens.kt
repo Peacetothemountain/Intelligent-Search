@@ -1098,17 +1098,15 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         myRamMb = 280f
                     }
 
-                    // 2. Discover user-opened foreground & background apps in real time
-                    // Map of package -> Pair(lastActiveTimestamp, foregroundDurationMs)
-                    val userAppUsage = mutableMapOf<String, Pair<Long, Long>>()
+                    // 2. Discover user-opened foreground & background apps in real time (up to the second)
+                    val activeApps = mutableMapOf<String, Long>()
                     val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? android.app.usage.UsageStatsManager
 
-                    // Query real-time activity events over the last 3 hours to capture active user sessions
+                    // Query real-time activity events over the last 10 minutes to capture actually open apps
                     try {
-                        val events = usm?.queryEvents(now - 1000L * 60 * 60 * 3, now)
+                        val events = usm?.queryEvents(now - 1000L * 60 * 10, now)
                         if (events != null) {
                             val evt = android.app.usage.UsageEvents.Event()
-                            val resumeTimes = mutableMapOf<String, Long>()
                             while (events.hasNextEvent()) {
                                 events.getNextEvent(evt)
                                 val pkg = evt.packageName ?: continue
@@ -1122,55 +1120,41 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 } catch (_: Exception) { false }
                                 if (!isLaunchable) continue
 
-                                val current = userAppUsage[pkg] ?: Pair(0L, 0L)
                                 when (evt.eventType) {
-                                    android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED -> {
-                                        resumeTimes[pkg] = evt.timeStamp
-                                        userAppUsage[pkg] = Pair(maxOf(current.first, evt.timeStamp), current.second)
-                                    }
-                                    android.app.usage.UsageEvents.Event.ACTIVITY_PAUSED,
-                                    android.app.usage.UsageEvents.Event.ACTIVITY_STOPPED -> {
-                                        val resumedAt = resumeTimes.remove(pkg)
-                                        val duration = if (resumedAt != null && evt.timeStamp >= resumedAt) {
-                                            (evt.timeStamp - resumedAt).coerceAtMost(1000L * 60 * 60)
-                                        } else 0L
-                                        userAppUsage[pkg] = Pair(maxOf(current.first, evt.timeStamp), current.second + duration)
-                                    }
+                                    android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED,
                                     android.app.usage.UsageEvents.Event.USER_INTERACTION -> {
-                                        userAppUsage[pkg] = Pair(maxOf(current.first, evt.timeStamp), current.second)
+                                        activeApps[pkg] = evt.timeStamp
+                                    }
+                                    android.app.usage.UsageEvents.Event.ACTIVITY_PAUSED -> {
+                                        if (activeApps.containsKey(pkg)) {
+                                            activeApps[pkg] = maxOf(activeApps[pkg] ?: 0L, evt.timeStamp)
+                                        }
+                                    }
+                                    24 /* ACTIVITY_DESTROYED */ -> {
+                                        // App was closed or swiped away from Recents - immediately remove
+                                        activeApps.remove(pkg)
+                                    }
+                                    android.app.usage.UsageEvents.Event.ACTIVITY_STOPPED -> {
+                                        if (activeApps.containsKey(pkg)) {
+                                            activeApps[pkg] = maxOf(activeApps[pkg] ?: 0L, evt.timeStamp)
+                                        }
                                     }
                                 }
                             }
                         }
                     } catch (_: Exception) {}
 
-                    // If user has opened fewer than 3 background apps in the 3-hour event window, check recent UsageStats
-                    if (userAppUsage.size < 3) {
-                        try {
-                            val stats = usm?.queryUsageStats(android.app.usage.UsageStatsManager.INTERVAL_BEST, now - 1000L * 60 * 60 * 12, now)
-                            stats?.filter { s ->
-                                val pkg = s.packageName
-                                !pkg.isNullOrBlank() && pkg != "android" && pkg != context.packageName &&
-                                    pkg != "com.google.android.gms" && pkg != "com.android.systemui" &&
-                                    s.lastTimeUsed > (now - 1000L * 60 * 60 * 12) && s.totalTimeInForeground > 5000L &&
-                                    try { pm.getLaunchIntentForPackage(pkg) != null } catch (_: Exception) { false }
-                            }?.sortedByDescending { it.lastTimeUsed }?.forEach { s ->
-                                if (!userAppUsage.containsKey(s.packageName)) {
-                                    userAppUsage[s.packageName] = Pair(s.lastTimeUsed, s.totalTimeInForeground)
-                                }
-                            }
-                        } catch (_: Exception) {}
+                    // Filter out apps that haven't had active interaction in the last 8 minutes
+                    val trulyOpenApps = activeApps.filter { (_, lastActive) ->
+                        (now - lastActive) <= 1000L * 60 * 8
                     }
 
-                    // Sort candidate background apps strictly by recency of use (so recently opened apps like X are #1)
-                    val sortedBackgroundPkgs = userAppUsage.entries
-                        .sortedWith(
-                            compareByDescending<Map.Entry<String, Pair<Long, Long>>> { it.value.first }
-                                .thenByDescending { it.value.second }
-                        )
+                    // Sort candidate background apps strictly by recency of use
+                    val sortedBackgroundPkgs = trulyOpenApps.entries
+                        .sortedByDescending { it.value }
                         .map { it.key }
 
-                    // Build prioritized package list: current active app + user's background apps
+                    // Build package list: current active app + actually open background apps
                     val topPkgs = mutableListOf<String>()
                     topPkgs.add(context.packageName)
                     for (pkg in sortedBackgroundPkgs) {
@@ -1178,28 +1162,6 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             topPkgs.add(pkg)
                         }
                         if (topPkgs.size >= 4) break
-                    }
-
-                    // Safe fallback to installed user apps only if the device has zero recent user app sessions
-                    if (topPkgs.size < 4) {
-                        val deviceFallbacks = listOf(
-                            "com.android.chrome",
-                            "com.google.android.youtube",
-                            "com.google.android.apps.photos",
-                            "com.google.android.apps.nexuslauncher"
-                        )
-                        for (fp in deviceFallbacks) {
-                            if (!topPkgs.contains(fp)) {
-                                val isInstalled = try {
-                                    pm.getApplicationInfo(fp, 0)
-                                    true
-                                } catch (_: Exception) { false }
-                                if (isInstalled) {
-                                    topPkgs.add(fp)
-                                }
-                            }
-                            if (topPkgs.size >= 4) break
-                        }
                     }
 
                     val sysLoad = if (totalBytes > 0) (usedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0.4f, 0.95f) else 0.7f
@@ -1241,7 +1203,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 else -> 280f
                             }
 
-                            val lastUsedTime = userAppUsage[pkg]?.first ?: (now - 1000L * 60 * 30)
+                            val lastUsedTime = trulyOpenApps[pkg] ?: (now - 1000L * 60 * 30)
                             val ageMin = ((now - lastUsedTime) / (1000f * 60f)).coerceAtLeast(0f)
                             val recencyScale = when {
                                 ageMin < 3f -> 1.08f
@@ -3232,18 +3194,16 @@ object PriorityWeightHelper {
     data class PriorityLevel(val label: String, val weight: Int)
 
     val LEVELS = listOf(
-        PriorityLevel("Low", 20),
-        PriorityLevel("Medium Low", 40),
+        PriorityLevel("Low", 25),
         PriorityLevel("Medium", 50),
-        PriorityLevel("Medium High", 70),
-        PriorityLevel("High", 80),
+        PriorityLevel("High", 75),
         PriorityLevel("Very High", 100)
     )
 
     const val DEFAULT_WEIGHT = 50
 
     fun weightToLevelIndex(weight: Int): Int {
-        var closestIdx = 2 // default to Medium
+        var closestIdx = 1 // default to Medium
         var minDiff = Int.MAX_VALUE
         for (i in LEVELS.indices) {
             val diff = Math.abs(LEVELS[i].weight - weight)
@@ -3256,11 +3216,11 @@ object PriorityWeightHelper {
     }
 
     fun levelIndexToWeight(index: Int): Int {
-        return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS[2] }.weight
+        return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS[1] }.weight
     }
 
     fun levelLabel(index: Int): String {
-        return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS[2] }.label
+        return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS[1] }.label
     }
 }
 
@@ -4019,7 +3979,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var shortcutTriggerSymbol by rememberStringPreference(prefs, "web_shortcut_trigger_symbol", "!")
                 SettingsRowToggle(
                     title = "Enable Quick Web Shortcuts",
-                    subtitle = "Prefix Queries with $shortcutTriggerSymbol to Open Specific Web Platforms.",
+                    subtitle = "Prefix Queries with User Selected Symbol to Open Specific Web Applications.",
                     icon = Icons.Outlined.TravelExplore,
                     isChecked = quickShortcutsEnabled,
                     onCheckedChange = { quickShortcutsEnabled = it },

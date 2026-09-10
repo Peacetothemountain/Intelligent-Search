@@ -172,13 +172,27 @@ private const val GEMINI_CORNER_SWIPE_SHADER = """
         
         float intensity = clamp(bottomGlow * 0.90 + cornerLeft * 0.85 + cornerRight * 0.85, 0.0, 1.0);
         
-        // Envelop in dynamic Material colors across horizontal axis & time
-        float t = uv.x + sin(time * 0.8) * 0.15;
-        t = clamp(t, 0.0, 1.0);
+        // Smoothly and subtly sweep the dynamic Material You palette across the entire wave ribbon
+        float flow = fract(uv.x - time * 0.20);
         
-        half4 c1 = mix(colorPrimary, colorSecondary, smoothstep(0.0, 0.45, t));
-        half4 c2 = mix(colorTertiary, colorAccent, smoothstep(0.55, 1.0, t));
-        half4 mixedColor = mix(c1, c2, smoothstep(0.35, 0.65, t));
+        half4 mixedColor;
+        if (flow < 0.25) {
+            float t = flow / 0.25;
+            float smoothT = t * t * (3.0 - 2.0 * t);
+            mixedColor = mix(colorPrimary, colorSecondary, smoothT);
+        } else if (flow < 0.50) {
+            float t = (flow - 0.25) / 0.25;
+            float smoothT = t * t * (3.0 - 2.0 * t);
+            mixedColor = mix(colorSecondary, colorTertiary, smoothT);
+        } else if (flow < 0.75) {
+            float t = (flow - 0.50) / 0.25;
+            float smoothT = t * t * (3.0 - 2.0 * t);
+            mixedColor = mix(colorTertiary, colorAccent, smoothT);
+        } else {
+            float t = (flow - 0.75) / 0.25;
+            float smoothT = t * t * (3.0 - 2.0 * t);
+            mixedColor = mix(colorAccent, colorPrimary, smoothT);
+        }
         
         float pulse = 0.88 + 0.12 * sin(time * 2.8);
         float finalAlpha = intensity * mixedColor.a * pulse;
@@ -225,14 +239,16 @@ fun GeminiCornerSwipeWaveLayer(
             animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Restart),
             label = "wavePhase"
         )
-        val gradientBrush = remember(colorPrimary, colorSecondary, colorTertiary, colorAccent) {
-            androidx.compose.ui.graphics.Brush.horizontalGradient(
-                listOf(colorPrimary, colorSecondary, colorTertiary, colorAccent)
-            )
-        }
         androidx.compose.foundation.Canvas(modifier = modifier) {
             val w = size.width
             val h = size.height
+            val offset = (phase / (2f * Math.PI.toFloat())) * w
+            val gradientBrush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                colors = listOf(colorPrimary, colorSecondary, colorTertiary, colorAccent, colorPrimary),
+                startX = offset,
+                endX = offset + w,
+                tileMode = androidx.compose.ui.graphics.TileMode.Repeated
+            )
             val path = androidx.compose.ui.graphics.Path().apply {
                 moveTo(0f, h)
                 for (x in 0..w.toInt() step 6) {
@@ -897,8 +913,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
 
 data class ProcessRamEntry(
     val name: String,
-    val ramMb: Float,
-    val color: Color
+    val ramMb: Float
 )
 
 private data class MemorySnapshot(
@@ -923,7 +938,6 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
     var usedRamGb by remember { mutableStateOf("0.0") }
     var usedRamPercent by remember { mutableIntStateOf(0) }
     var availableRamGb by remember { mutableStateOf("0.0") }
-    val ramHistoryOverTime = remember { mutableStateListOf<Float>() }
     val topProcesses = remember { mutableStateListOf<ProcessRamEntry>() }
 
     val actMgr = remember(context) { context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager }
@@ -1159,22 +1173,13 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         friendlyName to mb
                     }
 
-                    val palette = listOf(
-                        Color(0xFF4285F4), // Google Blue
-                        Color(0xFF34A853), // Google Green
-                        Color(0xFFFBBC05), // Google Yellow
-                        Color(0xFFEA4335), // Google Red
-                        Color(0xFFA142F4), // Purple
-                        Color(0xFF00ACC1)  // Cyan
-                    )
-
                     val topProcessesList = resolvedList
                         .groupBy { it.first }
                         .map { (name, list) -> name to list.maxOf { it.second } }
                         .sortedByDescending { it.second }
                         .take(4)
-                        .mapIndexed { i, (name, mb) ->
-                            ProcessRamEntry(name = name, ramMb = mb, color = palette[i % palette.size])
+                        .map { (name, mb) ->
+                            ProcessRamEntry(name = name, ramMb = mb)
                         }
 
                     MemorySnapshot(totGb, usdGb, avlGb, calculatedPct, topProcessesList)
@@ -1187,18 +1192,6 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
 
                 topProcesses.clear()
                 topProcesses.addAll(snapshot.processes)
-
-                if (ramHistoryOverTime.isEmpty()) {
-                    val baseline = snapshot.usedGb.toFloat()
-                    repeat(12) {
-                        ramHistoryOverTime.add(baseline)
-                    }
-                } else {
-                    if (ramHistoryOverTime.size >= 14) {
-                        ramHistoryOverTime.removeAt(0)
-                    }
-                    ramHistoryOverTime.add(snapshot.usedGb.toFloat())
-                }
             } catch (_: Exception) {}
 
             kotlinx.coroutines.delay(1200)
@@ -1393,6 +1386,13 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     )
                 }
 
+                val materialAppColors = listOf(
+                    MaterialTheme.colorScheme.primary,
+                    MaterialTheme.colorScheme.secondary,
+                    MaterialTheme.colorScheme.tertiary,
+                    MaterialTheme.colorScheme.primaryContainer
+                )
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1400,9 +1400,15 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // LEFT: Live X/Y Time-Series Graph with App Dot Points & Stems
-                    val secondaryColor = MaterialTheme.colorScheme.secondary
+                    // LEFT: Live App RAM Usage Distribution Graph
+                    val primaryColor = MaterialTheme.colorScheme.primary
                     val outlineColor = MaterialTheme.colorScheme.outlineVariant
+                    val surfaceColor = MaterialTheme.colorScheme.surface
+
+                    val ceilingMb = if (topProcesses.isNotEmpty()) {
+                        val maxVal = (topProcesses.maxOfOrNull { it.ramMb } ?: 500f).coerceAtLeast(100f)
+                        (maxVal * 1.35f).toInt()
+                    } else 500
 
                     Box(
                         modifier = Modifier
@@ -1415,11 +1421,12 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         androidx.compose.foundation.Canvas(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 18.dp)
+                                .padding(start = 24.dp, end = 10.dp, top = 14.dp, bottom = 18.dp)
                         ) {
                             val w = size.width
                             val h = size.height
 
+                            // Horizontal dashed grid lines
                             val gridLines = 3
                             for (g in 1..gridLines) {
                                 val gy = h * (g.toFloat() / (gridLines + 1))
@@ -1432,47 +1439,87 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 )
                             }
 
-                            if (ramHistoryOverTime.isNotEmpty()) {
-                                val count = ramHistoryOverTime.size
-                                val stepX = if (count > 1) w / (count - 1) else w
-                                val maxVal = (totalRamGb.toFloatOrNull() ?: 16f).coerceAtLeast(1f)
-                                val minDisplay = 0f
+                            if (topProcesses.isNotEmpty()) {
+                                val n = topProcesses.size
+                                val floatCeiling = ceilingMb.toFloat()
 
-                                val points = ramHistoryOverTime.mapIndexed { i, ramGb ->
-                                    val normY = ((ramGb - minDisplay) / (maxVal - minDisplay)).coerceIn(0.08f, 0.92f)
-                                    val px = i * stepX
-                                    val py = h - (h * normY)
+                                // Calculate (X, Y) coordinate for each app's peak based on its actual RAM
+                                val appPoints = topProcesses.mapIndexed { i, proc ->
+                                    val px = if (n > 1) {
+                                        val margin = w * 0.12f
+                                        margin + (i.toFloat() / (n - 1)) * (w - 2f * margin)
+                                    } else {
+                                        w * 0.5f
+                                    }
+                                    val normY = (proc.ramMb / floatCeiling).coerceIn(0.15f, 0.88f)
+                                    val breathe = kotlin.math.sin(wavePhase + i * 1.4f) * 2.5.dp.toPx()
+                                    val py = (h - (h * normY) + breathe).coerceIn(4.dp.toPx(), h - 8.dp.toPx())
                                     androidx.compose.ui.geometry.Offset(px, py)
                                 }
 
+                                // Build smooth spline mountain curve connecting the app peaks
                                 val linePath = androidx.compose.ui.graphics.Path()
                                 val fillPath = androidx.compose.ui.graphics.Path()
 
-                                points.forEachIndexed { i, pt ->
+                                fillPath.moveTo(0f, h)
+                                val firstPt = appPoints.first()
+                                val startY = (h + firstPt.y) / 2f
+                                fillPath.lineTo(0f, startY)
+                                linePath.moveTo(0f, startY)
+
+                                for (i in 0 until appPoints.size) {
+                                    val curr = appPoints[i]
                                     if (i == 0) {
-                                        linePath.moveTo(pt.x, pt.y)
-                                        fillPath.moveTo(pt.x, h)
-                                        fillPath.lineTo(pt.x, pt.y)
+                                        val cx = curr.x * 0.5f
+                                        linePath.cubicTo(cx, startY, cx, curr.y, curr.x, curr.y)
+                                        fillPath.cubicTo(cx, startY, cx, curr.y, curr.x, curr.y)
                                     } else {
-                                        val prev = points[i - 1]
-                                        val cx = (prev.x + pt.x) / 2f
-                                        linePath.cubicTo(cx, prev.y, cx, pt.y, pt.x, pt.y)
-                                        fillPath.cubicTo(cx, prev.y, cx, pt.y, pt.x, pt.y)
+                                        val prev = appPoints[i - 1]
+                                        val midX = (prev.x + curr.x) / 2f
+                                        val valleyY = ((prev.y + curr.y) / 2f + h * 0.18f).coerceAtMost(h - 4.dp.toPx())
+                                        linePath.cubicTo(
+                                            (prev.x + midX) / 2f, prev.y,
+                                            (prev.x + midX) / 2f, valleyY,
+                                            midX, valleyY
+                                        )
+                                        linePath.cubicTo(
+                                            (midX + curr.x) / 2f, valleyY,
+                                            (midX + curr.x) / 2f, curr.y,
+                                            curr.x, curr.y
+                                        )
+                                        fillPath.cubicTo(
+                                            (prev.x + midX) / 2f, prev.y,
+                                            (prev.x + midX) / 2f, valleyY,
+                                            midX, valleyY
+                                        )
+                                        fillPath.cubicTo(
+                                            (midX + curr.x) / 2f, valleyY,
+                                            (midX + curr.x) / 2f, curr.y,
+                                            curr.x, curr.y
+                                        )
                                     }
                                 }
-                                fillPath.lineTo(points.last().x, h)
+
+                                val lastPt = appPoints.last()
+                                val endY = (h + lastPt.y) / 2f
+                                val endControlX = (lastPt.x + w) / 2f
+                                linePath.cubicTo(endControlX, lastPt.y, endControlX, endY, w, endY)
+                                fillPath.cubicTo(endControlX, lastPt.y, endControlX, endY, w, endY)
+                                fillPath.lineTo(w, h)
                                 fillPath.close()
 
+                                // Soft Material You primary vertical gradient fill
                                 drawPath(
                                     path = fillPath,
                                     brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                        listOf(secondaryColor.copy(alpha = 0.35f), Color.Transparent)
+                                        listOf(primaryColor.copy(alpha = 0.32f), primaryColor.copy(alpha = 0.04f), Color.Transparent)
                                     )
                                 )
 
+                                // Crisp spline outline
                                 drawPath(
                                     path = linePath,
-                                    color = secondaryColor,
+                                    color = primaryColor.copy(alpha = 0.85f),
                                     style = androidx.compose.ui.graphics.drawscope.Stroke(
                                         width = 2.dp.toPx(),
                                         cap = androidx.compose.ui.graphics.StrokeCap.Round,
@@ -1480,77 +1527,38 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                     )
                                 )
 
-                                // Helper function to evaluate the exact cubic spline Y coordinate at any normalized X in [0..1]
-                                fun evalSplineY(normX: Float): Float {
-                                    if (points.size <= 1) return points.firstOrNull()?.y ?: 0f
-                                    val targetX = normX * points.last().x
-                                    var seg = 0
-                                    while (seg < points.size - 2 && points[seg + 1].x < targetX) {
-                                        seg++
-                                    }
-                                    val p0 = points[seg]
-                                    val p1 = points[seg + 1]
-                                    val dx = (p1.x - p0.x).coerceAtLeast(0.001f)
-                                    val t = ((targetX - p0.x) / dx).coerceIn(0f, 1f)
-                                    val smoothT = t * t * (3f - 2f * t)
-                                    return p0.y + (p1.y - p0.y) * smoothT
+                                // Vertical dashed drop stems and pulsing peak dots for each app in its Material You color
+                                appPoints.forEachIndexed { i, pt ->
+                                    val appColor = materialAppColors[i % materialAppColors.size]
+
+                                    // Vertical dashed stem from peak down to baseline
+                                    drawLine(
+                                        color = appColor.copy(alpha = 0.45f),
+                                        start = pt,
+                                        end = androidx.compose.ui.geometry.Offset(pt.x, h),
+                                        strokeWidth = 1.dp.toPx(),
+                                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3f, 3f))
+                                    )
+
+                                    // Pulsing halo aura
+                                    drawCircle(
+                                        color = appColor.copy(alpha = 0.25f),
+                                        radius = pointPulse.dp.toPx() * 1.6f,
+                                        center = pt
+                                    )
+                                    // Clean surface ring
+                                    drawCircle(
+                                        color = surfaceColor,
+                                        radius = 3.5.dp.toPx(),
+                                        center = pt
+                                    )
+                                    // Solid center dot in app's Material You color
+                                    drawCircle(
+                                        color = appColor,
+                                        radius = 2.dp.toPx(),
+                                        center = pt
+                                    )
                                 }
-
-                                // Animated dot points going over the graph showing what apps/processes are using RAM
-                                if (topProcesses.isNotEmpty()) {
-                                    val animPhase = (wavePhase / (2f * Math.PI.toFloat()))
-                                    topProcesses.forEachIndexed { pIdx, proc ->
-                                        val normX = (animPhase + pIdx.toFloat() / topProcesses.size) % 1f
-                                        val dotX = normX * w
-                                        val dotY = evalSplineY(normX)
-
-                                        // Vertical stem dropped from curve to baseline
-                                        drawLine(
-                                            color = proc.color.copy(alpha = 0.45f),
-                                            start = androidx.compose.ui.geometry.Offset(dotX, dotY),
-                                            end = androidx.compose.ui.geometry.Offset(dotX, h),
-                                            strokeWidth = 1.dp.toPx(),
-                                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3f, 3f))
-                                        )
-
-                                        // Pulsing glow aura around dot point
-                                        drawCircle(
-                                            color = proc.color.copy(alpha = 0.30f),
-                                            radius = pointPulse.dp.toPx() * 1.5f,
-                                            center = androidx.compose.ui.geometry.Offset(dotX, dotY)
-                                        )
-                                        // Crisp white rim
-                                        drawCircle(
-                                            color = Color.White,
-                                            radius = 3.5.dp.toPx(),
-                                            center = androidx.compose.ui.geometry.Offset(dotX, dotY)
-                                        )
-                                        // Solid app color center
-                                        drawCircle(
-                                            color = proc.color,
-                                            radius = 2.dp.toPx(),
-                                            center = androidx.compose.ui.geometry.Offset(dotX, dotY)
-                                        )
-                                    }
-                                }
-
-                                // Live beacon point on the latest real measurement
-                                val latestPt = points.last()
-                                drawCircle(
-                                    color = secondaryColor.copy(alpha = 0.35f),
-                                    radius = pointPulse.dp.toPx() * 1.8f,
-                                    center = latestPt
-                                )
-                                drawCircle(
-                                    color = Color.White,
-                                    radius = 4.dp.toPx(),
-                                    center = latestPt
-                                )
-                                drawCircle(
-                                    color = secondaryColor,
-                                    radius = 2.5.dp.toPx(),
-                                    center = latestPt
-                                )
                             }
                         }
 
@@ -1561,39 +1569,30 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 .padding(horizontal = 6.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "${totalRamGb}G",
+                                text = "${ceilingMb}M",
                                 fontSize = 7.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
                                 modifier = Modifier.align(Alignment.TopStart)
                             )
                             Text(
-                                text = "0G",
+                                text = "0M",
                                 fontSize = 7.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
                                 modifier = Modifier
                                     .align(Alignment.BottomStart)
                                     .padding(bottom = 12.dp)
                             )
-                            Row(
+                            Text(
+                                text = "Top Apps by RAM",
+                                fontSize = 7.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
                                 modifier = Modifier
-                                    .fillMaxWidth()
                                     .align(Alignment.BottomCenter)
-                                    .padding(horizontal = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "t-15s",
-                                    fontSize = 7.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                )
-                                Text(
-                                    text = "Timeline → Now",
-                                    fontSize = 7.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                )
-                            }
+                                    .padding(bottom = 2.dp)
+                            )
                         }
                     }
 
@@ -1618,7 +1617,8 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
-                            topProcesses.forEach { entry ->
+                            topProcesses.forEachIndexed { i, entry ->
+                                val appColor = materialAppColors[i % materialAppColors.size]
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1628,7 +1628,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                         modifier = Modifier
                                             .size(7.dp)
                                             .clip(androidx.compose.foundation.shape.CircleShape)
-                                            .background(entry.color)
+                                            .background(appColor)
                                     )
                                     Text(
                                         text = entry.name,
@@ -5631,7 +5631,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val wavePrimary = if (previewIsMaterialYou) matPrimary else accentColor
                     val waveSecondary = if (previewIsMaterialYou) matSecondary else matPrimary
                     val waveTertiary = if (previewIsMaterialYou) matTertiary else matSecondary
-                    val waveAccent = accentColor
+                    val waveAccent = if (previewIsMaterialYou) MaterialTheme.colorScheme.primaryContainer else accentColor
 
                     GeminiCornerSwipeWaveLayer(
                         colorPrimary = wavePrimary,
@@ -5651,7 +5651,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         } else if (localSubtheme == "Material") {
                             MaterialTheme.colorScheme.primaryContainer.copy(alpha = effectiveColorAlpha)
                         } else {
-                            androidx.compose.ui.graphics.Color(0xFF6C63FF).copy(alpha = effectiveColorAlpha)
+                            MaterialTheme.colorScheme.primary.copy(alpha = effectiveColorAlpha)
                         }
                     } else androidx.compose.ui.graphics.Color.Transparent
                     

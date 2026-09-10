@@ -2493,13 +2493,15 @@ fun SynchronizedMorphingShortcutBadge(
             val scaleFactor = size.minDimension * 0.44f
 
             translate(left = center.x, top = center.y) {
-                nativePath.rewind()
-                morph.toPath(progress = morphProgress, path = nativePath)
-                scale(scale = scaleFactor, pivot = Offset.Zero) {
-                    drawPath(
-                        path = composePath,
-                        color = containerColor
-                    )
+                rotate(degrees = rotationAngle, pivot = Offset.Zero) {
+                    nativePath.rewind()
+                    morph.toPath(progress = morphProgress, path = nativePath)
+                    scale(scale = scaleFactor, pivot = Offset.Zero) {
+                        drawPath(
+                            path = composePath,
+                            color = containerColor
+                        )
+                    }
                 }
             }
         }
@@ -2647,34 +2649,46 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                     var showAddDialog by remember { mutableStateOf(false) }
 
-                    val shape1 = remember {
-                        RoundedPolygon.star(
-                            numVerticesPerRadius = 4,
-                            innerRadius = 0.60f,
-                            rounding = CornerRounding(radius = 0.35f)
+                    val expressiveShapes = remember {
+                        listOf(
+                            // 1. Smooth Squircle
+                            RoundedPolygon(numVertices = 4, rounding = CornerRounding(radius = 0.55f)),
+                            // 2. 4-Corner Expressive Clover
+                            RoundedPolygon.star(numVerticesPerRadius = 4, innerRadius = 0.60f, rounding = CornerRounding(radius = 0.35f)),
+                            // 3. Rounded Triangle
+                            RoundedPolygon(numVertices = 3, rounding = CornerRounding(radius = 0.40f)),
+                            // 4. 6-Point Flower
+                            RoundedPolygon.star(numVerticesPerRadius = 6, innerRadius = 0.70f, rounding = CornerRounding(radius = 0.35f)),
+                            // 5. Rounded Pentagon
+                            RoundedPolygon(numVertices = 5, rounding = CornerRounding(radius = 0.35f)),
+                            // 6. 8-Point Starburst
+                            RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.80f, rounding = CornerRounding(radius = 0.35f)),
+                            // 7. Rounded Hexagon
+                            RoundedPolygon(numVertices = 6, rounding = CornerRounding(radius = 0.30f)),
+                            // 8. 12-Point Scalloped Blossom
+                            RoundedPolygon.star(numVerticesPerRadius = 12, innerRadius = 0.85f, rounding = CornerRounding(radius = 0.40f)),
+                            // 9. Diamond Sparkle
+                            RoundedPolygon.star(numVerticesPerRadius = 4, innerRadius = 0.42f, rounding = CornerRounding(radius = 0.20f))
                         )
                     }
-                    val shape2 = remember {
-                        RoundedPolygon.star(
-                            numVerticesPerRadius = 8,
-                            innerRadius = 0.82f,
-                            rounding = CornerRounding(radius = 0.35f)
-                        )
-                    }
-                    val sharedMorph = remember(shape1, shape2) {
-                        Morph(shape1, shape2)
+
+                    val morphSequence = remember(expressiveShapes) {
+                        List(expressiveShapes.size) { i ->
+                            Morph(expressiveShapes[i], expressiveShapes[(i + 1) % expressiveShapes.size])
+                        }
                     }
 
                     val infiniteTransition = rememberInfiniteTransition(label = "morphingShortcutsSync")
-                    val morphProgress by infiniteTransition.animateFloat(
+                    val totalCycleProgress by infiniteTransition.animateFloat(
                         initialValue = 0f,
-                        targetValue = 1f,
+                        targetValue = morphSequence.size.toFloat(),
                         animationSpec = infiniteRepeatable(
-                            animation = tween(durationMillis = 3000, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
+                            animation = tween(durationMillis = morphSequence.size * 2200, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
                         ),
-                        label = "shortcutBadgeMorph"
+                        label = "shortcutBadgeMorphCycle"
                     )
+
                     val rotationAngle by infiniteTransition.animateFloat(
                         initialValue = 0f,
                         targetValue = 360f,
@@ -2684,6 +2698,12 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         ),
                         label = "shortcutBadgeRotation"
                     )
+
+                    val currentCycle = (totalCycleProgress % morphSequence.size.toFloat()).coerceIn(0f, morphSequence.size - 0.0001f)
+                    val morphIndex = currentCycle.toInt().coerceIn(0, morphSequence.size - 1)
+                    val rawProgress = (currentCycle - morphIndex).coerceIn(0f, 1f)
+                    val morphProgress = FastOutSlowInEasing.transform(rawProgress)
+                    val sharedMorph = morphSequence[morphIndex]
 
                     val context = LocalContext.current
                     val view = LocalView.current

@@ -140,81 +140,58 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import com.pixel.intelligentsearch.core.data.SettingsManager
 
 @Language("AGSL")
-private const val DYNAMIC_ATMOSPHERIC_SHADER = """
+private const val GEMINI_CORNER_SWIPE_SHADER = """
     uniform float2 resolution;
     uniform float time;
-    uniform half4 targetColor;
-
-    // Artifact-free hash using 3-component mixing (no periodic banding)
-    float hash21(float2 p) {
-        float3 p3 = fract(float3(p.x, p.y, p.x) * 0.1031);
-        p3 += dot(p3, float3(p3.y, p3.z, p3.x) + 33.33);
-        return fract((p3.x + p3.y) * p3.z);
-    }
-
-    // Value noise: smooth interpolation between hash values
-    float noise(float2 p) {
-        float2 i = floor(p);
-        float2 f = fract(p);
-        float2 u = f * f * (3.0 - 2.0 * f);
-        float a = hash21(i);
-        float b = hash21(i + float2(1.0, 0.0));
-        float c = hash21(i + float2(0.0, 1.0));
-        float d = hash21(i + float2(1.0, 1.0));
-        return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
-    }
+    uniform half4 colorPrimary;
+    uniform half4 colorSecondary;
+    uniform half4 colorTertiary;
+    uniform half4 colorAccent;
 
     half4 main(float2 fragCoord) {
         float2 uv = fragCoord / resolution.xy;
-        uv.y = 1.0 - uv.y;
-
-        // 1. FLOWING LIGHT — two overlapping soft glows sweep side-to-side
-        float sweep1 = 0.5 + 0.48 * sin(time * 0.35);
-        float sweep2 = 0.5 + 0.38 * sin(time * 0.5 + 2.1);
-        float glow1 = smoothstep(0.62, 0.0, abs(uv.x - sweep1));
-        float glow2 = smoothstep(0.48, 0.0, abs(uv.x - sweep2)) * 0.55;
-        // Ground the light hard to the bottom
-        float lightAlpha = (glow1 + glow2) * smoothstep(0.42, 0.0, uv.y);
-        // Keep base glow at the original budget
-        float baseGlow = lightAlpha * 0.10;
-
-        // 2. NOISE-DISTORTED DOT GRID
-        float2 noiseCoord = uv * 3.5 + float2(time * 0.08, time * 0.05);
-        float nx = noise(noiseCoord) * 2.0 - 1.0;
-        float ny = noise(noiseCoord + float2(5.3, 9.1)) * 2.0 - 1.0;
-        float2 distortedUv = uv + float2(nx, ny) * 0.009;
-
-        // Dense dot grid — fixed uniform radius (no size-variation noise that caused the artifact bar)
-        float2 gridUv = distortedUv * float2(72.0, 40.0);
-        float2 cellCenter = floor(gridUv) + 0.5;
-        float dist = length(gridUv - cellCenter);
-        float dotAlpha = 1.0 - smoothstep(0.24, 0.30, dist);
-
-        // Dim the light so it's not overpowering
-        float dimLight = lightAlpha * 0.55;
-
-        // 3. SPATIAL COLOR SEPARATION — no overflow possible:
-        //    Pixels INSIDE a dot  → pure Material You color, lit by the light
-        //    Pixels BETWEEN dots  → pure white glow (dimmed), lit by the light
-        //    Pixels with NO light → fully transparent (invisible)
-        float dotLight      = dotAlpha * dimLight;                  // Material You channel
-        float interDotLight = (1.0 - dotAlpha) * dimLight * 0.15;  // white glow channel (much dimmer)
-        float totalAlpha    = clamp(dotLight + interDotLight, 0.0, 1.0);
-
-        half3 glowColor = half3(1.0, 1.0, 1.0);
-        half3 dotColor  = targetColor.rgb;
-        // Color is spatially determined by whether this pixel is inside a dot or not
-        half3 finalColor = mix(glowColor, dotColor, dotAlpha);
-        return half4(finalColor, targetColor.a * totalAlpha);
+        float y = 1.0 - uv.y; // 0.0 at bottom edge, 1.0 at top
+        
+        // Gemini corner swipe light bar ribbons
+        float wave1 = sin(uv.x * 6.28 + time * 2.5) * 0.16;
+        float wave2 = cos(uv.x * 9.42 - time * 1.9) * 0.10;
+        float wave3 = sin((uv.x - 0.5) * 5.0 + time * 1.6) * 0.14;
+        
+        // Corner arcs originating from bottom-left (0,0) and bottom-right (1,0)
+        float dLeft = length(float2(uv.x * 1.15, y * 1.85));
+        float dRight = length(float2((1.0 - uv.x) * 1.15, y * 1.85));
+        
+        float bottomGlow = smoothstep(0.85, 0.0, y - wave1 - wave2);
+        float cornerLeft = smoothstep(0.95, 0.0, dLeft - wave3);
+        float cornerRight = smoothstep(0.95, 0.0, dRight + wave3);
+        
+        float intensity = clamp(bottomGlow * 0.90 + cornerLeft * 0.85 + cornerRight * 0.85, 0.0, 1.0);
+        
+        // Envelop in dynamic Material colors across horizontal axis & time
+        float t = uv.x + sin(time * 0.8) * 0.15;
+        t = clamp(t, 0.0, 1.0);
+        
+        half4 c1 = mix(colorPrimary, colorSecondary, smoothstep(0.0, 0.45, t));
+        half4 c2 = mix(colorTertiary, colorAccent, smoothstep(0.55, 1.0, t));
+        half4 mixedColor = mix(c1, c2, smoothstep(0.35, 0.65, t));
+        
+        float pulse = 0.88 + 0.12 * sin(time * 2.8);
+        float finalAlpha = intensity * mixedColor.a * pulse;
+        
+        return half4(mixedColor.rgb * intensity, finalAlpha);
     }
-
-
 """
 
 @Composable
-fun DynamicAtmosphericBackgroundLayer(color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
+fun GeminiCornerSwipeWaveLayer(
+    colorPrimary: androidx.compose.ui.graphics.Color,
+    colorSecondary: androidx.compose.ui.graphics.Color,
+    colorTertiary: androidx.compose.ui.graphics.Color,
+    colorAccent: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier
+) {
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-        val shader = remember { android.graphics.RuntimeShader(DYNAMIC_ATMOSPHERIC_SHADER) }
+        val shader = remember { android.graphics.RuntimeShader(GEMINI_CORNER_SWIPE_SHADER) }
         val brush = remember(shader) { androidx.compose.ui.graphics.ShaderBrush(shader) }
         var time by remember { mutableFloatStateOf(0f) }
         LaunchedEffect(Unit) {
@@ -229,8 +206,41 @@ fun DynamicAtmosphericBackgroundLayer(color: androidx.compose.ui.graphics.Color,
         androidx.compose.foundation.Canvas(modifier = modifier) {
             shader.setFloatUniform("resolution", size.width, size.height)
             shader.setFloatUniform("time", time)
-            shader.setFloatUniform("targetColor", color.red, color.green, color.blue, color.alpha)
+            shader.setFloatUniform("colorPrimary", colorPrimary.red, colorPrimary.green, colorPrimary.blue, colorPrimary.alpha)
+            shader.setFloatUniform("colorSecondary", colorSecondary.red, colorSecondary.green, colorSecondary.blue, colorSecondary.alpha)
+            shader.setFloatUniform("colorTertiary", colorTertiary.red, colorTertiary.green, colorTertiary.blue, colorTertiary.alpha)
+            shader.setFloatUniform("colorAccent", colorAccent.red, colorAccent.green, colorAccent.blue, colorAccent.alpha)
             drawRect(brush = brush)
+        }
+    } else {
+        val infiniteTransition = rememberInfiniteTransition(label = "geminiWaveFallback")
+        val phase by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = (2f * Math.PI).toFloat(),
+            animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Restart),
+            label = "wavePhase"
+        )
+        val gradientBrush = remember(colorPrimary, colorSecondary, colorTertiary, colorAccent) {
+            androidx.compose.ui.graphics.Brush.horizontalGradient(
+                listOf(colorPrimary, colorSecondary, colorTertiary, colorAccent)
+            )
+        }
+        androidx.compose.foundation.Canvas(modifier = modifier) {
+            val w = size.width
+            val h = size.height
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(0f, h)
+                for (x in 0..w.toInt() step 6) {
+                    val xf = x.toFloat()
+                    val normX = xf / w
+                    val sinOffset = kotlin.math.sin(normX * 6.28 + phase) * (h * 0.25f)
+                    val yf = (h * 0.45f) + sinOffset.toFloat()
+                    lineTo(xf, yf)
+                }
+                lineTo(w, h)
+                close()
+            }
+            drawPath(path, brush = gradientBrush, alpha = 0.85f)
         }
     }
 }
@@ -877,6 +887,341 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
     }
 }
 
+@Composable
+fun BatteryAndMemoryDiagnosticsPage(context: Context) {
+    var batteryLevel by remember { mutableIntStateOf(0) }
+    var batteryTemp by remember { mutableFloatStateOf(0f) }
+    var batteryVolt by remember { mutableFloatStateOf(0f) }
+    var batteryHealth by remember { mutableStateOf("Good") }
+    var isCharging by remember { mutableStateOf(false) }
+
+    var totalRamGb by remember { mutableStateOf("0.0") }
+    var usedRamGb by remember { mutableStateOf("0.0") }
+    var usedRamPercent by remember { mutableIntStateOf(0) }
+    var appPssMb by remember { mutableStateOf("0.0") }
+    val ramHistory = remember { mutableStateListOf<Float>() }
+
+    val actMgr = remember(context) { context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            try {
+                val ifilter = android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+                val batteryStatus = context.registerReceiver(null, ifilter)
+                val lvl = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
+                val scale = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
+                batteryLevel = if (lvl >= 0 && scale > 0) (lvl * 100 / scale) else 0
+
+                val t = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0
+                batteryTemp = t / 10f
+
+                val v = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_VOLTAGE, 0) ?: 0
+                batteryVolt = v / 1000f
+
+                val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+                isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+
+                val h = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_HEALTH, android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN) ?: 0
+                batteryHealth = when (h) {
+                    android.os.BatteryManager.BATTERY_HEALTH_GOOD -> "Good"
+                    android.os.BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Overheat"
+                    android.os.BatteryManager.BATTERY_HEALTH_DEAD -> "Dead"
+                    android.os.BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over Voltage"
+                    android.os.BatteryManager.BATTERY_HEALTH_COLD -> "Cold"
+                    else -> "Normal"
+                }
+            } catch (_: Exception) {}
+
+            try {
+                val memInfo = android.app.ActivityManager.MemoryInfo()
+                actMgr?.getMemoryInfo(memInfo)
+                var totalBytes = memInfo.totalMem
+                var availBytes = memInfo.availMem
+
+                try {
+                    val reader = java.io.BufferedReader(java.io.FileReader("/proc/meminfo"))
+                    var line: String?
+                    var procTotalKb = -1L
+                    var procAvailKb = -1L
+                    while (reader.readLine().also { line = it } != null) {
+                        val l = line ?: break
+                        if (l.startsWith("MemTotal:")) {
+                            procTotalKb = l.substringAfter("MemTotal:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: -1L
+                        } else if (l.startsWith("MemAvailable:")) {
+                            procAvailKb = l.substringAfter("MemAvailable:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: -1L
+                        }
+                        if (procTotalKb > 0 && procAvailKb > 0) break
+                    }
+                    reader.close()
+                    if (procTotalKb > 0) totalBytes = procTotalKb * 1024L
+                    if (procAvailKb > 0) availBytes = procAvailKb * 1024L
+                } catch (_: Exception) {}
+
+                val usedBytes = (totalBytes - availBytes).coerceAtLeast(0L)
+                val pct = if (totalBytes > 0) ((usedBytes.toDouble() / totalBytes) * 100).toInt().coerceIn(0, 100) else 0
+
+                val totalGbNum = totalBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
+                val usedGbNum = usedBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
+
+                totalRamGb = String.format(java.util.Locale.US, "%.1f", totalGbNum)
+                usedRamGb = String.format(java.util.Locale.US, "%.1f", usedGbNum)
+                usedRamPercent = pct
+
+                val myPid = android.os.Process.myPid()
+                val pMem = actMgr?.getProcessMemoryInfo(intArrayOf(myPid))
+                val pss = (pMem?.firstOrNull()?.totalPss ?: 0) / 1024f
+                appPssMb = String.format(java.util.Locale.US, "%.1f", pss)
+
+                if (ramHistory.size >= 12) {
+                    ramHistory.removeAt(0)
+                }
+                ramHistory.add(pct.toFloat())
+            } catch (_: Exception) {}
+
+            kotlinx.coroutines.delay(1200)
+        }
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "diagPulseTransition")
+    val wavePhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2f * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Restart),
+        label = "diagWavePhase"
+    )
+    val pointPulse by infiniteTransition.animateFloat(
+        initialValue = 3.dp.value,
+        targetValue = 5.5.dp.value,
+        animationSpec = infiniteRepeatable(tween(1000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "pointPulse"
+    )
+
+    Row(
+        modifier = Modifier.fillMaxSize(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // --- LEFT: Battery Health ---
+        Surface(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Battery Health",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Icon(
+                        imageVector = if (isCharging) Icons.Default.BatteryChargingFull else Icons.Default.BatteryFull,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                val primaryColor = MaterialTheme.colorScheme.primary
+                val tertiaryColor = MaterialTheme.colorScheme.tertiary
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                        val w = size.width
+                        val h = size.height
+                        val fillHeight = (h * (batteryLevel / 100f).coerceIn(0.05f, 1f))
+                        val baseWaterY = h - fillHeight
+
+                        val path = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, h)
+                            lineTo(0f, baseWaterY)
+                            for (x in 0..w.toInt() step 4) {
+                                val xf = x.toFloat()
+                                val normX = xf / w
+                                val waveOffset = kotlin.math.sin(normX * 6.28 + wavePhase) * 3.5.dp.toPx()
+                                lineTo(xf, baseWaterY + waveOffset.toFloat())
+                            }
+                            lineTo(w, h)
+                            close()
+                        }
+                        drawPath(
+                            path = path,
+                            brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                listOf(primaryColor.copy(alpha = 0.65f), tertiaryColor.copy(alpha = 0.85f))
+                            )
+                        )
+                    }
+                    Text(
+                        text = "$batteryLevel%",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "Status: $batteryHealth",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Temp: ${String.format(java.util.Locale.US, "%.1f", batteryTemp)} °C",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Voltage: ${String.format(java.util.Locale.US, "%.2f", batteryVolt)} V",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // --- RIGHT: System RAM Usage ---
+        Surface(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "System RAM",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    Icon(
+                        imageVector = Icons.Outlined.Memory,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                val secondaryColor = MaterialTheme.colorScheme.secondary
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (ramHistory.isNotEmpty()) {
+                        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 6.dp)) {
+                            val w = size.width
+                            val h = size.height
+                            val count = ramHistory.size
+                            val stepX = if (count > 1) w / (count - 1) else w
+
+                            val linePath = androidx.compose.ui.graphics.Path()
+                            val fillPath = androidx.compose.ui.graphics.Path()
+
+                            ramHistory.forEachIndexed { idx, pct ->
+                                val x = idx * stepX
+                                val y = (h - (h * (pct / 100f).coerceIn(0.08f, 0.92f)))
+                                if (idx == 0) {
+                                    linePath.moveTo(x, y)
+                                    fillPath.moveTo(x, h)
+                                    fillPath.lineTo(x, y)
+                                } else {
+                                    linePath.lineTo(x, y)
+                                    fillPath.lineTo(x, y)
+                                }
+                            }
+                            fillPath.lineTo((count - 1) * stepX, h)
+                            fillPath.close()
+
+                            drawPath(
+                                path = fillPath,
+                                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    listOf(secondaryColor.copy(alpha = 0.35f), Color.Transparent)
+                                )
+                            )
+
+                            drawPath(
+                                path = linePath,
+                                color = secondaryColor,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                    width = 2.dp.toPx(),
+                                    cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                                    join = androidx.compose.ui.graphics.StrokeJoin.Round
+                                )
+                            )
+
+                            ramHistory.forEachIndexed { idx, pct ->
+                                val x = idx * stepX
+                                val y = (h - (h * (pct / 100f).coerceIn(0.08f, 0.92f)))
+                                val isLast = idx == count - 1
+                                val radius = if (isLast) pointPulse.dp.toPx() else 2.5.dp.toPx()
+                                drawCircle(
+                                    color = secondaryColor,
+                                    radius = radius,
+                                    center = androidx.compose.ui.geometry.Offset(x, y)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "${usedRamGb} / ${totalRamGb} GB ($usedRamPercent%)",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "App RAM: ${appPssMb} MB PSS",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Kernel Status: Accurate",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
 // -----------------------------------------------------------------------------------------
 // MAIN SETTINGS
 // -----------------------------------------------------------------------------------------
@@ -914,7 +1259,7 @@ fun MainSettingsScreen(
         val isTutorialActive = TutorialManager.isTutorialActive(prefs)
 
         if (showInfoDialog) {
-            val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { 2 })
+            val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { 3 })
             val coroutineScope = rememberCoroutineScope()
             val secureRepo = remember { com.pixel.intelligentsearch.core.security.SecureSettingsRepository(context) }
             val attestationVerifier = remember { com.pixel.intelligentsearch.core.security.KeyAttestationVerifier(context) }
@@ -1126,12 +1471,16 @@ fun MainSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (pagerState.currentPage == 0) "Developer Note" else "Hardware & Security",
+                            text = when (pagerState.currentPage) {
+                                0 -> "Developer Note"
+                                1 -> "Hardware & Security"
+                                else -> "Battery & System Diagnostics"
+                            },
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            repeat(2) { pageIndex ->
+                            repeat(3) { pageIndex ->
                                 val isSelected = pagerState.currentPage == pageIndex
                                 Box(
                                     modifier = Modifier
@@ -1148,139 +1497,148 @@ fun MainSettingsScreen(
                         state = pagerState,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(260.dp)
+                            .height(280.dp)
                     ) { page ->
-                        if (page == 0) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Text(
-                                    "If you are a Google Pixel user who uses stock Pixel Launcher and would like to set Intelligent Search as your default Pixel Launcher search bar widget, use the following ADB Command:",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                    modifier = Modifier.fillMaxWidth()
+                        when (page) {
+                            0 -> {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Text(
-                                        "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch",
+                                        "If you are a Google Pixel user who uses stock Pixel Launcher and would like to set Intelligent Search as your default Pixel Launcher search bar widget, use the following ADB Command:",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(12.dp)
+                                        )
+                                    }
+                                    Text(
+                                        "*Please be advised: Using adb shell settings put secure selected_search_engine com.pixel.intelligentsearch on Pixel Launcher will cause Sports and Finance options on Google At A Glance to not function.",
                                         style = MaterialTheme.typography.bodySmall,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(12.dp)
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                                Text(
-                                    "*Please be advised: Using adb shell settings put secure selected_search_engine com.pixel.intelligentsearch on Pixel Launcher will cause Sports and Finance options on Google At A Glance to not function.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                             }
-                        } else {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    modifier = Modifier.fillMaxWidth()
+                            1 -> {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(14.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Security,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.size(26.dp)
-                                        )
-                                        Text(
-                                            text = securityTitle,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
+                                        Row(
+                                            modifier = Modifier.padding(14.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Security,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.size(26.dp)
+                                            )
+                                            Text(
+                                                text = securityTitle,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = securityDescription,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): " + if (attestationResult.isHardwareAttested) "Verified ✓" else "Attested",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (attestationResult.isHardwareAttested) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "Certificate Chain Depth: ${attestationResult.certificateCount} certificates",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
                                 }
-                                Text(
-                                    text = securityDescription,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(12.dp),
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Text(
-                                            text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): " + if (attestationResult.isHardwareAttested) "Verified ✓" else "Attested",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (attestationResult.isHardwareAttested) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "Certificate Chain Depth: ${attestationResult.certificateCount} certificates",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        val actMgr = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
-                                        val memInfo = android.app.ActivityManager.MemoryInfo()
-                                        actMgr?.getMemoryInfo(memInfo)
-                                        val totalRamGb = String.format(java.util.Locale.US, "%.1f", memInfo.totalMem.toDouble() / (1024.0 * 1024.0 * 1024.0))
-                                        val availRamGb = String.format(java.util.Locale.US, "%.1f", memInfo.availMem.toDouble() / (1024.0 * 1024.0 * 1024.0))
-                                        Text(
-                                            text = "System RAM: ${availRamGb} GB free of ${totalRamGb} GB",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
+                            }
+                            else -> {
+                                BatteryAndMemoryDiagnosticsPage(context = context)
                             }
                         }
                     }
                 },
                 confirmButton = {
-                    if (pagerState.currentPage == 0) {
-                        TextButton(onClick = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                            val clip = android.content.ClipData.newPlainText("ADB Command", "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch")
-                            clipboard?.setPrimaryClip(clip)
-                            Toast.makeText(context, "ADB command copied to clipboard", Toast.LENGTH_SHORT).show()
-                        }) {
-                            Text("Copy Command")
+                    when (pagerState.currentPage) {
+                        0 -> {
+                            TextButton(onClick = {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                val clip = android.content.ClipData.newPlainText("ADB Command", "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch")
+                                clipboard?.setPrimaryClip(clip)
+                                Toast.makeText(context, "ADB command copied to clipboard", Toast.LENGTH_SHORT).show()
+                            }) {
+                                Text("Copy Command")
+                            }
                         }
-                    } else {
-                        TextButton(onClick = {
-                            coroutineScope.launch { pagerState.animateScrollToPage(0) }
-                        }) {
-                            Text("Back to Note")
+                        1 -> {
+                            TextButton(onClick = {
+                                coroutineScope.launch { pagerState.animateScrollToPage(2) }
+                            }) {
+                                Text("Diagnostics")
+                            }
+                        }
+                        else -> {
+                            TextButton(onClick = { showInfoDialog = false }) {
+                                Text("Close")
+                            }
                         }
                     }
                 },
                 dismissButton = {
-                    if (pagerState.currentPage == 0) {
-                        TextButton(onClick = {
-                            coroutineScope.launch { pagerState.animateScrollToPage(1) }
-                        }) {
-                            Text("Security Info")
+                    when (pagerState.currentPage) {
+                        0 -> {
+                            TextButton(onClick = {
+                                coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                            }) {
+                                Text("Security Info")
+                            }
                         }
-                    } else {
-                        TextButton(onClick = { showInfoDialog = false }) {
-                            Text("Close")
+                        else -> {
+                            TextButton(onClick = {
+                                coroutineScope.launch { pagerState.animateScrollToPage(0) }
+                            }) {
+                                Text("Back to Note")
+                            }
                         }
                     }
                 }
@@ -1307,7 +1665,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Search Shortcuts",
-                    subtitle = "Apps, Contacts, Files, etc.",
+                    subtitle = "Apps, Contacts, Files, Etc.",
                     icon = Icons.AutoMirrored.Outlined.ManageSearch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchSources) },
                     showDivider = true,
@@ -2327,8 +2685,7 @@ object PriorityWeightHelper {
 
     val LEVELS = listOf(
         PriorityLevel("Low", 20),
-        PriorityLevel("Low Medium", 35),
-        PriorityLevel("Medium Low", 45),
+        PriorityLevel("Medium Low", 40),
         PriorityLevel("Medium", 50),
         PriorityLevel("Medium High", 70),
         PriorityLevel("High", 80),
@@ -2338,7 +2695,7 @@ object PriorityWeightHelper {
     const val DEFAULT_WEIGHT = 50
 
     fun weightToLevelIndex(weight: Int): Int {
-        var closestIdx = 3 // default to Medium
+        var closestIdx = 2 // default to Medium
         var minDiff = Int.MAX_VALUE
         for (i in LEVELS.indices) {
             val diff = Math.abs(LEVELS[i].weight - weight)
@@ -2351,11 +2708,11 @@ object PriorityWeightHelper {
     }
 
     fun levelIndexToWeight(index: Int): Int {
-        return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS[3] }.weight
+        return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS[2] }.weight
     }
 
     fun levelLabel(index: Int): String {
-        return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS[3] }.label
+        return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS[2] }.label
     }
 }
 
@@ -3023,10 +3380,14 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     )
 
                     if (triggerDropdownSelection == "Custom") {
+                        var customInputText by remember(triggerDropdownSelection) {
+                            mutableStateOf(if (isPredefined) "" else shortcutTriggerSymbol)
+                        }
                         OutlinedTextField(
-                            value = shortcutTriggerSymbol,
+                            value = customInputText,
                             onValueChange = { input ->
                                 val clean = input.filter { !it.isWhitespace() }
+                                customInputText = clean
                                 if (clean.isNotBlank()) {
                                     shortcutTriggerSymbol = clean
                                 }
@@ -3232,8 +3593,9 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                         modifier = Modifier.weight(1f)
                                                     ) {
                                                         val badgeLabel = remember(bang.prefix, shortcutTriggerSymbol) {
-                                                            if (bang.isBuiltIn && bang.prefix.startsWith("!")) {
-                                                                "$shortcutTriggerSymbol${bang.prefix.removePrefix("!")}"
+                                                            val bare = bang.prefix.trimStart { !it.isLetterOrDigit() }
+                                                            if (bang.isBuiltIn || bang.prefix.startsWith("!")) {
+                                                                "$shortcutTriggerSymbol$bare"
                                                             } else {
                                                                 bang.displayPrefix
                                                             }
@@ -3332,8 +3694,12 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     modifier = Modifier.weight(1f)
                                                 ) {
+                                                    val directBadge = remember(bang.prefix, shortcutTriggerSymbol) {
+                                                        val bare = bang.prefix.trimStart { !it.isLetterOrDigit() }
+                                                        "$shortcutTriggerSymbol$bare"
+                                                    }
                                                     SynchronizedMorphingShortcutBadge(
-                                                        shortcut = bang.displayPrefix,
+                                                        shortcut = directBadge,
                                                         morph = sharedMorph,
                                                         rotationAngle = rotationAngle,
                                                         morphProgress = morphProgress
@@ -4646,9 +5012,21 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     }
 
-                    DynamicAtmosphericBackgroundLayer(
-                        color = activeColor,
-                        modifier = Modifier.fillMaxSize()
+                    val wavePrimary = if (previewIsMaterialYou) matPrimary else accentColor
+                    val waveSecondary = if (previewIsMaterialYou) matSecondary else matPrimary
+                    val waveTertiary = if (previewIsMaterialYou) matTertiary else matSecondary
+                    val waveAccent = accentColor
+
+                    GeminiCornerSwipeWaveLayer(
+                        colorPrimary = wavePrimary,
+                        colorSecondary = waveSecondary,
+                        colorTertiary = waveTertiary,
+                        colorAccent = waveAccent,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
                     )
 
                     val previewRimColorAlpha = if (previewIsMaterialYou) {
@@ -7405,7 +7783,7 @@ fun BackupRestoreScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
                 Text(
-                    "Optional passphrase for cross-device portability. If left blank, backup is bound to this device's Titan KeyStore.",
+                    "Optional Passphrase for Cross-Device Portability. If Left Blank, Backup Is Bound to This Device's Titan KeyStore.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
@@ -7430,7 +7808,7 @@ fun BackupRestoreScreen(
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text("Export Configuration", fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
                     Text(
-                        "Includes settings, search history, shortcuts, and priority weights.",
+                        "Includes Settings, Search History, Shortcuts, and Priority Weights.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -7458,7 +7836,7 @@ fun BackupRestoreScreen(
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text("Restore from Backup", fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
                     Text(
-                        "Select an existing .json backup file to decrypt, verify SHA-256 integrity, and restore.",
+                        "Select an Existing .json Backup File to Decrypt, Verify SHA-256 Integrity, and Restore.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

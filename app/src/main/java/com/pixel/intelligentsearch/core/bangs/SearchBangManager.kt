@@ -28,7 +28,7 @@ class SearchBangManager @Inject constructor(
                 urlTemplate = "https://www.google.com/search?q=%s",
                 targetPackage = "com.google.android.googlequicksearchbox",
                 isBuiltIn = true,
-                description = "Search Google directly"
+                description = "Search Google Directly."
             ),
             SearchBang(
                 prefix = "!yt",
@@ -37,7 +37,7 @@ class SearchBangManager @Inject constructor(
                 targetPackage = "com.google.android.youtube",
                 appIntentUriTemplate = "vnd.youtube://results?q=%s",
                 isBuiltIn = true,
-                description = "Search videos on YouTube"
+                description = "Search Videos on YouTube."
             ),
             SearchBang(
                 prefix = "!w",
@@ -45,7 +45,7 @@ class SearchBangManager @Inject constructor(
                 urlTemplate = "https://en.wikipedia.org/wiki/Special:Search?search=%s",
                 targetPackage = "org.wikipedia",
                 isBuiltIn = true,
-                description = "Look up articles on Wikipedia"
+                description = "Look up Articles on Wikipedia."
             ),
             SearchBang(
                 prefix = "!r",
@@ -53,7 +53,7 @@ class SearchBangManager @Inject constructor(
                 urlTemplate = "https://www.reddit.com/search/?q=%s",
                 targetPackage = "com.reddit.frontpage",
                 isBuiltIn = true,
-                description = "Search discussions on Reddit"
+                description = "Search Discussions on Reddit."
             ),
             SearchBang(
                 prefix = "!m",
@@ -62,7 +62,7 @@ class SearchBangManager @Inject constructor(
                 targetPackage = "com.google.android.apps.maps",
                 appIntentUriTemplate = "geo:0,0?q=%s",
                 isBuiltIn = true,
-                description = "Find locations and directions on Maps"
+                description = "Find Locations and Directions on Google Maps."
             ),
             SearchBang(
                 prefix = "!a",
@@ -70,7 +70,7 @@ class SearchBangManager @Inject constructor(
                 urlTemplate = "https://www.amazon.com/s?k=%s",
                 targetPackage = "com.amazon.mShop.android.shopping",
                 isBuiltIn = true,
-                description = "Search products on Amazon"
+                description = "Search Products on Amazon."
             ),
             SearchBang(
                 prefix = "!gh",
@@ -78,7 +78,7 @@ class SearchBangManager @Inject constructor(
                 urlTemplate = "https://github.com/search?q=%s",
                 targetPackage = "com.github.android",
                 isBuiltIn = true,
-                description = "Search repositories and code on GitHub"
+                description = "Search Repositories and Code on GitHub."
             ),
             SearchBang(
                 prefix = "!d",
@@ -86,7 +86,7 @@ class SearchBangManager @Inject constructor(
                 urlTemplate = "https://drive.google.com/drive/search?q=%s",
                 targetPackage = "com.google.android.apps.docs",
                 isBuiltIn = true,
-                description = "Search files on Google Drive"
+                description = "Search Files on Google Drive."
             ),
             SearchBang(
                 prefix = "!ddg",
@@ -94,7 +94,7 @@ class SearchBangManager @Inject constructor(
                 urlTemplate = "https://duckduckgo.com/?q=%s",
                 targetPackage = "com.duckduckgo.mobile.android",
                 isBuiltIn = true,
-                description = "Search private web with DuckDuckGo"
+                description = "Search Private Web with DuckDuckGo."
             ),
             SearchBang(
                 prefix = "!x",
@@ -102,14 +102,14 @@ class SearchBangManager @Inject constructor(
                 urlTemplate = "https://x.com/search?q=%s",
                 targetPackage = "com.twitter.android",
                 isBuiltIn = true,
-                description = "Search posts on X"
+                description = "Search Posts on X."
             ),
             SearchBang(
                 prefix = "!so",
                 name = "Stack Overflow",
                 urlTemplate = "https://stackoverflow.com/search?q=%s",
                 isBuiltIn = true,
-                description = "Search programming Q&A on Stack Overflow"
+                description = "Search Programming Q&A on Stack Overflow."
             ),
             SearchBang(
                 prefix = "!play",
@@ -118,7 +118,7 @@ class SearchBangManager @Inject constructor(
                 targetPackage = "com.android.vending",
                 appIntentUriTemplate = "market://search?q=%s",
                 isBuiltIn = true,
-                description = "Search apps and games on Play Store"
+                description = "Search Apps and Games on Play Store."
             ),
             SearchBang(
                 prefix = "!spot",
@@ -127,7 +127,7 @@ class SearchBangManager @Inject constructor(
                 targetPackage = "com.spotify.music",
                 appIntentUriTemplate = "spotify:search:%s",
                 isBuiltIn = true,
-                description = "Search songs and artists on Spotify"
+                description = "Search Songs and Artists on Spotify."
             )
         )
 

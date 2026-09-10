@@ -697,19 +697,42 @@ fun SearchOverlayScreen(
         uiState.filteredApps.filter { !settingsState.hiddenApps.contains(it.packageName) }
     }
 
-    val bestMatch = remember(uiState.query, uiState.contacts, visibleApps, uiState.files, settingsState.searchApps, settingsState.searchContacts, settingsState.searchFiles) {
+    val appWeight = remember(prefs) { prefs.getInt("search_weight_apps", 50) }
+    val webWeight = remember(prefs) { prefs.getInt("search_weight_web", 50) }
+    val contactWeight = remember(prefs) { prefs.getInt("search_weight_contacts", 50) }
+    val fileWeight = remember(prefs) { prefs.getInt("search_weight_files", 50) }
+
+    val domainMatchPriorities = remember(appWeight, contactWeight, fileWeight) {
+        listOf(
+            "contacts" to contactWeight,
+            "apps" to appWeight,
+            "files" to fileWeight
+        ).sortedByDescending { it.second }
+    }
+
+    val bestMatch = remember(uiState.query, uiState.contacts, visibleApps, uiState.files, settingsState.searchApps, settingsState.searchContacts, settingsState.searchFiles, domainMatchPriorities) {
         if (uiState.query.isEmpty()) return@remember null
-        if (settingsState.searchContacts) {
-            val contactMatch = uiState.contacts.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
-            if (contactMatch != null) return@remember contactMatch
-        }
-        if (settingsState.searchApps) {
-            val appMatch = visibleApps.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
-            if (appMatch != null) return@remember appMatch
-        }
-        if (settingsState.searchFiles) {
-            val fileMatch = uiState.files.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
-            if (fileMatch != null) return@remember fileMatch
+        for ((domain, _) in domainMatchPriorities) {
+            when (domain) {
+                "contacts" -> {
+                    if (settingsState.searchContacts) {
+                        val contactMatch = uiState.contacts.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
+                        if (contactMatch != null) return@remember contactMatch
+                    }
+                }
+                "apps" -> {
+                    if (settingsState.searchApps) {
+                        val appMatch = visibleApps.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
+                        if (appMatch != null) return@remember appMatch
+                    }
+                }
+                "files" -> {
+                    if (settingsState.searchFiles) {
+                        val fileMatch = uiState.files.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
+                        if (fileMatch != null) return@remember fileMatch
+                    }
+                }
+            }
         }
         null
     }
@@ -1063,6 +1086,15 @@ fun SearchOverlayScreen(
     }
 
     val searchResultsContent = @Composable {
+        val sortedResultSections = remember(appWeight, webWeight, contactWeight, fileWeight) {
+            listOf(
+                "apps" to appWeight,
+                "web" to webWeight,
+                "contacts" to contactWeight,
+                "files" to fileWeight
+            ).sortedByDescending { it.second }.map { it.first }
+        }
+
         LazyColumn(
             state = searchResultsListState,
             modifier = Modifier
@@ -1691,37 +1723,6 @@ fun SearchOverlayScreen(
                 item(key = "shortcuts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
-            if (showWeb && settingsState.searchWeb) {
-                if (uiState.webSuggestions.isNotEmpty()) {
-                    items(uiState.webSuggestions.take(settingsState.webResultsCount), key = { "web_suggest_$it" }) { suggestion ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .animateItem(
-                                    placementSpec = androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
-                                    fadeInSpec = androidx.compose.animation.core.tween(150),
-                                    fadeOutSpec = androidx.compose.animation.core.tween(150)
-                                )
-                                .padding(horizontal = 16.dp, vertical = 4.dp)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(32.dp))
-                                .clip(RoundedCornerShape(32.dp))
-                                .bouncyClickable {
-                                    viewModel.onQueryChanged(suggestion)
-                                    launchWebSearch(suggestion)
-                                }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Text(text = suggestion, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp, fontFamily = GoogleSansFlex)
-                            Spacer(modifier = Modifier.weight(1f))
-                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
-            }
-
             if (uiState.mathResult != null) {
                 item(key = "math_result") {
                     Row(
@@ -1785,116 +1786,157 @@ fun SearchOverlayScreen(
                     }
                 }
             }
-            if (showApps && settingsState.searchApps && filteredApps.isNotEmpty()) {
-                item(key = "apps_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                item(key = "apps_row") {
-                    LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                        if (uiState.query.isEmpty()) {
-                            item(key = "search_settings_shortcut") {
-                                SearchSettingsItem {
-                                    val intent = Intent(context, SettingsActivity::class.java)
-                                    val options = android.app.ActivityOptions.makeCustomAnimation(
-                                        context,
-                                        R.anim.slide_in_right,
-                                        R.anim.slide_out_left
-                                    )
-                                    launchSafeIntent(context, intent, options.toBundle())
+
+            for (sec in sortedResultSections) {
+                when (sec) {
+                    "apps" -> {
+                        if (showApps && settingsState.searchApps && filteredApps.isNotEmpty()) {
+                            item(key = "apps_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                            item(key = "apps_row") {
+                                LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                                    if (uiState.query.isEmpty()) {
+                                        item(key = "search_settings_shortcut") {
+                                            SearchSettingsItem {
+                                                val intent = Intent(context, SettingsActivity::class.java)
+                                                val options = android.app.ActivityOptions.makeCustomAnimation(
+                                                    context,
+                                                    R.anim.slide_in_right,
+                                                    R.anim.slide_out_left
+                                                )
+                                                launchSafeIntent(context, intent, options.toBundle())
+                                            }
+                                        }
+                                    }
+                                    items(filteredApps, key = { it.packageName }) { app ->
+                                        AppGridItem(app) { performAppLaunch(app.packageName) }
+                                    }
                                 }
                             }
                         }
-                        items(filteredApps, key = { it.packageName }) { app ->
-                            AppGridItem(app) { performAppLaunch(app.packageName) }
+
+                        if (settingsState.shortcutInline && uiState.query.isNotEmpty()) {
+                            item(key = "inline_shortcuts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                            item(key = "lens_shortcut") {
+                                ShortcutRow(
+                                    iconRes = R.drawable.ic_camera,
+                                    title = "Search with Google Lens",
+                                    onClick = {
+                                        val intent = SearchWidgetProvider.getLensSearchIntent(context)
+                                        launchSafeIntent(context, intent)
+                                    }
+                                )
+                            }
+                            item(key = "voice_shortcut") {
+                                ShortcutRow(
+                                    iconRes = R.drawable.ic_mic,
+                                    title = "Search with Voice",
+                                    onClick = {
+                                        val intent = SearchWidgetProvider.getVoiceSearchIntent(context)
+                                        launchSafeIntent(context, intent)
+                                    }
+                                )
+                            }
+                            item(key = "assistant_shortcut") {
+                                ShortcutRow(
+                                    iconRes = R.drawable.ic_lens_action,
+                                    title = "Digital Assistant",
+                                    onClick = {
+                                        val intent = SearchWidgetProvider.getVoiceActionIntent(context)
+                                        launchSafeIntent(context, intent)
+                                    }
+                                )
+                            }
                         }
                     }
-                }
-            }
-
-            if (settingsState.shortcutInline && uiState.query.isNotEmpty()) {
-                item(key = "inline_shortcuts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                item(key = "lens_shortcut") {
-                    ShortcutRow(
-                        iconRes = R.drawable.ic_camera,
-                        title = "Search with Google Lens",
-                        onClick = {
-                            val intent = SearchWidgetProvider.getLensSearchIntent(context)
-                            launchSafeIntent(context, intent)
-                        }
-                    )
-                }
-                item(key = "voice_shortcut") {
-                    ShortcutRow(
-                        iconRes = R.drawable.ic_mic,
-                        title = "Search with Voice",
-                        onClick = {
-                            val intent = SearchWidgetProvider.getVoiceSearchIntent(context)
-                            launchSafeIntent(context, intent)
-                        }
-                    )
-                }
-                item(key = "assistant_shortcut") {
-                    ShortcutRow(
-                        iconRes = R.drawable.ic_lens_action,
-                        title = "Digital Assistant",
-                        onClick = {
-                            val intent = SearchWidgetProvider.getVoiceActionIntent(context)
-                            launchSafeIntent(context, intent)
-                        }
-                    )
-                }
-            }
-            
-            if (showPeople && settingsState.searchContacts && filteredContacts.isNotEmpty()) {
-                item(key = "contacts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                itemsIndexed(filteredContacts, key = { index, contact -> "contact_${contact.lookupUri}_${contact.phoneNumber}_$index" }) { index, contact ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .bouncyClickable {
-                                val intent = if (settingsState.contactDirectCall) {
-                                    Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
-                                } else {
-                                    Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri))
+                    "web" -> {
+                        if (showWeb && settingsState.searchWeb) {
+                            if (uiState.webSuggestions.isNotEmpty()) {
+                                items(uiState.webSuggestions.take(settingsState.webResultsCount), key = { "web_suggest_$it" }) { suggestion ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .animateItem(
+                                                placementSpec = androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
+                                                fadeInSpec = androidx.compose.animation.core.tween(150),
+                                                fadeOutSpec = androidx.compose.animation.core.tween(150)
+                                            )
+                                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(32.dp))
+                                            .clip(RoundedCornerShape(32.dp))
+                                            .bouncyClickable {
+                                                viewModel.onQueryChanged(suggestion)
+                                                launchWebSearch(suggestion)
+                                            }
+                                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Text(text = suggestion, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp, fontFamily = GoogleSansFlex)
+                                        Spacer(modifier = Modifier.weight(1f))
+                                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                                    }
                                 }
-                                launchSafeIntent(context, intent)
                             }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column {
-                            Text(contact.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
-                            Text(contact.phoneNumber, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
                         }
                     }
-                }
-            }
-
-            if (showFiles && settingsState.searchFiles && filteredFiles.isNotEmpty()) {
-                item(key = "files_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                itemsIndexed(filteredFiles, key = { index, file -> "file_${file.uri}_$index" }) { index, file ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .bouncyClickable {
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(Uri.parse(file.uri), file.mimeType)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    "contacts" -> {
+                        if (showPeople && settingsState.searchContacts && filteredContacts.isNotEmpty()) {
+                            item(key = "contacts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                            itemsIndexed(filteredContacts, key = { index, contact -> "contact_${contact.lookupUri}_${contact.phoneNumber}_$index" }) { index, contact ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .bouncyClickable {
+                                            val intent = if (settingsState.contactDirectCall) {
+                                                Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
+                                            } else {
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri))
+                                            }
+                                            launchSafeIntent(context, intent)
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape), contentAlignment = Alignment.Center) {
+                                        Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column {
+                                        Text(contact.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
+                                        Text(contact.phoneNumber, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
+                                    }
                                 }
-                                launchSafeIntent(context, intent)
                             }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(file.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(file.mimeType, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    "files" -> {
+                        if (showFiles && settingsState.searchFiles && filteredFiles.isNotEmpty()) {
+                            item(key = "files_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                            itemsIndexed(filteredFiles, key = { index, file -> "file_${file.uri}_$index" }) { index, file ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .bouncyClickable {
+                                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                setDataAndType(Uri.parse(file.uri), file.mimeType)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            launchSafeIntent(context, intent)
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                                        Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(file.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(file.mimeType, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
                         }
                     }
                 }

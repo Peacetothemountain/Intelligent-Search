@@ -2320,6 +2320,45 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 }
 
 // -----------------------------------------------------------------------------------------
+// PRIORITY WEIGHT HELPER
+// -----------------------------------------------------------------------------------------
+object PriorityWeightHelper {
+    data class PriorityLevel(val label: String, val weight: Int)
+
+    val LEVELS = listOf(
+        PriorityLevel("Very Low", 10),
+        PriorityLevel("Low", 20),
+        PriorityLevel("Low Medium", 35),
+        PriorityLevel("Medium Low", 45),
+        PriorityLevel("Medium", 50),
+        PriorityLevel("Medium High", 70),
+        PriorityLevel("High", 80),
+        PriorityLevel("Very High", 100)
+    )
+
+    fun weightToLevelIndex(weight: Int): Int {
+        var closestIdx = 0
+        var minDiff = Int.MAX_VALUE
+        for (i in LEVELS.indices) {
+            val diff = Math.abs(LEVELS[i].weight - weight)
+            if (diff < minDiff) {
+                minDiff = diff
+                closestIdx = i
+            }
+        }
+        return closestIdx
+    }
+
+    fun levelIndexToWeight(index: Int): Int {
+        return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS.last() }.weight
+    }
+
+    fun levelLabel(index: Int): String {
+        return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS.last() }.label
+    }
+}
+
+// -----------------------------------------------------------------------------------------
 // APP SEARCH SCREEN
 // -----------------------------------------------------------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
@@ -2443,23 +2482,27 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
                 var appWeight by rememberIntPreference(prefs, "search_weight_apps", 100)
+                val appLevelIndex = remember(appWeight) { PriorityWeightHelper.weightToLevelIndex(appWeight) }
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
-                        text = "App Priority Weight: $appWeight%",
+                        text = "App Priority Weight: ${PriorityWeightHelper.levelLabel(appLevelIndex)}",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Adjusts ranking priority of installed apps in search results.",
+                        text = "Adjust Ranking Priority of App Search.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Android17Slider(
-                        value = appWeight.toFloat(),
-                        onValueChange = { appWeight = it.toInt() },
-                        valueRange = 0f..100f,
-                        steps = 19,
+                        value = appLevelIndex.toFloat(),
+                        onValueChange = { newValue ->
+                            val idx = Math.round(newValue).coerceIn(0, PriorityWeightHelper.LEVELS.size - 1)
+                            appWeight = PriorityWeightHelper.levelIndexToWeight(idx)
+                        },
+                        valueRange = 0f..(PriorityWeightHelper.LEVELS.size - 1).toFloat(),
+                        steps = PriorityWeightHelper.LEVELS.size - 2,
                         isSquiggly = false,
                         modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
                     )
@@ -2599,23 +2642,27 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
                 var webWeight by rememberIntPreference(prefs, "search_weight_web", 80)
+                val webLevelIndex = remember(webWeight) { PriorityWeightHelper.weightToLevelIndex(webWeight) }
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
-                        text = "Result Priority Weight: $webWeight%",
+                        text = "Web Priority Weight: ${PriorityWeightHelper.levelLabel(webLevelIndex)}",
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "Adjusts ranking priority of web results in mixed query feeds.",
+                        text = "Adjust Ranking Priority of Web Search.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Android17Slider(
-                        value = webWeight.toFloat(),
-                        onValueChange = { webWeight = it.toInt() },
-                        valueRange = 0f..100f,
-                        steps = 19,
+                        value = webLevelIndex.toFloat(),
+                        onValueChange = { newValue ->
+                            val idx = Math.round(newValue).coerceIn(0, PriorityWeightHelper.LEVELS.size - 1)
+                            webWeight = PriorityWeightHelper.levelIndexToWeight(idx)
+                        },
+                        valueRange = 0f..(PriorityWeightHelper.LEVELS.size - 1).toFloat(),
+                        steps = PriorityWeightHelper.LEVELS.size - 2,
                         isSquiggly = false,
                         modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
                     )
@@ -3347,18 +3394,27 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
                 var contactWeight by rememberIntPreference(prefs, "search_weight_contacts", 70)
+                val contactLevelIndex = remember(contactWeight) { PriorityWeightHelper.weightToLevelIndex(contactWeight) }
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("Contact Priority Weight: $contactWeight%", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Text(
-                        text = "Adjusts ranking priority of contacts in search results.",
+                        text = "Contact Priority Weight: ${PriorityWeightHelper.levelLabel(contactLevelIndex)}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Adjust Ranking Priority of Contact Search.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Android17Slider(
-                        value = contactWeight.toFloat(),
-                        onValueChange = { contactWeight = it.toInt() },
-                        valueRange = 0f..100f,
-                        steps = 19,
+                        value = contactLevelIndex.toFloat(),
+                        onValueChange = { newValue ->
+                            val idx = Math.round(newValue).coerceIn(0, PriorityWeightHelper.LEVELS.size - 1)
+                            contactWeight = PriorityWeightHelper.levelIndexToWeight(idx)
+                        },
+                        valueRange = 0f..(PriorityWeightHelper.LEVELS.size - 1).toFloat(),
+                        steps = PriorityWeightHelper.LEVELS.size - 2,
                         isSquiggly = false,
                         modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
                     )
@@ -3435,18 +3491,27 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
                 var fileWeight by rememberIntPreference(prefs, "search_weight_files", 50)
+                val fileLevelIndex = remember(fileWeight) { PriorityWeightHelper.weightToLevelIndex(fileWeight) }
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("File Priority Weight: $fileWeight%", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Text(
-                        text = "Adjusts ranking priority of indexed files in search results.",
+                        text = "File Priority Weight: ${PriorityWeightHelper.levelLabel(fileLevelIndex)}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Adjust Ranking Priority of File Search.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Android17Slider(
-                        value = fileWeight.toFloat(),
-                        onValueChange = { fileWeight = it.toInt() },
-                        valueRange = 0f..100f,
-                        steps = 19,
+                        value = fileLevelIndex.toFloat(),
+                        onValueChange = { newValue ->
+                            val idx = Math.round(newValue).coerceIn(0, PriorityWeightHelper.LEVELS.size - 1)
+                            fileWeight = PriorityWeightHelper.levelIndexToWeight(idx)
+                        },
+                        valueRange = 0f..(PriorityWeightHelper.LEVELS.size - 1).toFloat(),
+                        steps = PriorityWeightHelper.LEVELS.size - 2,
                         isSquiggly = false,
                         modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
                     )

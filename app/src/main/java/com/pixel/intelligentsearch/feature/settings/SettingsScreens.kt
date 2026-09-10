@@ -1334,14 +1334,7 @@ fun MainSettingsScreen(
                     subtitle = "Quick Search Tile and App Shortcuts",
                     icon = Icons.AutoMirrored.Outlined.Launch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal) },
-                    showDivider = true,
-                )
-                SettingsRow(
-                    title = "Encrypted Backup",
-                    subtitle = "Import, Export, and Restore Backup App Data",
-                    icon = Icons.Outlined.Shield,
-                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.BackupRestore) },
-                    showDivider = false
+                    showDivider = false,
                 )
             }
 
@@ -1424,8 +1417,15 @@ fun MainSettingsScreen(
                             e.printStackTrace()
                         }
                     },
-                    showDivider = isDebugUnlocked,
+                    showDivider = true,
 
+                )
+                SettingsRow(
+                    title = "Encrypted Backup",
+                    subtitle = "Import, Export, and Restore Backup App Data",
+                    icon = Icons.Outlined.Shield,
+                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.BackupRestore) },
+                    showDivider = isDebugUnlocked
                 )
                 
                 if (isDebugUnlocked) {
@@ -2493,15 +2493,13 @@ fun SynchronizedMorphingShortcutBadge(
             val scaleFactor = size.minDimension * 0.44f
 
             translate(left = center.x, top = center.y) {
-                rotate(rotationAngle) {
-                    nativePath.rewind()
-                    morph.toPath(progress = morphProgress, path = nativePath)
-                    scale(scale = scaleFactor, pivot = Offset.Zero) {
-                        drawPath(
-                            path = composePath,
-                            color = containerColor
-                        )
-                    }
+                nativePath.rewind()
+                morph.toPath(progress = morphProgress, path = nativePath)
+                scale(scale = scaleFactor, pivot = Offset.Zero) {
+                    drawPath(
+                        path = composePath,
+                        color = containerColor
+                    )
                 }
             }
         }
@@ -2768,41 +2766,21 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         SwipeToDismissBox(
                                             state = dismissState,
                                             backgroundContent = {
-                                                val direction = dismissState.dismissDirection
-                                                val color = MaterialTheme.colorScheme.errorContainer
-                                                val alignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxSize()
-                                                        .clip(RoundedCornerShape(24.dp))
-                                                        .background(color)
-                                                        .padding(horizontal = 20.dp),
-                                                    contentAlignment = alignment
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Outlined.DeleteOutline,
-                                                        contentDescription = "Remove shortcut",
-                                                        tint = MaterialTheme.colorScheme.onErrorContainer
-                                                    )
-                                                }
+                                                Box(modifier = Modifier.fillMaxSize())
                                             }
                                         ) {
                                             Surface(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clip(RoundedCornerShape(24.dp))
-                                                    .border(
-                                                        width = 1.dp,
-                                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                                        shape = RoundedCornerShape(24.dp)
-                                                    ),
-                                                shape = RoundedCornerShape(24.dp),
-                                                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.75f)
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
+                                                color = Color.Transparent
                                             ) {
                                                 Row(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                                        .padding(16.dp),
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     horizontalArrangement = Arrangement.SpaceBetween
                                                 ) {
@@ -2816,13 +2794,13 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                             rotationAngle = rotationAngle,
                                                             morphProgress = morphProgress
                                                         )
-                                                        Spacer(modifier = Modifier.width(14.dp))
+                                                        Spacer(modifier = Modifier.width(16.dp))
                                                         Column {
                                                             Text(
                                                                 text = bang.name,
-                                                                style = MaterialTheme.typography.bodyMedium,
-                                                                fontWeight = FontWeight.SemiBold,
-                                                                color = MaterialTheme.colorScheme.onSurface
+                                                                color = MaterialTheme.colorScheme.onSurface,
+                                                                fontSize = 16.sp,
+                                                                fontWeight = FontWeight.Medium
                                                             )
                                                             val subtext = if (!bang.targetPackage.isNullOrBlank()) {
                                                                 bang.targetPackage
@@ -2831,31 +2809,12 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                             }
                                                             Text(
                                                                 text = subtext,
-                                                                style = MaterialTheme.typography.bodySmall,
-                                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                                fontSize = 12.sp,
                                                                 maxLines = 1,
                                                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                                             )
                                                         }
-                                                    }
-
-                                                    IconButton(
-                                                        onClick = {
-                                                            hapticEngine.performPredictiveBackHaptic(view)
-                                                            if (bang.isBuiltIn) {
-                                                                viewModel?.disableBuiltInBang(bang.displayPrefix)
-                                                            } else {
-                                                                viewModel?.deleteCustomBang(bang.displayPrefix)
-                                                            }
-                                                        },
-                                                        modifier = Modifier.size(36.dp)
-                                                    ) {
-                                                        Icon(
-                                                            Icons.Outlined.Close,
-                                                            contentDescription = "Remove shortcut",
-                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                                            modifier = Modifier.size(18.dp)
-                                                        )
                                                     }
                                                 }
                                             }
@@ -4008,8 +3967,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 },
                 actions = {
                     val view = androidx.compose.ui.platform.LocalView.current
+                    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
                     androidx.compose.material3.TextButton(onClick = {
-                        view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                        hapticEngine.performPredictiveBackHaptic(view)
                         localShowGIcon = true
                         localThemeStyle = "Material Design"
                         localSubtheme = "System"
@@ -4031,7 +3991,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         Text("Reset", color = MaterialTheme.colorScheme.onSurface)
                     }
                     androidx.compose.material3.TextButton(onClick = {
-                        view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                        hapticEngine.performPredictiveBackHaptic(view)
                         prefs.edit()
                             .putBoolean("widget_show_g_icon", localShowGIcon)
                             .putString("widget.theme.style", localThemeStyle)
@@ -4725,7 +4685,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 
                 var itemDragOffset by remember { mutableFloatStateOf(0f) }
                 val coroutineScope = rememberCoroutineScope()
-                val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+                val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
+                val view = androidx.compose.ui.platform.LocalView.current
                 val density = androidx.compose.ui.platform.LocalDensity.current
                 var slotItemHeightPx by remember { mutableFloatStateOf(with(density) { 84.dp.toPx() }) }
 
@@ -4799,7 +4760,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 onDragEnd = {
                                                     coroutineScope.launch {
                                                         if (kotlin.math.abs(swipeOffsetX.value) > 200f) {
-                                                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                                            hapticEngine.performPredictiveBackHaptic(view)
                                                             when (slotKey) {
                                                                 "mic" -> localShowVoice = false
                                                                 "shortcut1" -> localShortcut1 = "None"
@@ -4858,7 +4819,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .clickable {
-                                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                                    hapticEngine.performPredictiveBackHaptic(view)
                                                     if (slotKey == "mic") {
                                                         localShowVoice = !localShowVoice
                                                     } else {
@@ -4901,7 +4862,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             modifier = Modifier.pointerInput(currentSlot) {
                                                 detectVerticalDragGestures(
                                                     onDragStart = {
-                                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                                        hapticEngine.performPredictiveBackHaptic(view)
                                                         draggingSlotKey = currentSlot
                                                         itemDragOffset = 0f
                                                     },
@@ -4924,13 +4885,13 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                                                         if (from != -1 && itemHeight > 0f) {
                                                             if (itemDragOffset > itemHeight / 2f && from < currentList.size - 1) {
-                                                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                                                hapticEngine.performPredictiveBackHaptic(view)
                                                                 val updated = currentList.toMutableList()
                                                                 java.util.Collections.swap(updated, from, from + 1)
                                                                 localSlotOrderStr = updated.joinToString(",")
                                                                 itemDragOffset -= itemHeight
                                                             } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
-                                                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                                                hapticEngine.performPredictiveBackHaptic(view)
                                                                 val updated = currentList.toMutableList()
                                                                 java.util.Collections.swap(updated, from, from - 1)
                                                                 localSlotOrderStr = updated.joinToString(",")
@@ -5349,8 +5310,9 @@ fun Android17Slider(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     down.consume()
-                    val trackWidth = size.width.toFloat().coerceAtLeast(1f)
-                    val downFraction = (down.position.x / trackWidth).coerceIn(0f, 1f)
+                    val thumbW = 6.dp.toPx()
+                    val trackAvailableWidth = (size.width - thumbW).coerceAtLeast(1f)
+                    val downFraction = ((down.position.x - thumbW / 2f) / trackAvailableWidth).coerceIn(0f, 1f)
                     processChange(downFraction)
 
                     val pointerId = down.id
@@ -5359,7 +5321,7 @@ fun Android17Slider(
                         val change = event.changes.firstOrNull { it.id == pointerId } ?: break
                         if (!change.pressed) break
                         change.consume()
-                        val dragFraction = (change.position.x / trackWidth).coerceIn(0f, 1f)
+                        val dragFraction = ((change.position.x - thumbW / 2f) / trackAvailableWidth).coerceIn(0f, 1f)
                         processChange(dragFraction)
                     }
                 }
@@ -5373,24 +5335,9 @@ fun Android17Slider(
             val thumbWidth = 6.dp.toPx()
             val thumbHeight = 36.dp.toPx()
 
-            val thumbX = (fraction * size.width).coerceIn(thumbWidth / 2f, size.width - thumbWidth / 2f)
+            val thumbX = (fraction * (size.width - thumbWidth) + thumbWidth / 2f).coerceIn(thumbWidth / 2f, size.width - thumbWidth / 2f)
             val centerY = size.height / 2f
-
-            // Draw tick marks
-            if (steps > 0) {
-                val tickRadius = 2.dp.toPx()
-                val segments = steps + 1
-                val tickSpacing = size.width / segments
-                
-                for (i in 0..segments) {
-                    val cx = i * tickSpacing
-                    drawCircle(
-                        color = if (cx <= thumbX) activeColor.copy(alpha = 0.5f) else inactiveColor.copy(alpha = 0.7f),
-                        radius = tickRadius,
-                        center = androidx.compose.ui.geometry.Offset(cx, centerY)
-                    )
-                }
-            }
+            val yDots = centerY + 16.dp.toPx()
 
             // Draw active track
             if (showTrack) {
@@ -5399,7 +5346,6 @@ fun Android17Slider(
                     path.moveTo(0f, centerY)
                     var x = 0f
                     while (x < thumbX) {
-                        // To move towards the right, we subtract the phase
                         val y = centerY + Math.sin((x * frequency - phase).toDouble()).toFloat() * amplitude
                         path.lineTo(x, y)
                         x += 2f
@@ -5433,6 +5379,23 @@ fun Android17Slider(
                         end = androidx.compose.ui.geometry.Offset(size.width, centerY),
                         strokeWidth = trackHeight,
                         cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    )
+                }
+            }
+
+            // Draw tick marks (dots underneath track aligned with steps)
+            if (steps > 0) {
+                val tickRadius = 2.5.dp.toPx()
+                val segments = steps + 1
+                val availableWidth = size.width - thumbWidth
+                val startX = thumbWidth / 2f
+                
+                for (i in 0..segments) {
+                    val cx = startX + i * (availableWidth / segments)
+                    drawCircle(
+                        color = if (cx <= thumbX + 1f) activeColor.copy(alpha = 0.55f) else inactiveColor.copy(alpha = 0.8f),
+                        radius = tickRadius,
+                        center = androidx.compose.ui.geometry.Offset(cx, yDots)
                     )
                 }
             }

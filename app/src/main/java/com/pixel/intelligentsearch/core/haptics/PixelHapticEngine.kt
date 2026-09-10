@@ -96,38 +96,17 @@ class PixelHapticEngine(private val context: Context) {
      * @param amplitudeScale Dynamic scaling factor [0.0f .. 1.0f] to modulate waveform intensity.
      * @param velocity Optional gesture velocity (px/sec) to couple mechanical impedance.
      */
+    /**
+     * Perform high-fidelity tactile feedback with dynamic amplitude scaling and velocity coupling.
+     * Standardized to the subtle predictive back vibration across the entire application.
+     */
     fun performHaptic(
         view: View? = null,
-        type: PixelHapticType,
+        type: PixelHapticType = PixelHapticType.LOW_TICK,
         amplitudeScale: Float = 1.0f,
         velocity: Float = 0f
     ) {
-        val scale = amplitudeScale.coerceIn(0.0f, 1.0f)
-        if (scale <= 0.001f) return
-
-        if (vibrator != null && vibrator.hasVibrator()) {
-            val compositionEffect = composeWaveform(type, scale, velocity)
-            if (compositionEffect != null) {
-                vibrateWithAttributes(compositionEffect)
-                return
-            }
-        }
-
-        // Graceful fallback to Android predefined vibration effects (standardized to subtle tick)
-        if (vibrator != null && vibrator.hasVibrator()) {
-            try {
-                val effect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
-                vibrateWithAttributes(effect)
-                return
-            } catch (_: Exception) {
-                // Ignore and proceed to View fallback
-            }
-        }
-
-        // System view tactile fallback
-        view?.let {
-            performViewFallback(it, type)
-        }
+        performPredictiveBackHaptic(view)
     }
 
     private fun vibrateWithAttributes(effect: VibrationEffect) {
@@ -425,10 +404,32 @@ class PixelHapticEngine(private val context: Context) {
      * Subtle predictive-back level micro-haptic tick used consistently throughout the application.
      */
     fun performPredictiveBackHaptic(view: View? = null) {
-        var performed = false
+        var vibrated = false
+        if (vibrator != null && vibrator.hasVibrator()) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
+                ) {
+                    val composition = VibrationEffect.startComposition()
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.85f)
+                    vibrateWithAttributes(composition.compose())
+                    vibrated = true
+                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
+                    val composition = VibrationEffect.startComposition()
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.40f)
+                    vibrateWithAttributes(composition.compose())
+                    vibrated = true
+                } else {
+                    val effect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
+                    vibrateWithAttributes(effect)
+                    vibrated = true
+                }
+            } catch (_: Exception) {}
+        }
+
         if (view != null) {
             try {
-                performed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     view.performHapticFeedback(
                         HapticFeedbackConstants.SEGMENT_TICK,
                         HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
@@ -440,9 +441,6 @@ class PixelHapticEngine(private val context: Context) {
                     )
                 }
             } catch (_: Exception) {}
-        }
-        if (!performed) {
-            performHaptic(view, PixelHapticType.LOW_TICK, 0.85f)
         }
     }
 }

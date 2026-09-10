@@ -68,7 +68,9 @@ data class IntelligentSearchSettings(
     val adaptiveIconShape: String = "SYSTEM_DEFAULT",
     val dynamicIconMasking: Boolean = true,
     val diagnosticsOverlayEnabled: Boolean = false,
-    val matrixAnimationEnabled: Boolean = true
+    val matrixAnimationEnabled: Boolean = true,
+    val backToSearchOverlay: Boolean = true,
+    val disabledWebShortcuts: Set<String> = emptySet()
 )
 
 @Singleton
@@ -128,6 +130,8 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val DYNAMIC_ICON_MASKING = booleanPreferencesKey("dynamic_icon_masking")
         val DIAGNOSTICS_OVERLAY_ENABLED = booleanPreferencesKey("diagnostics_overlay_enabled")
         val MATRIX_ANIMATION_ENABLED = booleanPreferencesKey("matrix_animation_enabled")
+        val BACK_TO_SEARCH_OVERLAY = booleanPreferencesKey("settings_back_to_search_overlay")
+        val DISABLED_WEB_SHORTCUTS = stringSetPreferencesKey("disabled_web_shortcuts")
     }
 
     val settingsFlow: Flow<IntelligentSearchSettings> = context.dataStore.data
@@ -195,7 +199,9 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 dynamicIconMasking = preferences[DYNAMIC_ICON_MASKING] ?: true,
                 diagnosticsOverlayEnabled = preferences[DIAGNOSTICS_OVERLAY_ENABLED] ?: false,
                 searchOverlayEnabled = preferences[SEARCH_OVERLAY_ENABLED] ?: true,
-                matrixAnimationEnabled = preferences[MATRIX_ANIMATION_ENABLED] ?: true
+                matrixAnimationEnabled = preferences[MATRIX_ANIMATION_ENABLED] ?: true,
+                backToSearchOverlay = preferences[BACK_TO_SEARCH_OVERLAY] ?: true,
+                disabledWebShortcuts = preferences[DISABLED_WEB_SHORTCUTS] ?: emptySet()
             )
         }
 
@@ -257,7 +263,9 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             dynamicIconMasking = prefs.getBoolean("dynamic_icon_masking", true),
             diagnosticsOverlayEnabled = prefs.getBoolean("diagnostics_overlay_enabled", false),
             searchOverlayEnabled = prefs.getBoolean("search_overlay_enabled", true),
-            matrixAnimationEnabled = prefs.getBoolean("matrix_animation_enabled", true)
+            matrixAnimationEnabled = prefs.getBoolean("matrix_animation_enabled", true),
+            backToSearchOverlay = prefs.getBoolean("settings_back_to_search_overlay", true),
+            disabledWebShortcuts = prefs.getStringSet("disabled_web_shortcuts", emptySet()) ?: emptySet()
         )
     }
 

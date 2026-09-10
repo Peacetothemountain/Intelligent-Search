@@ -15,6 +15,8 @@ import androidx.compose.ui.draw.clipToBounds
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.feature.widget.SearchTileService
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
+import com.pixel.intelligentsearch.core.bangs.SearchBang
+import com.pixel.intelligentsearch.core.bangs.SearchBangManager
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.App
@@ -24,8 +26,10 @@ import com.pixel.intelligentsearch.feature.search.getThemedAppIcon
 import com.pixel.intelligentsearch.feature.search.AppIconResult
 import com.pixel.intelligentsearch.feature.search.AnimatedMatrixBackground
 import com.pixel.intelligentsearch.R
+import android.app.Activity
 import android.app.Application
 import android.content.Context
+import android.view.HapticFeedbackConstants
 
 import android.os.Build
 import android.os.VibrationEffect
@@ -115,8 +119,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -285,6 +292,7 @@ fun rememberBooleanPreference(
         "search_previous_searches" -> SettingsManager.SEARCH_PREVIOUS_SEARCHES
         "search_overlay_enabled" -> SettingsManager.SEARCH_OVERLAY_ENABLED
         "matrix_animation_enabled" -> SettingsManager.MATRIX_ANIMATION_ENABLED
+        "settings_back_to_search_overlay" -> SettingsManager.BACK_TO_SEARCH_OVERLAY
         else -> null
     }
 
@@ -321,6 +329,7 @@ fun rememberBooleanPreference(
         "search_previous_searches" -> settingsState?.searchPreviousSearches ?: prefs.getBoolean(key, defaultValue)
         "search_overlay_enabled" -> settingsState?.searchOverlayEnabled ?: prefs.getBoolean(key, defaultValue)
         "matrix_animation_enabled" -> settingsState?.matrixAnimationEnabled ?: prefs.getBoolean(key, defaultValue)
+        "settings_back_to_search_overlay" -> settingsState?.backToSearchOverlay ?: prefs.getBoolean(key, defaultValue)
         else -> prefs.getBoolean(key, defaultValue)
     }
 
@@ -487,6 +496,12 @@ fun rememberStringPreference(
     }
 }
 
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun SettingsScreensHub(
@@ -538,50 +553,74 @@ fun SettingsScreensHub(
         }
 
         val handleExitBack: () -> Unit = {
-            val backToOverlayEnabled = prefs.getBoolean("settings_back_to_search_overlay", false)
-            if (backToOverlayEnabled) {
-                val intent = Intent(context, com.pixel.intelligentsearch.feature.widget.WidgetActivity::class.java).apply {
+            val isBackToOverlay = settingsState.backToSearchOverlay
+            if (isBackToOverlay) {
+                val intent = Intent(context, com.pixel.intelligentsearch.MainActivity::class.java).apply {
                     putExtra("FROM_BACK_SWIPE", true)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
                 context.startActivity(intent)
-                onBackToLauncher()
+                val act = context.findActivity() ?: (context as? Activity)
+                if (act != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        act.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        act.overridePendingTransition(0, 0)
+                    }
+                    act.finish()
+                } else {
+                    onBackToLauncher()
+                }
             } else {
                 val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_HOME)
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 context.startActivity(homeIntent)
-                onBackToLauncher()
+                val act = context.findActivity() ?: (context as? Activity)
+                if (act != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        act.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        act.overridePendingTransition(0, 0)
+                    }
+                    act.finish()
+                } else {
+                    onBackToLauncher()
+                }
             }
         }
+
+        val currentBackStackEntry by navController.currentBackStackEntryAsState()
+        val currentRoute = currentBackStackEntry?.destination?.route
+        val hasSubScreensInNavHost = navController.previousBackStackEntry != null
+        val isAtRootMain = (currentRoute == null || currentRoute.contains("Main")) && !hasSubScreensInNavHost
 
         val onBack: () -> Unit = {
             if (navController.previousBackStackEntry != null) {
                 navController.popBackStack()
+            } else if (!isAtRootMain) {
+                navController.navigate(com.pixel.intelligentsearch.core.navigation.Route.Main) {
+                    popUpTo(0) { inclusive = true }
+                }
             } else {
-                val currentDestination = navController.currentDestination?.route
-                if (currentDestination != null && !currentDestination.contains("Main")) {
+                handleExitBack()
+            }
+        }
+
+        androidx.activity.compose.PredictiveBackHandler(enabled = !hasSubScreensInNavHost) { progressFlow ->
+            try {
+                progressFlow.collect { }
+                if (!isAtRootMain) {
                     navController.navigate(com.pixel.intelligentsearch.core.navigation.Route.Main) {
                         popUpTo(0) { inclusive = true }
                     }
                 } else {
                     handleExitBack()
                 }
-            }
-        }
-
-        val backStackEntry by navController.currentBackStackEntryAsState()
-        val canPop = navController.previousBackStackEntry != null
-        val backToOverlayEnabled = prefs.getBoolean("settings_back_to_search_overlay", false)
-
-        if (!canPop && backToOverlayEnabled) {
-            androidx.activity.compose.PredictiveBackHandler(enabled = true) { progressFlow ->
-                try {
-                    progressFlow.collect { }
-                    handleExitBack()
-                } catch (_: java.util.concurrent.CancellationException) {}
-            }
+            } catch (_: java.util.concurrent.CancellationException) {}
         }
 
         val startRoute: com.pixel.intelligentsearch.core.navigation.Route = when (initialScreen) {
@@ -1599,7 +1638,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                             showDivider = true
                         )
 
-                        var settingsBackToSearchOverlay by rememberBooleanPreference(prefs, "settings_back_to_search_overlay", false) {}
+                        var settingsBackToSearchOverlay by rememberBooleanPreference(prefs, "settings_back_to_search_overlay", true) {}
                         SettingsRowToggle(
                             title = "Back Swipe to Enter Search Overlay Page",
                             subtitle = "Swiping Back from Settings Menu Directs to Search Overlay Screen.",
@@ -2434,12 +2473,16 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
 @Composable
 fun SynchronizedMorphingShortcutBadge(
     shortcut: String,
+    morph: Morph,
     rotationAngle: Float,
-    morphPhase: Float,
+    morphProgress: Float,
     modifier: Modifier = Modifier
 ) {
     val containerColor = MaterialTheme.colorScheme.secondaryContainer
     val contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+
+    val nativePath = remember { android.graphics.Path() }
+    val composePath = remember(nativePath) { nativePath.asComposePath() }
 
     Box(
         modifier = modifier.size(46.dp),
@@ -2447,39 +2490,27 @@ fun SynchronizedMorphingShortcutBadge(
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val center = Offset(size.width / 2f, size.height / 2f)
-            val maxR = size.minDimension / 2f
+            val scaleFactor = size.minDimension * 0.44f
 
-            val path = androidx.compose.ui.graphics.Path()
-            val points = 72
-            val baseRadius = maxR * 0.82f
-            val amplitude = maxR * 0.14f
-            val radOffset = Math.toRadians(rotationAngle.toDouble()).toFloat()
-
-            for (i in 0 until points) {
-                val angle = (i.toFloat() / points) * 2f * Math.PI.toFloat()
-                val r = baseRadius + amplitude * kotlin.math.sin(6f * angle + morphPhase)
-                val finalAngle = angle + radOffset
-                val x = center.x + r * kotlin.math.cos(finalAngle)
-                val y = center.y + r * kotlin.math.sin(finalAngle)
-                if (i == 0) {
-                    path.moveTo(x, y)
-                } else {
-                    path.lineTo(x, y)
+            translate(left = center.x, top = center.y) {
+                rotate(rotationAngle) {
+                    nativePath.rewind()
+                    morph.toPath(progress = morphProgress, path = nativePath)
+                    scale(scale = scaleFactor, pivot = Offset.Zero) {
+                        drawPath(
+                            path = composePath,
+                            color = containerColor
+                        )
+                    }
                 }
             }
-            path.close()
-
-            drawPath(
-                path = path,
-                color = containerColor
-            )
         }
 
         Text(
             text = shortcut,
             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
-            fontSize = if (shortcut.length > 3) 11.sp else 13.sp,
+            fontSize = if (shortcut.length > 3) 10.sp else 12.sp,
             color = contentColor,
             textAlign = TextAlign.Center,
             maxLines = 1
@@ -2612,31 +2643,83 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val viewModel = LocalSettingsViewModel.current
                     val allBangs by (viewModel?.bangsFlow ?: kotlinx.coroutines.flow.flowOf(emptyList()))
                         .collectAsStateWithLifecycle(initialValue = viewModel?.bangsFlow?.value ?: emptyList())
-                    val customBangs = allBangs.filter { !it.isBuiltIn }
+                    val settings by (viewModel?.settingsState ?: kotlinx.coroutines.flow.flowOf(IntelligentSearchSettings()))
+                        .collectAsStateWithLifecycle(initialValue = IntelligentSearchSettings())
+                    val disabledPrefixes = settings.disabledWebShortcuts
+
                     var showAddDialog by remember { mutableStateOf(false) }
+
+                    val shape1 = remember {
+                        RoundedPolygon.star(
+                            numVerticesPerRadius = 4,
+                            innerRadius = 0.60f,
+                            rounding = CornerRounding(radius = 0.35f)
+                        )
+                    }
+                    val shape2 = remember {
+                        RoundedPolygon.star(
+                            numVerticesPerRadius = 8,
+                            innerRadius = 0.82f,
+                            rounding = CornerRounding(radius = 0.35f)
+                        )
+                    }
+                    val sharedMorph = remember(shape1, shape2) {
+                        Morph(shape1, shape2)
+                    }
+
+                    val infiniteTransition = rememberInfiniteTransition(label = "morphingShortcutsSync")
+                    val morphProgress by infiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 3000, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "shortcutBadgeMorph"
+                    )
+                    val rotationAngle by infiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 360f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 16000, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "shortcutBadgeRotation"
+                    )
+
+                    val context = LocalContext.current
+                    val view = LocalView.current
+                    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
 
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        // Header row for Custom Shortcuts
+                        // Header row for Active Shortcuts
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                "Custom Shortcuts",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Active Shortcuts",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "Swipe any shortcut away to remove it",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             FilledTonalButton(
                                 onClick = { showAddDialog = true },
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                shape = RoundedCornerShape(16.dp)
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(20.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.Add,
@@ -2644,134 +2727,236 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Add", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text("Add", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
 
-                        if (customBangs.isEmpty()) {
-                            Text(
-                                "No custom shortcuts added yet. Tap Add to create one (e.g. !wiki, !r).",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                modifier = Modifier.padding(vertical = 4.dp)
-                            )
+                        if (allBangs.isEmpty()) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            ) {
+                                Text(
+                                    text = "No active shortcuts. Tap + Add or re-enable direct shortcuts below.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                            }
                         } else {
-                            customBangs.forEach { bang ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = MaterialTheme.colorScheme.primaryContainer
-                                        ) {
-                                            Text(
-                                                text = bang.displayPrefix,
-                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Column {
-                                            Text(
-                                                text = bang.name,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            val subtext = if (!bang.targetPackage.isNullOrBlank()) {
-                                                "${bang.urlTemplate} • ${bang.targetPackage}"
-                                            } else {
-                                                bang.urlTemplate
-                                            }
-                                            Text(
-                                                text = subtext,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                maxLines = 1,
-                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-                                    IconButton(
-                                        onClick = {
-                                            viewModel?.deleteCustomBang(bang.displayPrefix)
-                                        },
-                                        modifier = Modifier.size(36.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Outlined.DeleteOutline,
-                                            contentDescription = "Delete shortcut",
-                                            tint = MaterialTheme.colorScheme.error
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                allBangs.forEach { bang ->
+                                    key(bang.displayPrefix) {
+                                        val dismissState = rememberSwipeToDismissBoxState(
+                                            positionalThreshold = { it * 0.4f }
                                         )
+
+                                        LaunchedEffect(dismissState.currentValue) {
+                                            if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart ||
+                                                dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd
+                                            ) {
+                                                hapticEngine.performPredictiveBackHaptic(view)
+                                                if (bang.isBuiltIn) {
+                                                    viewModel?.disableBuiltInBang(bang.displayPrefix)
+                                                } else {
+                                                    viewModel?.deleteCustomBang(bang.displayPrefix)
+                                                }
+                                            }
+                                        }
+
+                                        SwipeToDismissBox(
+                                            state = dismissState,
+                                            backgroundContent = {
+                                                val direction = dismissState.dismissDirection
+                                                val color = MaterialTheme.colorScheme.errorContainer
+                                                val alignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .clip(RoundedCornerShape(24.dp))
+                                                        .background(color)
+                                                        .padding(horizontal = 20.dp),
+                                                    contentAlignment = alignment
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Outlined.DeleteOutline,
+                                                        contentDescription = "Remove shortcut",
+                                                        tint = MaterialTheme.colorScheme.onErrorContainer
+                                                    )
+                                                }
+                                            }
+                                        ) {
+                                            Surface(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(24.dp))
+                                                    .border(
+                                                        width = 1.dp,
+                                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                                        shape = RoundedCornerShape(24.dp)
+                                                    ),
+                                                shape = RoundedCornerShape(24.dp),
+                                                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.75f)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        SynchronizedMorphingShortcutBadge(
+                                                            shortcut = bang.displayPrefix,
+                                                            morph = sharedMorph,
+                                                            rotationAngle = rotationAngle,
+                                                            morphProgress = morphProgress
+                                                        )
+                                                        Spacer(modifier = Modifier.width(14.dp))
+                                                        Column {
+                                                            Text(
+                                                                text = bang.name,
+                                                                style = MaterialTheme.typography.bodyMedium,
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                color = MaterialTheme.colorScheme.onSurface
+                                                            )
+                                                            val subtext = if (!bang.targetPackage.isNullOrBlank()) {
+                                                                bang.targetPackage
+                                                            } else {
+                                                                bang.urlTemplate
+                                                            }
+                                                            Text(
+                                                                text = subtext,
+                                                                style = MaterialTheme.typography.bodySmall,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                maxLines = 1,
+                                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                            )
+                                                        }
+                                                    }
+
+                                                    IconButton(
+                                                        onClick = {
+                                                            hapticEngine.performPredictiveBackHaptic(view)
+                                                            if (bang.isBuiltIn) {
+                                                                viewModel?.disableBuiltInBang(bang.displayPrefix)
+                                                            } else {
+                                                                viewModel?.deleteCustomBang(bang.displayPrefix)
+                                                            }
+                                                        },
+                                                        modifier = Modifier.size(36.dp)
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Outlined.Close,
+                                                            contentDescription = "Remove shortcut",
+                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
 
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        // Available Direct Shortcuts section
+                        val availableDirectBangs = remember(disabledPrefixes) {
+                            SearchBangManager.BUILT_IN_BANGS.filter { it.displayPrefix in disabledPrefixes }
+                        }
 
-                        Text(
-                            "Supported Direct Shortcuts",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        val infiniteTransition = rememberInfiniteTransition(label = "morphingShortcutsSync")
-                        val rotationAngle by infiniteTransition.animateFloat(
-                            initialValue = 0f,
-                            targetValue = 360f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(durationMillis = 12000, easing = LinearEasing),
-                                repeatMode = RepeatMode.Restart
-                            ),
-                            label = "shortcutBadgeRotation"
-                        )
-                        val morphPhase by infiniteTransition.animateFloat(
-                            initialValue = 0f,
-                            targetValue = (2 * Math.PI).toFloat(),
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(durationMillis = 4000, easing = LinearEasing),
-                                repeatMode = RepeatMode.Restart
-                            ),
-                            label = "shortcutBadgeMorph"
-                        )
-                        val builtInShortcuts = listOf(
-                            "!w" to "Wikipedia",
-                            "!yt" to "YouTube",
-                            "!gh" to "GitHub",
-                            "!maps" to "Google Maps",
-                            "!g" to "Google Web",
-                            "!r" to "Reddit"
-                        )
-                        builtInShortcuts.forEach { (prefix, name) ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                SynchronizedMorphingShortcutBadge(
-                                    shortcut = prefix,
-                                    rotationAngle = rotationAngle,
-                                    morphPhase = morphPhase
-                                )
-                                Text(
-                                    text = name,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                        if (availableDirectBangs.isNotEmpty()) {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Column {
+                                    Text(
+                                        "Available Direct Shortcuts",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        "Tap + Add to restore any direct shortcut",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                availableDirectBangs.forEach { bang ->
+                                    key("avail_${bang.displayPrefix}") {
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(24.dp))
+                                                .border(
+                                                    width = 1.dp,
+                                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                                                    shape = RoundedCornerShape(24.dp)
+                                                ),
+                                            shape = RoundedCornerShape(24.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    SynchronizedMorphingShortcutBadge(
+                                                        shortcut = bang.displayPrefix,
+                                                        morph = sharedMorph,
+                                                        rotationAngle = rotationAngle,
+                                                        morphProgress = morphProgress
+                                                    )
+                                                    Spacer(modifier = Modifier.width(14.dp))
+                                                    Column {
+                                                        Text(
+                                                            text = bang.name,
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                        Text(
+                                                            text = bang.description,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            maxLines = 1,
+                                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
+
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        hapticEngine.performPredictiveBackHaptic(view)
+                                                        viewModel?.enableBuiltInBang(bang.displayPrefix)
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                                    shape = RoundedCornerShape(16.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Outlined.Add,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Add", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -2782,9 +2967,8 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         var targetPackageInput by remember { mutableStateOf("") }
                         var urlInput by remember { mutableStateOf("") }
                         var errorMsg by remember { mutableStateOf<String?>(null) }
-                        var appsDropdownExpanded by remember { mutableStateOf(false) }
+                        var showAppPicker by remember { mutableStateOf(false) }
 
-                        val context = LocalContext.current
                         val installedApps = remember(context) {
                             try {
                                 val pm = context.packageManager
@@ -2800,6 +2984,168 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             } catch (_: Exception) {
                                 emptyList<Pair<String, String>>()
                             }
+                        }
+
+                        if (showAppPicker) {
+                            var pickerQuery by remember { mutableStateOf("") }
+                            val displayedApps = remember(pickerQuery, installedApps) {
+                                if (pickerQuery.isBlank()) {
+                                    installedApps
+                                } else {
+                                    val q = pickerQuery.trim().lowercase()
+                                    installedApps.filter {
+                                        it.first.lowercase().contains(q) || it.second.lowercase().contains(q)
+                                    }
+                                }
+                            }
+
+                            AlertDialog(
+                                onDismissRequest = { showAppPicker = false },
+                                title = {
+                                    Text(
+                                        "Select Installed App",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                },
+                                text = {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(max = 380.dp)
+                                    ) {
+                                        OutlinedTextField(
+                                            value = pickerQuery,
+                                            onValueChange = { pickerQuery = it },
+                                            placeholder = { Text("Search installed apps") },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.Search,
+                                                    contentDescription = null
+                                                )
+                                            },
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(16.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(bottom = 8.dp)
+                                        )
+
+                                        if (displayedApps.isEmpty()) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(24.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    "No matching apps found",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        } else {
+                                            LazyColumn(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                items(displayedApps, key = { it.second }) { (appName, pkgName) ->
+                                                    Surface(
+                                                        onClick = {
+                                                            nameInput = appName
+                                                            targetPackageInput = pkgName
+
+                                                            // Automatically adjust shortcut trigger
+                                                            val autoPrefix = when (pkgName) {
+                                                                "com.google.android.youtube" -> "!yt"
+                                                                "com.spotify.music" -> "!spot"
+                                                                "org.wikipedia" -> "!w"
+                                                                "com.reddit.frontpage" -> "!r"
+                                                                "com.github.android" -> "!gh"
+                                                                "com.google.android.apps.maps" -> "!maps"
+                                                                "com.amazon.mShop.android.shopping" -> "!az"
+                                                                "com.twitter.android" -> "!x"
+                                                                "tv.twitch.android.app" -> "!tw"
+                                                                "com.instagram.android" -> "!ig"
+                                                                "com.pinterest" -> "!pin"
+                                                                "com.imdb.mobile" -> "!imdb"
+                                                                "com.google.android.googlequicksearchbox" -> "!g"
+                                                                "com.duckduckgo.mobile.android" -> "!ddg"
+                                                                else -> {
+                                                                    val clean = appName.lowercase().filter { it.isLetterOrDigit() }
+                                                                    if (clean.length <= 4) "!$clean" else "!${clean.take(4)}"
+                                                                }
+                                                            }
+                                                            prefixInput = autoPrefix
+
+                                                            // Suggest URL if empty or generic
+                                                            if (urlInput.isBlank() || urlInput.contains("/search?q=%s")) {
+                                                                urlInput = when (pkgName) {
+                                                                    "com.google.android.youtube" -> "https://www.youtube.com/results?search_query=%s"
+                                                                    "com.spotify.music" -> "https://open.spotify.com/search/%s"
+                                                                    "org.wikipedia" -> "https://en.wikipedia.org/wiki/%s"
+                                                                    "com.reddit.frontpage" -> "https://www.reddit.com/search/?q=%s"
+                                                                    "com.github.android" -> "https://github.com/search?q=%s"
+                                                                    "com.google.android.apps.maps" -> "https://www.google.com/maps/search/%s"
+                                                                    "com.amazon.mShop.android.shopping" -> "https://www.amazon.com/s?k=%s"
+                                                                    "com.twitter.android" -> "https://x.com/search?q=%s"
+                                                                    "tv.twitch.android.app" -> "https://www.twitch.tv/search?term=%s"
+                                                                    "com.instagram.android" -> "https://www.instagram.com/explore/tags/%s"
+                                                                    "com.pinterest" -> "https://www.pinterest.com/search/pins/?q=%s"
+                                                                    "com.imdb.mobile" -> "https://www.imdb.com/find/?q=%s"
+                                                                    else -> {
+                                                                        val domain = appName.lowercase().filter { it.isLetterOrDigit() }
+                                                                        "https://www.${domain}.com/search?q=%s"
+                                                                    }
+                                                                }
+                                                            }
+                                                            showAppPicker = false
+                                                            errorMsg = null
+                                                        },
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        color = Color.Transparent,
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Outlined.Android,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(24.dp),
+                                                                tint = MaterialTheme.colorScheme.primary
+                                                            )
+                                                            Spacer(modifier = Modifier.width(12.dp))
+                                                            Column {
+                                                                Text(
+                                                                    appName,
+                                                                    style = MaterialTheme.typography.bodyMedium,
+                                                                    fontWeight = FontWeight.SemiBold
+                                                                )
+                                                                Text(
+                                                                    pkgName,
+                                                                    style = MaterialTheme.typography.bodySmall,
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                    maxLines = 1,
+                                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(onClick = { showAppPicker = false }) {
+                                        Text("Close")
+                                    }
+                                }
+                            )
                         }
 
                         AlertDialog(
@@ -2830,105 +3176,27 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         modifier = Modifier.fillMaxWidth()
                                     )
 
-                                    Box(modifier = Modifier.fillMaxWidth()) {
-                                        OutlinedTextField(
-                                            value = nameInput,
-                                            onValueChange = {
-                                                nameInput = it
-                                                errorMsg = null
-                                            },
-                                            label = { Text("Platform Name") },
-                                            placeholder = { Text("e.g. YouTube, Spotify") },
-                                            trailingIcon = {
-                                                IconButton(onClick = { appsDropdownExpanded = !appsDropdownExpanded }) {
-                                                    Icon(
-                                                        imageVector = Icons.Outlined.Apps,
-                                                        contentDescription = "Select installed app",
-                                                        tint = MaterialTheme.colorScheme.primary
-                                                    )
-                                                }
-                                            },
-                                            singleLine = true,
-                                            shape = RoundedCornerShape(16.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-
-                                        DropdownMenu(
-                                            expanded = appsDropdownExpanded,
-                                            onDismissRequest = { appsDropdownExpanded = false },
-                                            modifier = Modifier
-                                                .fillMaxWidth(0.85f)
-                                                .heightIn(max = 280.dp)
-                                        ) {
-                                            val filtered = if (nameInput.isBlank()) {
-                                                installedApps
-                                            } else {
-                                                val query = nameInput.trim().lowercase()
-                                                val matches = installedApps.filter {
-                                                    it.first.lowercase().contains(query) || it.second.lowercase().contains(query)
-                                                }
-                                                if (matches.isEmpty()) installedApps else matches
-                                            }
-
-                                            if (filtered.isEmpty()) {
-                                                DropdownMenuItem(
-                                                    text = { Text("No installed apps found", style = MaterialTheme.typography.bodySmall) },
-                                                    onClick = { appsDropdownExpanded = false }
+                                    OutlinedTextField(
+                                        value = nameInput,
+                                        onValueChange = {
+                                            nameInput = it
+                                            errorMsg = null
+                                        },
+                                        label = { Text("Platform Name") },
+                                        placeholder = { Text("e.g. YouTube, Spotify") },
+                                        trailingIcon = {
+                                            IconButton(onClick = { showAppPicker = true }) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.Apps,
+                                                    contentDescription = "Select installed app",
+                                                    tint = MaterialTheme.colorScheme.primary
                                                 )
-                                            } else {
-                                                filtered.forEach { (appName, pkgName) ->
-                                                    DropdownMenuItem(
-                                                        text = {
-                                                            Column {
-                                                                Text(appName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                                                Text(pkgName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                            }
-                                                        },
-                                                        leadingIcon = {
-                                                            Icon(
-                                                                Icons.Outlined.Android,
-                                                                contentDescription = null,
-                                                                modifier = Modifier.size(20.dp),
-                                                                tint = MaterialTheme.colorScheme.primary
-                                                            )
-                                                        },
-                                                        onClick = {
-                                                            nameInput = appName
-                                                            targetPackageInput = pkgName
-                                                            if (prefixInput == "!" || prefixInput.length < 2) {
-                                                                val cleanPrefix = appName.lowercase().filter { it.isLetterOrDigit() }.take(4)
-                                                                if (cleanPrefix.isNotEmpty()) {
-                                                                    prefixInput = "!$cleanPrefix"
-                                                                }
-                                                            }
-                                                            if (urlInput.isBlank()) {
-                                                                urlInput = when (pkgName) {
-                                                                    "com.google.android.youtube" -> "https://www.youtube.com/results?search_query=%s"
-                                                                    "com.spotify.music" -> "https://open.spotify.com/search/%s"
-                                                                    "org.wikipedia" -> "https://en.wikipedia.org/wiki/%s"
-                                                                    "com.reddit.frontpage" -> "https://www.reddit.com/search/?q=%s"
-                                                                    "com.github.android" -> "https://github.com/search?q=%s"
-                                                                    "com.google.android.apps.maps" -> "https://www.google.com/maps/search/%s"
-                                                                    "com.amazon.mShop.android.shopping" -> "https://www.amazon.com/s?k=%s"
-                                                                    "com.twitter.android" -> "https://x.com/search?q=%s"
-                                                                    "tv.twitch.android.app" -> "https://www.twitch.tv/search?term=%s"
-                                                                    "com.instagram.android" -> "https://www.instagram.com/explore/tags/%s"
-                                                                    "com.pinterest" -> "https://www.pinterest.com/search/pins/?q=%s"
-                                                                    "com.imdb.mobile" -> "https://www.imdb.com/find/?q=%s"
-                                                                    else -> {
-                                                                        val domain = appName.lowercase().filter { it.isLetterOrDigit() }
-                                                                        "https://www.${domain}.com/search?q=%s"
-                                                                    }
-                                                                }
-                                                            }
-                                                            appsDropdownExpanded = false
-                                                            errorMsg = null
-                                                        }
-                                                    )
-                                                }
                                             }
-                                        }
-                                    }
+                                        },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
 
                                     OutlinedTextField(
                                         value = targetPackageInput,
@@ -2938,6 +3206,15 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         },
                                         label = { Text("Package Name (Optional)") },
                                         placeholder = { Text("com.example.app") },
+                                        trailingIcon = {
+                                            IconButton(onClick = { showAppPicker = true }) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.Apps,
+                                                    contentDescription = "Select installed app",
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        },
                                         singleLine = true,
                                         shape = RoundedCornerShape(16.dp),
                                         modifier = Modifier.fillMaxWidth()
@@ -3720,40 +3997,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val defaultSlotOrder = "shortcut1,mic,shortcut2,shortcut3"
     var localSlotOrderStr by remember { mutableStateOf(prefs.getString("widget_shortcut_order", defaultSlotOrder) ?: defaultSlotOrder) }
     var activeShortcutSlot by remember { mutableIntStateOf(1) }
-
-    var isInitialSetup by remember { mutableStateOf(true) }
-
-    LaunchedEffect(
-        localShowGIcon, localThemeStyle, localSubtheme,
-        localMaterialGIconTheme, localHue, localSaturation, localLightness, localColorOpacity, localTransparency, localLockBlack,
-        localShowVoice, localActionIcon, localShortcut1, localShortcut2, localShortcut3, localSlotOrderStr, localCustomColorInt
-    ) {
-        if (isInitialSetup) {
-            isInitialSetup = false
-            return@LaunchedEffect
-        }
-        prefs.edit()
-            .putBoolean("widget_show_g_icon", localShowGIcon)
-            .putString("widget.theme.style", localThemeStyle)
-            .putString("widget_subtheme", localSubtheme)
-            .putString("widget_material_g_icon", localMaterialGIconTheme)
-            .putInt("widget_custom_hue", localHue.toInt())
-            .putInt("widget_custom_saturation", localSaturation.toInt())
-            .putInt("widget_custom_lightness", localLightness.toInt())
-            .putInt("widget_custom_color_opacity", localColorOpacity.toInt())
-            .putInt("widget_custom_color_int", localCustomColorInt)
-            .putInt("widget.background.transparency", localTransparency.toInt())
-            .putBoolean("widget_material_lock_black", localLockBlack)
-            .putBoolean("widget_show_voice", localShowVoice)
-            .putString("widget_action_icon", localActionIcon)
-            .putString("widget_shortcut_1", localShortcut1)
-            .putString("widget_shortcut_2", localShortcut2)
-            .putString("widget_shortcut_3", localShortcut3)
-            .putString("widget_shortcut_order", localSlotOrderStr)
-            .putString("widget_shortcut", localShortcut1)
-            .apply()
-        updateWidgets(context)
-    }
+    var draggingSlotKey by remember { mutableStateOf<String?>(null) }
 
     Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
@@ -3788,6 +4032,27 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
                     androidx.compose.material3.TextButton(onClick = {
                         view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                        prefs.edit()
+                            .putBoolean("widget_show_g_icon", localShowGIcon)
+                            .putString("widget.theme.style", localThemeStyle)
+                            .putString("widget_subtheme", localSubtheme)
+                            .putString("widget_material_g_icon", localMaterialGIconTheme)
+                            .putInt("widget_custom_hue", localHue.toInt())
+                            .putInt("widget_custom_saturation", localSaturation.toInt())
+                            .putInt("widget_custom_lightness", localLightness.toInt())
+                            .putInt("widget_custom_color_opacity", localColorOpacity.toInt())
+                            .putInt("widget_custom_color_int", localCustomColorInt)
+                            .putInt("widget.background.transparency", localTransparency.toInt())
+                            .putBoolean("widget_material_lock_black", localLockBlack)
+                            .putBoolean("widget_show_voice", localShowVoice)
+                            .putString("widget_action_icon", localActionIcon)
+                            .putString("widget_shortcut_1", localShortcut1)
+                            .putString("widget_shortcut_2", localShortcut2)
+                            .putString("widget_shortcut_3", localShortcut3)
+                            .putString("widget_shortcut_order", localSlotOrderStr)
+                            .putString("widget_shortcut", localShortcut1)
+                            .apply()
+                        updateWidgets(context)
                         android.widget.Toast.makeText(context, "Settings Saved", android.widget.Toast.LENGTH_SHORT).show()
                     }) {
                         Text("Save", color = MaterialTheme.colorScheme.onSurface)
@@ -3800,7 +4065,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState(), enabled = draggingSlotKey == null)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -4458,25 +4723,24 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             }
                 Text("WIDGET SHORTCUTS & MICROPHONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp))
                 
-                var draggingSlotKey by remember { mutableStateOf<String?>(null) }
                 var itemDragOffset by remember { mutableFloatStateOf(0f) }
                 val coroutineScope = rememberCoroutineScope()
                 val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
                 val density = androidx.compose.ui.platform.LocalDensity.current
-                val slotItemHeightPx = with(density) { 82.dp.toPx() }
+                var slotItemHeightPx by remember { mutableFloatStateOf(with(density) { 84.dp.toPx() }) }
 
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     val currentOrderList = localSlotOrderStr.split(",").filter { it.isNotBlank() }
                     currentOrderList.forEach { slotKey ->
                         key(slotKey) {
                             val isDragging = draggingSlotKey == slotKey
                             val elevation by androidx.compose.animation.core.animateDpAsState(
-                                targetValue = if (isDragging) 8.dp else 2.dp,
+                                targetValue = if (isDragging) 8.dp else 0.dp,
                                 label = "elevation"
                             )
                             val scale by androidx.compose.animation.core.animateFloatAsState(
@@ -4521,9 +4785,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     }
                             }
 
-                            Surface(
+                            Box(
                                 modifier = cardModifier
                                     .fillMaxWidth()
+                                    .onSizeChanged {
+                                        if (it.height > 0) {
+                                            slotItemHeightPx = it.height.toFloat() + with(density) { 12.dp.toPx() }
+                                        }
+                                    }
                                     .pointerInput(slotKey, isDragging) {
                                         if (!isDragging) {
                                             detectHorizontalDragGestures(
@@ -4566,63 +4835,74 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 }
                                             )
                                         }
-                                    },
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                tonalElevation = elevation,
-                                shadowElevation = elevation
+                                    }
                             ) {
-                                Row(
+                                Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable {
-                                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                            if (slotKey == "mic") {
-                                                localShowVoice = !localShowVoice
-                                            } else {
-                                                activeShortcutSlot = when (slotKey) {
-                                                    "shortcut1" -> 1
-                                                    "shortcut2" -> 2
-                                                    else -> 3
+                                        .shadow(elevation, RoundedCornerShape(24.dp))
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
+                                    color = Color.Transparent
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable {
+                                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                                    if (slotKey == "mic") {
+                                                        localShowVoice = !localShowVoice
+                                                    } else {
+                                                        activeShortcutSlot = when (slotKey) {
+                                                            "shortcut1" -> 1
+                                                            "shortcut2" -> 2
+                                                            else -> 3
+                                                        }
+                                                        showShortcutSheet = true
+                                                    }
                                                 }
-                                                showShortcutSheet = true
+                                        ) {
+                                            Icon(
+                                                imageVector = cardIcon,
+                                                contentDescription = cardSubtext,
+                                                modifier = Modifier.size(36.dp),
+                                                tint = if (cardSubtext == "None") MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(modifier = Modifier.width(16.dp))
+                                            Column {
+                                                Text(
+                                                    text = cardTitle,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                                Text(
+                                                    text = cardSubtext,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                    fontSize = 12.sp
+                                                )
                                             }
                                         }
-                                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = cardIcon,
-                                        contentDescription = cardSubtext,
-                                        modifier = Modifier.size(24.dp),
-                                        tint = if (cardSubtext == "None") MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = cardTitle,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = cardSubtext,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = Icons.Outlined.DragHandle,
-                                        contentDescription = "Drag to reorder",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier
-                                            .padding(start = 12.dp)
-                                            .size(24.dp)
-                                            .pointerInput(slotKey) {
+
+                                        val currentSlot by rememberUpdatedState(slotKey)
+                                        Icon(
+                                            imageVector = Icons.Outlined.DragHandle,
+                                            contentDescription = "Drag to reorder",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                            modifier = Modifier.pointerInput(currentSlot) {
                                                 detectVerticalDragGestures(
                                                     onDragStart = {
                                                         haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                                        draggingSlotKey = slotKey
+                                                        draggingSlotKey = currentSlot
                                                         itemDragOffset = 0f
                                                     },
                                                     onDragEnd = {
@@ -4636,13 +4916,13 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                     onVerticalDrag = { change, dragAmount ->
                                                         change.consume()
                                                         itemDragOffset += dragAmount
-                                                        
+
                                                         val currentDraggingSlot = draggingSlotKey ?: return@detectVerticalDragGestures
                                                         val currentList = localSlotOrderStr.split(",").filter { it.isNotBlank() }
                                                         val from = currentList.indexOf(currentDraggingSlot)
                                                         val itemHeight = slotItemHeightPx
-                                                        
-                                                        if (from != -1) {
+
+                                                        if (from != -1 && itemHeight > 0f) {
                                                             if (itemDragOffset > itemHeight / 2f && from < currentList.size - 1) {
                                                                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                                                 val updated = currentList.toMutableList()
@@ -4660,7 +4940,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                     }
                                                 )
                                             }
-                                    )
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -5032,10 +5313,11 @@ fun Android17Slider(
     val stepSize = if (steps > 0) {
         (valueRange.endInclusive - valueRange.start) / (steps + 1)
     } else {
-        0f
+        1.0f
     }
 
-    var lastHapticStep by remember { mutableFloatStateOf(value) }
+    val currentOnValueChange by rememberUpdatedState(onValueChange)
+    val currentValue by rememberUpdatedState(value)
 
     fun snapValue(rawFraction: Float): Float {
         val raw = valueRange.start + rawFraction * (valueRange.endInclusive - valueRange.start)
@@ -5043,41 +5325,43 @@ fun Android17Slider(
             val stepIndex = Math.round((raw - valueRange.start) / stepSize)
             (valueRange.start + stepIndex * stepSize).coerceIn(valueRange.start, valueRange.endInclusive)
         } else {
-            raw.coerceIn(valueRange.start, valueRange.endInclusive)
+            if (valueRange.endInclusive - valueRange.start >= 10f) {
+                Math.round(raw).toFloat().coerceIn(valueRange.start, valueRange.endInclusive)
+            } else {
+                raw.coerceIn(valueRange.start, valueRange.endInclusive)
+            }
         }
     }
 
     fun processChange(rawFraction: Float) {
         val snapped = snapValue(rawFraction)
-        if (snapped != value) {
-            onValueChange(snapped)
-            val threshold = if (steps > 0 && stepSize > 0f) stepSize * 0.5f else 1f
-            if (Math.abs(snapped - lastHapticStep) >= threshold) {
-                hapticEngine.performPredictiveBackHaptic(view)
-                lastHapticStep = snapped
-            }
+        if (snapped != currentValue) {
+            currentOnValueChange(snapped)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
-
-    var width by remember { mutableFloatStateOf(1f) }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
-            .onSizeChanged { width = it.width.toFloat().coerceAtLeast(1f) }
             .pointerInput(steps, valueRange) {
-                detectTapGestures(
-                    onPress = { offset ->
-                        val newFraction = (offset.x / width).coerceIn(0f, 1f)
-                        processChange(newFraction)
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    val trackWidth = size.width.toFloat().coerceAtLeast(1f)
+                    val downFraction = (down.position.x / trackWidth).coerceIn(0f, 1f)
+                    processChange(downFraction)
+
+                    val pointerId = down.id
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                        if (!change.pressed) break
+                        change.consume()
+                        val dragFraction = (change.position.x / trackWidth).coerceIn(0f, 1f)
+                        processChange(dragFraction)
                     }
-                )
-            }
-            .pointerInput(steps, valueRange) {
-                detectDragGestures { change, _ ->
-                    val newFraction = (change.position.x / width).coerceIn(0f, 1f)
-                    processChange(newFraction)
                 }
             },
         contentAlignment = Alignment.CenterStart
@@ -5094,17 +5378,16 @@ fun Android17Slider(
 
             // Draw tick marks
             if (steps > 0) {
-                val tickRadius = 2.5.dp.toPx()
-                val yOffset = centerY + 18.dp.toPx()
+                val tickRadius = 2.dp.toPx()
                 val segments = steps + 1
                 val tickSpacing = size.width / segments
                 
                 for (i in 0..segments) {
                     val cx = i * tickSpacing
                     drawCircle(
-                        color = if (cx <= thumbX) activeColor.copy(alpha = 0.5f) else inactiveColor.copy(alpha = 0.5f),
+                        color = if (cx <= thumbX) activeColor.copy(alpha = 0.5f) else inactiveColor.copy(alpha = 0.7f),
                         radius = tickRadius,
-                        center = androidx.compose.ui.geometry.Offset(cx, yOffset)
+                        center = androidx.compose.ui.geometry.Offset(cx, centerY)
                     )
                 }
             }
@@ -6232,10 +6515,9 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
 
     var draggingPackage by remember { mutableStateOf<String?>(null) }
-    var dragStartItemOffset by remember { mutableFloatStateOf(0f) }
-    var dragStartIndex by remember { mutableIntStateOf(0) }
-    var absoluteDragAmount by remember { mutableFloatStateOf(0f) }
+    var itemDragOffset by remember { mutableFloatStateOf(0f) }
     val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
 
     var pendingIconPack by remember { mutableStateOf<String?>(null) }
 
@@ -6315,6 +6597,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
             androidx.compose.foundation.lazy.LazyColumn(
                 state = listState,
+                userScrollEnabled = draggingPackage == null,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
@@ -6324,33 +6607,28 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             ) {
                 items(localPillList, key = { it }) { packageName ->
                     val isDragging = draggingPackage == packageName
-                    
-                    val elevation by androidx.compose.animation.core.animateDpAsState(targetValue = if (isDragging) 12.dp else 0.dp, label = "elevation")
-                    val scale by androidx.compose.animation.core.animateFloatAsState(targetValue = if (isDragging) 1.02f else 1f, label = "scale")
-                    val bgColor by androidx.compose.animation.animateColorAsState(
-                        targetValue = if (isDragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                        label = "bgColor"
+
+                    val elevation by androidx.compose.animation.core.animateDpAsState(
+                        targetValue = if (isDragging) 8.dp else 0.dp,
+                        label = "elevation"
                     )
-                    
+                    val scale by androidx.compose.animation.core.animateFloatAsState(
+                        targetValue = if (isDragging) 1.03f else 1f,
+                        label = "scale"
+                    )
+
                     val draggingModifier = if (isDragging) {
-                        Modifier
-                            .zIndex(10f)
-                            .graphicsLayer {
-                                val currentItem = listState.layoutInfo.visibleItemsInfo.find { it.key == packageName }
-                                val currentOffset = currentItem?.offset?.toFloat() ?: dragStartItemOffset
-                                translationY = absoluteDragAmount - (currentOffset - dragStartItemOffset)
-                                scaleX = scale
-                                scaleY = scale
-                            }
+                        Modifier.zIndex(10f).graphicsLayer {
+                            translationY = itemDragOffset
+                            scaleX = scale
+                            scaleY = scale
+                        }
                     } else {
-                        Modifier
-                            .animateItem()
-                            .zIndex(0f)
-                            .graphicsLayer {
-                                translationY = 0f
-                                scaleX = scale
-                                scaleY = scale
-                            }
+                        Modifier.animateItem().zIndex(0f).graphicsLayer {
+                            translationY = 0f
+                            scaleX = scale
+                            scaleY = scale
+                        }
                     }
 
                     val packInfo = allPackMap[packageName] ?: Pair(packageName, null)
@@ -6364,8 +6642,8 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .fillMaxWidth()
                                 .shadow(elevation, RoundedCornerShape(24.dp))
                                 .clip(RoundedCornerShape(24.dp))
-                                .background(bgColor)
-                                .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
                             color = Color.Transparent
                         ) {
                             Row(
@@ -6381,37 +6659,35 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             imageVector = Icons.Outlined.Palette,
                                             contentDescription = null,
                                             tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(32.dp)
+                                            modifier = Modifier.size(36.dp)
                                         )
                                     } else if (packIcon != null) {
                                         Image(
                                             bitmap = packIcon,
                                             contentDescription = null,
-                                            modifier = Modifier.size(32.dp)
+                                            modifier = Modifier.size(36.dp)
                                         )
                                     } else {
                                         Icon(
                                             imageVector = Icons.Outlined.AppShortcut,
                                             contentDescription = null,
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(32.dp)
+                                            modifier = Modifier.size(36.dp)
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column {
                                         Text(
                                             text = packLabel,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            fontSize = 18.sp,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 16.sp,
                                             fontWeight = FontWeight.Medium
                                         )
-                                        if (packageName == "system_default") {
-                                            Text(
-                                                text = "Default Monet dynamic icons",
-                                                color = MaterialTheme.colorScheme.outline,
-                                                fontSize = 12.sp
-                                            )
-                                        }
+                                        Text(
+                                            text = if (packageName == "system_default") "Default Monet dynamic icons" else packageName,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                            fontSize = 12.sp
+                                        )
                                     }
                                 }
 
@@ -6439,18 +6715,16 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     Icon(
                                         imageVector = Icons.Outlined.DragHandle,
                                         contentDescription = "Drag to reorder",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                         modifier = Modifier.pointerInput(currentPkg) {
                                             detectVerticalDragGestures(
                                                 onDragStart = {
                                                     draggingPackage = currentPkg
-                                                    val itemInfo = listState.layoutInfo.visibleItemsInfo.find { it.key == currentPkg }
-                                                    dragStartItemOffset = itemInfo?.offset?.toFloat() ?: 0f
-                                                    dragStartIndex = localPillList.indexOf(currentPkg)
-                                                    absoluteDragAmount = 0f
+                                                    itemDragOffset = 0f
                                                 },
                                                 onDragEnd = {
                                                     draggingPackage = null
+                                                    itemDragOffset = 0f
                                                     storedPillString = localPillList.joinToString(",")
                                                     prefs.edit()
                                                         .putString("custom_icon_pills", storedPillString)
@@ -6459,28 +6733,43 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 },
                                                 onDragCancel = {
                                                     draggingPackage = null
+                                                    itemDragOffset = 0f
                                                 },
                                                 onVerticalDrag = { change, dragAmount ->
                                                     change.consume()
-                                                    absoluteDragAmount += dragAmount
-                                                    
+                                                    itemDragOffset += dragAmount
+
                                                     val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
-                                                    val draggingItem = listState.layoutInfo.visibleItemsInfo.find { it.key == currentDraggingPackage }
+                                                    val draggingItem = listState.layoutInfo.visibleItemsInfo.find {
+                                                        it.key == currentDraggingPackage
+                                                    }
                                                     if (draggingItem != null) {
                                                         val spacing = listState.layoutInfo.mainAxisItemSpacing.toFloat()
                                                         val itemHeight = draggingItem.size.toFloat() + spacing
                                                         val from = localPillList.indexOf(currentDraggingPackage)
-                                                        
+                                                        val distanceFromBottom = listState.layoutInfo.viewportSize.height - (draggingItem.offset + draggingItem.size)
+
+                                                        if (itemDragOffset < 0f && draggingItem.offset < 80f && listState.canScrollBackward) {
+                                                            coroutineScope.launch {
+                                                                listState.scrollBy(-16f)
+                                                            }
+                                                        } else if (itemDragOffset > 0f && distanceFromBottom < 80f && listState.canScrollForward) {
+                                                            coroutineScope.launch {
+                                                                listState.scrollBy(16f)
+                                                            }
+                                                        }
+
                                                         if (from != -1) {
-                                                            val relativeDragOffset = absoluteDragAmount - (from - dragStartIndex) * itemHeight
-                                                            if (relativeDragOffset > itemHeight / 2f && from < localPillList.size - 1) {
+                                                            if (itemDragOffset > itemHeight / 2f && from < localPillList.size - 1) {
                                                                 val currentList = localPillList.toMutableList()
                                                                 java.util.Collections.swap(currentList, from, from + 1)
                                                                 localPillList = currentList
-                                                            } else if (relativeDragOffset < -itemHeight / 2f && from > 0) {
+                                                                itemDragOffset -= itemHeight
+                                                            } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
                                                                 val currentList = localPillList.toMutableList()
                                                                 java.util.Collections.swap(currentList, from, from - 1)
                                                                 localPillList = currentList
+                                                                itemDragOffset += itemHeight
                                                             }
                                                         }
                                                     }

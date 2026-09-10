@@ -137,13 +137,15 @@ class SearchBangManager @Inject constructor(
 
     val bangsFlow: Flow<List<SearchBang>> = settingsManager.settingsFlow.map { settings ->
         val customBangs = parseCustomBangs(settings.customBangsJson)
-        (BUILT_IN_BANGS + customBangs).distinctBy { it.displayPrefix }
+        val disabled = settings.disabledWebShortcuts
+        (BUILT_IN_BANGS.filter { it.displayPrefix !in disabled } + customBangs).distinctBy { it.displayPrefix }
     }
 
     fun getAllBangsSync(): List<SearchBang> {
         val initialSettings = settingsManager.getInitialSettings()
         val customBangs = parseCustomBangs(initialSettings.customBangsJson)
-        return (BUILT_IN_BANGS + customBangs).distinctBy { it.displayPrefix }
+        val disabled = initialSettings.disabledWebShortcuts
+        return (BUILT_IN_BANGS.filter { it.displayPrefix !in disabled } + customBangs).distinctBy { it.displayPrefix }
     }
 
     fun parseBangQuery(query: String, availableBangs: List<SearchBang> = getAllBangsSync()): ParsedBangQuery? {
@@ -245,6 +247,18 @@ class SearchBangManager @Inject constructor(
         currentCustom.removeAll { it.displayPrefix == prefix.lowercase() }
         val jsonStr = serializeCustomBangs(currentCustom)
         settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, jsonStr)
+    }
+
+    suspend fun disableBuiltInBang(prefix: String) {
+        val currentDisabled = settingsManager.getInitialSettings().disabledWebShortcuts.toMutableSet()
+        currentDisabled.add(prefix.lowercase())
+        settingsManager.updateSetting(SettingsManager.DISABLED_WEB_SHORTCUTS, currentDisabled)
+    }
+
+    suspend fun enableBuiltInBang(prefix: String) {
+        val currentDisabled = settingsManager.getInitialSettings().disabledWebShortcuts.toMutableSet()
+        currentDisabled.remove(prefix.lowercase())
+        settingsManager.updateSetting(SettingsManager.DISABLED_WEB_SHORTCUTS, currentDisabled)
     }
 
     private fun isPackageInstalled(pm: PackageManager, packageName: String): Boolean {

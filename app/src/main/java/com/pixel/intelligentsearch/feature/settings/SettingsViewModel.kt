@@ -79,6 +79,18 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun disableBuiltInBang(prefix: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            bangManager.disableBuiltInBang(prefix)
+        }
+    }
+
+    fun enableBuiltInBang(prefix: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            bangManager.enableBuiltInBang(prefix)
+        }
+    }
+
     // --- Search Source Weighting Operations ---
     fun reorderSections(fromIndex: Int, toIndex: Int) {
         val current = sectionConfigsFlow.value

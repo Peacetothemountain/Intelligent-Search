@@ -169,10 +169,10 @@ class PixelHapticEngine(private val context: Context) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                     isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
                 ) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.50f * scale)
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, (0.85f * scale).coerceIn(0.1f, 1.0f))
                     return composition.compose()
                 } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.45f * scale)
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, (0.70f * scale).coerceIn(0.1f, 1.0f))
                     return composition.compose()
                 }
             }
@@ -425,6 +425,24 @@ class PixelHapticEngine(private val context: Context) {
      * Subtle predictive-back level micro-haptic tick used consistently throughout the application.
      */
     fun performPredictiveBackHaptic(view: View? = null) {
-        performHaptic(view, PixelHapticType.LOW_TICK, 0.40f)
+        var performed = false
+        if (view != null) {
+            try {
+                performed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    view.performHapticFeedback(
+                        HapticFeedbackConstants.SEGMENT_TICK,
+                        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                    )
+                } else {
+                    view.performHapticFeedback(
+                        HapticFeedbackConstants.CLOCK_TICK,
+                        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                    )
+                }
+            } catch (_: Exception) {}
+        }
+        if (!performed) {
+            performHaptic(view, PixelHapticType.LOW_TICK, 0.85f)
+        }
     }
 }

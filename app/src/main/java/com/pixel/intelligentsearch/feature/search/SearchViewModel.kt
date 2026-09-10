@@ -238,8 +238,10 @@ class SearchViewModel @Inject constructor(
 
         val availableBangs = bangManager.getAllBangsSync()
         val parsedBang = bangManager.parseBangQuery(newQuery, availableBangs)
-        val bangSuggestions = if (newQuery.startsWith("!") || newQuery.contains(" !")) {
-            val token = if (newQuery.startsWith("!")) newQuery.substringBefore(" ") else "!" + newQuery.substringAfterLast("!")
+        val trigger = bangManager.getTriggerSymbol()
+        val bangSuggestions = if (newQuery.startsWith(trigger) || newQuery.contains(" $trigger") || newQuery.startsWith("!") || newQuery.contains(" !")) {
+            val activeTrigger = if (newQuery.startsWith(trigger) || newQuery.contains(" $trigger")) trigger else "!"
+            val token = if (newQuery.startsWith(activeTrigger)) newQuery.substringBefore(" ") else activeTrigger + newQuery.substringAfterLast(activeTrigger)
             bangManager.getBangSuggestions(token, availableBangs)
         } else {
             emptyList()

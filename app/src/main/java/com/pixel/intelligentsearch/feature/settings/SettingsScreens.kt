@@ -2363,59 +2363,155 @@ object PriorityWeightHelper {
 // SEARCH APP COLORFUL ICON HELPERS
 // -----------------------------------------------------------------------------------------
 @Composable
-fun DuckDuckGoBadge(modifier: Modifier = Modifier) {
+fun GoogleOfficialAppIcon(modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val googleDrawable = remember(context) {
+        runCatching {
+            context.packageManager.getApplicationIcon("com.google.android.googlequicksearchbox")
+        }.getOrNull()
+    }
+    if (googleDrawable != null) {
+        val bitmap = remember(googleDrawable) {
+            runCatching { googleDrawable.toBitmap(width = 96, height = 96).asImageBitmap() }.getOrNull()
+        }
+        if (bitmap != null) {
+            Image(bitmap = bitmap, contentDescription = "Google", modifier = modifier.clip(RoundedCornerShape(6.dp)))
+            return
+        }
+    }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color.White)
+            .border(0.5.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            painter = androidx.compose.ui.res.painterResource(id = com.pixel.intelligentsearch.R.drawable.ic_g_logo_colored),
+            contentDescription = "Google",
+            modifier = Modifier.padding(2.dp),
+            tint = Color.Unspecified
+        )
+    }
+}
+
+@Composable
+fun DuckDuckGoOfficialAppIcon(modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val ddgDrawable = remember(context) {
+        runCatching {
+            context.packageManager.getApplicationIcon("com.duckduckgo.mobile.android")
+        }.getOrNull()
+    }
+    if (ddgDrawable != null) {
+        val bitmap = remember(ddgDrawable) {
+            runCatching { ddgDrawable.toBitmap(width = 96, height = 96).asImageBitmap() }.getOrNull()
+        }
+        if (bitmap != null) {
+            Image(bitmap = bitmap, contentDescription = "DuckDuckGo", modifier = modifier.clip(RoundedCornerShape(6.dp)))
+            return
+        }
+    }
     Box(
         modifier = modifier
             .clip(androidx.compose.foundation.shape.CircleShape)
             .background(Color(0xFFDE5833)),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "D",
-            color = Color.White,
-            fontWeight = FontWeight.Black,
-            fontSize = 13.sp
-        )
+        Canvas(modifier = Modifier.fillMaxSize().padding(3.dp)) {
+            val w = size.width
+            val h = size.height
+            val headPath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(w * 0.5f, h * 0.15f)
+                cubicTo(w * 0.25f, h * 0.15f, w * 0.15f, h * 0.45f, w * 0.28f, h * 0.72f)
+                cubicTo(w * 0.35f, h * 0.86f, w * 0.65f, h * 0.86f, w * 0.72f, h * 0.72f)
+                cubicTo(w * 0.85f, h * 0.45f, w * 0.75f, h * 0.15f, w * 0.5f, h * 0.15f)
+                close()
+            }
+            drawPath(headPath, Color.White)
+            val beakPath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(w * 0.5f, h * 0.48f)
+                lineTo(w * 0.78f, h * 0.55f)
+                lineTo(w * 0.5f, h * 0.68f)
+                close()
+            }
+            drawPath(beakPath, Color(0xFFF9A825))
+            drawCircle(Color(0xFF212121), radius = w * 0.055f, center = Offset(w * 0.42f, h * 0.38f))
+            drawCircle(Color.White, radius = w * 0.02f, center = Offset(w * 0.405f, h * 0.365f))
+            val bowPath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(w * 0.36f, h * 0.82f)
+                lineTo(w * 0.64f, h * 0.94f)
+                lineTo(w * 0.64f, h * 0.82f)
+                lineTo(w * 0.36f, h * 0.94f)
+                close()
+            }
+            drawPath(bowPath, Color(0xFF4CAF50))
+        }
     }
 }
 
 @Composable
-fun BingBadge(modifier: Modifier = Modifier) {
+fun BingOfficialAppIcon(modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val bingDrawable = remember(context) {
+        runCatching {
+            context.packageManager.getApplicationIcon("com.microsoft.bing")
+        }.getOrNull() ?: runCatching {
+            context.packageManager.getApplicationIcon("com.microsoft.copilot")
+        }.getOrNull()
+    }
+    if (bingDrawable != null) {
+        val bitmap = remember(bingDrawable) {
+            runCatching { bingDrawable.toBitmap(width = 96, height = 96).asImageBitmap() }.getOrNull()
+        }
+        if (bitmap != null) {
+            Image(bitmap = bitmap, contentDescription = "Bing", modifier = modifier.clip(RoundedCornerShape(6.dp)))
+            return
+        }
+    }
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
             .background(
                 androidx.compose.ui.graphics.Brush.linearGradient(
-                    colors = listOf(Color(0xFF008373), Color(0xFF00B294))
+                    colors = listOf(Color(0xFF008373), Color(0xFF00A4EF))
                 )
             ),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "b",
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp
-        )
+        Canvas(modifier = Modifier.fillMaxSize().padding(4.dp)) {
+            val scale = size.minDimension / 24f
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(3.605f * scale, 0f)
+                lineTo(8.4f * scale, 1.686f * scale)
+                lineTo(8.4f * scale, 18.56f * scale)
+                lineTo(15.153f * scale, 14.665f * scale)
+                lineTo(11.843f * scale, 13.11f * scale)
+                lineTo(9.753f * scale, 7.91f * scale)
+                lineTo(20.393f * scale, 11.648f * scale)
+                lineTo(20.393f * scale, 17.083f * scale)
+                lineTo(8.403f * scale, 24f * scale)
+                lineTo(3.605f * scale, 21.33f * scale)
+                close()
+            }
+            drawPath(path, Color.White)
+        }
     }
 }
 
 @Composable
-fun DefaultColorfulWebBadge(modifier: Modifier = Modifier) {
+fun CustomSearchAppIcon(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .clip(androidx.compose.foundation.shape.CircleShape)
-            .background(
-                androidx.compose.ui.graphics.Brush.linearGradient(
-                    colors = listOf(Color(0xFF4285F4), Color(0xFF34A853), Color(0xFFFBBC05), Color(0xFFEA4335))
-                )
-            ),
+            .clip(RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(6.dp)),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = Icons.Outlined.Search,
-            contentDescription = null,
-            tint = Color.White,
+            contentDescription = "Custom Search",
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(3.dp)
         )
     }
@@ -2431,81 +2527,44 @@ fun SearchAppColorfulIcon(
 
     when {
         normalized.equals("Google", ignoreCase = true) -> {
-            Icon(
-                painter = androidx.compose.ui.res.painterResource(id = com.pixel.intelligentsearch.R.drawable.ic_g_logo_colored),
-                contentDescription = "Google",
-                modifier = modifier,
-                tint = Color.Unspecified
-            )
+            GoogleOfficialAppIcon(modifier = modifier)
         }
         normalized.equals("DuckDuckGo", ignoreCase = true) -> {
-            val ddgDrawable = remember(context) {
-                runCatching {
-                    context.packageManager.getApplicationIcon("com.duckduckgo.mobile.android")
-                }.getOrNull()
-            }
-            if (ddgDrawable != null) {
-                val bitmap = remember(ddgDrawable) {
-                    runCatching { ddgDrawable.toBitmap().asImageBitmap() }.getOrNull()
-                }
-                if (bitmap != null) {
-                    Image(bitmap = bitmap, contentDescription = "DuckDuckGo", modifier = modifier)
-                } else {
-                    DuckDuckGoBadge(modifier = modifier)
-                }
-            } else {
-                DuckDuckGoBadge(modifier = modifier)
-            }
+            DuckDuckGoOfficialAppIcon(modifier = modifier)
         }
         normalized.equals("Bing", ignoreCase = true) -> {
-            val bingDrawable = remember(context) {
-                runCatching {
-                    context.packageManager.getApplicationIcon("com.microsoft.bing")
-                }.getOrNull()
-            }
-            if (bingDrawable != null) {
-                val bitmap = remember(bingDrawable) {
-                    runCatching { bingDrawable.toBitmap().asImageBitmap() }.getOrNull()
-                }
-                if (bitmap != null) {
-                    Image(bitmap = bitmap, contentDescription = "Bing", modifier = modifier)
-                } else {
-                    BingBadge(modifier = modifier)
-                }
-            } else {
-                BingBadge(modifier = modifier)
-            }
+            BingOfficialAppIcon(modifier = modifier)
+        }
+        normalized.equals("Custom", ignoreCase = true) || normalized.isBlank() -> {
+            CustomSearchAppIcon(modifier = modifier)
         }
         else -> {
             val appDrawable = remember(appName, context) {
-                if (appName.isBlank() || appName.equals("Custom", ignoreCase = true)) null
-                else {
-                    runCatching {
-                        context.packageManager.getApplicationIcon(appName)
-                    }.getOrNull() ?: runCatching {
-                        val pm = context.packageManager
-                        val intent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
-                        val apps = pm.queryIntentActivities(intent, 0)
-                        val match = apps.firstOrNull {
-                            it.loadLabel(pm).toString().equals(appName, ignoreCase = true) ||
-                            it.activityInfo.packageName.equals(appName, ignoreCase = true)
-                        }
-                        match?.loadIcon(pm)
-                    }.getOrNull()
-                }
+                runCatching {
+                    context.packageManager.getApplicationIcon(appName)
+                }.getOrNull() ?: runCatching {
+                    val pm = context.packageManager
+                    val intent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
+                    val apps = pm.queryIntentActivities(intent, 0)
+                    val match = apps.firstOrNull {
+                        it.loadLabel(pm).toString().equals(appName, ignoreCase = true) ||
+                        it.activityInfo.packageName.equals(appName, ignoreCase = true)
+                    }
+                    match?.loadIcon(pm)
+                }.getOrNull()
             }
 
             if (appDrawable != null) {
                 val bitmap = remember(appDrawable) {
-                    runCatching { appDrawable.toBitmap().asImageBitmap() }.getOrNull()
+                    runCatching { appDrawable.toBitmap(width = 96, height = 96).asImageBitmap() }.getOrNull()
                 }
                 if (bitmap != null) {
-                    Image(bitmap = bitmap, contentDescription = appName, modifier = modifier)
+                    Image(bitmap = bitmap, contentDescription = appName, modifier = modifier.clip(RoundedCornerShape(6.dp)))
                 } else {
-                    DefaultColorfulWebBadge(modifier = modifier)
+                    CustomSearchAppIcon(modifier = modifier)
                 }
             } else {
-                DefaultColorfulWebBadge(modifier = modifier)
+                CustomSearchAppIcon(modifier = modifier)
             }
         }
     }
@@ -2932,15 +2991,57 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             )
             SettingsCard {
                 var quickShortcutsEnabled by rememberBooleanPreference(prefs, "search_quick_shortcuts", true)
+                var shortcutTriggerSymbol by rememberStringPreference(prefs, "web_shortcut_trigger_symbol", "!")
                 SettingsRowToggle(
                     title = "Enable Quick Web Shortcuts",
-                    subtitle = "Prefix Queries with ! to Open Specific Web Platforms.",
+                    subtitle = "Prefix Queries with $shortcutTriggerSymbol to Open Specific Web Platforms.",
                     icon = Icons.Outlined.TravelExplore,
                     isChecked = quickShortcutsEnabled,
                     onCheckedChange = { quickShortcutsEnabled = it },
                     showDivider = quickShortcutsEnabled
                 )
                 if (quickShortcutsEnabled) {
+                    val triggerOptions = listOf("!", "@", "#", "/", "?", ":", "~", "Custom")
+                    val isPredefined = triggerOptions.dropLast(1).contains(shortcutTriggerSymbol)
+                    var triggerDropdownSelection by remember(shortcutTriggerSymbol) {
+                        mutableStateOf(if (isPredefined) shortcutTriggerSymbol else "Custom")
+                    }
+
+                    SettingsDropdownRow(
+                        title = "Shortcut Trigger Symbol",
+                        subtitle = "Prefix Queries with '$shortcutTriggerSymbol'.",
+                        icon = Icons.Outlined.Tag,
+                        options = triggerOptions,
+                        selectedOption = triggerDropdownSelection,
+                        onOptionSelected = { selected ->
+                            triggerDropdownSelection = selected
+                            if (selected != "Custom") {
+                                shortcutTriggerSymbol = selected
+                            }
+                        },
+                        showDivider = true
+                    )
+
+                    if (triggerDropdownSelection == "Custom") {
+                        OutlinedTextField(
+                            value = shortcutTriggerSymbol,
+                            onValueChange = { input ->
+                                val clean = input.filter { !it.isWhitespace() }
+                                if (clean.isNotBlank()) {
+                                    shortcutTriggerSymbol = clean
+                                }
+                            },
+                            label = { Text("Custom Trigger Symbol") },
+                            placeholder = { Text("e.g. @ or ?") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(24.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    }
+
                     val viewModel = LocalSettingsViewModel.current
                     val allBangs by (viewModel?.bangsFlow ?: kotlinx.coroutines.flow.flowOf(emptyList()))
                         .collectAsStateWithLifecycle(initialValue = viewModel?.bangsFlow?.value ?: emptyList())
@@ -3073,7 +3174,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                             ) {
                                 Text(
-                                    text = "No active shortcuts. Tap + Add or re-enable direct shortcuts below.",
+                                    text = "No Active Shortcuts. Tap Add or Restore Direct Shortcuts Below.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(16.dp)
@@ -3130,16 +3231,35 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                         verticalAlignment = Alignment.CenterVertically,
                                                         modifier = Modifier.weight(1f)
                                                     ) {
+                                                        val badgeLabel = remember(bang.prefix, shortcutTriggerSymbol) {
+                                                            if (bang.isBuiltIn && bang.prefix.startsWith("!")) {
+                                                                "$shortcutTriggerSymbol${bang.prefix.removePrefix("!")}"
+                                                            } else {
+                                                                bang.displayPrefix
+                                                            }
+                                                        }
                                                         SynchronizedMorphingShortcutBadge(
-                                                            shortcut = bang.displayPrefix,
+                                                            shortcut = badgeLabel,
                                                             morph = sharedMorph,
                                                             rotationAngle = rotationAngle,
                                                             morphProgress = morphProgress
                                                         )
                                                         Spacer(modifier = Modifier.width(16.dp))
+                                                        val appLabel = remember(bang.targetPackage, bang.name) {
+                                                            if (!bang.targetPackage.isNullOrBlank()) {
+                                                                try {
+                                                                    val appInfo = context.packageManager.getApplicationInfo(bang.targetPackage, 0)
+                                                                    context.packageManager.getApplicationLabel(appInfo).toString()
+                                                                } catch (_: Exception) {
+                                                                    bang.name.ifBlank { bang.targetPackage }
+                                                                }
+                                                            } else {
+                                                                bang.name
+                                                            }
+                                                        }
                                                         Column {
                                                             Text(
-                                                                text = bang.name,
+                                                                text = appLabel.ifBlank { bang.targetPackage ?: badgeLabel },
                                                                 color = MaterialTheme.colorScheme.onSurface,
                                                                 fontSize = 16.sp,
                                                                 fontWeight = FontWeight.Medium
@@ -3262,8 +3382,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
 
                     if (showAddDialog) {
-                        var prefixInput by remember(editingBang) { mutableStateOf(editingBang?.displayPrefix ?: "!") }
-                        var nameInput by remember(editingBang) { mutableStateOf(editingBang?.name ?: "") }
+                        var prefixInput by remember(editingBang) { mutableStateOf(editingBang?.displayPrefix ?: shortcutTriggerSymbol) }
                         var targetPackageInput by remember(editingBang) { mutableStateOf(editingBang?.targetPackage.orEmpty()) }
                         var urlInput by remember(editingBang) { mutableStateOf(editingBang?.urlTemplate ?: "") }
                         var errorMsg by remember { mutableStateOf<String?>(null) }
@@ -3352,31 +3471,28 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 items(displayedApps, key = { it.second }) { (appName, pkgName) ->
                                                     Surface(
                                                         onClick = {
-                                                            nameInput = appName
                                                             targetPackageInput = pkgName
 
-                                                            // Automatically adjust shortcut trigger
-                                                            val autoPrefix = when (pkgName) {
-                                                                "com.google.android.youtube" -> "!yt"
-                                                                "com.spotify.music" -> "!spot"
-                                                                "org.wikipedia" -> "!w"
-                                                                "com.reddit.frontpage" -> "!r"
-                                                                "com.github.android" -> "!gh"
-                                                                "com.google.android.apps.maps" -> "!maps"
-                                                                "com.amazon.mShop.android.shopping" -> "!az"
-                                                                "com.twitter.android" -> "!x"
-                                                                "tv.twitch.android.app" -> "!tw"
-                                                                "com.instagram.android" -> "!ig"
-                                                                "com.pinterest" -> "!pin"
-                                                                "com.imdb.mobile" -> "!imdb"
-                                                                "com.google.android.googlequicksearchbox" -> "!g"
-                                                                "com.duckduckgo.mobile.android" -> "!ddg"
-                                                                else -> {
-                                                                    val clean = appName.lowercase().filter { it.isLetterOrDigit() }
-                                                                    if (clean.length <= 4) "!$clean" else "!${clean.take(4)}"
-                                                                }
+                                                            // Automatically adjust shortcut trigger with user's selected trigger symbol
+                                                            val clean = appName.lowercase().filter { it.isLetterOrDigit() }
+                                                            val slug = when (pkgName) {
+                                                                "com.google.android.youtube" -> "yt"
+                                                                "com.spotify.music" -> "spot"
+                                                                "org.wikipedia" -> "w"
+                                                                "com.reddit.frontpage" -> "r"
+                                                                "com.github.android" -> "gh"
+                                                                "com.google.android.apps.maps" -> "maps"
+                                                                "com.amazon.mShop.android.shopping" -> "az"
+                                                                "com.twitter.android" -> "x"
+                                                                "tv.twitch.android.app" -> "tw"
+                                                                "com.instagram.android" -> "ig"
+                                                                "com.pinterest" -> "pin"
+                                                                "com.imdb.mobile" -> "imdb"
+                                                                "com.google.android.googlequicksearchbox" -> "g"
+                                                                "com.duckduckgo.mobile.android" -> "ddg"
+                                                                else -> if (clean.length <= 4) clean else clean.take(4)
                                                             }
-                                                            prefixInput = autoPrefix
+                                                            prefixInput = "$shortcutTriggerSymbol$slug"
 
                                                             // Suggest URL if empty or generic
                                                             if (urlInput.isBlank() || urlInput.contains("/search?q=%s")) {
@@ -3468,34 +3584,11 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     OutlinedTextField(
                                         value = prefixInput,
                                         onValueChange = {
-                                            val clean = if (it.startsWith("!")) it else "!$it"
-                                            prefixInput = clean.filter { c -> !c.isWhitespace() }
+                                            prefixInput = it.filter { c -> !c.isWhitespace() }
                                             errorMsg = null
                                         },
                                         label = { Text("Shortcut Trigger") },
-                                        placeholder = { Text("!wiki") },
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(16.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-
-                                    OutlinedTextField(
-                                        value = nameInput,
-                                        onValueChange = {
-                                            nameInput = it
-                                            errorMsg = null
-                                        },
-                                        label = { Text("Platform Name") },
-                                        placeholder = { Text("e.g. YouTube, Spotify") },
-                                        trailingIcon = {
-                                            IconButton(onClick = { showAppPicker = true }) {
-                                                Icon(
-                                                    imageVector = Icons.Outlined.Apps,
-                                                    contentDescription = "Select installed app",
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                        },
+                                        placeholder = { Text("${shortcutTriggerSymbol}wiki") },
                                         singleLine = true,
                                         shape = RoundedCornerShape(16.dp),
                                         modifier = Modifier.fillMaxWidth()
@@ -3548,15 +3641,11 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 TextButton(
                                     onClick = {
                                         val trimmedPrefix = prefixInput.trim()
-                                        val trimmedName = nameInput.trim()
+                                        val trimmedPackage = targetPackageInput.trim()
                                         var trimmedUrl = urlInput.trim()
 
-                                        if (trimmedPrefix.length < 2 || !trimmedPrefix.startsWith("!")) {
-                                            errorMsg = "Trigger must start with '!' and be at least 2 characters (e.g. !wiki)"
-                                            return@TextButton
-                                        }
-                                        if (trimmedName.isBlank()) {
-                                            errorMsg = "Name cannot be empty"
+                                        if (trimmedPrefix.length < 2) {
+                                            errorMsg = "Trigger must be at least 2 characters (e.g. ${shortcutTriggerSymbol}wiki)"
                                             return@TextButton
                                         }
                                         if (trimmedUrl.isBlank() || (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://"))) {
@@ -3573,13 +3662,24 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             }
                                         }
 
+                                        val derivedName = if (trimmedPackage.isNotBlank()) {
+                                            try {
+                                                val appInfo = context.packageManager.getApplicationInfo(trimmedPackage, 0)
+                                                context.packageManager.getApplicationLabel(appInfo).toString()
+                                            } catch (_: Exception) {
+                                                trimmedPackage.substringAfterLast('.').replaceFirstChar { it.uppercase() }
+                                            }
+                                        } else {
+                                            trimmedPrefix.trimStart { !it.isLetterOrDigit() }.replaceFirstChar { it.uppercase() }.ifBlank { "Shortcut" }
+                                        }
+
                                         val newBang = com.pixel.intelligentsearch.core.bangs.SearchBang(
                                             prefix = trimmedPrefix.lowercase(),
-                                            name = trimmedName,
+                                            name = derivedName,
                                             urlTemplate = trimmedUrl,
-                                            targetPackage = targetPackageInput.trim().ifBlank { null },
+                                            targetPackage = trimmedPackage.ifBlank { null },
                                             isBuiltIn = false,
-                                            description = "Custom shortcut for $trimmedName"
+                                            description = "Custom shortcut for $derivedName"
                                         )
 
                                         val prevBang = editingBang

@@ -132,58 +132,93 @@ class SearchBangManager @Inject constructor(
         )
 
         private val PREFIX_BANG_PATTERN = Pattern.compile("^(![a-zA-Z0-9_-]+)\\s*(.*)$")
-        private val SUFFIX_BANG_PATTERN = Pattern.compile("^(.*?)\\s+(![a-zA-Z0-9_-]+)$")
+    }
+
+    fun getTriggerSymbol(): String {
+        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        return prefs.getString("web_shortcut_trigger_symbol", "!")?.ifBlank { "!" } ?: "!"
     }
 
     val bangsFlow: Flow<List<SearchBang>> = settingsManager.settingsFlow.map { settings ->
+        val trigger = getTriggerSymbol()
         val customBangs = parseCustomBangs(settings.customBangsJson)
         val disabled = settings.disabledWebShortcuts
-        (BUILT_IN_BANGS.filter { it.displayPrefix !in disabled } + customBangs).distinctBy { it.displayPrefix }
+        val builtIns = BUILT_IN_BANGS.map { bang ->
+            if (trigger != "!" && bang.prefix.startsWith("!")) {
+                bang.copy(prefix = "$trigger${bang.prefix.removePrefix("!")}")
+            } else {
+                bang
+            }
+        }
+        (builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase() !in disabled } + customBangs).distinctBy { it.displayPrefix }
     }
 
     fun getAllBangsSync(): List<SearchBang> {
         val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val trigger = prefs.getString("web_shortcut_trigger_symbol", "!")?.ifBlank { "!" } ?: "!"
         val customBangsJson = prefs.getString("custom_bangs_json", null)
             ?: settingsManager.getInitialSettings().customBangsJson
         val customBangs = parseCustomBangs(customBangsJson)
         val disabled = prefs.getStringSet("disabled_web_shortcuts", null)?.toSet()
             ?: settingsManager.getInitialSettings().disabledWebShortcuts
-        return (BUILT_IN_BANGS.filter { it.displayPrefix !in disabled } + customBangs).distinctBy { it.displayPrefix }
+
+        val builtIns = BUILT_IN_BANGS.map { bang ->
+            if (trigger != "!" && bang.prefix.startsWith("!")) {
+                bang.copy(prefix = "$trigger${bang.prefix.removePrefix("!")}")
+            } else {
+                bang
+            }
+        }
+        return (builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase() !in disabled } + customBangs).distinctBy { it.displayPrefix }
     }
 
     fun parseBangQuery(query: String, availableBangs: List<SearchBang> = getAllBangsSync()): ParsedBangQuery? {
         val trimmed = query.trim()
-        if (trimmed.isEmpty() || !trimmed.contains("!")) return null
+        if (trimmed.isEmpty()) return null
+        val triggerSymbol = getTriggerSymbol()
 
-        // 1. Check Prefix Bang (!yt query)
-        val prefixMatcher = PREFIX_BANG_PATTERN.matcher(trimmed)
-        if (prefixMatcher.matches()) {
-            val prefixToken = prefixMatcher.group(1)?.lowercase() ?: ""
-            val rawRemaining = prefixMatcher.group(2)?.trim() ?: ""
-            val matchedBang = availableBangs.firstOrNull { it.displayPrefix == prefixToken }
-            if (matchedBang != null) {
-                return ParsedBangQuery(
-                    bang = matchedBang,
-                    rawQuery = trimmed,
-                    extractedQuery = rawRemaining,
-                    isPrefix = true
-                )
+        // Match against all available bangs
+        for (bang in availableBangs) {
+            val bare = bang.prefix.trimStart { !it.isLetterOrDigit() }
+            val candidatePrefixes = mutableSetOf(
+                bang.displayPrefix,
+                bang.prefix.lowercase()
+            )
+            if (bare.isNotBlank()) {
+                candidatePrefixes.add("$triggerSymbol$bare".lowercase())
+                candidatePrefixes.add("!$bare".lowercase())
             }
-        }
 
-        // 2. Check Suffix Bang (query !yt)
-        val suffixMatcher = SUFFIX_BANG_PATTERN.matcher(trimmed)
-        if (suffixMatcher.matches()) {
-            val rawLeading = suffixMatcher.group(1)?.trim() ?: ""
-            val suffixToken = suffixMatcher.group(2)?.lowercase() ?: ""
-            val matchedBang = availableBangs.firstOrNull { it.displayPrefix == suffixToken }
-            if (matchedBang != null) {
-                return ParsedBangQuery(
-                    bang = matchedBang,
-                    rawQuery = trimmed,
-                    extractedQuery = rawLeading,
-                    isPrefix = false
-                )
+            for (p in candidatePrefixes) {
+                if (p.isBlank()) continue
+                // Prefix check: query starts with "$p " or equals "$p"
+                if (trimmed.equals(p, ignoreCase = true)) {
+                    return ParsedBangQuery(
+                        bang = bang,
+                        rawQuery = trimmed,
+                        extractedQuery = "",
+                        isPrefix = true
+                    )
+                }
+                if (trimmed.startsWith("$p ", ignoreCase = true)) {
+                    val rawRemaining = trimmed.substring(p.length).trim()
+                    return ParsedBangQuery(
+                        bang = bang,
+                        rawQuery = trimmed,
+                        extractedQuery = rawRemaining,
+                        isPrefix = true
+                    )
+                }
+                // Suffix check: query ends with " $p"
+                if (trimmed.endsWith(" $p", ignoreCase = true)) {
+                    val rawLeading = trimmed.substring(0, trimmed.length - p.length).trim()
+                    return ParsedBangQuery(
+                        bang = bang,
+                        rawQuery = trimmed,
+                        extractedQuery = rawLeading,
+                        isPrefix = false
+                    )
+                }
             }
         }
 
@@ -192,9 +227,20 @@ class SearchBangManager @Inject constructor(
 
     fun getBangSuggestions(partialToken: String, availableBangs: List<SearchBang> = getAllBangsSync()): List<SearchBang> {
         val token = partialToken.trim().lowercase()
-        if (!token.startsWith("!")) return emptyList()
+        if (token.isEmpty()) return emptyList()
+        val triggerSymbol = getTriggerSymbol().lowercase()
+
+        val startsWithTrigger = token.startsWith(triggerSymbol) || token.startsWith("!")
+        val bareToken = token.trimStart { !it.isLetterOrDigit() }
+
+        if (!startsWithTrigger && bareToken.isEmpty()) return emptyList()
+
         return availableBangs.filter { bang ->
-            bang.displayPrefix.startsWith(token) || bang.name.lowercase().startsWith(token.removePrefix("!"))
+            val bare = bang.prefix.trimStart { !it.isLetterOrDigit() }.lowercase()
+            val customPrefixWithTrigger = "$triggerSymbol$bare"
+            bang.displayPrefix.startsWith(token) ||
+            customPrefixWithTrigger.startsWith(token) ||
+            (bareToken.isNotEmpty() && (bare.startsWith(bareToken) || bang.name.lowercase().startsWith(bareToken)))
         }.take(8)
     }
 

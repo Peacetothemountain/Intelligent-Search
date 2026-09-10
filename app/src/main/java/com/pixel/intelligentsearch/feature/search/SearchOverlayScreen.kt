@@ -945,10 +945,17 @@ fun SearchOverlayScreen(
                         AssistChip(
                             onClick = {
                                 val currentQ = uiState.query
-                                val newQ = if (currentQ.startsWith("!")) {
-                                    "${bang.prefix} "
+                                val bangTrigger = if (bang.prefix.isNotEmpty() && !bang.prefix[0].isLetterOrDigit()) {
+                                    bang.prefix[0].toString()
                                 } else {
-                                    "${currentQ.substringBeforeLast("!")}${bang.prefix} "
+                                    "!"
+                                }
+                                val newQ = if (currentQ.startsWith(bangTrigger)) {
+                                    "${bang.prefix} "
+                                } else if (currentQ.contains(bangTrigger)) {
+                                    "${currentQ.substringBeforeLast(bangTrigger)}${bang.prefix} "
+                                } else {
+                                    "${bang.prefix} "
                                 }
                                 viewModel.onQueryChanged(newQ)
                             },

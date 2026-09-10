@@ -15,8 +15,8 @@ data class SearchBang(
     val description: String = ""
 ) {
     init {
-        require(prefix.startsWith("!")) { "Bang prefix must start with '!', received: $prefix" }
-        require(prefix.length >= 2) { "Bang prefix must have at least 2 characters (e.g. '!g')" }
+        require(prefix.isNotBlank()) { "Bang prefix cannot be blank" }
+        require(prefix.length >= 2) { "Bang prefix must have at least 2 characters" }
     }
 
     val displayPrefix: String

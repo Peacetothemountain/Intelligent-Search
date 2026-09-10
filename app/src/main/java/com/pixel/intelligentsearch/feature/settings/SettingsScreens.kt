@@ -181,28 +181,9 @@ private const val GEMINI_CORNER_SWIPE_SHADER = """
         half4 mixedColor = mix(c1, c2, smoothstep(0.35, 0.65, t));
         
         float pulse = 0.88 + 0.12 * sin(time * 2.8);
-
-        // Google Gemini signature halftone dot matrix embedded within the light animation
-        float2 gridCoord = uv * float2(72.0, 22.0);
-        if (mod(floor(gridCoord.y), 2.0) > 0.5) {
-            gridCoord.x += 0.5;
-        }
-        float2 cellCenter = floor(gridCoord) + 0.5;
-        float distToCenter = length(gridCoord - cellCenter);
-
-        // Halftone dot radius scales dynamically with local wave intensity (Google Gemini signature)
-        float dotRadius = 0.08 + 0.38 * intensity;
-        float dotAlpha = 1.0 - smoothstep(dotRadius * 0.70, dotRadius, distToCenter);
-        float dotGlow = 1.0 - smoothstep(0.0, dotRadius * 1.5, distToCenter);
-
-        // Dynamic luminance: crisp dots with radiant gemini corona
-        float dotLight = dotAlpha * 0.95 + dotGlow * 0.40 * intensity;
-        float ambientLight = (1.0 - dotAlpha) * intensity * 0.22;
-        float finalIntensity = clamp(dotLight * intensity + ambientLight, 0.0, 1.0);
-
-        float finalAlpha = clamp((dotAlpha * 0.85 + ambientLight) * mixedColor.a * pulse, 0.0, 1.0);
+        float finalAlpha = intensity * mixedColor.a * pulse;
         
-        return half4(mixedColor.rgb * finalIntensity, finalAlpha);
+        return half4(mixedColor.rgb * intensity, finalAlpha);
     }
 """
 
@@ -265,31 +246,6 @@ fun GeminiCornerSwipeWaveLayer(
                 close()
             }
             drawPath(path, brush = gradientBrush, alpha = 0.85f)
-
-            // Halftone dots within fallback
-            val cols = 48
-            val rows = 12
-            val colStep = w / cols
-            val rowStep = h / rows
-            for (c in 0 until cols) {
-                for (r in 0 until rows) {
-                    val offsetX = if (r % 2 == 1) colStep * 0.5f else 0f
-                    val cx = (c + 0.5f) * colStep + offsetX
-                    val cy = (r + 0.5f) * rowStep
-                    val normX = cx / w
-                    val waveOffset = kotlin.math.sin((normX * 6.28f + phase).toDouble()).toFloat() * (h * 0.25f)
-                    val waveY = (h * 0.45f) + waveOffset
-                    if (cy >= waveY) {
-                        val dotIntensity = ((cy - waveY) / (h - waveY).coerceAtLeast(1f)).coerceIn(0f, 1f)
-                        val radius = 1.2.dp.toPx() + 1.8.dp.toPx() * dotIntensity
-                        drawCircle(
-                            color = colorPrimary.copy(alpha = dotIntensity * 0.75f),
-                            radius = radius,
-                            center = androidx.compose.ui.geometry.Offset(cx, cy)
-                        )
-                    }
-                }
-            }
         }
     }
 }
@@ -1115,7 +1071,94 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     val usdGb = usedBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
                     val avlGb = availBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
 
-                    val procResultList = mutableListOf<ProcessRamEntry>()
+                    val processMap = mutableMapOf<String, Float>()
+                    val pm = context.packageManager
+
+                    // 1. Live measurement via dumpsys meminfo (granted DUMP permission)
+                    try {
+                        val p = Runtime.getRuntime().exec(arrayOf("dumpsys", "meminfo"))
+                        val reader = java.io.BufferedReader(java.io.InputStreamReader(p.inputStream))
+                        var line: String? = null
+                        var inProcessSection = false
+                        var count = 0
+                        val processRegex = Regex("""^\s*([\d,]+)K:\s+([a-zA-Z0-9_.:]+)""")
+                        while (reader.readLine().also { line = it } != null && count < 160) {
+                            count++
+                            val l = line ?: break
+                            if (l.contains("Total PSS by process:") || l.contains("Total RSS by process:")) {
+                                inProcessSection = true
+                                continue
+                            }
+                            if (inProcessSection) {
+                                if (l.isBlank() || (l.startsWith("Total") && !l.contains("by process"))) {
+                                    if (processMap.size >= 6) break
+                                }
+                                val match = processRegex.find(l)
+                                if (match != null) {
+                                    val kbStr = match.groupValues[1].replace(",", "")
+                                    val kb = kbStr.toLongOrNull() ?: 0L
+                                    val rawName = match.groupValues[2]
+                                    val mb = kb / 1024f
+                                    if (mb > 15f) {
+                                        processMap[rawName] = maxOf(processMap[rawName] ?: 0f, mb)
+                                    }
+                                }
+                            }
+                        }
+                        reader.close()
+                        p.destroy()
+                    } catch (_: Exception) {}
+
+                    // 2. Direct OS fallback via ActivityManager if dumpsys is unavailable
+                    if (processMap.isEmpty()) {
+                        try {
+                            val running = actMgr?.runningAppProcesses.orEmpty()
+                            val pids = running.map { it.pid }.take(16).toIntArray()
+                            if (pids.isNotEmpty()) {
+                                val memArr = actMgr?.getProcessMemoryInfo(pids)
+                                if (memArr != null) {
+                                    for (i in pids.indices) {
+                                        val p = running.getOrNull(i) ?: continue
+                                        val m = memArr.getOrNull(i) ?: continue
+                                        val pssMb = m.totalPss / 1024f
+                                        if (pssMb > 10f) {
+                                            processMap[p.processName] = pssMb
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (_: Exception) {}
+                    }
+
+                    // 3. Resolve user-facing, accurate app names without any synthetic placeholders
+                    val resolvedList = processMap.map { (rawName, mb) ->
+                        val friendlyName = when {
+                            rawName == "system" -> "Android System"
+                            rawName == "surfaceflinger" -> "SurfaceFlinger"
+                            rawName.contains("nexuslauncher", ignoreCase = true) -> "Pixel Launcher"
+                            rawName.contains("systemui", ignoreCase = true) -> "System UI"
+                            rawName.contains("gms", ignoreCase = true) -> "Play Services"
+                            rawName.contains("vending", ignoreCase = true) -> "Google Play"
+                            rawName.contains("inputmethod", ignoreCase = true) -> "Gboard"
+                            rawName.contains("GoogleCamera", ignoreCase = true) -> "Pixel Camera"
+                            rawName.contains("intelligentsearch", ignoreCase = true) -> "Intelligent Search"
+                            rawName.contains("youtube", ignoreCase = true) -> "YouTube"
+                            rawName.contains("twitter", ignoreCase = true) -> "X (Twitter)"
+                            rawName.contains("chrome", ignoreCase = true) -> "Chrome"
+                            else -> {
+                                try {
+                                    val appInfo = pm.getApplicationInfo(rawName.substringBefore(':'), 0)
+                                    pm.getApplicationLabel(appInfo).toString()
+                                } catch (_: Exception) {
+                                    rawName.substringAfterLast('.').substringBefore(':').replaceFirstChar {
+                                        if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString()
+                                    }
+                                }
+                            }
+                        }
+                        friendlyName to mb
+                    }
+
                     val palette = listOf(
                         Color(0xFF4285F4), // Google Blue
                         Color(0xFF34A853), // Google Green
@@ -1125,72 +1168,16 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         Color(0xFF00ACC1)  // Cyan
                     )
 
-                    try {
-                        val myPid = android.os.Process.myPid()
-                        val pids = mutableListOf<Int>()
-                        val names = mutableMapOf<Int, String>()
-                        pids.add(myPid)
-                        names[myPid] = "Intelligent Search"
-
-                        val running = actMgr?.runningAppProcesses
-                        running?.forEach { p ->
-                            if (p.pid != myPid && pids.size < 5) {
-                                pids.add(p.pid)
-                                val shortName = when {
-                                    p.processName.contains("launcher", ignoreCase = true) -> "Pixel Launcher"
-                                    p.processName.contains("systemui", ignoreCase = true) -> "System UI"
-                                    p.processName.contains("gms", ignoreCase = true) -> "Play Services"
-                                    p.processName.contains("chrome", ignoreCase = true) -> "Chrome"
-                                    else -> p.processName.substringAfterLast('.').replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() }
-                                }
-                                names[p.pid] = shortName
-                            }
+                    val topProcessesList = resolvedList
+                        .groupBy { it.first }
+                        .map { (name, list) -> name to list.maxOf { it.second } }
+                        .sortedByDescending { it.second }
+                        .take(4)
+                        .mapIndexed { i, (name, mb) ->
+                            ProcessRamEntry(name = name, ramMb = mb, color = palette[i % palette.size])
                         }
 
-                        val memArr = actMgr?.getProcessMemoryInfo(pids.toIntArray())
-                        if (memArr != null) {
-                            for (i in pids.indices) {
-                                val pid = pids[i]
-                                val pssMb = (memArr.getOrNull(i)?.totalPss ?: 0) / 1024f
-                                val name = names[pid] ?: "Process"
-                                if (pssMb > 1f) {
-                                    procResultList.add(
-                                        ProcessRamEntry(
-                                            name = name,
-                                            ramMb = pssMb,
-                                            color = palette[procResultList.size % palette.size]
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    } catch (_: Exception) {}
-
-                    if (procAnonKb > 0) {
-                        val anonMb = procAnonKb / 1024f
-                        procResultList.add(
-                            ProcessRamEntry(
-                                name = "Active Apps",
-                                ramMb = anonMb,
-                                color = palette[procResultList.size % palette.size]
-                            )
-                        )
-                    }
-
-                    val systemBytes = (usedBytes - if (procAnonKb > 0) procAnonKb * 1024L else 0L).coerceAtLeast(0L)
-                    val systemMb = (systemBytes / (1024f * 1024f)).coerceAtLeast(500f)
-                    procResultList.add(
-                        ProcessRamEntry(
-                            name = "System OS",
-                            ramMb = systemMb,
-                            color = palette[procResultList.size % palette.size]
-                        )
-                    )
-
-                    procResultList.sortByDescending { it.ramMb }
-                    val trimmed = procResultList.take(4)
-
-                    MemorySnapshot(totGb, usdGb, avlGb, calculatedPct, trimmed)
+                    MemorySnapshot(totGb, usdGb, avlGb, calculatedPct, topProcessesList)
                 }
 
                 totalRamGb = String.format(java.util.Locale.US, "%.1f", snapshot.totalGb)
@@ -1203,15 +1190,15 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
 
                 if (ramHistoryOverTime.isEmpty()) {
                     val baseline = snapshot.usedGb.toFloat()
-                    repeat(12) { i ->
-                        val variance = kotlin.math.sin(i * 0.8) * 0.12f
-                        ramHistoryOverTime.add((baseline + variance.toFloat()).coerceAtLeast(0.5f))
+                    repeat(12) {
+                        ramHistoryOverTime.add(baseline)
                     }
+                } else {
+                    if (ramHistoryOverTime.size >= 14) {
+                        ramHistoryOverTime.removeAt(0)
+                    }
+                    ramHistoryOverTime.add(snapshot.usedGb.toFloat())
                 }
-                if (ramHistoryOverTime.size >= 14) {
-                    ramHistoryOverTime.removeAt(0)
-                }
-                ramHistoryOverTime.add(snapshot.usedGb.toFloat())
             } catch (_: Exception) {}
 
             kotlinx.coroutines.delay(1200)
@@ -1409,17 +1396,17 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(130.dp),
+                        .height(136.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // LEFT: Live X/Y Time-Series Graph with Dot Points
+                    // LEFT: Live X/Y Time-Series Graph with App Dot Points & Stems
                     val secondaryColor = MaterialTheme.colorScheme.secondary
                     val outlineColor = MaterialTheme.colorScheme.outlineVariant
 
                     Box(
                         modifier = Modifier
-                            .weight(1.2f)
+                            .weight(1.25f)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
@@ -1428,7 +1415,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         androidx.compose.foundation.Canvas(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 18.dp)
+                                .padding(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 18.dp)
                         ) {
                             val w = size.width
                             val h = size.height
@@ -1452,7 +1439,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 val minDisplay = 0f
 
                                 val points = ramHistoryOverTime.mapIndexed { i, ramGb ->
-                                    val normY = ((ramGb - minDisplay) / (maxVal - minDisplay)).coerceIn(0.08f, 0.94f)
+                                    val normY = ((ramGb - minDisplay) / (maxVal - minDisplay)).coerceIn(0.08f, 0.92f)
                                     val px = i * stepX
                                     val py = h - (h * normY)
                                     androidx.compose.ui.geometry.Offset(px, py)
@@ -1479,7 +1466,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 drawPath(
                                     path = fillPath,
                                     brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                        listOf(secondaryColor.copy(alpha = 0.40f), Color.Transparent)
+                                        listOf(secondaryColor.copy(alpha = 0.35f), Color.Transparent)
                                     )
                                 )
 
@@ -1493,59 +1480,117 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                     )
                                 )
 
-                                points.forEachIndexed { i, pt ->
-                                    val isLatest = (i == count - 1)
-                                    val procColor = if (topProcesses.isNotEmpty()) {
-                                        topProcesses[i % topProcesses.size].color
-                                    } else {
-                                        secondaryColor
+                                // Helper function to evaluate the exact cubic spline Y coordinate at any normalized X in [0..1]
+                                fun evalSplineY(normX: Float): Float {
+                                    if (points.size <= 1) return points.firstOrNull()?.y ?: 0f
+                                    val targetX = normX * points.last().x
+                                    var seg = 0
+                                    while (seg < points.size - 2 && points[seg + 1].x < targetX) {
+                                        seg++
                                     }
+                                    val p0 = points[seg]
+                                    val p1 = points[seg + 1]
+                                    val dx = (p1.x - p0.x).coerceAtLeast(0.001f)
+                                    val t = ((targetX - p0.x) / dx).coerceIn(0f, 1f)
+                                    val smoothT = t * t * (3f - 2f * t)
+                                    return p0.y + (p1.y - p0.y) * smoothT
+                                }
 
-                                    if (isLatest) {
-                                        drawCircle(
-                                            color = procColor.copy(alpha = 0.35f),
-                                            radius = pointPulse.dp.toPx() * 1.5f,
-                                            center = pt
+                                // Animated dot points going over the graph showing what apps/processes are using RAM
+                                if (topProcesses.isNotEmpty()) {
+                                    val animPhase = (wavePhase / (2f * Math.PI.toFloat()))
+                                    topProcesses.forEachIndexed { pIdx, proc ->
+                                        val normX = (animPhase + pIdx.toFloat() / topProcesses.size) % 1f
+                                        val dotX = normX * w
+                                        val dotY = evalSplineY(normX)
+
+                                        // Vertical stem dropped from curve to baseline
+                                        drawLine(
+                                            color = proc.color.copy(alpha = 0.45f),
+                                            start = androidx.compose.ui.geometry.Offset(dotX, dotY),
+                                            end = androidx.compose.ui.geometry.Offset(dotX, h),
+                                            strokeWidth = 1.dp.toPx(),
+                                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3f, 3f))
                                         )
+
+                                        // Pulsing glow aura around dot point
+                                        drawCircle(
+                                            color = proc.color.copy(alpha = 0.30f),
+                                            radius = pointPulse.dp.toPx() * 1.5f,
+                                            center = androidx.compose.ui.geometry.Offset(dotX, dotY)
+                                        )
+                                        // Crisp white rim
                                         drawCircle(
                                             color = Color.White,
-                                            radius = 3.dp.toPx(),
-                                            center = pt
+                                            radius = 3.5.dp.toPx(),
+                                            center = androidx.compose.ui.geometry.Offset(dotX, dotY)
                                         )
+                                        // Solid app color center
                                         drawCircle(
-                                            color = procColor,
+                                            color = proc.color,
                                             radius = 2.dp.toPx(),
-                                            center = pt
-                                        )
-                                    } else {
-                                        drawCircle(
-                                            color = procColor,
-                                            radius = 2.4.dp.toPx(),
-                                            center = pt
+                                            center = androidx.compose.ui.geometry.Offset(dotX, dotY)
                                         )
                                     }
                                 }
+
+                                // Live beacon point on the latest real measurement
+                                val latestPt = points.last()
+                                drawCircle(
+                                    color = secondaryColor.copy(alpha = 0.35f),
+                                    radius = pointPulse.dp.toPx() * 1.8f,
+                                    center = latestPt
+                                )
+                                drawCircle(
+                                    color = Color.White,
+                                    radius = 4.dp.toPx(),
+                                    center = latestPt
+                                )
+                                drawCircle(
+                                    color = secondaryColor,
+                                    radius = 2.5.dp.toPx(),
+                                    center = latestPt
+                                )
                             }
                         }
 
+                        // X and Y Coordinate axis markings
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 8.dp, vertical = 2.dp),
-                            contentAlignment = Alignment.BottomCenter
+                                .padding(horizontal = 6.dp, vertical = 4.dp)
                         ) {
+                            Text(
+                                text = "${totalRamGb}G",
+                                fontSize = 7.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.align(Alignment.TopStart)
+                            )
+                            Text(
+                                text = "0G",
+                                fontSize = 7.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(bottom = 12.dp)
+                            )
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .align(Alignment.BottomCenter)
+                                    .padding(horizontal = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
                                     text = "t-15s",
-                                    fontSize = 8.sp,
+                                    fontSize = 7.5.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
                                 Text(
                                     text = "Timeline → Now",
-                                    fontSize = 8.sp,
+                                    fontSize = 7.5.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
                             }
@@ -1559,6 +1604,13 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             .fillMaxHeight(),
                         verticalArrangement = Arrangement.SpaceEvenly
                     ) {
+                        Text(
+                            text = "Apps using RAM",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+
                         if (topProcesses.isEmpty()) {
                             Text(
                                 text = "Analyzing processes...",
@@ -3621,10 +3673,10 @@ fun SlideToRemoveAllBar(
             .clip(RoundedCornerShape(24.dp))
             .border(
                 1.dp,
-                MaterialTheme.colorScheme.error.copy(alpha = 0.25f + 0.35f * dragFraction),
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.20f + 0.35f * dragFraction),
                 RoundedCornerShape(24.dp)
             ),
-        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.12f + 0.20f * dragFraction)
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -3636,7 +3688,7 @@ fun SlideToRemoveAllBar(
                     modifier = Modifier
                         .fillMaxHeight()
                         .width(with(LocalDensity.current) { (animDragOffsetX + thumbSizePx + 8.dp.toPx()).toDp() })
-                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.18f + 0.25f * dragFraction))
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f + 0.35f * dragFraction))
                 )
             }
 
@@ -3652,13 +3704,13 @@ fun SlideToRemoveAllBar(
                     text = if (isThresholdReached) "Release to Remove All" else "Slide to Remove All",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (isThresholdReached) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = (1f - dragFraction * 0.7f).coerceIn(0.2f, 1f))
+                    color = if (isThresholdReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = (1f - dragFraction * 0.7f).coerceIn(0.2f, 1f))
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
-                    tint = if (isThresholdReached) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = (1f - dragFraction * 0.7f).coerceIn(0.2f, 1f)),
+                    tint = if (isThresholdReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = (1f - dragFraction * 0.7f).coerceIn(0.2f, 1f)),
                     modifier = Modifier.size(14.dp)
                 )
             }
@@ -3670,7 +3722,7 @@ fun SlideToRemoveAllBar(
                     .size(thumbSizeDp)
                     .clip(androidx.compose.foundation.shape.CircleShape)
                     .background(
-                        if (isThresholdReached) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
+                        if (isThresholdReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.90f)
                     )
                     .pointerInput(maxDragPx) {
                         detectHorizontalDragGestures(
@@ -3698,7 +3750,7 @@ fun SlideToRemoveAllBar(
                 Icon(
                     imageVector = Icons.Outlined.DeleteSweep,
                     contentDescription = "Slide to remove all",
-                    tint = MaterialTheme.colorScheme.onError,
+                    tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -4442,12 +4494,28 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                                 .padding(horizontal = 10.dp, vertical = 8.dp),
                                                             verticalAlignment = Alignment.CenterVertically
                                                         ) {
-                                                            Icon(
-                                                                imageVector = Icons.Outlined.Android,
-                                                                contentDescription = null,
-                                                                modifier = Modifier.size(24.dp),
-                                                                tint = MaterialTheme.colorScheme.primary
-                                                            )
+                                                            val appDrawable = remember(pkgName) {
+                                                                runCatching { context.packageManager.getApplicationIcon(pkgName) }.getOrNull()
+                                                            }
+                                                            val appBitmap = remember(appDrawable) {
+                                                                runCatching { appDrawable?.toBitmap(width = 96, height = 96)?.asImageBitmap() }.getOrNull()
+                                                            }
+                                                            if (appBitmap != null) {
+                                                                Image(
+                                                                    bitmap = appBitmap,
+                                                                    contentDescription = appName,
+                                                                    modifier = Modifier
+                                                                        .size(28.dp)
+                                                                        .clip(RoundedCornerShape(6.dp))
+                                                                )
+                                                            } else {
+                                                                Icon(
+                                                                    imageVector = Icons.Outlined.Android,
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(28.dp),
+                                                                    tint = MaterialTheme.colorScheme.primary
+                                                                )
+                                                            }
                                                             Spacer(modifier = Modifier.width(12.dp))
                                                             Column {
                                                                 Text(

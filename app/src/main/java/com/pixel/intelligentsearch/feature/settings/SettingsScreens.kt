@@ -808,7 +808,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             var simulateLatency by rememberBooleanPreference(prefs, "debug.simulate_latency", false)
             SettingsRowToggle(
                 title = "Simulate Web Latency",
-                subtitle = "Adds a 2-second artificial delay to search suggestions",
+                subtitle = "Adds a 2-Second Artificial Delay to Search Suggestions.",
                 icon = Icons.Outlined.HourglassEmpty,
                 isChecked = simulateLatency,
                 onCheckedChange = { simulateLatency = it },
@@ -818,7 +818,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             var mockLargeDataset by rememberBooleanPreference(prefs, "debug.mock_large_dataset", false)
             SettingsRowToggle(
                 title = "Mock Large Dataset",
-                subtitle = "Injects 50 mock contacts and files into search lists",
+                subtitle = "Injects 50 Mock Contacts and Files into Search Lists.",
                 icon = Icons.Outlined.Layers,
                 isChecked = mockLargeDataset,
                 onCheckedChange = { mockLargeDataset = it },
@@ -828,7 +828,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             var verboseLogging by rememberBooleanPreference(prefs, "debug.verbose_logging", false)
             SettingsRowToggle(
                 title = "Enable Verbose Logging",
-                subtitle = "Print query logs and load frame times in Logcat",
+                subtitle = "Print Query Logs and Load Frame Times in Logcat.",
                 icon = Icons.Outlined.Code,
                 isChecked = verboseLogging,
                 onCheckedChange = { verboseLogging = it },
@@ -839,7 +839,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             var showPerfStats by rememberBooleanPreference(prefs, "debug.show_perf_stats", false)
             SettingsRowToggle(
                 title = "Show Performance HUD",
-                subtitle = "Render search latency and results count at the top of overlay",
+                subtitle = "Render Search Latency and Results Count at Top of Overlay.",
                 icon = Icons.Outlined.Speed,
                 isChecked = showPerfStats,
                 onCheckedChange = { showPerfStats = it },
@@ -849,7 +849,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             var mockZeroState by rememberBooleanPreference(prefs, "debug.mock_zero_state", false)
             SettingsRowToggle(
                 title = "Mock Trending Queries",
-                subtitle = "Force mock trending query topics when the search bar is empty",
+                subtitle = "Force Mock Trending Query Topics When Search Bar Is Empty.",
                 icon = Icons.AutoMirrored.Outlined.TrendingUp,
                 isChecked = mockZeroState,
                 onCheckedChange = { mockZeroState = it },
@@ -859,7 +859,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             var forceSearchError by rememberBooleanPreference(prefs, "debug.force_search_error", false)
             SettingsRowToggle(
                 title = "Force Search API Error",
-                subtitle = "Simulate suggestion fetch failure and display error banner",
+                subtitle = "Simulate Suggestion Fetch Failure and Display Error Banner.",
                 icon = Icons.Outlined.BugReport,
                 isChecked = forceSearchError,
                 onCheckedChange = { forceSearchError = it },
@@ -868,7 +868,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             
             SettingsRow(
                 title = "Disable Debug Mode",
-                subtitle = "Turn off developer settings and exit",
+                subtitle = "Turn Off Developer Settings and Exit.",
                 icon = Icons.Outlined.Close,
                 onClick = onDisableDebug,
                 showDivider = false
@@ -1299,7 +1299,7 @@ fun MainSettingsScreen(
             SettingsCard {
                 SettingsRow(
                     title = "Appearance",
-                    subtitle = "Theme, Wallpaper, Material Design layouts.",
+                    subtitle = "Theme, Wallpaper, Material Design Layouts.",
                     icon = Icons.Outlined.Palette,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.Appearance) },
                     showDivider = true,
@@ -1315,7 +1315,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Search Behavior",
-                    subtitle = "Custom search overlay and display settings.",
+                    subtitle = "Custom Search Overlay and Display Settings.",
                     icon = Icons.Outlined.Settings,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior) },
                     showDivider = true,
@@ -1323,7 +1323,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Widget Customization",
-                    subtitle = "Customize widget colors, themes, and actions.",
+                    subtitle = "Customize Widget Colors, Themes, and Actions.",
                     icon = Icons.Outlined.Widgets,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization) },
                     showDivider = true,
@@ -1331,7 +1331,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Launch Portal",
-                    subtitle = "Quick Search Tile and App Shortcuts",
+                    subtitle = "Quick Search Tile and App Shortcuts.",
                     icon = Icons.AutoMirrored.Outlined.Launch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal) },
                     showDivider = false,
@@ -1341,7 +1341,7 @@ fun MainSettingsScreen(
             SettingsCard {
                 SettingsRow(
                     title = "Default Digital Assistant",
-                    subtitle = "Manage Android Assistant settings.",
+                    subtitle = "Manage Android Assistant Settings.",
                     icon = Icons.Outlined.Assistant,
                     onClick = {
                         val intent = Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS)
@@ -1364,7 +1364,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Google Activity",
-                    subtitle = "View and manage your Google Activity.",
+                    subtitle = "View and Manage Your Google Activity.",
                     icon = Icons.Outlined.History,
                     onClick = {
                         val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity"))
@@ -1377,14 +1377,14 @@ fun MainSettingsScreen(
                 val isDebugUnlocked by rememberBooleanPreference(prefs, "debug_unlocked", false)
                 val searchEngine = prefs.getString("search.engine", "Google") ?: "Google"
                 val browserHistorySubtitle = when (searchEngine) {
-                    "Google" -> "View your Chrome/Google history"
-                    "Bing" -> "View your Bing history"
-                    "DuckDuckGo" -> "Open your DuckDuckGo App history"
-                    else -> "View your $searchEngine history"
+                    "Google" -> "View Your Chrome and Google History."
+                    "Bing" -> "View Your Bing History."
+                    "DuckDuckGo" -> "Open Your DuckDuckGo App History."
+                    else -> "View Your $searchEngine History."
                 }
                 SettingsRow(
                     title = "Browser History",
-                    subtitle = "View your Chrome and webpage history.",
+                    subtitle = browserHistorySubtitle,
                     icon = Icons.Outlined.HistoryEdu,
                     onClick = {
                         val intent = when (searchEngine) {
@@ -1422,7 +1422,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Encrypted Backup",
-                    subtitle = "Import, Export, and Restore Backup App Data",
+                    subtitle = "Import, Export, and Restore Backup App Data.",
                     icon = Icons.Outlined.Shield,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.BackupRestore) },
                     showDivider = isDebugUnlocked
@@ -1431,7 +1431,7 @@ fun MainSettingsScreen(
                 if (isDebugUnlocked) {
                     SettingsRow(
                         title = "Debug",
-                        subtitle = "Developer tools and experiments",
+                        subtitle = "Developer Tools and Experiments.",
                         icon = Icons.Outlined.BugReport,
                         onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.Debug) },
                         showDivider = false
@@ -1581,7 +1581,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
             containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
-                    title = { Text("Apperence", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+                    title = { Text("Appearance", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                     navigationIcon = {
                         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                     }
@@ -1666,7 +1666,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                         var matrixAnimationEnabled by rememberBooleanPreference(prefs, "matrix_animation_enabled", true) {}
                         SettingsRowToggle(
                             title = "Enable Matrix Animation on Search Overlay Page",
-                            subtitle = "Enable Search Overpay Page Animation.",
+                            subtitle = "Enable Search Overlay Page Animation.",
                             icon = Icons.Outlined.AutoAwesome,
                             isChecked = matrixAnimationEnabled,
                             onCheckedChange = { matrixAnimationEnabled = it },
@@ -1676,7 +1676,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                         var morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
                         SettingsRowToggle(
                             title = "Enable Material Morph Animation",
-                            subtitle = "Enable Material Expressive Boucing Shapes.",
+                            subtitle = "Enable Material Expressive Bouncing Shapes.",
                             icon = Icons.Outlined.Animation,
                             isChecked = morphAnimationEnabled,
                             onCheckedChange = { morphAnimationEnabled = it },
@@ -1686,7 +1686,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                         var showWall by rememberBooleanPreference(prefs, "search.background.show.wall", false) { updateWidgets(context) }
                         SettingsRowToggle(
                             title = "Show Wallpaper",
-                            subtitle = "Show User's wallpaper in Search Overlay Page.",
+                            subtitle = "Show User's Wallpaper on Search Overlay Page.",
                             icon = Icons.Outlined.Wallpaper,
                             isChecked = showWall,
                             onCheckedChange = { showWall = it },
@@ -1789,7 +1789,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 var searchWeb by rememberBooleanPreference(prefs, "search.web", false)
                 SettingsRowToggle(
                     title = "Web",
-                    subtitle = "View Search Suggestions from Websites",
+                    subtitle = "View Search Suggestions from Websites.",
                     icon = Icons.Outlined.Language,
                     isChecked = searchWeb,
                     onCheckedChange = { searchWeb = it },
@@ -2066,7 +2066,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 var searchCalc by rememberBooleanPreference(prefs, "search.calculator", false)
                 SettingsRowToggle(
                     title = "Calculator",
-                    subtitle = "Calculate Mathamatical Equations Inside Search Bar.",
+                    subtitle = "Calculate Mathematical Equations Inside Search Bar.",
                     icon = Icons.Outlined.Calculate,
                     isChecked = searchCalc,
                     onCheckedChange = { searchCalc = it },
@@ -2326,7 +2326,6 @@ object PriorityWeightHelper {
     data class PriorityLevel(val label: String, val weight: Int)
 
     val LEVELS = listOf(
-        PriorityLevel("Very Low", 10),
         PriorityLevel("Low", 20),
         PriorityLevel("Low Medium", 35),
         PriorityLevel("Medium Low", 45),
@@ -2336,8 +2335,10 @@ object PriorityWeightHelper {
         PriorityLevel("Very High", 100)
     )
 
+    const val DEFAULT_WEIGHT = 50
+
     fun weightToLevelIndex(weight: Int): Int {
-        var closestIdx = 0
+        var closestIdx = 3 // default to Medium
         var minDiff = Int.MAX_VALUE
         for (i in LEVELS.indices) {
             val diff = Math.abs(LEVELS[i].weight - weight)
@@ -2350,11 +2351,163 @@ object PriorityWeightHelper {
     }
 
     fun levelIndexToWeight(index: Int): Int {
-        return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS.last() }.weight
+        return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS[3] }.weight
     }
 
     fun levelLabel(index: Int): String {
-        return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS.last() }.label
+        return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS[3] }.label
+    }
+}
+
+// -----------------------------------------------------------------------------------------
+// SEARCH APP COLORFUL ICON HELPERS
+// -----------------------------------------------------------------------------------------
+@Composable
+fun DuckDuckGoBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(Color(0xFFDE5833)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "D",
+            color = Color.White,
+            fontWeight = FontWeight.Black,
+            fontSize = 13.sp
+        )
+    }
+}
+
+@Composable
+fun BingBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(
+                androidx.compose.ui.graphics.Brush.linearGradient(
+                    colors = listOf(Color(0xFF008373), Color(0xFF00B294))
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "b",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp
+        )
+    }
+}
+
+@Composable
+fun DefaultColorfulWebBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(
+                androidx.compose.ui.graphics.Brush.linearGradient(
+                    colors = listOf(Color(0xFF4285F4), Color(0xFF34A853), Color(0xFFFBBC05), Color(0xFFEA4335))
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Search,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.padding(3.dp)
+        )
+    }
+}
+
+@Composable
+fun SearchAppColorfulIcon(
+    appName: String,
+    modifier: Modifier = Modifier
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val normalized = appName.trim()
+
+    when {
+        normalized.equals("Google", ignoreCase = true) -> {
+            Icon(
+                painter = androidx.compose.ui.res.painterResource(id = com.pixel.intelligentsearch.R.drawable.ic_g_logo_colored),
+                contentDescription = "Google",
+                modifier = modifier,
+                tint = Color.Unspecified
+            )
+        }
+        normalized.equals("DuckDuckGo", ignoreCase = true) -> {
+            val ddgDrawable = remember(context) {
+                runCatching {
+                    context.packageManager.getApplicationIcon("com.duckduckgo.mobile.android")
+                }.getOrNull()
+            }
+            if (ddgDrawable != null) {
+                val bitmap = remember(ddgDrawable) {
+                    runCatching { ddgDrawable.toBitmap().asImageBitmap() }.getOrNull()
+                }
+                if (bitmap != null) {
+                    Image(bitmap = bitmap, contentDescription = "DuckDuckGo", modifier = modifier)
+                } else {
+                    DuckDuckGoBadge(modifier = modifier)
+                }
+            } else {
+                DuckDuckGoBadge(modifier = modifier)
+            }
+        }
+        normalized.equals("Bing", ignoreCase = true) -> {
+            val bingDrawable = remember(context) {
+                runCatching {
+                    context.packageManager.getApplicationIcon("com.microsoft.bing")
+                }.getOrNull()
+            }
+            if (bingDrawable != null) {
+                val bitmap = remember(bingDrawable) {
+                    runCatching { bingDrawable.toBitmap().asImageBitmap() }.getOrNull()
+                }
+                if (bitmap != null) {
+                    Image(bitmap = bitmap, contentDescription = "Bing", modifier = modifier)
+                } else {
+                    BingBadge(modifier = modifier)
+                }
+            } else {
+                BingBadge(modifier = modifier)
+            }
+        }
+        else -> {
+            val appDrawable = remember(appName, context) {
+                if (appName.isBlank() || appName.equals("Custom", ignoreCase = true)) null
+                else {
+                    runCatching {
+                        context.packageManager.getApplicationIcon(appName)
+                    }.getOrNull() ?: runCatching {
+                        val pm = context.packageManager
+                        val intent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
+                        val apps = pm.queryIntentActivities(intent, 0)
+                        val match = apps.firstOrNull {
+                            it.loadLabel(pm).toString().equals(appName, ignoreCase = true) ||
+                            it.activityInfo.packageName.equals(appName, ignoreCase = true)
+                        }
+                        match?.loadIcon(pm)
+                    }.getOrNull()
+                }
+            }
+
+            if (appDrawable != null) {
+                val bitmap = remember(appDrawable) {
+                    runCatching { appDrawable.toBitmap().asImageBitmap() }.getOrNull()
+                }
+                if (bitmap != null) {
+                    Image(bitmap = bitmap, contentDescription = appName, modifier = modifier)
+                } else {
+                    DefaultColorfulWebBadge(modifier = modifier)
+                }
+            } else {
+                DefaultColorfulWebBadge(modifier = modifier)
+            }
+        }
     }
 }
 
@@ -2386,14 +2539,14 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
             SettingsCard {
                 SettingsRow(
                     title = "Application Search",
-                    subtitle = "Custimize Quick Launch Apps in the Search Overlay Screen.",
+                    subtitle = "Customize Quick Launch Apps in Search Overlay Screen.",
                     icon = Icons.Outlined.ViewCarousel,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchPills) },
                     showDivider = true
                 )
                 SettingsRow(
                     title = "Manage Hidden Apps",
-                    subtitle = "Search Apps to Dynamically Hide From Search.",
+                    subtitle = "Search Apps to Dynamically Hide from Search.",
                     icon = Icons.Outlined.VisibilityOff,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.ManageHiddenApps) },
                     showDivider = true
@@ -2423,7 +2576,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                 var searchShortcuts by rememberBooleanPreference(prefs, "search.shortcuts", false)
                 SettingsRowToggle(
                     title = "Shortcuts",
-                    subtitle = "Manage shortcuts for 20 apps",
+                    subtitle = "Manage Shortcuts for 20 Apps.",
                     icon = Icons.AutoMirrored.Outlined.ListAlt,
                     isChecked = searchShortcuts,
                     onCheckedChange = { searchShortcuts = it },
@@ -2433,7 +2586,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                 var recentShortcuts by rememberBooleanPreference(prefs, "shortcut.recent", true)
                 SettingsRowToggle(
                     title = "Include Recent Shortcuts",
-                    subtitle = "Show recently used shortcuts as suggestions",
+                    subtitle = "Show Recently Used Shortcuts as Suggestions.",
                     icon = null,
                     isChecked = recentShortcuts,
                     onCheckedChange = { recentShortcuts = it },
@@ -2448,7 +2601,29 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
                 val viewModel = LocalSettingsViewModel.current
 
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("Max Shortcuts Suggestions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Max Shortcuts Suggestions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        IconButton(
+                            onClick = {
+                                performClickHaptic(context)
+                                shortcutResultsCount = 6
+                                prefs.edit().putInt("shortcut_results_count", 6).apply()
+                                viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, 6)
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.RestartAlt,
+                                contentDescription = "Reset to Default",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text("$shortcutResultsCount", modifier = Modifier.padding(end = 16.dp), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Android17Slider(
@@ -2481,15 +2656,35 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligent
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                var appWeight by rememberIntPreference(prefs, "search_weight_apps", 100)
+                var appWeight by rememberIntPreference(prefs, "search_weight_apps", 50)
                 val appLevelIndex = remember(appWeight) { PriorityWeightHelper.weightToLevelIndex(appWeight) }
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text(
-                        text = "App Priority Weight: ${PriorityWeightHelper.levelLabel(appLevelIndex)}",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "App Priority Weight: ${PriorityWeightHelper.levelLabel(appLevelIndex)}",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        IconButton(
+                            onClick = {
+                                performClickHaptic(context)
+                                appWeight = PriorityWeightHelper.DEFAULT_WEIGHT
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.RestartAlt,
+                                contentDescription = "Reset to Default",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Text(
                         text = "Adjust Ranking Priority of App Search.",
                         style = MaterialTheme.typography.bodySmall,
@@ -2564,6 +2759,7 @@ fun SynchronizedMorphingShortcutBadge(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
+    val context = LocalContext.current
     Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
                 title = { Text("Web Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
@@ -2579,9 +2775,11 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         ) {
             SettingsCard {
                 var searchEngine by rememberStringPreference(prefs, "search.engine", "Google")
+                var customEngineName by rememberStringPreference(prefs, "custom_search_engine_name", "Custom")
+                val effectiveSearchEngineName = if (searchEngine == "Custom") customEngineName else searchEngine
                 SettingsDropdownRow(
                     title = "Primary Search App",
-                    subtitle = searchEngine,
+                    subtitle = effectiveSearchEngineName,
                     icon = Icons.Outlined.Search,
                     options = listOf("Google", "DuckDuckGo", "Bing", "Custom"),
                     selectedOption = searchEngine,
@@ -2590,21 +2788,37 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 )
                 if (searchEngine == "Custom") {
                     var customUrl by rememberStringPreference(prefs, "custom_search_engine_url", "https://duckduckgo.com/?q=%s")
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SearchAppColorfulIcon(appName = customEngineName, modifier = Modifier.size(28.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        androidx.compose.material3.OutlinedTextField(
+                            value = customEngineName,
+                            onValueChange = { customEngineName = it },
+                            label = { Text("Search App Name") },
+                            shape = RoundedCornerShape(24.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                     androidx.compose.material3.OutlinedTextField(
                         value = customUrl,
                         onValueChange = { customUrl = it },
                         label = { Text("Custom Search URL (use %s for query)") },
-                        shape = RoundedCornerShape(32.dp),
+                        shape = RoundedCornerShape(24.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
                 var webSuggestions by rememberBooleanPreference(prefs, "search.web.suggestions", true)
                 SettingsRowToggle(
                     title = "Web Suggestions",
-                    subtitle = "Helpful Suggstions Appear During Active Search.",
+                    subtitle = "Helpful Suggestions Appear During Active Search.",
                     icon = Icons.Outlined.ChatBubbleOutline,
                     isChecked = webSuggestions,
                     onCheckedChange = { webSuggestions = it },
@@ -2614,7 +2828,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var searchPreviousSearches by rememberBooleanPreference(prefs, "search_previous_searches", true)
                 SettingsRowToggle(
                     title = "Search History",
-                    subtitle = "Previous Searched Web Queries.",
+                    subtitle = "Previously Searched Web Queries.",
                     icon = Icons.Outlined.History,
                     isChecked = searchPreviousSearches,
                     onCheckedChange = { searchPreviousSearches = it },
@@ -2623,12 +2837,32 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 
                 var webResultsCount by rememberIntPreference(prefs, "web_results_count", 5)
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text(
-                        text = "Web Results: $webResultsCount",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Web Results: $webResultsCount",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        IconButton(
+                            onClick = {
+                                performClickHaptic(context)
+                                webResultsCount = 5
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.RestartAlt,
+                                contentDescription = "Reset to Default",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Android17Slider(
                         value = webResultsCount.toFloat(),
                         onValueChange = { webResultsCount = it.toInt() },
@@ -2641,15 +2875,35 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                var webWeight by rememberIntPreference(prefs, "search_weight_web", 80)
+                var webWeight by rememberIntPreference(prefs, "search_weight_web", 50)
                 val webLevelIndex = remember(webWeight) { PriorityWeightHelper.weightToLevelIndex(webWeight) }
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text(
-                        text = "Web Priority Weight: ${PriorityWeightHelper.levelLabel(webLevelIndex)}",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Web Priority Weight: ${PriorityWeightHelper.levelLabel(webLevelIndex)}",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        IconButton(
+                            onClick = {
+                                performClickHaptic(context)
+                                webWeight = PriorityWeightHelper.DEFAULT_WEIGHT
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.RestartAlt,
+                                contentDescription = "Reset to Default",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Text(
                         text = "Adjust Ranking Priority of Web Search.",
                         style = MaterialTheme.typography.bodySmall,
@@ -2680,7 +2934,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var quickShortcutsEnabled by rememberBooleanPreference(prefs, "search_quick_shortcuts", true)
                 SettingsRowToggle(
                     title = "Enable Quick Web Shortcuts",
-                    subtitle = "Prefix queries with ! to jump directly to specific web platforms.",
+                    subtitle = "Prefix Queries with ! to Open Specific Web Platforms.",
                     icon = Icons.Outlined.TravelExplore,
                     isChecked = quickShortcutsEnabled,
                     onCheckedChange = { quickShortcutsEnabled = it },
@@ -2695,6 +2949,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val disabledPrefixes = settings.disabledWebShortcuts
 
                     var showAddDialog by remember { mutableStateOf(false) }
+                    var editingBang by remember { mutableStateOf<com.pixel.intelligentsearch.core.bangs.SearchBang?>(null) }
                     var localDismissedPrefixes by remember { mutableStateOf(setOf<String>()) }
 
                     val expressiveShapes = remember {
@@ -2753,7 +3008,6 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val morphProgress = FastOutSlowInEasing.transform(rawProgress)
                     val sharedMorph = morphSequence[morphIndex]
 
-                    val context = LocalContext.current
                     val view = LocalView.current
                     val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
 
@@ -2789,13 +3043,16 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    "Swipe any shortcut away to remove it",
+                                    "Web Shortcuts. Swipe to Remove.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             FilledTonalButton(
-                                onClick = { showAddDialog = true },
+                                onClick = {
+                                    editingBang = null
+                                    showAddDialog = true
+                                },
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                                 shape = RoundedCornerShape(20.dp)
                             ) {
@@ -2855,7 +3112,11 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                     .fillMaxWidth()
                                                     .clip(RoundedCornerShape(24.dp))
                                                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
+                                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
+                                                    .bouncyClickable {
+                                                        editingBang = bang
+                                                        showAddDialog = true
+                                                    },
                                                 color = Color.Transparent
                                             ) {
                                                 Row(
@@ -2897,6 +3158,12 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                             )
                                                         }
                                                     }
+                                                    Icon(
+                                                        imageVector = Icons.Outlined.Edit,
+                                                        contentDescription = "Edit Shortcut",
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
                                                 }
                                             }
                                         }
@@ -2906,24 +3173,20 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
 
                         // Available Direct Shortcuts section
-                        if (availableDirectBangs.isNotEmpty()) {
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
+                        var showAvailableDirectShortcuts by rememberBooleanPreference(prefs, "search_show_available_direct_shortcuts", true)
+                        SettingsRowToggle(
+                            title = "Available Direct Shortcuts",
+                            subtitle = "Tap Add to Restore Any Direct Shortcut.",
+                            icon = Icons.Outlined.BookmarkBorder,
+                            isChecked = showAvailableDirectShortcuts,
+                            onCheckedChange = { showAvailableDirectShortcuts = it },
+                            showDivider = showAvailableDirectShortcuts && availableDirectBangs.isNotEmpty()
+                        )
+
+                        if (showAvailableDirectShortcuts && availableDirectBangs.isNotEmpty()) {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Column {
-                                    Text(
-                                        "Available Direct Shortcuts",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        "Tap + Add to restore any direct shortcut",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-
                                 availableDirectBangs.forEach { bang ->
                                     key("avail_${bang.displayPrefix}") {
                                         Surface(
@@ -2999,10 +3262,10 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
 
                     if (showAddDialog) {
-                        var prefixInput by remember { mutableStateOf("!") }
-                        var nameInput by remember { mutableStateOf("") }
-                        var targetPackageInput by remember { mutableStateOf("") }
-                        var urlInput by remember { mutableStateOf("") }
+                        var prefixInput by remember(editingBang) { mutableStateOf(editingBang?.displayPrefix ?: "!") }
+                        var nameInput by remember(editingBang) { mutableStateOf(editingBang?.name ?: "") }
+                        var targetPackageInput by remember(editingBang) { mutableStateOf(editingBang?.targetPackage.orEmpty()) }
+                        var urlInput by remember(editingBang) { mutableStateOf(editingBang?.urlTemplate ?: "") }
                         var errorMsg by remember { mutableStateOf<String?>(null) }
                         var showAppPicker by remember { mutableStateOf(false) }
 
@@ -3186,10 +3449,13 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
 
                         AlertDialog(
-                            onDismissRequest = { showAddDialog = false },
+                            onDismissRequest = {
+                                editingBang = null
+                                showAddDialog = false
+                            },
                             title = {
                                 Text(
-                                    "Add Web Shortcut",
+                                    if (editingBang != null) "Edit Web Shortcut" else "Add Web Shortcut",
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -3241,7 +3507,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             targetPackageInput = it
                                             errorMsg = null
                                         },
-                                        label = { Text("Package Name (Optional)") },
+                                        label = { Text("Package Name") },
                                         placeholder = { Text("com.example.app") },
                                         trailingIcon = {
                                             IconButton(onClick = { showAppPicker = true }) {
@@ -3315,17 +3581,31 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             isBuiltIn = false,
                                             description = "Custom shortcut for $trimmedName"
                                         )
+
+                                        val prevBang = editingBang
+                                        if (prevBang != null) {
+                                            if (prevBang.isBuiltIn) {
+                                                viewModel?.disableBuiltInBang(prevBang.displayPrefix)
+                                            } else if (!prevBang.displayPrefix.equals(newBang.displayPrefix, ignoreCase = true)) {
+                                                viewModel?.deleteCustomBang(prevBang.displayPrefix)
+                                            }
+                                        }
+
                                         localDismissedPrefixes = localDismissedPrefixes - newBang.displayPrefix
                                         viewModel?.enableBuiltInBang(newBang.displayPrefix)
                                         viewModel?.saveCustomBang(newBang)
+                                        editingBang = null
                                         showAddDialog = false
                                     }
                                 ) {
-                                    Text("Add")
+                                    Text(if (editingBang != null) "Save" else "Add")
                                 }
                             },
                             dismissButton = {
-                                TextButton(onClick = { showAddDialog = false }) {
+                                TextButton(onClick = {
+                                    editingBang = null
+                                    showAddDialog = false
+                                }) {
                                     Text("Cancel")
                                 }
                             }
@@ -3363,7 +3643,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             SettingsCard {
                 SettingsRow(
                     title = "Contact Menu",
-                    subtitle = "Opens Contact Picker",
+                    subtitle = "Opens Contact Picker.",
                     icon = Icons.Outlined.Contacts,
                     onClick = { launcher.launch(null) },
                     showDivider = true
@@ -3380,7 +3660,27 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 
                 var contactResultsCount by rememberIntPreference(prefs, "contact_results_count", 5)
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("Contact Results: $contactResultsCount", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Contact Results: $contactResultsCount", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        IconButton(
+                            onClick = {
+                                performClickHaptic(context)
+                                contactResultsCount = 5
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.RestartAlt,
+                                contentDescription = "Reset to Default",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Android17Slider(
                         value = contactResultsCount.toFloat(),
                         onValueChange = { contactResultsCount = it.toInt() },
@@ -3393,15 +3693,35 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                var contactWeight by rememberIntPreference(prefs, "search_weight_contacts", 70)
+                var contactWeight by rememberIntPreference(prefs, "search_weight_contacts", 50)
                 val contactLevelIndex = remember(contactWeight) { PriorityWeightHelper.weightToLevelIndex(contactWeight) }
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text(
-                        text = "Contact Priority Weight: ${PriorityWeightHelper.levelLabel(contactLevelIndex)}",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Contact Priority Weight: ${PriorityWeightHelper.levelLabel(contactLevelIndex)}",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        IconButton(
+                            onClick = {
+                                performClickHaptic(context)
+                                contactWeight = PriorityWeightHelper.DEFAULT_WEIGHT
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.RestartAlt,
+                                contentDescription = "Reset to Default",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Text(
                         text = "Adjust Ranking Priority of Contact Search.",
                         style = MaterialTheme.typography.bodySmall,
@@ -3449,9 +3769,11 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             SettingsCard {
+                val currentFileUri = prefs.getString("search.files.uri", null)
+                val fileUriSubtitle = if (currentFileUri.isNullOrBlank()) "None Selected." else currentFileUri
                 SettingsRow(
                     title = "Select Indexing Directory",
-                    subtitle = prefs.getString("search.files.uri", "None Selected") ?: "None Selected",
+                    subtitle = fileUriSubtitle,
                     icon = Icons.Outlined.FolderOpen,
                     onClick = { launcher.launch(null) },
                     showDivider = true
@@ -3477,7 +3799,27 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 
                 var fileResultsCount by rememberIntPreference(prefs, "file_results_count", 5)
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("File Results: $fileResultsCount", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("File Results: $fileResultsCount", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        IconButton(
+                            onClick = {
+                                performClickHaptic(context)
+                                fileResultsCount = 5
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.RestartAlt,
+                                contentDescription = "Reset to Default",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Android17Slider(
                         value = fileResultsCount.toFloat(),
                         onValueChange = { fileResultsCount = it.toInt() },
@@ -3493,12 +3835,32 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var fileWeight by rememberIntPreference(prefs, "search_weight_files", 50)
                 val fileLevelIndex = remember(fileWeight) { PriorityWeightHelper.weightToLevelIndex(fileWeight) }
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text(
-                        text = "File Priority Weight: ${PriorityWeightHelper.levelLabel(fileLevelIndex)}",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "File Priority Weight: ${PriorityWeightHelper.levelLabel(fileLevelIndex)}",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        IconButton(
+                            onClick = {
+                                performClickHaptic(context)
+                                fileWeight = PriorityWeightHelper.DEFAULT_WEIGHT
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.RestartAlt,
+                                contentDescription = "Reset to Default",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Text(
                         text = "Adjust Ranking Priority of File Search.",
                         style = MaterialTheme.typography.bodySmall,
@@ -3562,16 +3924,16 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var bottomResult by rememberBooleanPreference(prefs, "settings.bottom.search.result", false)
                 SettingsRowToggle(
                     title = "Bottom Search Results",
-                    subtitle = "Order List from Bottom Up depending on Search Bar Placement.",
+                    subtitle = "Order List from Bottom Up Depending on Search Bar Placement.",
                     icon = Icons.Outlined.AlignVerticalBottom,
                     isChecked = bottomResult,
                     onCheckedChange = { bottomResult = it },
                     showDivider = true
                 )
-                                var compactList by rememberBooleanPreference(prefs, "quick.search.horizontal", false)
+                var compactList by rememberBooleanPreference(prefs, "quick.search.horizontal", false)
                 SettingsRowToggle(
-                    title = "Quick App Pannel",
-                    subtitle = "Quickly Launch Apps Slected from Search Sorce Apps.",
+                    title = "Quick App Panel",
+                    subtitle = "Quickly Launch Apps Selected from Search Source Apps.",
                     icon = Icons.Outlined.ViewCompact,
                     isChecked = compactList,
                     onCheckedChange = { compactList = it },
@@ -3580,7 +3942,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var contextAwareApps by rememberBooleanPreference(prefs, "context_aware_quick_apps", false)
                 SettingsRowToggle(
                     title = "Context Aware Quick Apps",
-                    subtitle = "Dynamic chosen Apps Based on User's App Opening Cycles.",
+                    subtitle = "Dynamically Chosen Apps Based on User's App Opening Cycles.",
                     icon = Icons.Outlined.AccessTime,
                     isChecked = contextAwareApps,
                     onCheckedChange = { contextAwareApps = it },
@@ -3612,7 +3974,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                 SettingsRowToggle(
                     title = "Smart Clipboard Suggestions",
-                    subtitle = "Suggestion Actions Based on Clipboard Text. I.E. Open Photos, Open Music Player, Ect.",
+                    subtitle = "Suggested Actions Based on Clipboard Text. I.E. Open Photos, Open Music Player, Etc.",
                     icon = Icons.Outlined.ContentPaste,
                     isChecked = smartClipboard,
                     onCheckedChange = { 
@@ -3765,7 +4127,18 @@ fun SettingsDropdownRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = title, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                 if (subtitle != null) {
-                    Text(text = subtitle, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (title == "Primary Search App") {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 2.dp)
+                        ) {
+                            SearchAppColorfulIcon(appName = subtitle, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = subtitle, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        Text(text = subtitle, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
             Icon(
@@ -3787,7 +4160,11 @@ fun SettingsDropdownRow(
                     options.forEach { option ->
                         DropdownMenuItem(
                             text = { Text(option) },
-                            leadingIcon = if (optionIcons != null && optionIcons.containsKey(option)) {
+                            leadingIcon = if (title == "Primary Search App") {
+                                {
+                                    SearchAppColorfulIcon(appName = option, modifier = Modifier.size(24.dp))
+                                }
+                            } else if (optionIcons != null && optionIcons.containsKey(option)) {
                                 {
                                     if (title == "Widget Action Icon" && option in listOf("Search", "Assistant", "Gemini", "Now Playing")) {
                                         ComposeActionIcon(
@@ -6130,7 +6507,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             SettingsCard {
                 SettingsRow(
                     title = "Search Tile",
-                    subtitle = "Add to quick settings notification panel",
+                    subtitle = "Add to Quick Settings Notification Panel.",
                     icon = Icons.Outlined.ViewAgenda,
                     onClick = {
                         if (android.os.Build.VERSION.SDK_INT >= 33) {
@@ -6158,7 +6535,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 
                 SettingsRow(
                     title = "Home Screen Shortcut",
-                    subtitle = "Add app icon to home screen",
+                    subtitle = "Add App Icon to Home Screen.",
                     icon = Icons.Outlined.AddHome,
                     onClick = {
                         val shortcutManager = context.getSystemService(ShortcutManager::class.java)

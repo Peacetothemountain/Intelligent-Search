@@ -208,20 +208,20 @@ class RadixTreeIndex<T> {
         val pathLengthBefore = currentKeyPath.length
         currentKeyPath.append(node.edge)
 
-        var currentRow = previousRow
+        var currentRow = previousRow.copyOf()
+        val scratch = IntArray(query.length + 1)
         // Propagate DP vector across each character of the compressed edge
         for (i in 0 until node.edge.length) {
             val edgeChar = node.edge[i]
-            val nextRow = IntArray(query.length + 1)
-            nextRow[0] = currentRow[0] + 1
+            scratch[0] = currentRow[0] + 1
 
             for (j in 1..query.length) {
-                val insertCost = nextRow[j - 1] + 1
+                val insertCost = scratch[j - 1] + 1
                 val deleteCost = currentRow[j] + 1
                 val replaceCost = if (query[j - 1] == edgeChar) currentRow[j - 1] else currentRow[j - 1] + 1
-                nextRow[j] = min(min(insertCost, deleteCost), replaceCost)
+                scratch[j] = min(min(insertCost, deleteCost), replaceCost)
             }
-            currentRow = nextRow
+            System.arraycopy(scratch, 0, currentRow, 0, scratch.size)
         }
 
         // Subtree pruning: if the minimum edit distance in currentRow exceeds maxDistance,

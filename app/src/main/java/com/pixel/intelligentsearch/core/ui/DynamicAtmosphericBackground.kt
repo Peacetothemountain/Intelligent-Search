@@ -182,11 +182,11 @@ private fun Modifier.appWideStardustShader(color: Color): Modifier {
             }
         }
     }
+
+    val shader = remember { RuntimeShader(APP_WIDE_STARDUST_SHADER) }
+    val shaderBrush = remember(shader) { ShaderBrush(shader) }
     
     return this.drawWithCache {
-        val shader = RuntimeShader(APP_WIDE_STARDUST_SHADER)
-        val shaderBrush = ShaderBrush(shader)
-        
         onDrawBehind {
             val w = if (size.width > 0) size.width else 1f
             val h = if (size.height > 0) size.height else 1f

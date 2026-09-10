@@ -276,7 +276,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 targetTitle = item.title,
                 metadata = item.metadata,
                 currentTimeMs = now,
-                domainWeightMultiplier = domainMul
+                domainWeightMultiplier = domainMul,
+                precomputedQueryMetaphone = queryMetaphone
             )
             RankedSearchResult(item, scoreBreakdown)
         }.sortedByDescending { it.scoreBreakdown.totalScore }

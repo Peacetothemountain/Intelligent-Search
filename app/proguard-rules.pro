@@ -8,18 +8,16 @@
 -repackageclasses ""
 -allowaccessmodification
 
-# Strip debug and verbose logging in release builds while preserving errors and warnings
+# Strip debug, verbose, and info logging in release builds while preserving errors and warnings
 -assumenosideeffects class android.util.Log {
     public static boolean isLoggable(java.lang.String, int);
     public static int v(...);
     public static int d(...);
+    public static int i(...);
 }
 
 # Titan M3+ Hardware Security, Keystore & Biometrics
 -keep class com.pixel.intelligentsearch.core.security.** { *; }
--keepclassmembers enum com.pixel.intelligentsearch.core.security.HardwareSecurityLevel { *; }
--keepclassmembers class com.pixel.intelligentsearch.core.security.AttestationResult { *; }
--keepclassmembers class com.pixel.intelligentsearch.core.security.EncryptedPayload { *; }
 
 # Kotlin Serialization
 -keepattributes *Annotation*, InnerClasses
@@ -40,7 +38,6 @@
 
 # Jetpack Compose Navigation & Destinations
 -keepnames class androidx.navigation.compose.** { *; }
--keepnames class androidx.navigation3.** { *; }
 
 # Room Database
 -keep class * extends androidx.room.RoomDatabase

@@ -60,6 +60,8 @@ object SearchScoringEngine {
     private const val HALF_LIFE_FILE_MS = 24.0 * 60 * 60 * 1000 // 24 hours
     private const val HALF_LIFE_DEFAULT_MS = 48.0 * 60 * 60 * 1000
 
+    private val REGEX_WHITESPACE = Regex("\\s+")
+
     /**
      * Computes the full relevance score breakdown for an entity candidate given a search query.
      */
@@ -68,7 +70,8 @@ object SearchScoringEngine {
         targetTitle: String,
         metadata: ScoringMetadata,
         currentTimeMs: Long = System.currentTimeMillis(),
-        domainWeightMultiplier: Float = 1.0f
+        domainWeightMultiplier: Float = 1.0f,
+        precomputedQueryMetaphone: DoubleMetaphone.MetaphoneResult? = null
     ): ScoreBreakdown {
         val q = query.trim().lowercase()
         val title = targetTitle.trim().lowercase()
@@ -79,7 +82,7 @@ object SearchScoringEngine {
         }
 
         // 1. Text & Structural Match Scoring
-        val matchScore = computeMatchScore(q, title, rawTitle)
+        val matchScore = computeMatchScore(q, title, rawTitle, precomputedQueryMetaphone)
 
         // 2. Frequency Scoring (Logarithmic compression)
         val frequencyScore = if (metadata.launchCount > 0) {
@@ -109,14 +112,19 @@ object SearchScoringEngine {
         )
     }
 
-    private fun computeMatchScore(query: String, title: String, rawTitle: String = title): Float {
+    private fun computeMatchScore(
+        query: String, 
+        title: String, 
+        rawTitle: String = title, 
+        precomputedQueryMetaphone: DoubleMetaphone.MetaphoneResult? = null
+    ): Float {
         // A. Exact Match
         if (title == query) {
             return SCORE_EXACT_MATCH
         }
 
         // B. Word-Boundary Prefix Match (e.g. "note" in "Keep Notes")
-        val words = title.split("\\s+".toRegex())
+        val words = title.split(REGEX_WHITESPACE)
         val isWordBoundaryPrefix = words.any { it.startsWith(query) }
         val lengthRatio = (query.length.toFloat() / title.length.toFloat()).coerceIn(0.05f, 1.0f)
 
@@ -137,7 +145,7 @@ object SearchScoringEngine {
         }
 
         // E. Phonetic Match via Double Metaphone
-        val queryMetaphone = DoubleMetaphone.encode(query)
+        val queryMetaphone = precomputedQueryMetaphone ?: DoubleMetaphone.encode(query)
         val titleMetaphone = DoubleMetaphone.encode(title)
         if (queryMetaphone.matches(titleMetaphone)) {
             return SCORE_PHONETIC_MATCH

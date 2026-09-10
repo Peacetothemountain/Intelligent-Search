@@ -118,11 +118,13 @@ class EncryptedDataVault @Inject constructor(
         val (secretKey, level) = securityManager.getOrCreateSymmetricKey(StrongBoxSecurityManager.KEY_ALIAS_MASTER)
         val cipher = Cipher.getInstance(StrongBoxSecurityManager.CIPHER_ALGORITHM)
         
-        // Generate cryptographic 96-bit random nonce
-        val iv = ByteArray(IV_LENGTH)
-        secureRandom.nextBytes(iv)
-        val gcmSpec = GCMParameterSpec(TAG_LENGTH_BITS, iv)
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec)
+        // AndroidKeyStore generates random IV internally when initialized with KeyStore key
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+        val iv = cipher.iv ?: run {
+            val fallbackIv = ByteArray(IV_LENGTH)
+            secureRandom.nextBytes(fallbackIv)
+            fallbackIv
+        }
 
         // Bind AAD
         val aad = buildAad(domain, recordId, profileId)
@@ -146,6 +148,44 @@ class EncryptedDataVault @Inject constructor(
 
         val blindIndex = generateBlindIndexFor?.let { securityManager.computeBlindIndex(it) }
 
+        return EncryptedVaultRecord(
+            recordId = recordId,
+            domain = domain,
+            payload = envelopeBuffer.array(),
+            blindIndex = blindIndex,
+            securityLevel = level
+        )
+    }
+
+    /**
+     * Encrypts a raw byte array using an authenticated [Cipher] bound to a biometric session.
+     */
+    fun encryptWithBiometricCipher(
+        cipher: Cipher,
+        domain: String,
+        recordId: String,
+        plaintext: ByteArray,
+        profileId: String = "default",
+        generateBlindIndexFor: String? = null
+    ): EncryptedVaultRecord {
+        val iv = cipher.iv ?: ByteArray(IV_LENGTH)
+        val aad = buildAad(domain, recordId, profileId)
+        cipher.updateAAD(aad)
+        val ciphertextWithTag = cipher.doFinal(plaintext)
+        val level = if (securityManager.isStrongBoxSupported()) HardwareSecurityLevel.STRONGBOX else HardwareSecurityLevel.TEE
+        val levelByte: Byte = when (level) {
+            HardwareSecurityLevel.STRONGBOX -> 0x01
+            HardwareSecurityLevel.TEE -> 0x02
+            HardwareSecurityLevel.SOFTWARE -> 0x03
+        }
+        val envelopeBuffer = ByteBuffer.allocate(HEADER_LENGTH + IV_LENGTH + ciphertextWithTag.size)
+        envelopeBuffer.put(VAULT_MAGIC_BYTE)
+        envelopeBuffer.put(VAULT_VERSION_BYTE)
+        envelopeBuffer.put(levelByte)
+        envelopeBuffer.put(iv)
+        envelopeBuffer.put(ciphertextWithTag)
+
+        val blindIndex = generateBlindIndexFor?.let { securityManager.computeBlindIndex(it) }
         return EncryptedVaultRecord(
             recordId = recordId,
             domain = domain,

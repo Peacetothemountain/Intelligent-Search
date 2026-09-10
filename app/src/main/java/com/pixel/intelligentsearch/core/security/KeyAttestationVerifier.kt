@@ -179,8 +179,9 @@ class KeyAttestationVerifier(private val context: Context) {
                 else -> HardwareSecurityLevel.SOFTWARE
             }
 
+            val challengeMatches = parsedExtension?.attestationChallenge?.contentEquals(challenge) == true
             val result = AttestationResult(
-                isHardwareAttested = isChainValid && parsedExtension != null && parsedExtension.attestationSecurityLevel != HardwareSecurityLevel.SOFTWARE,
+                isHardwareAttested = isChainValid && parsedExtension != null && challengeMatches && parsedExtension.attestationSecurityLevel != HardwareSecurityLevel.SOFTWARE,
                 securityLevel = hardwareSecurityLevel,
                 attestationChallenge = String(challenge),
                 certificateCount = certChain.size,
@@ -347,10 +348,10 @@ class KeyAttestationVerifier(private val context: Context) {
                                 }
                             }
                             705 -> {
-                                osVersion = parser.readInteger(elementLen)
+                                osVersion = parser.readExplicitInteger(elementLen)
                             }
                             706 -> {
-                                osPatchLevel = parser.readInteger(elementLen)
+                                osPatchLevel = parser.readExplicitInteger(elementLen)
                             }
                             else -> {
                                 parser.skipBytes(elementLen)
@@ -444,6 +445,15 @@ class KeyAttestationVerifier(private val context: Context) {
                 value = (value shl 8) or (bytes[offset++].toInt() and 0xFF)
             }
             return value
+        }
+
+        fun readExplicitInteger(length: Int): Int {
+            if (length >= 2 && offset < bytes.size && bytes[offset] == 0x02.toByte()) {
+                offset++ // skip 0x02 tag
+                val innerLen = readLength()
+                return readInteger(innerLen)
+            }
+            return readInteger(length)
         }
 
         fun readBoolean(length: Int): Boolean {

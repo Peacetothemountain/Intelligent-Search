@@ -495,9 +495,10 @@ object DoubleMetaphone {
 
     private fun stringAt(input: String, start: Int, length: Int, vararg targets: String): Boolean {
         if (start < 0 || start + length > input.length) return false
-        val sub = input.substring(start, start + length)
         for (target in targets) {
-            if (sub == target) return true
+            if (target.length == length && input.regionMatches(start, target, 0, length, ignoreCase = false)) {
+                return true
+            }
         }
         return false
     }

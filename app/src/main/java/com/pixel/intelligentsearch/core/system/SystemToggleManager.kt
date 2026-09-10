@@ -283,13 +283,6 @@ class SystemToggleManager @Inject constructor(
     }
 
     fun openBluetoothSettings() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            try {
-                val intent = Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                context.startActivity(intent)
-                return
-            } catch (_: Exception) {}
-        }
         openSettingsIntent(Settings.ACTION_BLUETOOTH_SETTINGS)
     }
 

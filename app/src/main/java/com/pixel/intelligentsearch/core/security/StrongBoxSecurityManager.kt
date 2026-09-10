@@ -260,21 +260,74 @@ class StrongBoxSecurityManager @Inject constructor(
     }
 
     /**
+     * Retrieves or generates an HMAC-SHA256 key backed by KeyStore discrete hardware,
+     * with StrongBox and TEE fallback.
+     */
+    @Synchronized
+    fun getOrCreateHmacKey(alias: String = KEY_ALIAS_BLIND_INDEX): Pair<SecretKey, HardwareSecurityLevel> {
+        if (keyStore.containsAlias(alias)) {
+            val entry = keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry
+            if (entry != null) {
+                return Pair(entry.secretKey, getHardwareSecurityLevel(entry.secretKey))
+            }
+        }
+
+        return if (isStrongBoxSupported()) {
+            try {
+                val key = generateHmacKey(alias, isStrongBox = true)
+                Pair(key, getHardwareSecurityLevel(key))
+            } catch (e: Exception) {
+                deleteKey(alias)
+                val key = generateHmacKey(alias, isStrongBox = false)
+                Pair(key, getHardwareSecurityLevel(key))
+            }
+        } else {
+            val key = generateHmacKey(alias, isStrongBox = false)
+            Pair(key, getHardwareSecurityLevel(key))
+        }
+    }
+
+    private fun generateHmacKey(alias: String, isStrongBox: Boolean): SecretKey {
+        val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_HMAC_SHA256, ANDROID_KEYSTORE)
+        val specBuilder = KeyGenParameterSpec.Builder(
+            alias,
+            KeyProperties.PURPOSE_SIGN
+        )
+        if (isStrongBox && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            specBuilder.setIsStrongBoxBacked(true)
+        }
+        keyGenerator.init(specBuilder.build())
+        return keyGenerator.generateKey()
+    }
+
+    private fun getOrCreateSoftwareBlindIndexSeed(): ByteArray {
+        val sp = context.getSharedPreferences("secure_crypto_seed_store", Context.MODE_PRIVATE)
+        val existing = sp.getString("blind_seed", null)
+        if (existing != null) {
+            return android.util.Base64.decode(existing, android.util.Base64.NO_WRAP)
+        }
+        val newSeed = ByteArray(32)
+        secureRandom.nextBytes(newSeed)
+        sp.edit().putString("blind_seed", android.util.Base64.encodeToString(newSeed, android.util.Base64.NO_WRAP)).apply()
+        return newSeed
+    }
+
+    /**
      * Computes an HMAC-SHA256 blind index hash for zero-knowledge search query
      * and private alias lookup. The HMAC key is isolated in hardware.
      */
     @Synchronized
     fun computeBlindIndex(input: String): String {
-        val (key, _) = getOrCreateSymmetricKey(KEY_ALIAS_BLIND_INDEX)
         val mac = Mac.getInstance(HMAC_ALGORITHM)
-        val keySpec = SecretKeySpec(key.encoded ?: input.toByteArray(Charsets.UTF_8).copyOf(32), HMAC_ALGORITHM)
         return try {
+            val (key, _) = getOrCreateHmacKey(KEY_ALIAS_BLIND_INDEX)
             mac.init(key)
             val hmac = mac.doFinal(input.lowercase().trim().toByteArray(Charsets.UTF_8))
             bytesToHex(hmac.copyOf(16))
-        } catch (_: Exception) {
-            // AndroidKeyStore may restrict direct Mac operations on some KeyMint versions;
-            // use software HMAC seeded with hardware-derived entropy
+        } catch (e: Exception) {
+            Log.w(TAG, "Hardware KeyStore HMAC signing unavailable; utilizing device-isolated entropy seed", e)
+            val seed = getOrCreateSoftwareBlindIndexSeed()
+            val keySpec = SecretKeySpec(seed, HMAC_ALGORITHM)
             mac.init(keySpec)
             val hmac = mac.doFinal(input.lowercase().trim().toByteArray(Charsets.UTF_8))
             bytesToHex(hmac.copyOf(16))

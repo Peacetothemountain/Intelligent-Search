@@ -72,12 +72,32 @@ class SystemActionRouter @Inject constructor(
     /**
      * Matches a query string against known system toggles, settings, and volume slider actions.
      */
+    companion object {
+        private val KEYWORDS_MEDIA_VOLUME = setOf("volume", "media volume", "music volume", "sound slider", "audio")
+        private val KEYWORDS_RING_VOLUME = setOf("ring volume", "ringtone volume", "call volume", "ring")
+        private val KEYWORDS_ALARM_VOLUME = setOf("alarm volume", "alarm sound")
+        private val KEYWORDS_TORCH = setOf("flashlight", "torch", "flash light", "light", "flash")
+        private val KEYWORDS_BLUETOOTH = setOf("bluetooth", "bt", "blue tooth")
+        private val KEYWORDS_WIFI = setOf("wifi", "wi-fi", "internet", "wireless", "wlan")
+        private val KEYWORDS_HOTSPOT = setOf("hotspot", "tethering", "portable hotspot", "wifi hotspot", "personal hotspot")
+        private val KEYWORDS_BATTERY = setOf("battery saver", "power saver", "low power mode", "battery", "saver")
+        private val KEYWORDS_DND = setOf("dnd", "do not disturb", "silence", "mute phone", "priority only")
+        private val KEYWORDS_AIRPLANE = setOf("airplane", "airplane mode", "aeroplane mode", "flight mode")
+        private val KEYWORDS_ROTATE = setOf("auto rotate", "autorotate", "rotation", "screen rotation", "rotate")
+        private val KEYWORDS_DARK_MODE = setOf("dark mode", "dark theme", "night mode", "light mode", "theme")
+        private val KEYWORDS_NFC = setOf("nfc", "contactless", "google pay")
+        private val KEYWORDS_LOCATION = setOf("location", "gps", "locate")
+        private val KEYWORDS_CAST = setOf("cast", "screen cast", "screen mirroring", "chromecast")
+        private val KEYWORDS_BRIGHTNESS = setOf("brightness", "auto brightness", "screen brightness")
+        private val KEYWORDS_PRIVACY = setOf("privacy", "camera access", "mic access", "sensor privacy")
+    }
+
     fun matchAction(rawQuery: String): ActionResult? {
         val q = rawQuery.trim().lowercase()
         if (q.isEmpty()) return null
 
         // 1. Volume Sliders matching
-        if (q in listOf("volume", "media volume", "music volume", "sound slider", "audio")) {
+        if (q in KEYWORDS_MEDIA_VOLUME) {
             val current = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0
             val max = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
             return ActionResult.VolumeSlider(
@@ -89,7 +109,7 @@ class SystemActionRouter @Inject constructor(
             )
         }
 
-        if (q in listOf("ring volume", "ringtone volume", "call volume", "ring")) {
+        if (q in KEYWORDS_RING_VOLUME) {
             val current = audioManager?.getStreamVolume(AudioManager.STREAM_RING) ?: 0
             val max = audioManager?.getStreamMaxVolume(AudioManager.STREAM_RING) ?: 7
             return ActionResult.VolumeSlider(
@@ -101,7 +121,7 @@ class SystemActionRouter @Inject constructor(
             )
         }
 
-        if (q in listOf("alarm volume", "alarm sound")) {
+        if (q in KEYWORDS_ALARM_VOLUME) {
             val current = audioManager?.getStreamVolume(AudioManager.STREAM_ALARM) ?: 0
             val max = audioManager?.getStreamMaxVolume(AudioManager.STREAM_ALARM) ?: 7
             return ActionResult.VolumeSlider(
@@ -115,7 +135,7 @@ class SystemActionRouter @Inject constructor(
 
         // 2. Binary System Toggles
         return when {
-            q in listOf("flashlight", "torch", "flash light", "light", "flash") -> {
+            q in KEYWORDS_TORCH -> {
                 val isTorch = systemToggleManager.isTorchEnabled()
                 ActionResult.Toggle(
                     SystemToggleUiState(
@@ -130,7 +150,7 @@ class SystemActionRouter @Inject constructor(
                 )
             }
 
-            q in listOf("bluetooth", "bt", "blue tooth") -> {
+            q in KEYWORDS_BLUETOOTH -> {
                 val isBt = systemToggleManager.isBluetoothEnabled()
                 ActionResult.Toggle(
                     SystemToggleUiState(
@@ -145,7 +165,7 @@ class SystemActionRouter @Inject constructor(
                 )
             }
 
-            q in listOf("wifi", "wi-fi", "internet", "wireless", "wlan") -> {
+            q in KEYWORDS_WIFI -> {
                 val isWifi = systemToggleManager.isWifiEnabled()
                 ActionResult.Toggle(
                     SystemToggleUiState(
@@ -160,7 +180,7 @@ class SystemActionRouter @Inject constructor(
                 )
             }
 
-            q in listOf("hotspot", "tethering", "portable hotspot", "wifi hotspot", "personal hotspot") -> {
+            q in KEYWORDS_HOTSPOT -> {
                 ActionResult.Toggle(
                     SystemToggleUiState(
                         id = "hotspot",
@@ -175,7 +195,7 @@ class SystemActionRouter @Inject constructor(
                 )
             }
 
-            q in listOf("battery saver", "power saver", "low power mode", "battery", "saver") -> {
+            q in KEYWORDS_BATTERY -> {
                 val isBat = systemToggleManager.isBatterySaverEnabled()
                 ActionResult.Toggle(
                     SystemToggleUiState(
@@ -191,7 +211,7 @@ class SystemActionRouter @Inject constructor(
                 )
             }
 
-            q in listOf("dnd", "do not disturb", "silence", "mute phone", "priority only") -> {
+            q in KEYWORDS_DND -> {
                 val isDnd = systemToggleManager.isDndEnabled()
                 ActionResult.Toggle(
                     SystemToggleUiState(
@@ -206,7 +226,7 @@ class SystemActionRouter @Inject constructor(
                 )
             }
 
-            q in listOf("airplane", "airplane mode", "aeroplane mode", "flight mode") -> {
+            q in KEYWORDS_AIRPLANE -> {
                 val isAir = systemToggleManager.isAirplaneModeEnabled()
                 ActionResult.Toggle(
                     SystemToggleUiState(
@@ -222,7 +242,7 @@ class SystemActionRouter @Inject constructor(
                 )
             }
 
-            q in listOf("auto rotate", "autorotate", "rotation", "screen rotation", "rotate") -> {
+            q in KEYWORDS_ROTATE -> {
                 val isRotate = systemToggleManager.isAutoRotateEnabled()
                 ActionResult.Toggle(
                     SystemToggleUiState(
@@ -237,7 +257,7 @@ class SystemActionRouter @Inject constructor(
                 )
             }
 
-            q in listOf("dark mode", "dark theme", "night mode", "light mode", "theme") -> {
+            q in KEYWORDS_DARK_MODE -> {
                 val isDark = systemToggleManager.isDarkModeEnabled()
                 ActionResult.Toggle(
                     SystemToggleUiState(
@@ -252,7 +272,7 @@ class SystemActionRouter @Inject constructor(
                 )
             }
 
-            q in listOf("nfc", "contactless", "google pay") -> {
+            q in KEYWORDS_NFC -> {
                 val isNfc = systemToggleManager.isNfcEnabled()
                 ActionResult.Toggle(
                     SystemToggleUiState(
@@ -268,7 +288,7 @@ class SystemActionRouter @Inject constructor(
                 )
             }
 
-            q in listOf("location", "gps", "locate") -> {
+            q in KEYWORDS_LOCATION -> {
                 val isLoc = systemToggleManager.isLocationEnabled()
                 ActionResult.Toggle(
                     SystemToggleUiState(
@@ -280,6 +300,51 @@ class SystemActionRouter @Inject constructor(
                         isActionOnly = true,
                         onToggle = { systemToggleManager.openLocationSettings() },
                         onOpenSettings = { systemToggleManager.openLocationSettings() }
+                    )
+                )
+            }
+
+            q in KEYWORDS_CAST -> {
+                ActionResult.Toggle(
+                    SystemToggleUiState(
+                        id = "cast",
+                        title = "Screen Cast",
+                        subtitle = "Mirror screen to TV / Displays",
+                        iconType = "cast",
+                        isEnabled = false,
+                        isActionOnly = true,
+                        onToggle = { systemToggleManager.openCastSettings() },
+                        onOpenSettings = { systemToggleManager.openCastSettings() }
+                    )
+                )
+            }
+
+            q in KEYWORDS_BRIGHTNESS -> {
+                ActionResult.Toggle(
+                    SystemToggleUiState(
+                        id = "brightness",
+                        title = "Display Brightness",
+                        subtitle = "Screen & adaptive brightness",
+                        iconType = "brightness",
+                        isEnabled = false,
+                        isActionOnly = true,
+                        onToggle = { systemToggleManager.openDisplayBrightnessSettings() },
+                        onOpenSettings = { systemToggleManager.openDisplayBrightnessSettings() }
+                    )
+                )
+            }
+
+            q in KEYWORDS_PRIVACY -> {
+                ActionResult.Toggle(
+                    SystemToggleUiState(
+                        id = "privacy",
+                        title = "Privacy & Sensors",
+                        subtitle = "Microphone & Camera Permissions",
+                        iconType = "privacy",
+                        isEnabled = true,
+                        isActionOnly = true,
+                        onToggle = { systemToggleManager.openPrivacySettings() },
+                        onOpenSettings = { systemToggleManager.openPrivacySettings() }
                     )
                 )
             }

@@ -124,8 +124,8 @@ object WindowFramePacing {
             val highestMode = modes.maxByOrNull { it.refreshRate } ?: return
             if (highestMode.refreshRate >= 90f) {
                 val params = window.attributes
-                if (params.preferredDisplayModeId != highestMode.modeId) {
-                    params.preferredDisplayModeId = highestMode.modeId
+                if (params.preferredRefreshRate != highestMode.refreshRate) {
+                    params.preferredRefreshRate = highestMode.refreshRate
                     window.attributes = params
                 }
             }

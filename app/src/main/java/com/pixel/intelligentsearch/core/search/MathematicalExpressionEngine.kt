@@ -45,11 +45,17 @@ object MathematicalExpressionEngine {
     // SCIENTIFIC EXPRESSION PARSER
     // ---------------------------------------------------------------------------------------------
 
+    private val REGEX_MULTIPLICATION_X = Regex("(?<=[0-9)])\\s*[xX]\\s*(?=[0-9(])")
+    private val REGEX_ALLOWED_CHARS = Regex("^[0-9a-zA-Z.+\\-*/%^!()_,]+$")
+    private val REGEX_BASE_CONVERSION = Regex("^([0-9a-fA-FxXbBoO]+)\\s+(?:to|in)\\s+(hex|dec|bin|oct)$", RegexOption.IGNORE_CASE)
+    private val REGEX_BITWISE = Regex("^([0-9a-fA-FxXbB]+)\\s+(AND|OR|XOR|SHL|SHR|<<|>>|&|\\||\\^)\\s+([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
+    private val REGEX_UNIT_CONVERSION = Regex("^([0-9.]+)\\s*([a-zA-Z/_]+)\\s*(?:to|in)\\s*([a-zA-Z/_]+)$", RegexOption.IGNORE_CASE)
+
     private fun evaluateScientific(input: String): MathEvaluationResult.Computation? {
         var expr = input
             .replace("×", "*")
             .replace("÷", "/")
-            .replace("x", "*")
+            .replace(REGEX_MULTIPLICATION_X, "*")
             .replace("π", "pi")
             .replace(" ", "")
 
@@ -82,8 +88,7 @@ object MathematicalExpressionEngine {
         if (!hasOperatorOrFunc) return false
 
         // Check for disallowed characters
-        val allowedCharsRegex = Regex("^[0-9a-zA-Z.+\\-*/%^!()_,]+$")
-        return allowedCharsRegex.matches(expr)
+        return REGEX_ALLOWED_CHARS.matches(expr)
     }
 
     private class ExpressionParser(private val str: String) {
@@ -226,8 +231,7 @@ object MathematicalExpressionEngine {
     // ---------------------------------------------------------------------------------------------
 
     private fun evaluateBaseConversion(query: String): MathEvaluationResult.Bitwise? {
-        val regex = Regex("^([0-9a-fA-FxXbBoO]+)\\s+(?:to|in)\\s+(hex|dec|bin|oct)$", RegexOption.IGNORE_CASE)
-        val match = regex.find(query.trim()) ?: return null
+        val match = REGEX_BASE_CONVERSION.find(query.trim()) ?: return null
 
         val rawNum = match.groupValues[1]
         val targetBase = match.groupValues[2].lowercase()
@@ -254,8 +258,7 @@ object MathematicalExpressionEngine {
     }
 
     private fun evaluateBitwise(query: String): MathEvaluationResult.Bitwise? {
-        val regex = Regex("^([0-9a-fA-FxXbB]+)\\s+(AND|OR|XOR|SHL|SHR|<<|>>|&|\\||\\^)\\s+([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
-        val match = regex.find(query.trim()) ?: return null
+        val match = REGEX_BITWISE.find(query.trim()) ?: return null
 
         val left = parseAnyRadix(match.groupValues[1]) ?: return null
         val op = match.groupValues[2].uppercase()
@@ -377,8 +380,7 @@ object MathematicalExpressionEngine {
     )
 
     private fun evaluateUnitConversion(query: String): MathEvaluationResult.UnitConversion? {
-        val regex = Regex("^([0-9.]+)\\s*([a-zA-Z/_]+)\\s*(?:to|in)\\s*([a-zA-Z/_]+)$", RegexOption.IGNORE_CASE)
-        val match = regex.find(query.trim()) ?: return null
+        val match = REGEX_UNIT_CONVERSION.find(query.trim()) ?: return null
 
         val value = match.groupValues[1].toDoubleOrNull() ?: return null
         val fromUnit = match.groupValues[2].lowercase()

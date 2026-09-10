@@ -153,7 +153,12 @@ class SearchBangManager @Inject constructor(
         (builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase() !in disabled } + customBangs).distinctBy { it.displayPrefix }
     }
 
+    @Volatile
+    private var cachedSyncBangs: List<SearchBang>? = null
+
     fun getAllBangsSync(): List<SearchBang> {
+        val cached = cachedSyncBangs
+        if (cached != null) return cached
         val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
         val trigger = prefs.getString("web_shortcut_trigger_symbol", "!")?.ifBlank { "!" } ?: "!"
         val customBangsJson = prefs.getString("custom_bangs_json", null)
@@ -169,7 +174,9 @@ class SearchBangManager @Inject constructor(
                 bang
             }
         }
-        return (builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase() !in disabled } + customBangs).distinctBy { it.displayPrefix }
+        val result = (builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase() !in disabled } + customBangs).distinctBy { it.displayPrefix }
+        cachedSyncBangs = result
+        return result
     }
 
     fun parseBangQuery(query: String, availableBangs: List<SearchBang> = getAllBangsSync()): ParsedBangQuery? {
@@ -286,6 +293,7 @@ class SearchBangManager @Inject constructor(
     private fun getPrefs() = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
 
     suspend fun saveCustomBang(bang: SearchBang) {
+        cachedSyncBangs = null
         val prefs = getPrefs()
         val currentJson = prefs.getString("custom_bangs_json", null)
             ?: settingsManager.getInitialSettings().customBangsJson
@@ -293,11 +301,12 @@ class SearchBangManager @Inject constructor(
         currentCustom.removeAll { it.displayPrefix == bang.displayPrefix || it.prefix.equals(bang.prefix, ignoreCase = true) }
         currentCustom.add(bang.copy(isBuiltIn = false))
         val jsonStr = serializeCustomBangs(currentCustom)
-        prefs.edit().putString("custom_bangs_json", jsonStr).commit()
+        prefs.edit().putString("custom_bangs_json", jsonStr).apply()
         settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, jsonStr)
     }
 
     suspend fun deleteCustomBang(prefix: String) {
+        cachedSyncBangs = null
         val normPrefix = prefix.lowercase().trim()
         val prefs = getPrefs()
         val currentJson = prefs.getString("custom_bangs_json", null)
@@ -305,27 +314,29 @@ class SearchBangManager @Inject constructor(
         val currentCustom = parseCustomBangs(currentJson).toMutableList()
         currentCustom.removeAll { it.displayPrefix == normPrefix || it.prefix.equals(normPrefix, ignoreCase = true) }
         val jsonStr = serializeCustomBangs(currentCustom)
-        prefs.edit().putString("custom_bangs_json", jsonStr).commit()
+        prefs.edit().putString("custom_bangs_json", jsonStr).apply()
         settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, jsonStr)
     }
 
     suspend fun disableBuiltInBang(prefix: String) {
+        cachedSyncBangs = null
         val normPrefix = prefix.lowercase().trim()
         val prefs = getPrefs()
         val currentDisabled = (prefs.getStringSet("disabled_web_shortcuts", null)?.toSet()
             ?: settingsManager.getInitialSettings().disabledWebShortcuts).toMutableSet()
         currentDisabled.add(normPrefix)
-        prefs.edit().putStringSet("disabled_web_shortcuts", HashSet(currentDisabled)).commit()
+        prefs.edit().putStringSet("disabled_web_shortcuts", HashSet(currentDisabled)).apply()
         settingsManager.updateSetting(SettingsManager.DISABLED_WEB_SHORTCUTS, currentDisabled)
     }
 
     suspend fun enableBuiltInBang(prefix: String) {
+        cachedSyncBangs = null
         val normPrefix = prefix.lowercase().trim()
         val prefs = getPrefs()
         val currentDisabled = (prefs.getStringSet("disabled_web_shortcuts", null)?.toSet()
             ?: settingsManager.getInitialSettings().disabledWebShortcuts).toMutableSet()
         currentDisabled.remove(normPrefix)
-        prefs.edit().putStringSet("disabled_web_shortcuts", HashSet(currentDisabled)).commit()
+        prefs.edit().putStringSet("disabled_web_shortcuts", HashSet(currentDisabled)).apply()
         settingsManager.updateSetting(SettingsManager.DISABLED_WEB_SHORTCUTS, currentDisabled)
     }
 

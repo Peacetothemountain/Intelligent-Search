@@ -108,7 +108,7 @@ class ADPFThermalManager(private val context: Context) {
 
         monitorHandler.post {
             try {
-                val mainTid = Process.myTid()
+                val mainTid = Process.myPid()
                 val renderTid = findRenderThreadTid()
                 val tids = if (renderTid != null && renderTid != mainTid) {
                     intArrayOf(mainTid, renderTid)

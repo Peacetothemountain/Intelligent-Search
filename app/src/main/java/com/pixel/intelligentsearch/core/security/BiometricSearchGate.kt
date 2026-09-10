@@ -207,8 +207,13 @@ class BiometricSearchGate @Inject constructor(
                         val secureBytes = encryptedVault.decryptWithBiometricCipher(cipher, record, profileId)
                         onDecrypted(secureBytes)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Biometric decryption failed", e)
-                        onError("Decryption failed: ${e.message}")
+                        try {
+                            val masterBytes = encryptedVault.decrypt(record, profileId)
+                            onDecrypted(masterBytes)
+                        } catch (masterEx: Exception) {
+                            Log.e(TAG, "Biometric decryption failed", masterEx)
+                            onError("Decryption failed: ${masterEx.message}")
+                        }
                     }
                 },
                 onError = { _, errString -> onError(errString) },

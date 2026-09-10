@@ -2648,6 +2648,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val disabledPrefixes = settings.disabledWebShortcuts
 
                     var showAddDialog by remember { mutableStateOf(false) }
+                    var localDismissedPrefixes by remember { mutableStateOf(setOf<String>()) }
 
                     val expressiveShapes = remember {
                         listOf(
@@ -2709,6 +2710,18 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val view = LocalView.current
                     val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
 
+                    val displayedActiveBangs = remember(allBangs, localDismissedPrefixes) {
+                        allBangs.filter { it.displayPrefix !in localDismissedPrefixes }
+                    }
+
+                    val effectiveDisabledPrefixes = remember(disabledPrefixes, localDismissedPrefixes) {
+                        disabledPrefixes + localDismissedPrefixes
+                    }
+
+                    val availableDirectBangs = remember(effectiveDisabledPrefixes) {
+                        SearchBangManager.BUILT_IN_BANGS.filter { it.displayPrefix in effectiveDisabledPrefixes }
+                    }
+
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2749,7 +2762,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             }
                         }
 
-                        if (allBangs.isEmpty()) {
+                        if (displayedActiveBangs.isEmpty()) {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(20.dp),
@@ -2764,7 +2777,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             }
                         } else {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                allBangs.forEach { bang ->
+                                displayedActiveBangs.forEach { bang ->
                                     key(bang.displayPrefix) {
                                         val dismissState = rememberSwipeToDismissBoxState(
                                             positionalThreshold = { it * 0.4f }
@@ -2775,6 +2788,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd
                                             ) {
                                                 hapticEngine.performPredictiveBackHaptic(view)
+                                                localDismissedPrefixes = localDismissedPrefixes + bang.displayPrefix
                                                 if (bang.isBuiltIn) {
                                                     viewModel?.disableBuiltInBang(bang.displayPrefix)
                                                 } else {
@@ -2845,10 +2859,6 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
 
                         // Available Direct Shortcuts section
-                        val availableDirectBangs = remember(disabledPrefixes) {
-                            SearchBangManager.BUILT_IN_BANGS.filter { it.displayPrefix in disabledPrefixes }
-                        }
-
                         if (availableDirectBangs.isNotEmpty()) {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
@@ -2919,6 +2929,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 OutlinedButton(
                                                     onClick = {
                                                         hapticEngine.performPredictiveBackHaptic(view)
+                                                        localDismissedPrefixes = localDismissedPrefixes - bang.displayPrefix
                                                         viewModel?.enableBuiltInBang(bang.displayPrefix)
                                                     },
                                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
@@ -3257,6 +3268,8 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             isBuiltIn = false,
                                             description = "Custom shortcut for $trimmedName"
                                         )
+                                        localDismissedPrefixes = localDismissedPrefixes - newBang.displayPrefix
+                                        viewModel?.enableBuiltInBang(newBang.displayPrefix)
                                         viewModel?.saveCustomBang(newBang)
                                         showAddDialog = false
                                     }

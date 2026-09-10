@@ -201,7 +201,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 searchOverlayEnabled = preferences[SEARCH_OVERLAY_ENABLED] ?: true,
                 matrixAnimationEnabled = preferences[MATRIX_ANIMATION_ENABLED] ?: true,
                 backToSearchOverlay = preferences[BACK_TO_SEARCH_OVERLAY] ?: true,
-                disabledWebShortcuts = preferences[DISABLED_WEB_SHORTCUTS] ?: emptySet()
+                disabledWebShortcuts = preferences[DISABLED_WEB_SHORTCUTS] ?: (context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE).getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet())
             )
         }
 
@@ -241,7 +241,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             quickSearchMaps = prefs.getBoolean("quick_search_maps", true),
             searchPills = prefs.getString("search_pills", "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files") ?: "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files",
             widgetThemeStyle = prefs.getString("widget.theme.style", "System Default") ?: "System Default",
-            hiddenApps = prefs.getStringSet("hidden_apps", emptySet()) ?: emptySet(),
+            hiddenApps = prefs.getStringSet("hidden_apps", emptySet())?.toSet() ?: emptySet(),
             appQuickLaunch = prefs.getBoolean("app_quick_launch", false),
             contactDirectCall = prefs.getBoolean("contact_direct_call", false),
             shortcutInline = prefs.getBoolean("shortcut.inline", true),
@@ -265,11 +265,27 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             searchOverlayEnabled = prefs.getBoolean("search_overlay_enabled", true),
             matrixAnimationEnabled = prefs.getBoolean("matrix_animation_enabled", true),
             backToSearchOverlay = prefs.getBoolean("settings_back_to_search_overlay", true),
-            disabledWebShortcuts = prefs.getStringSet("disabled_web_shortcuts", emptySet()) ?: emptySet()
+            disabledWebShortcuts = prefs.getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet()
         )
     }
 
     suspend fun <T> updateSetting(key: Preferences.Key<T>, value: T) {
+        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        when (value) {
+            is Boolean -> editor.putBoolean(key.name, value)
+            is Int -> editor.putInt(key.name, value)
+            is Long -> editor.putLong(key.name, value)
+            is Float -> editor.putFloat(key.name, value)
+            is String -> editor.putString(key.name, value)
+            is Set<*> -> {
+                @Suppress("UNCHECKED_CAST")
+                val stringSet = value as? Set<String> ?: emptySet()
+                editor.putStringSet(key.name, HashSet(stringSet))
+            }
+        }
+        editor.commit()
+
         context.dataStore.edit { preferences ->
             preferences[key] = value
         }

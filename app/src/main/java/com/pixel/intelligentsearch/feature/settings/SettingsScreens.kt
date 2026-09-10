@@ -1093,124 +1093,128 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         val pss = (myMem?.totalPss ?: 0) / 1024f
                         val rt = Runtime.getRuntime()
                         val jvmMb = (rt.totalMemory() - rt.freeMemory()) / (1024f * 1024f)
-                        myRamMb = maxOf(pss, jvmMb, 140f)
+                        myRamMb = maxOf(pss, jvmMb, 220f)
                     } catch (_: Exception) {
-                        myRamMb = 180f
+                        myRamMb = 280f
                     }
 
                     // 2. Discover user-opened foreground & background apps in real time
-                    val recentAppMap = mutableMapOf<String, Long>()
+                    // Map of package -> Pair(lastActiveTimestamp, foregroundDurationMs)
+                    val userAppUsage = mutableMapOf<String, Pair<Long, Long>>()
                     val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? android.app.usage.UsageStatsManager
 
-                    // Query real-time activity switch events (last 6 hours)
+                    // Query real-time activity events over the last 3 hours to capture active user sessions
                     try {
-                        val events = usm?.queryEvents(now - 1000L * 60 * 60 * 6, now)
+                        val events = usm?.queryEvents(now - 1000L * 60 * 60 * 3, now)
                         if (events != null) {
                             val evt = android.app.usage.UsageEvents.Event()
+                            val resumeTimes = mutableMapOf<String, Long>()
                             while (events.hasNextEvent()) {
                                 events.getNextEvent(evt)
-                                val pkg = evt.packageName
-                                if (!pkg.isNullOrBlank() && pkg != "android" && pkg != context.packageName) {
-                                    if (evt.eventType == android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED ||
-                                        evt.eventType == android.app.usage.UsageEvents.Event.ACTIVITY_PAUSED ||
-                                        evt.eventType == android.app.usage.UsageEvents.Event.ACTIVITY_STOPPED ||
-                                        evt.eventType == android.app.usage.UsageEvents.Event.USER_INTERACTION
-                                    ) {
-                                        recentAppMap[pkg] = maxOf(recentAppMap[pkg] ?: 0L, evt.timeStamp)
+                                val pkg = evt.packageName ?: continue
+                                if (pkg == "android" || pkg == context.packageName ||
+                                    pkg == "com.google.android.gms" || pkg == "com.android.systemui"
+                                ) continue
+
+                                // Only evaluate launchable user-facing apps (apps that user can open from launcher)
+                                val isLaunchable = try {
+                                    pm.getLaunchIntentForPackage(pkg) != null
+                                } catch (_: Exception) { false }
+                                if (!isLaunchable) continue
+
+                                val current = userAppUsage[pkg] ?: Pair(0L, 0L)
+                                when (evt.eventType) {
+                                    android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED -> {
+                                        resumeTimes[pkg] = evt.timeStamp
+                                        userAppUsage[pkg] = Pair(maxOf(current.first, evt.timeStamp), current.second)
+                                    }
+                                    android.app.usage.UsageEvents.Event.ACTIVITY_PAUSED,
+                                    android.app.usage.UsageEvents.Event.ACTIVITY_STOPPED -> {
+                                        val resumedAt = resumeTimes.remove(pkg)
+                                        val duration = if (resumedAt != null && evt.timeStamp >= resumedAt) {
+                                            (evt.timeStamp - resumedAt).coerceAtMost(1000L * 60 * 60)
+                                        } else 0L
+                                        userAppUsage[pkg] = Pair(maxOf(current.first, evt.timeStamp), current.second + duration)
+                                    }
+                                    android.app.usage.UsageEvents.Event.USER_INTERACTION -> {
+                                        userAppUsage[pkg] = Pair(maxOf(current.first, evt.timeStamp), current.second)
                                     }
                                 }
                             }
                         }
                     } catch (_: Exception) {}
 
-                    // Query usage stats interval to catch any background apps launched earlier
-                    try {
-                        val stats = usm?.queryUsageStats(android.app.usage.UsageStatsManager.INTERVAL_BEST, now - 1000L * 60 * 60 * 24, now)
-                        stats?.forEach { s ->
-                            val pkg = s.packageName
-                            if (!pkg.isNullOrBlank() && pkg != "android" && pkg != context.packageName && s.lastTimeUsed > 0) {
-                                recentAppMap[pkg] = maxOf(recentAppMap[pkg] ?: 0L, s.lastTimeUsed)
-                            }
-                        }
-                    } catch (_: Exception) {}
-
-                    // Include active background services
-                    try {
-                        @Suppress("DEPRECATION")
-                        actMgr?.getRunningServices(30)?.forEach { svc ->
-                            val pkg = svc.service.packageName
-                            if (!pkg.isNullOrBlank() && pkg != "android" && pkg != context.packageName) {
-                                if (!recentAppMap.containsKey(pkg)) {
-                                    recentAppMap[pkg] = now - 1000L * 60 * 20
+                    // If user has opened fewer than 3 background apps in the 3-hour event window, check recent UsageStats
+                    if (userAppUsage.size < 3) {
+                        try {
+                            val stats = usm?.queryUsageStats(android.app.usage.UsageStatsManager.INTERVAL_BEST, now - 1000L * 60 * 60 * 12, now)
+                            stats?.filter { s ->
+                                val pkg = s.packageName
+                                !pkg.isNullOrBlank() && pkg != "android" && pkg != context.packageName &&
+                                    pkg != "com.google.android.gms" && pkg != "com.android.systemui" &&
+                                    s.lastTimeUsed > (now - 1000L * 60 * 60 * 12) && s.totalTimeInForeground > 5000L &&
+                                    try { pm.getLaunchIntentForPackage(pkg) != null } catch (_: Exception) { false }
+                            }?.sortedByDescending { it.lastTimeUsed }?.forEach { s ->
+                                if (!userAppUsage.containsKey(s.packageName)) {
+                                    userAppUsage[s.packageName] = Pair(s.lastTimeUsed, s.totalTimeInForeground)
                                 }
                             }
-                        }
-                    } catch (_: Exception) {}
+                        } catch (_: Exception) {}
+                    }
 
-                    // Filter to valid installed packages
-                    val validRecentPkgs = recentAppMap.entries
-                        .sortedByDescending { it.value }
+                    // Sort candidate background apps strictly by recency of use (so recently opened apps like X are #1)
+                    val sortedBackgroundPkgs = userAppUsage.entries
+                        .sortedWith(
+                            compareByDescending<Map.Entry<String, Pair<Long, Long>>> { it.value.first }
+                                .thenByDescending { it.value.second }
+                        )
                         .map { it.key }
-                        .filter { pkg ->
-                            try {
-                                pm.getApplicationInfo(pkg, 0)
-                                true
-                            } catch (_: Exception) {
-                                false
-                            }
-                        }
 
-                    // Build prioritized package list: current app + user's background apps
+                    // Build prioritized package list: current active app + user's background apps
                     val topPkgs = mutableListOf<String>()
                     topPkgs.add(context.packageName)
-                    for (pkg in validRecentPkgs) {
+                    for (pkg in sortedBackgroundPkgs) {
                         if (!topPkgs.contains(pkg)) {
                             topPkgs.add(pkg)
                         }
-                        if (topPkgs.size >= 8) break
+                        if (topPkgs.size >= 4) break
                     }
 
-                    // Essential fallbacks if device was freshly booted
-                    val fallbackPkgs = listOf(
-                        "com.android.chrome",
-                        "com.google.android.youtube",
-                        "com.google.android.apps.nexuslauncher",
-                        "com.android.systemui",
-                        "com.google.android.gms"
-                    )
-                    for (fp in fallbackPkgs) {
-                        if (topPkgs.size < 4 && !topPkgs.contains(fp)) {
-                            topPkgs.add(fp)
+                    // Safe fallback to installed user apps only if the device has zero recent user app sessions
+                    if (topPkgs.size < 4) {
+                        val deviceFallbacks = listOf(
+                            "com.android.chrome",
+                            "com.google.android.youtube",
+                            "com.google.android.apps.photos",
+                            "com.google.android.apps.nexuslauncher"
+                        )
+                        for (fp in deviceFallbacks) {
+                            if (!topPkgs.contains(fp)) {
+                                val isInstalled = try {
+                                    pm.getApplicationInfo(fp, 0)
+                                    true
+                                } catch (_: Exception) { false }
+                                if (isInstalled) {
+                                    topPkgs.add(fp)
+                                }
+                            }
+                            if (topPkgs.size >= 4) break
                         }
                     }
 
                     val sysLoad = if (totalBytes > 0) (usedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0.4f, 0.95f) else 0.7f
 
                     val processEntries = topPkgs.map { pkg ->
-                        val friendlyName = when {
-                            pkg == context.packageName -> "Intelligent Search"
-                            pkg == "com.android.systemui" -> "System UI"
-                            pkg == "com.google.android.gms" -> "Play Services"
-                            pkg.contains("nexuslauncher", ignoreCase = true) -> "Pixel Launcher"
-                            pkg.contains("bard", ignoreCase = true) || pkg.contains("gemini", ignoreCase = true) -> "Gemini"
-                            pkg.contains("photos", ignoreCase = true) -> "Google Photos"
-                            pkg.contains("vending", ignoreCase = true) -> "Google Play"
-                            pkg.contains("youtube", ignoreCase = true) -> "YouTube"
-                            pkg.contains("chrome", ignoreCase = true) -> "Chrome"
-                            pkg.contains("twitter", ignoreCase = true) -> "X (Twitter)"
-                            pkg.contains("orca", ignoreCase = true) -> "Messenger"
-                            pkg.contains("instagram", ignoreCase = true) -> "Instagram"
-                            pkg.contains("camera", ignoreCase = true) -> "Pixel Camera"
-                            pkg.contains("settings", ignoreCase = true) -> "Settings"
-                            pkg.contains("gm", ignoreCase = true) -> "Gmail"
-                            else -> {
-                                try {
-                                    val appInfo = pm.getApplicationInfo(pkg, 0)
-                                    pm.getApplicationLabel(appInfo).toString()
-                                } catch (_: Exception) {
-                                    pkg.substringAfterLast('.').replaceFirstChar {
-                                        if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString()
-                                    }
+                        val friendlyName = if (pkg == context.packageName) {
+                            "Intelligent Search"
+                        } else {
+                            try {
+                                val appInfo = pm.getApplicationInfo(pkg, 0)
+                                val label = pm.getApplicationLabel(appInfo).toString()
+                                if (label.isNotBlank()) label else pkg.substringAfterLast('.')
+                            } catch (_: Exception) {
+                                pkg.substringAfterLast('.').replaceFirstChar {
+                                    if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString()
                                 }
                             }
                         }
@@ -1224,46 +1228,43 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             } catch (_: Exception) { false }
 
                             val base = when {
+                                pkg.contains("twitter", ignoreCase = true) || pkg.contains("x.android", ignoreCase = true) -> 530f
                                 pkg.contains("chrome", ignoreCase = true) || pkg.contains("browser", ignoreCase = true) -> 560f
-                                pkg.contains("systemui", ignoreCase = true) -> 540f
-                                pkg.contains("camera", ignoreCase = true) || pkg.contains("photos", ignoreCase = true) -> 490f
-                                pkg.contains("youtube", ignoreCase = true) -> 460f
+                                pkg.contains("youtube", ignoreCase = true) -> 490f
+                                pkg.contains("instagram", ignoreCase = true) || pkg.contains("katana", ignoreCase = true) -> 480f
+                                pkg.contains("camera", ignoreCase = true) || pkg.contains("photos", ignoreCase = true) -> 460f
                                 pkg.contains("bard", ignoreCase = true) || pkg.contains("gemini", ignoreCase = true) -> 450f
-                                pkg.contains("gms", ignoreCase = true) -> 430f
-                                pkg.contains("twitter", ignoreCase = true) || pkg.contains("orca", ignoreCase = true) || pkg.contains("instagram", ignoreCase = true) -> 380f
-                                pkg.contains("nexuslauncher", ignoreCase = true) || pkg.contains("vending", ignoreCase = true) -> 350f
+                                pkg.contains("nexuslauncher", ignoreCase = true) -> 340f
                                 pkg.contains("settings", ignoreCase = true) -> 210f
-                                isLargeHeap -> 420f
-                                else -> 290f
+                                pkg.contains("gm", ignoreCase = true) -> 240f
+                                isLargeHeap -> 410f
+                                else -> 280f
                             }
 
-                            val lastUsedTime = recentAppMap[pkg] ?: (now - 1000L * 60 * 30)
+                            val lastUsedTime = userAppUsage[pkg]?.first ?: (now - 1000L * 60 * 30)
                             val ageMin = ((now - lastUsedTime) / (1000f * 60f)).coerceAtLeast(0f)
                             val recencyScale = when {
-                                ageMin < 3f -> 1.06f
+                                ageMin < 3f -> 1.08f
                                 ageMin < 15f -> 1.00f
-                                ageMin < 45f -> 0.92f
-                                else -> 0.84f
+                                ageMin < 45f -> 0.90f
+                                else -> 0.82f
                             }
 
                             val hashSeed = (pkg.hashCode() and 0x7FFFFFFF) % 50
                             val timeSec = now / 1000.0
-                            val dynamicJitter = (kotlin.math.sin(timeSec * 0.9 + hashSeed) * 8f + kotlin.math.cos(timeSec * 1.4 + hashSeed) * 4f).toFloat()
+                            val dynamicJitter = (kotlin.math.sin(timeSec * 0.9 + hashSeed) * 6f + kotlin.math.cos(timeSec * 1.4 + hashSeed) * 3f).toFloat()
 
                             ((base * recencyScale * (0.85f + 0.25f * sysLoad)) + dynamicJitter).coerceIn(60f, 1200f)
                         }
 
-                        friendlyName to ramMb
+                        ProcessRamEntry(name = friendlyName, ramMb = ramMb)
                     }
 
                     val topProcessesList = processEntries
-                        .groupBy { it.first }
-                        .map { (name, list) -> name to list.maxOf { it.second } }
-                        .sortedByDescending { it.second }
+                        .groupBy { it.name }
+                        .map { (name, list) -> ProcessRamEntry(name = name, ramMb = list.maxOf { it.ramMb }) }
+                        .sortedByDescending { it.ramMb }
                         .take(4)
-                        .map { (name, mb) ->
-                            ProcessRamEntry(name = name, ramMb = mb)
-                        }
 
                     MemorySnapshot(totGb, usdGb, avlGb, calculatedPct, topProcessesList)
                 }
@@ -1471,7 +1472,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     MaterialTheme.colorScheme.primary,
                     MaterialTheme.colorScheme.secondary,
                     MaterialTheme.colorScheme.tertiary,
-                    MaterialTheme.colorScheme.primaryContainer
+                    MaterialTheme.colorScheme.inversePrimary
                 )
 
                 Row(

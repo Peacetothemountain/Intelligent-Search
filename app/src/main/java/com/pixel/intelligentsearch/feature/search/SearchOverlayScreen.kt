@@ -37,9 +37,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -1532,13 +1534,77 @@ fun SearchOverlayScreen(
                                     fontWeight = FontWeight.Medium
                                 )
                                 Spacer(modifier = Modifier.weight(1f))
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                IconButton(
+                                    onClick = { viewModel.onQueryChanged(recentQuery) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.NorthWest,
+                                        contentDescription = "Insert query",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
+                        }
+                    }
+                }
+            }
+
+            if (settingsState.searchWeb && uiState.query.isEmpty() && uiState.trendingSearches.isNotEmpty()) {
+                item(key = "trending_label") {
+                    Text(
+                        text = "Trending Searches",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        fontFamily = GoogleSansFlex,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .animateItem()
+                            .padding(horizontal = 24.dp, vertical = 6.dp)
+                    )
+                }
+                items(uiState.trendingSearches, key = { "trending_$it" }) { trend ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateItem()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(24.dp))
+                            .clip(RoundedCornerShape(24.dp))
+                            .bouncyClickable {
+                                viewModel.onQueryChanged(trend)
+                                viewModel.addSearchHistory(trend)
+                                launchWebSearch(trend)
+                            }
+                            .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Text(
+                            text = trend,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 15.sp,
+                            fontFamily = GoogleSansFlex,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = { viewModel.onQueryChanged(trend) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.NorthWest,
+                                contentDescription = "Insert query",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
                 }
@@ -1677,12 +1743,16 @@ fun SearchOverlayScreen(
                         "weather" -> Icons.Default.WbSunny
                         "time" -> Icons.Default.AccessTime
                         "conversion" -> Icons.Default.SyncAlt
+                        "dictionary" -> Icons.AutoMirrored.Filled.MenuBook
+                        "url" -> Icons.Default.Language
                         else -> Icons.Default.Info
                     }
                     val tint = when (instantAnswer.iconType) {
                         "weather" -> Color(0xFFFFD54F)
                         "time" -> Color(0xFF64B5F6)
                         "conversion" -> MaterialTheme.colorScheme.primary
+                        "dictionary" -> MaterialTheme.colorScheme.tertiary
+                        "url" -> MaterialTheme.colorScheme.primary
                         else -> MaterialTheme.colorScheme.onSurface
                     }
                     
@@ -1693,12 +1763,26 @@ fun SearchOverlayScreen(
                             .clip(RoundedCornerShape(32.dp))
                             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f), RoundedCornerShape(32.dp))
                             .background(MaterialTheme.colorScheme.surfaceContainer)
+                            .bouncyClickable {
+                                when (instantAnswer.iconType) {
+                                    "dictionary" -> launchWebSearch("define ${instantAnswer.title}")
+                                    "url" -> {
+                                        val targetUrl = if (instantAnswer.title.startsWith("http://") || instantAnswer.title.startsWith("https://")) {
+                                            instantAnswer.title
+                                        } else "https://${instantAnswer.title}"
+                                        launchSafeIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
+                                    }
+                                    "weather" -> launchWebSearch("weather ${uiState.query}")
+                                    "time" -> launchSafeIntent(context, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
+                                    else -> launchWebSearch(uiState.query)
+                                }
+                            }
                             .padding(20.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(36.dp))
                             Spacer(modifier = Modifier.width(20.dp))
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = instantAnswer.title,
                                     color = MaterialTheme.colorScheme.onSurface,
@@ -1713,6 +1797,12 @@ fun SearchOverlayScreen(
                                     fontFamily = GoogleSansFlex
                                 )
                             }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                     }
                 }
@@ -1780,9 +1870,128 @@ fun SearchOverlayScreen(
                         }
                     }
                     "web" -> {
-                        if (showWeb && settingsState.searchWeb) {
+                        if (showWeb && settingsState.searchWeb && uiState.query.isNotEmpty()) {
+                            item(key = "web_search_hero") {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f), RoundedCornerShape(28.dp))
+                                        .clip(RoundedCornerShape(28.dp))
+                                        .bouncyClickable {
+                                            viewModel.addSearchHistory(uiState.query)
+                                            launchWebSearch(uiState.query)
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(14.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Search Google for \"${uiState.query}\"",
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontFamily = GoogleSansFlex,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "Google Search",
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                                            fontSize = 12.sp,
+                                            fontFamily = GoogleSansFlex
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+
+                            item(key = "google_refinement_chips") {
+                                val q = uiState.query.trim()
+                                val encoded = Uri.encode(q)
+                                val chips = remember(encoded) {
+                                    listOf(
+                                        Triple("Images", Icons.Default.Image, "https://www.google.com/search?tbm=isch&q=$encoded"),
+                                        Triple("Videos", Icons.Default.Videocam, "https://www.google.com/search?tbm=vid&q=$encoded"),
+                                        Triple("News", Icons.AutoMirrored.Filled.Article, "https://www.google.com/search?tbm=nws&q=$encoded"),
+                                        Triple("Maps", Icons.Default.Map, "https://www.google.com/maps/search/$encoded"),
+                                        Triple("Shopping", Icons.Default.ShoppingBag, "https://www.google.com/search?tbm=shop&q=$encoded"),
+                                        Triple("Reddit", Icons.AutoMirrored.Filled.Chat, "https://www.google.com/search?q=$encoded+site:reddit.com"),
+                                        Triple("Wikipedia", Icons.AutoMirrored.Filled.MenuBook, "https://en.wikipedia.org/wiki/Special:Search?search=$encoded")
+                                    )
+                                }
+                                LazyRow(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(chips, key = { it.first }) { (label, icon, url) ->
+                                        Surface(
+                                            shape = RoundedCornerShape(percent = 50),
+                                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                            border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(percent = 50))
+                                                .bouncyClickable {
+                                                    viewModel.addSearchHistory(q)
+                                                    launchSafeIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                                }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = icon,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = label,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    fontFamily = GoogleSansFlex
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             if (uiState.webSuggestions.isNotEmpty()) {
                                 items(uiState.webSuggestions.take(settingsState.webResultsCount), key = { "web_suggest_$it" }) { suggestion ->
+                                    val isRecent = uiState.recentSearches.contains(suggestion)
+                                    val trimmed = uiState.query.trim()
+                                    val annotatedSuggestion = remember(suggestion, trimmed) {
+                                        androidx.compose.ui.text.buildAnnotatedString {
+                                            if (trimmed.isNotEmpty() && suggestion.startsWith(trimmed, ignoreCase = true)) {
+                                                append(suggestion.substring(0, trimmed.length))
+                                                withStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold)) {
+                                                    append(suggestion.substring(trimmed.length))
+                                                }
+                                            } else {
+                                                append(suggestion)
+                                            }
+                                        }
+                                    }
+
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -1791,21 +2000,57 @@ fun SearchOverlayScreen(
                                                 fadeInSpec = androidx.compose.animation.core.tween(150),
                                                 fadeOutSpec = androidx.compose.animation.core.tween(150)
                                             )
-                                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(32.dp))
-                                            .clip(RoundedCornerShape(32.dp))
+                                            .padding(horizontal = 16.dp, vertical = 3.dp)
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(28.dp))
+                                            .clip(RoundedCornerShape(28.dp))
                                             .bouncyClickable {
                                                 viewModel.onQueryChanged(suggestion)
+                                                viewModel.addSearchHistory(suggestion)
                                                 launchWebSearch(suggestion)
                                             }
-                                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                                            .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                                        Spacer(modifier = Modifier.width(16.dp))
-                                        Text(text = suggestion, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp, fontFamily = GoogleSansFlex)
-                                        Spacer(modifier = Modifier.weight(1f))
-                                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                                        Icon(
+                                            imageVector = if (isRecent) Icons.Default.History else Icons.Default.Search,
+                                            contentDescription = null,
+                                            tint = if (isRecent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Text(
+                                            text = annotatedSuggestion,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 16.sp,
+                                            fontFamily = GoogleSansFlex,
+                                            modifier = Modifier.weight(1f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (isRecent) {
+                                            IconButton(
+                                                onClick = { viewModel.removeSearchHistory(suggestion) },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Remove",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                        IconButton(
+                                            onClick = { viewModel.onQueryChanged(suggestion) },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.NorthWest,
+                                                contentDescription = "Insert query",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }

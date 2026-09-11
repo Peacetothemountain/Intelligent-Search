@@ -134,15 +134,31 @@ class GlobalSearchProvider : ContentProvider() {
             }
         }
 
-        // Web Search Fallback Row
+        // 5. Live Google Autocomplete Suggestions for Pixel Launcher
+        val suggestions = WebSearchProvider.getWebSuggestionsSync(queryTerm, timeoutMs = 600)
+        for (suggestion in suggestions.take(5)) {
+            val encodedSuggest = Uri.encode(suggestion)
+            cursor.addRow(arrayOf<Any?>(
+                rowId++,
+                suggestion,
+                "Google Search",
+                "android.resource://${context?.packageName}/drawable/ic_search_lens_expressive",
+                Intent.ACTION_WEB_SEARCH,
+                "https://www.google.com/search?q=$encodedSuggest",
+                suggestion,
+                "suggest:${suggestion.hashCode()}"
+            ))
+        }
+
+        // 6. Web Search Fallback Row
         val encodedQuery = Uri.encode(queryTerm)
         cursor.addRow(arrayOf<Any?>(
             rowId++,
-            "Search web for '$queryTerm'",
-            "Intelligent Search",
+            "Search Google for '$queryTerm'",
+            "Google Search",
             "android.resource://${context?.packageName}/drawable/ic_search_lens_expressive",
-            Intent.ACTION_VIEW,
-            "intelligentsearch://search?q=$encodedQuery",
+            Intent.ACTION_WEB_SEARCH,
+            "https://www.google.com/search?q=$encodedQuery",
             queryTerm,
             "web:$encodedQuery"
         ))

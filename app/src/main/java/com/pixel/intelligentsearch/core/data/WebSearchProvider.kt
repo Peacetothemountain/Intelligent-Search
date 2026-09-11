@@ -17,14 +17,14 @@ object WebSearchProvider {
         return synchronized(suggestionCache) { suggestionCache.get(trimmed) }
     }
 
-    suspend fun getWebSuggestions(query: String): List<String> = withContext(Dispatchers.IO) {
+    fun getWebSuggestionsSync(query: String, timeoutMs: Int = 600): List<String> {
         val trimmed = query.trim()
-        if (trimmed.isBlank()) return@withContext emptyList()
-        
+        if (trimmed.isBlank()) return emptyList()
+
         val cacheKey = trimmed.lowercase()
         synchronized(suggestionCache) {
             val cached = suggestionCache.get(cacheKey)
-            if (cached != null) return@withContext cached
+            if (cached != null) return cached
         }
 
         val suggestions = mutableListOf<String>()
@@ -36,8 +36,8 @@ object WebSearchProvider {
             connection.requestMethod = "GET"
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Mobile)")
             connection.setRequestProperty("Connection", "keep-alive")
-            connection.connectTimeout = 1200
-            connection.readTimeout = 1200
+            connection.connectTimeout = timeoutMs
+            connection.readTimeout = timeoutMs
 
             if (connection.responseCode == 200) {
                 val response = connection.inputStream.bufferedReader().use { it.readText() }
@@ -54,15 +54,19 @@ object WebSearchProvider {
                     }
                 }
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // Non-fatal network timeout / connection error
+        } catch (_: Exception) {
+            // Graceful network timeout / connection fallback
         } finally {
             try {
                 connection?.disconnect()
-            } catch (ignored: Exception) {}
+            } catch (_: Exception) {}
         }
-        return@withContext suggestions
+        return suggestions
+    }
+
+    suspend fun getWebSuggestions(query: String): List<String> = withContext(Dispatchers.IO) {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return@withContext emptyList()
+        return@withContext getWebSuggestionsSync(trimmed, timeoutMs = 800)
     }
 }

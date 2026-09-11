@@ -52,6 +52,7 @@ data class SearchUiState(
     val directActions: List<DirectAction> = emptyList(),
     val calendarEvents: List<CalendarEvent> = emptyList(),
     val recentSearches: List<String> = emptyList(),
+    val trendingSearches: List<String> = listOf("Pixel 9 Pro Fold", "Android 15 features", "Material 3 Expressive", "Google Gemini Live", "Google I/O"),
     val isLoading: Boolean = false,
     val isDirectBootLocked: Boolean = false,
     val hasLockedPrivateSpace: Boolean = false,
@@ -98,10 +99,10 @@ class SearchViewModel @Inject constructor(
         adpfThermalManager.applyTopAppThreadPriority()
         loadInitialData()
 
-        // Tier 2: Debounced Remote Web Suggestions
+        // Tier 2: Debounced Remote Web Suggestions (80ms human-pause debounce)
         viewModelScope.launch {
             _remoteSearchQueryFlow
-                .debounce(250L)
+                .debounce(80L)
                 .distinctUntilChanged()
                 .collectLatest { query ->
                     if (query.isNotBlank()) {
@@ -419,6 +420,10 @@ class SearchViewModel @Inject constructor(
                 }
             } else emptyList()
 
+            val cachedWebSuggestions = if (settings.searchWeb) {
+                WebSearchProvider.getCachedSuggestions(newQuery)?.take(settings.webResultsCount)
+            } else null
+
             val q = newQuery.lowercase().trim()
             val unitConv = if (settings.searchCalculator) SystemDataProvider.evaluateUnitConversion(newQuery) else null
             val localInstantAnswer = if (unitConv != null) {
@@ -434,19 +439,25 @@ class SearchViewModel @Inject constructor(
             } else if (q == "weather" || q.startsWith("weather in ")) {
                 val location = if (q == "weather") "your area" else q.removePrefix("weather in ").replaceFirstChar { it.uppercase() }
                 InstantAnswer("72°F", "Mostly Sunny in $location", "weather")
+            } else if (q.startsWith("define ") || q.startsWith("meaning of ") || q.startsWith("definition of ")) {
+                val word = q.removePrefix("define ").removePrefix("meaning of ").removePrefix("definition of ").trim()
+                InstantAnswer(word.replaceFirstChar { it.uppercase() }, "Google Dictionary • Tap for full definition", "dictionary")
+            } else if (q.matches(Regex("""^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(/.*)?$""")) || q.startsWith("http://") || q.startsWith("https://")) {
+                InstantAnswer(newQuery.trim(), "Go to Website • Tap to open", "url")
             } else {
                 null
             }
 
             val elapsed = System.currentTimeMillis() - startTime
 
-            // TIER 1 UPDATE: Instant local results (<3ms)
+            // TIER 1 UPDATE: Instant local results (<3ms) + Instant cached suggestions
             _uiState.update { current ->
                 current.copy(
                     filteredApps = resolvedApps,
                     contacts = localContacts,
                     files = localFiles,
                     shortcuts = localShortcuts,
+                    webSuggestions = cachedWebSuggestions ?: current.webSuggestions,
                     mathResult = mathStr,
                     instantAnswer = localInstantAnswer,
                     systemToggle = systemToggle,
@@ -470,7 +481,7 @@ class SearchViewModel @Inject constructor(
         remoteSearchJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 val suggestions = WebSearchProvider.getWebSuggestions(query).take(settings.webResultsCount)
-                if (suggestions.isNotEmpty() && _uiState.value.query == query) {
+                if (_uiState.value.query == query) {
                     _uiState.update { it.copy(webSuggestions = suggestions) }
                 }
             } catch (_: Exception) {}

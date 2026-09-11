@@ -2654,7 +2654,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                     },
                     showDivider = true
                 )
-                var searchWeb by rememberBooleanPreference(prefs, "search.web", false)
+                var searchWeb by rememberBooleanPreference(prefs, "search.web", true)
                 SettingsRowToggle(
                     title = "Web",
                     subtitle = "View Search Suggestions from Websites.",

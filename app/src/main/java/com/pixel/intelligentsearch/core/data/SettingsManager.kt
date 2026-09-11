@@ -16,10 +16,10 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "in
 @androidx.compose.runtime.Immutable
 data class IntelligentSearchSettings(
     val theme: String = "system",
-    val searchApps: Boolean = false,
+    val searchApps: Boolean = true,
     val searchContacts: Boolean = false,
     val searchFiles: Boolean = false,
-    val searchWeb: Boolean = false,
+    val searchWeb: Boolean = true,
     val searchCalculator: Boolean = true,
     val searchCalendar: Boolean = true,
     val searchShortcuts: Boolean = true,
@@ -147,10 +147,10 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             val defaultTheme = if (isSystemDark) "Material Dark" else "Material Light"
             IntelligentSearchSettings(
                 theme = preferences[THEME] ?: defaultTheme,
-                searchApps = preferences[SEARCH_APPS] ?: false,
+                searchApps = preferences[SEARCH_APPS] ?: true,
                 searchContacts = preferences[SEARCH_CONTACTS] ?: false,
                 searchFiles = preferences[SEARCH_FILES] ?: false,
-                searchWeb = preferences[SEARCH_WEB] ?: false,
+                searchWeb = preferences[SEARCH_WEB] ?: true,
                 searchCalculator = preferences[SEARCH_CALCULATOR] ?: true,
                 searchCalendar = preferences[SEARCH_CALENDAR] ?: true,
                 searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: true,
@@ -211,10 +211,10 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val defaultTheme = if (isSystemDark) "Material Dark" else "Material Light"
         return IntelligentSearchSettings(
             theme = prefs.getString("night.mode", defaultTheme) ?: defaultTheme,
-            searchApps = prefs.getBoolean("search.apps", false),
+            searchApps = prefs.getBoolean("search.apps", true),
             searchContacts = prefs.getBoolean("search.contacts", false),
             searchFiles = prefs.getBoolean("search.files", false),
-            searchWeb = prefs.getBoolean("search.web", false),
+            searchWeb = prefs.getBoolean("search.web", true),
             searchCalculator = prefs.getBoolean("search.calculator", true),
             searchCalendar = prefs.getBoolean("search.calendar", true),
             searchShortcuts = prefs.getBoolean("search.shortcuts", true),

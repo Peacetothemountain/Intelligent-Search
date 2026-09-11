@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.core.data
 import android.app.SearchManager
 import android.content.ContentProvider
 import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
 import android.database.Cursor
 import android.database.MatrixCursor
@@ -134,31 +135,66 @@ class GlobalSearchProvider : ContentProvider() {
             }
         }
 
-        // 5. Live Google Autocomplete Suggestions for Pixel Launcher
-        val suggestions = WebSearchProvider.getWebSuggestionsSync(queryTerm, timeoutMs = 600)
+        // 5. Dynamic Autocomplete Suggestions & Web Search for Pixel Launcher
+        val prefs = context?.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val engine = prefs?.getString("search.engine", "Google") ?: "Google"
+        val customUrl = prefs?.getString("custom_search_engine_url", "") ?: ""
+
+        val providerName = when (engine) {
+            "DuckDuckGo" -> "DuckDuckGo"
+            "Bing" -> "Bing"
+            "Custom" -> if (customUrl.isNotBlank()) "Web" else "Web"
+            else -> "Google"
+        }
+
+        fun buildWebSearchUrl(q: String): String {
+            val encoded = Uri.encode(q)
+            return when (engine) {
+                "DuckDuckGo" -> "https://duckduckgo.com/?q=$encoded"
+                "Bing" -> "https://www.bing.com/search?q=$encoded"
+                "Custom" -> {
+                    if (customUrl.isNotBlank()) {
+                        val rawUrl = if (customUrl.contains("%s")) {
+                            customUrl.replace("%s", encoded)
+                        } else {
+                            "$customUrl$encoded"
+                        }
+                        if (rawUrl.startsWith("http://", ignoreCase = true) || rawUrl.startsWith("https://", ignoreCase = true)) {
+                            rawUrl
+                        } else {
+                            "https://$rawUrl"
+                        }
+                    } else "https://www.google.com/search?q=$encoded"
+                }
+                else -> "https://www.google.com/search?q=$encoded"
+            }
+        }
+
+        val suggestions = WebSearchProvider.getWebSuggestionsSync(queryTerm, engine, timeoutMs = 600)
         for (suggestion in suggestions.take(5)) {
-            val encodedSuggest = Uri.encode(suggestion)
+            val suggestUrl = buildWebSearchUrl(suggestion)
             cursor.addRow(arrayOf<Any?>(
                 rowId++,
                 suggestion,
-                "Google Search",
+                "$providerName Search",
                 "android.resource://${context?.packageName}/drawable/ic_search_lens_expressive",
-                Intent.ACTION_WEB_SEARCH,
-                "https://www.google.com/search?q=$encodedSuggest",
+                Intent.ACTION_VIEW,
+                suggestUrl,
                 suggestion,
                 "suggest:${suggestion.hashCode()}"
             ))
         }
 
         // 6. Web Search Fallback Row
+        val searchUrl = buildWebSearchUrl(queryTerm)
         val encodedQuery = Uri.encode(queryTerm)
         cursor.addRow(arrayOf<Any?>(
             rowId++,
-            "Search Google for '$queryTerm'",
-            "Google Search",
+            "Search $providerName for '$queryTerm'",
+            "$providerName Search",
             "android.resource://${context?.packageName}/drawable/ic_search_lens_expressive",
-            Intent.ACTION_WEB_SEARCH,
-            "https://www.google.com/search?q=$encodedQuery",
+            Intent.ACTION_VIEW,
+            searchUrl,
             queryTerm,
             "web:$encodedQuery"
         ))

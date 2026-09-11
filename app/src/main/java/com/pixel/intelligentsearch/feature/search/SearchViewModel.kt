@@ -52,7 +52,6 @@ data class SearchUiState(
     val directActions: List<DirectAction> = emptyList(),
     val calendarEvents: List<CalendarEvent> = emptyList(),
     val recentSearches: List<String> = emptyList(),
-    val trendingSearches: List<String> = listOf("Pixel 9 Pro Fold", "Android 15 features", "Material 3 Expressive", "Google Gemini Live", "Google I/O"),
     val isLoading: Boolean = false,
     val isDirectBootLocked: Boolean = false,
     val hasLockedPrivateSpace: Boolean = false,
@@ -247,34 +246,20 @@ class SearchViewModel @Inject constructor(
             _idleIndexFlow.value = ""
             searchJob?.cancel()
             remoteSearchJob?.cancel()
-            if (mockZeroState) {
-                _uiState.update { it.copy(
-                    webSuggestions = listOf("Trending: Pixel 10 Pro", "Trending: Android 17", "Trending: Material 3 Expressive"),
-                    filteredApps = emptyList(),
-                    contacts = emptyList(),
-                    files = emptyList(),
-                    shortcuts = emptyList(),
-                    systemToggle = null,
-                    bangSuggestions = emptyList(),
-                    detectedBangQuery = null,
-                    isLoading = false
-                ) }
-            } else {
-                _uiState.update { it.copy(
-                    filteredApps = emptyList(),
-                    contacts = emptyList(),
-                    files = emptyList(),
-                    webSuggestions = emptyList(),
-                    shortcuts = emptyList(),
-                    directActions = emptyList(),
-                    mathResult = null,
-                    instantAnswer = null,
-                    systemToggle = null,
-                    bangSuggestions = emptyList(),
-                    detectedBangQuery = null,
-                    isLoading = false
-                ) }
-            }
+            _uiState.update { it.copy(
+                filteredApps = emptyList(),
+                contacts = emptyList(),
+                files = emptyList(),
+                webSuggestions = emptyList(),
+                shortcuts = emptyList(),
+                directActions = emptyList(),
+                mathResult = null,
+                instantAnswer = null,
+                systemToggle = null,
+                bangSuggestions = emptyList(),
+                detectedBangQuery = null,
+                isLoading = false
+            ) }
             return
         }
 
@@ -420,8 +405,11 @@ class SearchViewModel @Inject constructor(
                 }
             } else emptyList()
 
-            val cachedWebSuggestions = if (settings.searchWeb) {
-                WebSearchProvider.getCachedSuggestions(newQuery)?.take(settings.webResultsCount)
+            val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+            val suggestionsEnabled = prefs.getBoolean("search.web.suggestions", true)
+            val engine = settings.searchEngine
+            val cachedWebSuggestions = if (suggestionsEnabled) {
+                WebSearchProvider.getCachedSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(5))
             } else null
 
             val q = newQuery.lowercase().trim()
@@ -441,7 +429,8 @@ class SearchViewModel @Inject constructor(
                 InstantAnswer("72°F", "Mostly Sunny in $location", "weather")
             } else if (q.startsWith("define ") || q.startsWith("meaning of ") || q.startsWith("definition of ")) {
                 val word = q.removePrefix("define ").removePrefix("meaning of ").removePrefix("definition of ").trim()
-                InstantAnswer(word.replaceFirstChar { it.uppercase() }, "Google Dictionary • Tap for full definition", "dictionary")
+                val providerName = when (engine) { "DuckDuckGo" -> "DuckDuckGo"; "Bing" -> "Bing"; else -> "Dictionary" }
+                InstantAnswer(word.replaceFirstChar { it.uppercase() }, "$providerName • Tap for full definition", "dictionary")
             } else if (q.matches(Regex("""^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(/.*)?$""")) || q.startsWith("http://") || q.startsWith("https://")) {
                 InstantAnswer(newQuery.trim(), "Go to Website • Tap to open", "url")
             } else {
@@ -474,13 +463,19 @@ class SearchViewModel @Inject constructor(
     }
 
     private fun fetchRemoteWebSuggestions(query: String) {
+        if (query.isBlank()) return
+        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val suggestionsEnabled = prefs.getBoolean("search.web.suggestions", true)
+        if (!suggestionsEnabled) return
+
         val settings = settingsState.value
-        if (!settings.searchWeb || query.isBlank()) return
+        val engine = settings.searchEngine
+        val maxResults = settings.webResultsCount.coerceAtLeast(5)
 
         remoteSearchJob?.cancel()
         remoteSearchJob = viewModelScope.launch(Dispatchers.IO) {
             try {
-                val suggestions = WebSearchProvider.getWebSuggestions(query).take(settings.webResultsCount)
+                val suggestions = WebSearchProvider.getWebSuggestions(query, engine).take(maxResults)
                 if (_uiState.value.query == query) {
                     _uiState.update { it.copy(webSuggestions = suggestions) }
                 }

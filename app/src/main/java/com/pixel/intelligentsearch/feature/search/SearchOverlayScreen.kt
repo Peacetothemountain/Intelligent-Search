@@ -707,7 +707,7 @@ fun SearchOverlayScreen(
     }
 
     val visibleApps = remember(uiState.filteredApps, settingsState.hiddenApps) {
-        uiState.filteredApps.filter { !settingsState.hiddenApps.contains(it.packageName) }
+        uiState.filteredApps.filter { !settingsState.hiddenApps.contains(it.packageName) }.distinctBy { it.packageName }
     }
 
     val appWeight = remember(prefs) { prefs.getInt("search_weight_apps", 50) }
@@ -968,7 +968,7 @@ fun SearchOverlayScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(uiState.bangSuggestions, key = { it.prefix }) { bang ->
+                    itemsIndexed(uiState.bangSuggestions, key = { index, bang -> "bang_${index}_${bang.prefix}" }) { _, bang ->
                         AssistChip(
                             onClick = {
                                 val currentQ = uiState.query
@@ -1005,11 +1005,12 @@ fun SearchOverlayScreen(
     val quickAppPanelContent = @Composable {
         if (settingsState.quickSearchHorizontal) {
             val pillPackages = remember(settingsState.contextAwareQuickApps, settingsState.searchPills, settingsState.shortcutResultsCount, uiState.recentApps) {
-                if (settingsState.contextAwareQuickApps) {
-                    uiState.recentApps.take(settingsState.shortcutResultsCount).map { it.packageName }
+                val raw = if (settingsState.contextAwareQuickApps) {
+                    uiState.recentApps.map { it.packageName }
                 } else {
-                    settingsState.searchPills.split(",").filter { it.isNotBlank() }.take(settingsState.shortcutResultsCount)
+                    settingsState.searchPills.split(",").map { it.trim() }.filter { it.isNotBlank() }
                 }
+                raw.distinct().take(settingsState.shortcutResultsCount)
             }
             val dynamicScale = if (pillPackages.size > 6) (6f / pillPackages.size.toFloat()).coerceIn(0.6f, 1f) else 1f
             LazyRow(
@@ -1019,7 +1020,7 @@ fun SearchOverlayScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(pillPackages, key = { it }) { packageName ->
+                itemsIndexed(pillPackages, key = { index, pkg -> "pill_${index}_$pkg" }) { _, packageName ->
                             val appIconState = remember(packageName, settingsState.activeIconPack) { mutableStateOf<AppIconResult?>(null) }
                             val appNameState = remember(packageName) { mutableStateOf("App") }
                             LaunchedEffect(packageName, settingsState.activeIconPack) {
@@ -1410,7 +1411,7 @@ fun SearchOverlayScreen(
                         )
                     }
                 }
-                items(uiState.recentSearches, key = { "recent_$it" }) { recentQuery ->
+                itemsIndexed(uiState.recentSearches.distinct(), key = { index, query -> "recent_${index}_$query" }) { _, recentQuery ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1561,7 +1562,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
-                items(uiState.calendarEvents, key = { "event_${it.title}_${it.startTime}" }) { event ->
+                itemsIndexed(uiState.calendarEvents, key = { index, event -> "event_${index}_${event.title}_${event.startTime}" }) { _, event ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1651,7 +1652,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchShortcuts && uiState.shortcuts.isNotEmpty()) {
-                items(uiState.shortcuts, key = { "shortcut_${it.id}" }) { shortcut ->
+                itemsIndexed(uiState.shortcuts, key = { index, shortcut -> "shortcut_${index}_${shortcut.id}" }) { _, shortcut ->
                     Row(
                         modifier = Modifier.fillMaxWidth().bouncyClickable {
                             val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? android.content.pm.LauncherApps
@@ -1778,7 +1779,7 @@ fun SearchOverlayScreen(
                                             }
                                         }
                                     }
-                                    items(filteredApps, key = { it.packageName }) { app ->
+                                    itemsIndexed(filteredApps, key = { index, app -> "app_${app.packageName}_$index" }) { _, app ->
                                         AppGridItem(app) { performAppLaunch(app.packageName) }
                                     }
                                 }
@@ -1869,7 +1870,7 @@ fun SearchOverlayScreen(
                             }
 
                             if (uiState.webSuggestions.isNotEmpty()) {
-                                items(uiState.webSuggestions.take(settingsState.webResultsCount.coerceAtLeast(5)), key = { "web_suggest_$it" }) { suggestion ->
+                                itemsIndexed(uiState.webSuggestions.distinct().take(settingsState.webResultsCount.coerceAtLeast(5)), key = { index, suggestion -> "web_suggest_${index}_$suggestion" }) { _, suggestion ->
                                     val isRecent = uiState.recentSearches.contains(suggestion)
                                     val trimmed = uiState.query.trim()
                                     val annotatedSuggestion = remember(suggestion, trimmed) {

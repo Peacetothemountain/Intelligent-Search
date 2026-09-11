@@ -187,10 +187,10 @@ class SearchViewModel @Inject constructor(
                 val launcherPredictedApps = launcherPredictedDeferred.await()
 
                 val recentApps = if (settingsState.value.contextAwareQuickApps) {
-                    val quickApps = SystemDataProvider.getContextAwareQuickApps(context)
+                    val quickApps = SystemDataProvider.getContextAwareQuickApps(context).distinctBy { it.packageName }
                     if (launcherPredictedApps.isNotEmpty()) (launcherPredictedApps + quickApps).distinctBy { it.packageName } else quickApps
                 } else {
-                    val standardRecents = SystemDataProvider.getRecentApps(context, settingsState.value.hiddenApps)
+                    val standardRecents = SystemDataProvider.getRecentApps(context, settingsState.value.hiddenApps).distinctBy { it.packageName }
                     if (launcherPredictedApps.isNotEmpty()) (launcherPredictedApps + standardRecents).distinctBy { it.packageName } else standardRecents
                 }
 

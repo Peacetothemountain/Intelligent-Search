@@ -41,7 +41,9 @@ import kotlin.math.sin
  * Engineered by NG Designs.
  */
 @Composable
-fun AnimatedMatrixBackground(modifier: Modifier = Modifier) {
+fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = false) {
+    if (isPaused) return
+
     val context = LocalContext.current
     val adpfThermalManager = remember(context) { ADPFThermalManager.getInstance(context) }
     val throttleLevel by adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()

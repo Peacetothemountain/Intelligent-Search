@@ -212,25 +212,29 @@ fun ShortcutRow(iconRes: Int, title: String, onClick: () -> Unit) {
 data class AppIconResult(val bitmap: androidx.compose.ui.graphics.ImageBitmap, val isMonochrome: Boolean)
 
 private val themedIconCache = android.util.LruCache<String, AppIconResult>(256)
+private var cachedActivePack: String? = null
 
 fun clearThemedIconCache() {
+    cachedActivePack = null
     themedIconCache.evictAll()
     com.pixel.intelligentsearch.core.util.MaterialOutlineManager.clearCache()
 }
 
 fun peekThemedAppIcon(packageName: String, activePackOverride: String? = null): AppIconResult? {
-    val activePack = activePackOverride ?: "system_default"
+    val activePack = activePackOverride ?: cachedActivePack ?: "system_default"
     return themedIconCache.get("$activePack:$packageName")
 }
 
 fun getThemedAppIcon(context: Context, packageName: String, activePackOverride: String? = null): AppIconResult? {
     try {
-        val activePack = activePackOverride ?: run {
+        val activePack = activePackOverride ?: cachedActivePack ?: run {
             val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
             val p = prefs.getString("active_icon_pack", null)
-            if (p != null) p else {
+            val resolved = if (p != null) p else {
                 context.getSharedPreferences("intelligent_search_settings", Context.MODE_PRIVATE).getString("active_icon_pack", "system_default") ?: "system_default"
             }
+            cachedActivePack = resolved
+            resolved
         }
         val cacheKey = "$activePack:$packageName"
         val cached = themedIconCache.get(cacheKey)
@@ -365,11 +369,15 @@ fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: S
 @Suppress("DEPRECATION")
 private fun finishWithoutTransition(activity: android.app.Activity?) {
     if (activity != null && !activity.isFinishing) {
-        activity.finish()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            activity.overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
-        } else {
-            activity.overridePendingTransition(0, 0)
+        val moved = activity.moveTaskToBack(true)
+        if (!moved) {
+            activity.finish()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                activity.overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
+            } else {
+                @Suppress("DEPRECATION")
+                activity.overridePendingTransition(0, 0)
+            }
         }
     }
 }
@@ -1942,7 +1950,7 @@ fun SearchOverlayScreen(
                             alpha = overlayProgressAnim.value.coerceIn(0f, 1f)
                         }
                 ) {
-                    AnimatedMatrixBackground()
+                    AnimatedMatrixBackground(isPaused = uiState.query.isNotBlank())
                 }
             }
             

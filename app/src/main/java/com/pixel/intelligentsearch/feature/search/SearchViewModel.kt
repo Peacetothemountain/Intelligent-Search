@@ -79,8 +79,10 @@ class SearchViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState = _uiState.asStateFlow()
 
-    private val _searchQueryFlow = MutableStateFlow("")
+    private val _remoteSearchQueryFlow = MutableStateFlow("")
+    private val _idleIndexFlow = MutableStateFlow("")
     private var searchJob: Job? = null
+    private var remoteSearchJob: Job? = null
 
     private val localInferenceEngine = com.pixel.intelligentsearch.core.local.LocalInferenceEngine(context)
     private val adpfThermalManager = com.pixel.intelligentsearch.core.performance.ADPFThermalManager(context)
@@ -96,13 +98,37 @@ class SearchViewModel @Inject constructor(
         adpfThermalManager.applyTopAppThreadPriority()
         loadInitialData()
 
+        // Tier 2: Debounced Remote Web Suggestions
         viewModelScope.launch {
-            _searchQueryFlow
-                .debounce(120L)
+            _remoteSearchQueryFlow
+                .debounce(250L)
                 .distinctUntilChanged()
                 .collectLatest { query ->
                     if (query.isNotBlank()) {
-                        executeSearch(query)
+                        fetchRemoteWebSuggestions(query)
+                    }
+                }
+        }
+
+        // Tier 3: Idle Indexing & Local Embeddings (Runs only when user pauses/finishes typing)
+        viewModelScope.launch(Dispatchers.IO) {
+            _idleIndexFlow
+                .debounce(1500L)
+                .distinctUntilChanged()
+                .collectLatest { query ->
+                    if (query.isNotBlank()) {
+                        try {
+                            localInferenceEngine.generateTextEmbedding(query)
+                            appSearchEngine.indexDocument(
+                                com.pixel.intelligentsearch.core.data.IndexedSearchDocument(
+                                    id = query.hashCode().toString(),
+                                    namespace = "search_history",
+                                    title = query,
+                                    snippet = "User search query",
+                                    timestampMs = System.currentTimeMillis()
+                                )
+                            )
+                        } catch (_: Exception) {}
                     }
                 }
         }
@@ -216,8 +242,10 @@ class SearchViewModel @Inject constructor(
         val mockZeroState = prefs.getBoolean("debug.mock_zero_state", false)
         
         if (newQuery.isBlank()) {
-            _searchQueryFlow.value = ""
+            _remoteSearchQueryFlow.value = ""
+            _idleIndexFlow.value = ""
             searchJob?.cancel()
+            remoteSearchJob?.cancel()
             if (mockZeroState) {
                 _uiState.update { it.copy(
                     webSuggestions = listOf("Trending: Pixel 10 Pro", "Trending: Android 17", "Trending: Material 3 Expressive"),
@@ -261,15 +289,21 @@ class SearchViewModel @Inject constructor(
         }
 
         _uiState.update { it.copy(
-            isLoading = true,
             bangSuggestions = bangSuggestions,
             detectedBangQuery = parsedBang
         ) }
 
-        _searchQueryFlow.value = newQuery
+        // TIER 1: ZERO-DEBOUNCE (0ms) Immediate Local Execution
+        executeLocalSearch(newQuery)
+
+        // TIER 2: Debounced Web Suggestions (250ms)
+        _remoteSearchQueryFlow.value = newQuery
+
+        // TIER 3: Idle Indexing (1500ms)
+        _idleIndexFlow.value = newQuery
     }
 
-    private fun executeSearch(newQuery: String) {
+    private fun executeLocalSearch(newQuery: String) {
         val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
         val mockLargeDataset = prefs.getBoolean("debug.mock_large_dataset", false)
         val verboseLogging = prefs.getBoolean("debug.verbose_logging", false)
@@ -277,25 +311,12 @@ class SearchViewModel @Inject constructor(
 
         searchJob?.cancel()
         searchJob = viewModelScope.launch(Dispatchers.Default) {
-            if (verboseLogging) android.util.Log.d("SearchDebug", "Query started: $newQuery")
-            val startTime = System.currentTimeMillis()
+            try {
+                android.os.Process.setThreadPriority(-10)
+            } catch (_: Exception) {}
 
-            // Asynchronously debounce embedding and AppSearch history indexing
-            launch(Dispatchers.IO) {
-                delay(250)
-                try {
-                    localInferenceEngine.generateTextEmbedding(newQuery)
-                    appSearchEngine.indexDocument(
-                        com.pixel.intelligentsearch.core.data.IndexedSearchDocument(
-                            id = newQuery.hashCode().toString(),
-                            namespace = "search_history",
-                            title = newQuery,
-                            snippet = "User search query",
-                            timestampMs = System.currentTimeMillis()
-                        )
-                    )
-                } catch (_: Exception) {}
-            }
+            if (verboseLogging) android.util.Log.d("SearchDebug", "Local query started: $newQuery")
+            val startTime = System.currentTimeMillis()
 
             if (forceSearchError) {
                 _uiState.update { it.copy(
@@ -307,7 +328,7 @@ class SearchViewModel @Inject constructor(
 
             val settings = settingsState.value
 
-            // 1. High-Performance Unified Search Engine Execution (Radix Tree + Double Metaphone Phonetics + Fuzzy + Intent + Math + Toggles)
+            // 1. In-Memory Unified Search (< 2ms)
             val unifiedResults = unifiedSearchCoordinator.executeSearch(newQuery)
 
             // 2. Direct Actions (parsedIntent + clipboard/quick templates)
@@ -352,124 +373,107 @@ class SearchViewModel @Inject constructor(
                 )
             }
 
-            // 3. Concurrent Retrieval for Contacts, Files, Shortcuts, Web Suggestions & Instant Answers
-            coroutineScope {
-                val contactsDeferred = async {
-                    if (settings.searchContacts) {
-                        val real = if (unifiedResults.contacts.isNotEmpty()) {
-                            unifiedResults.contacts.take(settings.contactResultsCount)
-                        } else {
-                            SystemDataProvider.getContacts(context, newQuery).take(settings.contactResultsCount)
-                        }
-                        if (mockLargeDataset) {
-                            real + (1..settings.contactResultsCount).map { ContactItem("Mock Contact $it", "555-01$it", "mock_uri_$it") }
-                        } else real
-                    } else emptyList()
-                }
-
-                val filesDeferred = async {
-                    if (settings.searchFiles) {
-                        val real = if (unifiedResults.files.isNotEmpty()) {
-                            unifiedResults.files.take(settings.fileResultsCount)
-                        } else {
-                            SystemDataProvider.getFiles(context, newQuery, settings.filesHiddenFiles).take(settings.fileResultsCount)
-                        }
-                        if (mockLargeDataset) {
-                            real + (1..settings.fileResultsCount).map { FileItem("Mock File $it.pdf", "/mock/path/$it", "application/pdf", "mock_uri_$it") }
-                        } else real
-                    } else emptyList()
-                }
-
-                val shortcutsDeferred = async {
-                    if (settings.searchShortcuts) {
-                        if (unifiedResults.shortcuts.isNotEmpty()) {
-                            unifiedResults.shortcuts.take(settings.shortcutResultsCount)
-                        } else {
-                            ShortcutProvider.getShortcuts(context, newQuery).take(settings.shortcutResultsCount)
-                        }
-                    } else emptyList()
-                }
-
-                val webSuggestionsDeferred = async {
-                    if (settings.searchWeb) {
-                        if (WebSearchProvider.getCachedSuggestions(newQuery) == null) {
-                            delay(120)
-                        }
-                        WebSearchProvider.getWebSuggestions(newQuery).take(settings.webResultsCount)
-                    } else emptyList()
-                }
-
-                val instantAnswerDeferred = async {
-                    val q = newQuery.lowercase().trim()
-                    val unitConv = if (settings.searchCalculator) SystemDataProvider.evaluateUnitConversion(newQuery) else null
-                    if (unitConv != null) {
-                        InstantAnswer(unitConv, "Unit Conversion", "conversion")
-                    } else if (q.startsWith("time in ") || q == "time") {
-                        val location = if (q == "time") "your location" else q.removePrefix("time in ").replaceFirstChar { it.uppercase() }
-                        val calendar = java.util.Calendar.getInstance()
-                        val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
-                        val min = calendar.get(java.util.Calendar.MINUTE)
-                        val amPm = if (hour < 12) "AM" else "PM"
-                        val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
-                        InstantAnswer("$displayHour:${String.format(java.util.Locale.getDefault(), "%02d", min)} $amPm", "Current time in $location", "time")
-                    } else if (q == "weather" || q.startsWith("weather in ")) {
-                        val location = if (q == "weather") "your area" else q.removePrefix("weather in ").replaceFirstChar { it.uppercase() }
-                        InstantAnswer("72°F", "Mostly Sunny in $location", "weather")
-                    } else {
-                        null
-                    }
-                }
-
-                val systemToggle = when (val action = unifiedResults.systemAction) {
-                    is com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.Toggle -> action.toggleUiState
-                    else -> null
-                }
-
-                val localContacts = contactsDeferred.await()
-                val localFiles = filesDeferred.await()
-                val localShortcuts = shortcutsDeferred.await()
-                val localInstantAnswer = instantAnswerDeferred.await()
-                val localWeb = webSuggestionsDeferred.await()
-
-                val resolvedApps = if (settings.searchApps) {
-                    if (unifiedResults.apps.isNotEmpty()) {
-                        unifiedResults.apps
-                    } else {
-                        _uiState.value.allApps.filter { app ->
-                            app.name.contains(newQuery, ignoreCase = true) || app.packageName.contains(newQuery, ignoreCase = true)
-                        }
-                    }
-                } else emptyList()
-
-                val mathStr = when (val math = unifiedResults.mathResult) {
-                    is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.Computation -> math.formattedResult
-                    is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.Bitwise -> "${math.decimalValue} (0x${math.hexValue})"
-                    is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.UnitConversion -> math.formatted
-                    null -> if (settings.searchCalculator) SystemDataProvider.evaluateMath(newQuery) else null
-                }
-
-                val elapsed = System.currentTimeMillis() - startTime
-
-                _uiState.update { current ->
-                    current.copy(
-                        filteredApps = resolvedApps,
-                        contacts = localContacts,
-                        files = localFiles,
-                        shortcuts = localShortcuts,
-                        webSuggestions = if (localWeb.isNotEmpty()) localWeb else current.webSuggestions,
-                        mathResult = mathStr,
-                        instantAnswer = localInstantAnswer,
-                        systemToggle = systemToggle,
-                        directActions = directActions,
-                        isLoading = false,
-                        lastQueryLatency = elapsed
-                    )
-                }
-
-                if (verboseLogging) {
-                    android.util.Log.d("SearchDebug", "Query finished in ${elapsed}ms")
-                }
+            val systemToggle = when (val action = unifiedResults.systemAction) {
+                is com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.Toggle -> action.toggleUiState
+                else -> null
             }
+
+            val resolvedApps = if (settings.searchApps) {
+                if (unifiedResults.apps.isNotEmpty()) {
+                    unifiedResults.apps
+                } else {
+                    _uiState.value.allApps.filter { app ->
+                        app.name.contains(newQuery, ignoreCase = true) || app.packageName.contains(newQuery, ignoreCase = true)
+                    }
+                }
+            } else emptyList()
+
+            val mathStr = when (val math = unifiedResults.mathResult) {
+                is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.Computation -> math.formattedResult
+                is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.Bitwise -> "${math.decimalValue} (0x${math.hexValue})"
+                is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.UnitConversion -> math.formatted
+                null -> if (settings.searchCalculator) SystemDataProvider.evaluateMath(newQuery) else null
+            }
+
+            val localContacts = if (settings.searchContacts) {
+                if (unifiedResults.contacts.isNotEmpty()) {
+                    unifiedResults.contacts.take(settings.contactResultsCount)
+                } else {
+                    SystemDataProvider.getContacts(context, newQuery).take(settings.contactResultsCount)
+                }
+            } else emptyList()
+
+            val localFiles = if (settings.searchFiles) {
+                if (unifiedResults.files.isNotEmpty()) {
+                    unifiedResults.files.take(settings.fileResultsCount)
+                } else {
+                    SystemDataProvider.getFiles(context, newQuery, settings.filesHiddenFiles).take(settings.fileResultsCount)
+                }
+            } else emptyList()
+
+            val localShortcuts = if (settings.searchShortcuts) {
+                if (unifiedResults.shortcuts.isNotEmpty()) {
+                    unifiedResults.shortcuts.take(settings.shortcutResultsCount)
+                } else {
+                    ShortcutProvider.getShortcuts(context, newQuery).take(settings.shortcutResultsCount)
+                }
+            } else emptyList()
+
+            val q = newQuery.lowercase().trim()
+            val unitConv = if (settings.searchCalculator) SystemDataProvider.evaluateUnitConversion(newQuery) else null
+            val localInstantAnswer = if (unitConv != null) {
+                InstantAnswer(unitConv, "Unit Conversion", "conversion")
+            } else if (q.startsWith("time in ") || q == "time") {
+                val location = if (q == "time") "your location" else q.removePrefix("time in ").replaceFirstChar { it.uppercase() }
+                val calendar = java.util.Calendar.getInstance()
+                val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+                val min = calendar.get(java.util.Calendar.MINUTE)
+                val amPm = if (hour < 12) "AM" else "PM"
+                val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
+                InstantAnswer("$displayHour:${String.format(java.util.Locale.getDefault(), "%02d", min)} $amPm", "Current time in $location", "time")
+            } else if (q == "weather" || q.startsWith("weather in ")) {
+                val location = if (q == "weather") "your area" else q.removePrefix("weather in ").replaceFirstChar { it.uppercase() }
+                InstantAnswer("72°F", "Mostly Sunny in $location", "weather")
+            } else {
+                null
+            }
+
+            val elapsed = System.currentTimeMillis() - startTime
+
+            // TIER 1 UPDATE: Instant local results (<3ms)
+            _uiState.update { current ->
+                current.copy(
+                    filteredApps = resolvedApps,
+                    contacts = localContacts,
+                    files = localFiles,
+                    shortcuts = localShortcuts,
+                    mathResult = mathStr,
+                    instantAnswer = localInstantAnswer,
+                    systemToggle = systemToggle,
+                    directActions = directActions,
+                    isLoading = false,
+                    lastQueryLatency = elapsed
+                )
+            }
+
+            if (verboseLogging) {
+                android.util.Log.d("SearchDebug", "Local query finished in ${elapsed}ms")
+            }
+        }
+    }
+
+    private fun fetchRemoteWebSuggestions(query: String) {
+        val settings = settingsState.value
+        if (!settings.searchWeb || query.isBlank()) return
+
+        remoteSearchJob?.cancel()
+        remoteSearchJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val suggestions = WebSearchProvider.getWebSuggestions(query).take(settings.webResultsCount)
+                if (suggestions.isNotEmpty() && _uiState.value.query == query) {
+                    _uiState.update { it.copy(webSuggestions = suggestions) }
+                }
+            } catch (_: Exception) {}
         }
     }
 

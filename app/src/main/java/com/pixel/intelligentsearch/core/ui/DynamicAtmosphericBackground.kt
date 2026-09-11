@@ -146,7 +146,7 @@ private const val APP_WIDE_STARDUST_SHADER = """
  * dynamically gated by ADPF thermal headroom to prevent GPU overheating.
  */
 @Composable
-private fun Modifier.appWideStardustShader(color: Color): Modifier {
+private fun Modifier.appWideStardustShader(color: Color, isInteracting: Boolean = false): Modifier {
     val context = androidx.compose.ui.platform.LocalContext.current
     val adpfThermalManager = remember(context) { ADPFThermalManager.getInstance(context) }
     val throttleLevel by adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
@@ -170,14 +170,17 @@ private fun Modifier.appWideStardustShader(color: Color): Modifier {
     val lifecycleOwner = LocalLifecycleOwner.current
     val timeState = remember { mutableFloatStateOf(0f) }
     
-    LaunchedEffect(lifecycleOwner, throttleLevel) {
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            var lastFrame = 0L
-            while (isActive) {
-                withFrameNanos { frameTime ->
-                    if (lastFrame == 0L) lastFrame = frameTime 
-                    timeState.floatValue += (frameTime - lastFrame) / 1_000_000_000f
-                    lastFrame = frameTime
+    // Pause frame animation loop while user is actively typing or scrolling to dedicate 100% GPU fill-rate to 120Hz list rendering
+    LaunchedEffect(lifecycleOwner, throttleLevel, isInteracting) {
+        if (!isInteracting) {
+            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                var lastFrame = 0L
+                while (isActive) {
+                    withFrameNanos { frameTime ->
+                        if (lastFrame == 0L) lastFrame = frameTime 
+                        timeState.floatValue += (frameTime - lastFrame) / 1_000_000_000f
+                        lastFrame = frameTime
+                    }
                 }
             }
         }
@@ -210,6 +213,7 @@ fun DynamicAtmosphericBackgroundContainer(
     appTheme: AppColorTheme,
     customColor: GlobalCustomColor?,
     modifier: Modifier = Modifier,
+    isInteracting: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val activeColor = resolveGlobalStardustColor(appDesign, appTheme, customColor)
@@ -218,7 +222,7 @@ fun DynamicAtmosphericBackgroundContainer(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .appWideStardustShader(activeColor)
+            .appWideStardustShader(activeColor, isInteracting = isInteracting)
     ) {
         content()
     }

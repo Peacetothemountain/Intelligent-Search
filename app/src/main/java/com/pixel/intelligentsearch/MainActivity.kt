@@ -307,13 +307,15 @@ open class MainActivity : AppCompatActivity() {
 
     fun dismissOverlayToLauncher() {
         searchViewModel.onQueryChanged("")
-        moveTaskToBack(true)
-        finish()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
-        } else {
-            @Suppress("DEPRECATION")
-            overridePendingTransition(0, 0)
+        val moved = moveTaskToBack(true)
+        if (!moved) {
+            finish()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+            } else {
+                @Suppress("DEPRECATION")
+                overridePendingTransition(0, 0)
+            }
         }
     }
 }

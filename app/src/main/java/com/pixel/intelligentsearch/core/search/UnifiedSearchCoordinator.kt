@@ -220,11 +220,19 @@ class UnifiedSearchCoordinator @Inject constructor(
     // ---------------------------------------------------------------------------------------------
 
     suspend fun executeSearch(rawQuery: String): UnifiedSearchResults = withContext(Dispatchers.Default) {
+        executeSearchInternal(rawQuery)
+    }
+
+    fun executeSearchSync(rawQuery: String): UnifiedSearchResults {
+        return executeSearchInternal(rawQuery)
+    }
+
+    private fun executeSearchInternal(rawQuery: String): UnifiedSearchResults {
         val startTime = System.nanoTime()
         val query = rawQuery.trim()
 
         if (query.isEmpty()) {
-            return@withContext UnifiedSearchResults(query = query)
+            return UnifiedSearchResults(query = query)
         }
 
         // 1. Instant System Action / Slider Router
@@ -308,7 +316,7 @@ class UnifiedSearchCoordinator @Inject constructor(
 
         val elapsedMs = (System.nanoTime() - startTime) / 1_000_000
 
-        return@withContext UnifiedSearchResults(
+        return UnifiedSearchResults(
             query = query,
             mathResult = mathResult,
             parsedIntent = parsedIntent,

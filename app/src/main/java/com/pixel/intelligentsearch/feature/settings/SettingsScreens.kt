@@ -2286,9 +2286,11 @@ fun MainSettingsScreen(
                     subtitle = browserHistorySubtitle,
                     icon = Icons.Outlined.HistoryEdu,
                     onClick = {
+                        val chromeUri = android.net.Uri.parse("chrome://settings/clearBrowserData")
                         val intent = when (searchEngine) {
                             "Google" -> {
-                                Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity?product=6")).apply {
+                                Intent(Intent.ACTION_VIEW, chromeUri).apply {
+                                    setPackage("com.android.chrome")
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
                             }
@@ -2305,7 +2307,8 @@ fun MainSettingsScreen(
                                     }
                             }
                             else -> {
-                                Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity?product=6")).apply {
+                                Intent(Intent.ACTION_VIEW, chromeUri).apply {
+                                    setPackage("com.android.chrome")
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
                             }
@@ -2313,11 +2316,25 @@ fun MainSettingsScreen(
                         try {
                             context.startActivity(intent)
                         } catch (e: Exception) {
-                            e.printStackTrace()
+                            // Fallback if specific package or custom scheme needs generic intent
+                            try {
+                                val fallbackIntent = Intent(Intent.ACTION_VIEW, chromeUri).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(fallbackIntent)
+                            } catch (e2: Exception) {
+                                try {
+                                    val webFallback = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity?product=6")).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(webFallback)
+                                } catch (e3: Exception) {
+                                    e3.printStackTrace()
+                                }
+                            }
                         }
                     },
                     showDivider = true,
-
                 )
                 SettingsRow(
                     title = "Encrypted Backup",
@@ -6900,7 +6917,7 @@ fun Android17Slider(
             initialValue = 0f,
             targetValue = 2f * Math.PI.toFloat(),
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 1500, easing = LinearEasing),
+                animation = tween(durationMillis = 2000, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
             ),
             label = "phase"
@@ -6908,6 +6925,9 @@ fun Android17Slider(
     } else {
         remember { mutableFloatStateOf(0f) }
     }
+
+    val dragPhaseOffset = remember { mutableFloatStateOf(0f) }
+    val effectivePhase = phase + dragPhaseOffset.floatValue
 
     val activeColor = MaterialTheme.colorScheme.primary
     val inactiveColor = MaterialTheme.colorScheme.surfaceVariant
@@ -6962,12 +6982,17 @@ fun Android17Slider(
                     processChange(downFraction)
 
                     val pointerId = down.id
+                    var prevX = down.position.x
                     while (true) {
                         val event = awaitPointerEvent()
                         val change = event.changes.firstOrNull { it.id == pointerId } ?: break
                         if (!change.pressed) break
                         change.consume()
-                        val dragFraction = ((change.position.x - thumbW / 2f) / trackAvailableWidth).coerceIn(0f, 1f)
+                        val currentX = change.position.x
+                        val deltaX = currentX - prevX
+                        prevX = currentX
+                        dragPhaseOffset.floatValue += deltaX * 0.04f
+                        val dragFraction = ((currentX - thumbW / 2f) / trackAvailableWidth).coerceIn(0f, 1f)
                         processChange(dragFraction)
                     }
                 }
@@ -6976,8 +7001,10 @@ fun Android17Slider(
     ) {
         androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
             val trackHeight = 6.dp.toPx()
-            val amplitude = 6.dp.toPx()
-            val frequency = 0.05f
+            val baseAmplitude = 4.5.dp.toPx()
+            val waveLength = 26.dp.toPx()
+            val waveLength2 = 17.dp.toPx()
+            val transitionLen = 18.dp.toPx()
             val thumbWidth = 6.dp.toPx()
             val thumbHeight = 36.dp.toPx()
 
@@ -6991,11 +7018,35 @@ fun Android17Slider(
                     val path = androidx.compose.ui.graphics.Path()
                     path.moveTo(0f, centerY)
                     var x = 0f
-                    while (x < thumbX) {
-                        val y = centerY + Math.sin((x * frequency - phase).toDouble()).toFloat() * amplitude
+                    val step = 1.5f
+                    while (x <= thumbX) {
+                        // Smooth envelope tapering at track start (0) and thumb end (thumbX)
+                        val envLeft = if (x < transitionLen) {
+                            val t = (x / transitionLen).coerceIn(0f, 1f)
+                            t * t * (3f - 2f * t)
+                        } else 1f
+
+                        val distToThumb = thumbX - x
+                        val envRight = if (distToThumb < transitionLen) {
+                            val t = (distToThumb / transitionLen).coerceIn(0f, 1f)
+                            t * t * (3f - 2f * t)
+                        } else 1f
+
+                        val envelope = envLeft * envRight
+
+                        // Dual-harmonic superposition producing authentic undulating squiggles
+                        val wave1 = Math.sin(x * (2.0 * Math.PI / waveLength) - effectivePhase).toFloat()
+                        val wave2 = Math.sin(x * (2.0 * Math.PI / waveLength2) + effectivePhase * 1.35).toFloat()
+                        // Dynamic organic amplitude breathing
+                        val breathing = 0.85f + 0.15f * Math.cos(effectivePhase * 1.2 + x * 0.015).toFloat()
+
+                        val combinedWave = (wave1 * 0.78f + wave2 * 0.22f) * breathing
+                        val y = centerY + combinedWave * baseAmplitude * envelope
+
                         path.lineTo(x, y)
-                        x += 2f
+                        x += step
                     }
+                    path.lineTo(thumbX, centerY)
                     
                     drawPath(
                         path = path,

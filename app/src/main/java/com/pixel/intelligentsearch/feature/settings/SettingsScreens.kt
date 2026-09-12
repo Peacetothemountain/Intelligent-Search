@@ -8675,15 +8675,7 @@ fun BackupRestoreScreen(
 
     val backupExoPlayer = remember(context) {
         val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.gemini_generated_video_2209818f)
-        val mediaItem = androidx.media3.common.MediaItem.Builder()
-            .setUri(uri)
-            .setClippingConfiguration(
-                androidx.media3.common.MediaItem.ClippingConfiguration.Builder()
-                    .setStartPositionMs(0L)
-                    .setEndPositionMs(8000L)
-                    .build()
-            )
-            .build()
+        val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
         val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
         androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
             setMediaSource(mediaSource)
@@ -8707,15 +8699,6 @@ fun BackupRestoreScreen(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             backupExoPlayer.release()
-        }
-    }
-
-    LaunchedEffect(backupExoPlayer) {
-        while (isActive) {
-            if (backupExoPlayer.currentPosition >= 8000L) {
-                backupExoPlayer.seekTo(0L)
-            }
-            delay(100L)
         }
     }
 
@@ -8901,19 +8884,19 @@ fun BackupRestoreScreen(
                                 val vh = tv.height
                                 if (vw > 0 && vh > 0) {
                                     val matrix = android.graphics.Matrix()
-                                    val videoAspect = 1280f / 720f
+                                    val videoAspect = 16f / 9f
                                     val viewAspect = vw.toFloat() / vh.toFloat()
                                     var scaleX = 1f
                                     var scaleY = 1f
                                     if (viewAspect > videoAspect) {
-                                        scaleY = (vw.toFloat() / 1280f * 720f) / vh.toFloat()
+                                        scaleY = (vw.toFloat() / (16f / 9f)) / vh.toFloat()
                                     } else {
-                                        scaleX = (vh.toFloat() / 720f * 1280f) / vw.toFloat()
+                                        scaleX = (vh.toFloat() * (16f / 9f)) / vw.toFloat()
                                     }
 
-                                    // Scale down / Zoom out (0.70f scale factor) matching original bugdroid video
-                                    scaleX *= 0.70f
-                                    scaleY *= 0.70f
+                                    // Scale factor: 1.05f to make bugdroid significantly larger and prominent in the frame
+                                    scaleX *= 1.05f
+                                    scaleY *= 1.05f
 
                                     matrix.setScale(scaleX, scaleY, vw / 2f, vh / 2f)
                                     tv.setTransform(matrix)
@@ -8960,8 +8943,8 @@ fun BackupRestoreScreen(
                         }
                     },
                     modifier = Modifier
-                        .height(220.dp)
-                        .width(200.dp)
+                        .fillMaxWidth()
+                        .height(340.dp)
                         .graphicsLayer {
                             renderEffect = cachedVideoRenderEffect
                         }

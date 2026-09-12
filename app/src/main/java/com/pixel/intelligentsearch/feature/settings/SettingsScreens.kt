@@ -206,10 +206,10 @@ private const val GEMINI_CORNER_SWIPE_SHADER = """
 
 @Composable
 fun GeminiCornerSwipeWaveLayer(
-    colorPrimary: androidx.compose.ui.graphics.Color,
-    colorSecondary: androidx.compose.ui.graphics.Color,
-    colorTertiary: androidx.compose.ui.graphics.Color,
-    colorAccent: androidx.compose.ui.graphics.Color,
+    colorPrimary: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
+    colorSecondary: androidx.compose.ui.graphics.Color = colorPrimary,
+    colorTertiary: androidx.compose.ui.graphics.Color = colorPrimary,
+    colorAccent: androidx.compose.ui.graphics.Color = colorPrimary,
     modifier: Modifier = Modifier
 ) {
     val shader = remember {
@@ -5730,9 +5730,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
                     val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
                     val matPrimary = MaterialTheme.colorScheme.primary
-                    val matSecondary = MaterialTheme.colorScheme.secondary
-                    val matTertiary = MaterialTheme.colorScheme.tertiary
-                    val matError = MaterialTheme.colorScheme.error
                     val matSurfaceVariant = MaterialTheme.colorScheme.surfaceVariant
 
                     val activeColor = remember(previewIsMaterialYou, localSubtheme, computedCustomColorInt, matPrimary, matSurfaceVariant, effectiveColorAlpha) {
@@ -5754,44 +5751,13 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                     val isCustomTheme = localSubtheme == "Custom"
 
-                    val wavePrimary = if (isCustomTheme) {
-                        accentColor
-                    } else {
-                        matPrimary
-                    }
-                    val waveSecondary = if (isCustomTheme) {
-                        val hsv = FloatArray(3)
-                        android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
-                        androidx.compose.ui.graphics.Color(
-                            android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 18f) % 360f, (hsv[1] * 0.70f).coerceIn(0.1f, 1f), (hsv[2] * 0.95f).coerceIn(0.6f, 1f)))
-                        )
-                    } else {
-                        matSecondary
-                    }
-                    val waveTertiary = if (isCustomTheme) {
-                        val hsv = FloatArray(3)
-                        android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
-                        androidx.compose.ui.graphics.Color(
-                            android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 60f) % 360f, (hsv[1] * 0.85f).coerceIn(0.1f, 1f), (hsv[2] * 0.90f).coerceIn(0.7f, 1f)))
-                        )
-                    } else {
-                        matTertiary
-                    }
-                    val waveAccent = if (isCustomTheme) {
-                        val hsv = FloatArray(3)
-                        android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
-                        androidx.compose.ui.graphics.Color(
-                            android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 120f) % 360f, (hsv[1] * 0.6f).coerceIn(0.1f, 1f), 0.95f))
-                        )
-                    } else {
-                        MaterialTheme.colorScheme.primaryContainer
-                    }
+                    val waveColor = MaterialTheme.colorScheme.primary
 
                     GeminiCornerSwipeWaveLayer(
-                        colorPrimary = wavePrimary,
-                        colorSecondary = waveSecondary,
-                        colorTertiary = waveTertiary,
-                        colorAccent = waveAccent,
+                        colorPrimary = waveColor,
+                        colorSecondary = waveColor,
+                        colorTertiary = waveColor,
+                        colorAccent = waveColor,
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()

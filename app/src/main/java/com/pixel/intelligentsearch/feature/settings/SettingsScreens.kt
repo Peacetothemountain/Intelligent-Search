@@ -8889,14 +8889,14 @@ fun BackupRestoreScreen(
                                     var scaleX = 1f
                                     var scaleY = 1f
                                     if (viewAspect > videoAspect) {
-                                        // View is wider than video: fit height, letterbox width
-                                        scaleX = (vh.toFloat() * videoAspect) / vw.toFloat()
-                                        scaleY = 1f
+                                        scaleY = (vw.toFloat() / (16f / 9f)) / vh.toFloat()
                                     } else {
-                                        // View is narrower than video: fit width, pillarbox height
-                                        scaleX = 1f
-                                        scaleY = (vw.toFloat() / videoAspect) / vh.toFloat()
+                                        scaleX = (vh.toFloat() * (16f / 9f)) / vw.toFloat()
                                     }
+
+                                    // Scale factor: 1.05f to make bugdroid significantly larger and prominent in the frame
+                                    scaleX *= 1.05f
+                                    scaleY *= 1.05f
 
                                     matrix.setScale(scaleX, scaleY, vw / 2f, vh / 2f)
                                     tv.setTransform(matrix)
@@ -8944,7 +8944,7 @@ fun BackupRestoreScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(260.dp)
+                        .height(340.dp)
                         .graphicsLayer {
                             renderEffect = cachedVideoRenderEffect
                         }

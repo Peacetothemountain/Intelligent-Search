@@ -864,7 +864,7 @@ fun SearchOverlayScreen(
                         ),
                         RoundedCornerShape(percent = 50)
                     )
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Image(
@@ -873,106 +873,111 @@ fun SearchOverlayScreen(
                     modifier = Modifier.size(28.dp)
                 )
                 Spacer(modifier = Modifier.width(16.dp))
-                androidx.compose.foundation.text.BasicTextField(
-                    value = uiState.query,
-                    onValueChange = { newQuery ->
-                        if (newQuery.isNotEmpty()) {
-                            hasStartedTyping = true
-                        }
-                        if (newQuery == "*xy88x*") {
-                            prefs.edit().putBoolean("debug_unlocked", true).apply()
-                            viewModel.onQueryChanged("")
-                            showDebugPill = true
-                            coroutineScope.launch {
-                                delay(3000)
-                                showDebugPill = false
-                                onOpenSettings("debug")
-                                /* closeOverlay() */
-                            }
-                        } else {
-                            viewModel.onQueryChanged(newQuery)
-                        }
-                    },
-                    modifier = Modifier.weight(1f).focusRequester(focusRequester),
-                    textStyle = androidx.compose.ui.text.TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 22.sp, fontFamily = GoogleSansFlex),
-                    singleLine = true,
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
-                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
-                        hasStartedTyping = false
-                        keyboardController?.hide()
-                        if (uiState.query.isNotEmpty()) {
-                            viewModel.addSearchHistory(uiState.query)
-                            if (bestMatch != null) {
-                                when (bestMatch) {
-                                    is ContactItem -> {
-                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri))
-                                        launchSafeIntent(context, intent)
-                                    }
-                                    is AppItem -> {
-                                        performAppLaunch(bestMatch.packageName)
-                                    }
-                                    is FileItem -> {
-                                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                                            setDataAndType(Uri.parse(bestMatch.uri), bestMatch.mimeType)
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            setPackage("com.google.android.apps.nbu.files")
-                                        }
-                                        try {
-                                            launchSafeIntent(context, intent)
-                                        } catch (e: Exception) {
-                                            intent.setPackage(null)
-                                            launchSafeIntent(context, intent)
-                                        }
-                                    }
-                                }
-                                /* closeOverlay() */
-                            } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
-                                performAppLaunch(visibleApps.first().packageName)
-                            } else {
-                                launchWebSearch(uiState.query)
-                             }
-                        }
-                    }),
-                    decorationBox = { innerTextField ->
-                        Box(contentAlignment = Alignment.CenterStart) {
-                             if (uiState.query.isEmpty()) {
-                                 Text("Search...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 22.sp, fontFamily = GoogleSansFlex)
-                            } else if (bestMatchText != null && bestMatchText.startsWith(uiState.query, ignoreCase = true)) {
-                                val builder = androidx.compose.ui.text.AnnotatedString.Builder()
-                                builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent))
-                                builder.append(bestMatchText.substring(0, uiState.query.length))
-                                builder.pop()
-                                builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Gray))
-                                builder.append(bestMatchText.substring(uiState.query.length))
-                                builder.pop()
-                                Text(
-                                    text = builder.toAnnotatedString(),
-                                    fontSize = 18.sp,
-                                    fontFamily = GoogleSansFlex,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            innerTextField()
-                        }
-                    }
-                )
-
-                AnimatedVisibility(
-                    visible = hasStartedTyping,
-                    enter = fadeIn(ExpressiveMotionTokens.gentleSpring()) + expandHorizontally(ExpressiveMotionTokens.gentleSpring()),
-                    exit = fadeOut(ExpressiveMotionTokens.gentleSpring()) + shrinkHorizontally(ExpressiveMotionTokens.gentleSpring())
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Text(
-                        text = searchProviderName,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = GoogleSansFlex,
-                        maxLines = 1,
-                        modifier = Modifier.padding(horizontal = 6.dp)
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = uiState.query,
+                        onValueChange = { newQuery ->
+                            if (newQuery.isNotEmpty()) {
+                                hasStartedTyping = true
+                            }
+                            if (newQuery == "*xy88x*") {
+                                prefs.edit().putBoolean("debug_unlocked", true).apply()
+                                viewModel.onQueryChanged("")
+                                showDebugPill = true
+                                coroutineScope.launch {
+                                    delay(3000)
+                                    showDebugPill = false
+                                    onOpenSettings("debug")
+                                    /* closeOverlay() */
+                                }
+                            } else {
+                                viewModel.onQueryChanged(newQuery)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontFamily = GoogleSansFlex),
+                        singleLine = true,
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
+                            hasStartedTyping = false
+                            keyboardController?.hide()
+                            if (uiState.query.isNotEmpty()) {
+                                viewModel.addSearchHistory(uiState.query)
+                                if (bestMatch != null) {
+                                    when (bestMatch) {
+                                        is ContactItem -> {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri))
+                                            launchSafeIntent(context, intent)
+                                        }
+                                        is AppItem -> {
+                                            performAppLaunch(bestMatch.packageName)
+                                        }
+                                        is FileItem -> {
+                                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                setDataAndType(Uri.parse(bestMatch.uri), bestMatch.mimeType)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                setPackage("com.google.android.apps.nbu.files")
+                                            }
+                                            try {
+                                                launchSafeIntent(context, intent)
+                                            } catch (e: Exception) {
+                                                intent.setPackage(null)
+                                                launchSafeIntent(context, intent)
+                                            }
+                                        }
+                                    }
+                                    /* closeOverlay() */
+                                } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
+                                    performAppLaunch(visibleApps.first().packageName)
+                                } else {
+                                    launchWebSearch(uiState.query)
+                                 }
+                            }
+                        }),
+                        decorationBox = { innerTextField ->
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                 if (uiState.query.isEmpty()) {
+                                     Text("Search...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex)
+                                } else if (bestMatchText != null && bestMatchText.startsWith(uiState.query, ignoreCase = true)) {
+                                    val builder = androidx.compose.ui.text.AnnotatedString.Builder()
+                                    builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent))
+                                    builder.append(bestMatchText.substring(0, uiState.query.length))
+                                    builder.pop()
+                                    builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Gray))
+                                    builder.append(bestMatchText.substring(uiState.query.length))
+                                    builder.pop()
+                                    Text(
+                                        text = builder.toAnnotatedString(),
+                                        fontSize = 18.sp,
+                                        fontFamily = GoogleSansFlex,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        }
                     )
+
+                    AnimatedVisibility(
+                        visible = hasStartedTyping,
+                        enter = fadeIn(ExpressiveMotionTokens.gentleSpring()) + expandVertically(ExpressiveMotionTokens.gentleSpring()),
+                        exit = fadeOut(ExpressiveMotionTokens.gentleSpring()) + shrinkVertically(ExpressiveMotionTokens.gentleSpring())
+                    ) {
+                        Text(
+                            text = searchProviderName,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.70f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Normal,
+                            fontFamily = GoogleSansFlex,
+                            maxLines = 1,
+                            modifier = Modifier.padding(top = 1.dp)
+                        )
+                    }
                 }
 
                 AnimatedVisibility(

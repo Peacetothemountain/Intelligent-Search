@@ -42,6 +42,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -8660,6 +8661,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
 }
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BackupRestoreScreen(
@@ -8670,6 +8672,52 @@ fun BackupRestoreScreen(
     val activity = context as? android.app.Activity
     val viewModel = LocalSettingsViewModel.current
     val hapticEngine = remember { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
+
+    val backupExoPlayer = remember(context) {
+        val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.gemini_generated_video_2209818f)
+        val mediaItem = androidx.media3.common.MediaItem.Builder()
+            .setUri(uri)
+            .setClippingConfiguration(
+                androidx.media3.common.MediaItem.ClippingConfiguration.Builder()
+                    .setStartPositionMs(0L)
+                    .setEndPositionMs(8000L)
+                    .build()
+            )
+            .build()
+        val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
+        androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+            setMediaSource(mediaSource)
+            repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+            volume = 0f
+            prepare()
+            playWhenReady = true
+        }
+    }
+
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, backupExoPlayer) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                backupExoPlayer.play()
+            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                backupExoPlayer.pause()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            backupExoPlayer.release()
+        }
+    }
+
+    LaunchedEffect(backupExoPlayer) {
+        while (isActive) {
+            if (backupExoPlayer.currentPosition >= 8000L) {
+                backupExoPlayer.seekTo(0L)
+            }
+            delay(100L)
+        }
+    }
 
     var passphrase by remember { mutableStateOf("") }
     var usePasswordProtection by remember { mutableStateOf(true) }
@@ -8811,6 +8859,113 @@ fun BackupRestoreScreen(
                         Text("Select Backup to Restore", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                val shaderSrc = """
+                    uniform shader content;
+                    vec4 main(vec2 coords) {
+                        vec4 color = content.eval(coords);
+                        float maxVal = max(color.r, max(color.g, color.b));
+                        if (maxVal < 0.16) {
+                            return vec4(0.0, 0.0, 0.0, 0.0);
+                        }
+                        if (maxVal < 0.28) {
+                            float t = (maxVal - 0.16) / 0.12;
+                            return color * t;
+                        }
+                        return color;
+                    }
+                """.trimIndent()
+
+                val cachedVideoRenderEffect = remember(shaderSrc) {
+                    if (android.os.Build.VERSION.SDK_INT >= 33) {
+                        val shader = android.graphics.RuntimeShader(shaderSrc)
+                        val frameworkEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content")
+                        frameworkEffect.asComposeRenderEffect()
+                    } else null
+                }
+
+                androidx.compose.ui.viewinterop.AndroidView(
+                    factory = { ctx ->
+                        android.view.TextureView(ctx).apply {
+                            val adjustAspectRatio: (android.view.TextureView) -> Unit = { tv ->
+                                val vw = tv.width
+                                val vh = tv.height
+                                if (vw > 0 && vh > 0) {
+                                    val matrix = android.graphics.Matrix()
+                                    val videoAspect = 1280f / 720f
+                                    val viewAspect = vw.toFloat() / vh.toFloat()
+                                    var scaleX = 1f
+                                    var scaleY = 1f
+                                    if (viewAspect > videoAspect) {
+                                        scaleY = (vw.toFloat() / 1280f * 720f) / vh.toFloat()
+                                    } else {
+                                        scaleX = (vh.toFloat() / 720f * 1280f) / vw.toFloat()
+                                    }
+
+                                    // Scale down / Zoom out (0.70f scale factor) matching original bugdroid video
+                                    scaleX *= 0.70f
+                                    scaleY *= 0.70f
+
+                                    matrix.setScale(scaleX, scaleY, vw / 2f, vh / 2f)
+                                    tv.setTransform(matrix)
+                                }
+                            }
+
+                            var currentSurface: android.view.Surface? = null
+
+                            surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
+                                override fun onSurfaceTextureAvailable(
+                                    surfaceTexture: android.graphics.SurfaceTexture,
+                                    width: Int,
+                                    height: Int
+                                ) {
+                                    val surface = android.view.Surface(surfaceTexture)
+                                    currentSurface = surface
+                                    backupExoPlayer.setVideoSurface(surface)
+                                    adjustAspectRatio(this@apply)
+                                }
+
+                                override fun onSurfaceTextureSizeChanged(
+                                    surfaceTexture: android.graphics.SurfaceTexture,
+                                    width: Int,
+                                    height: Int
+                                ) {
+                                    adjustAspectRatio(this@apply)
+                                }
+
+                                override fun onSurfaceTextureDestroyed(
+                                    surfaceTexture: android.graphics.SurfaceTexture
+                                ): Boolean {
+                                    currentSurface?.let {
+                                        backupExoPlayer.clearVideoSurface(it)
+                                        it.release()
+                                    }
+                                    currentSurface = null
+                                    return true
+                                }
+
+                                override fun onSurfaceTextureUpdated(
+                                    surfaceTexture: android.graphics.SurfaceTexture
+                                ) {}
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .height(220.dp)
+                        .width(200.dp)
+                        .graphicsLayer {
+                            renderEffect = cachedVideoRenderEffect
+                        }
+                )
             }
         }
     }

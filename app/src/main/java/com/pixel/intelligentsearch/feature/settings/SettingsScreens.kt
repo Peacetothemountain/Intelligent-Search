@@ -2286,50 +2286,88 @@ fun MainSettingsScreen(
                     subtitle = browserHistorySubtitle,
                     icon = Icons.Outlined.HistoryEdu,
                     onClick = {
-                        val chromeUri = android.net.Uri.parse("chrome://settings/clearBrowserData")
-                        val intent = when (searchEngine) {
-                            "Google" -> {
-                                Intent(Intent.ACTION_VIEW, chromeUri).apply {
-                                    setPackage("com.android.chrome")
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                            }
+                        when (searchEngine) {
                             "Bing" -> {
-                                Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.bing.com/profile/history")).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.bing.com/profile/history")).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
                                 }
                             }
                             "DuckDuckGo" -> {
-                                val ddgIntent = context.packageManager.getLaunchIntentForPackage("com.duckduckgo.mobile.android")
-                                ddgIntent?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                                    ?: Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://duckduckgo.com")).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
+                                try {
+                                    val ddgIntent = context.packageManager.getLaunchIntentForPackage("com.duckduckgo.mobile.android")
+                                    val intent = ddgIntent?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                                        ?: Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://duckduckgo.com")).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
                             }
                             else -> {
-                                Intent(Intent.ACTION_VIEW, chromeUri).apply {
-                                    setPackage("com.android.chrome")
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                            }
-                        }
-                        try {
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            // Fallback if specific package or custom scheme needs generic intent
-                            try {
-                                val fallbackIntent = Intent(Intent.ACTION_VIEW, chromeUri).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                context.startActivity(fallbackIntent)
-                            } catch (e2: Exception) {
+                                val clearDataUrl = "chrome://settings/clearBrowserData"
+                                var launched = false
+                                // 1. Try googlechrome://navigate?url=chrome://settings/clearBrowserData targeting Chrome
                                 try {
-                                    val webFallback = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity?product=6")).apply {
+                                    val navIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("googlechrome://navigate?url=$clearDataUrl")).apply {
+                                        setPackage("com.android.chrome")
                                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                     }
-                                    context.startActivity(webFallback)
-                                } catch (e3: Exception) {
-                                    e3.printStackTrace()
+                                    context.startActivity(navIntent)
+                                    launched = true
+                                } catch (e: Exception) {}
+
+                                // 2. Try generic googlechrome:// navigate
+                                if (!launched) {
+                                    try {
+                                        val genericNavIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("googlechrome://navigate?url=$clearDataUrl")).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(genericNavIntent)
+                                        launched = true
+                                    } catch (e: Exception) {}
+                                }
+
+                                // 3. Try Chrome Launcher Activity directly with chrome:// URI
+                                if (!launched) {
+                                    try {
+                                        val launcherIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(clearDataUrl)).apply {
+                                            component = android.content.ComponentName("com.android.chrome", "org.chromium.chrome.browser.document.ChromeLauncherActivity")
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(launcherIntent)
+                                        launched = true
+                                    } catch (e: Exception) {}
+                                }
+
+                                // 4. Try Chrome launch intent with data
+                                if (!launched) {
+                                    try {
+                                        val launchIntent = context.packageManager.getLaunchIntentForPackage("com.android.chrome")
+                                        if (launchIntent != null) {
+                                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            launchIntent.data = android.net.Uri.parse(clearDataUrl)
+                                            context.startActivity(launchIntent)
+                                            launched = true
+                                        }
+                                    } catch (e: Exception) {}
+                                }
+
+                                // 5. Fallback to Google preferences (never myactivity)
+                                if (!launched) {
+                                    try {
+                                        val fallback = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com/preferences")).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(fallback)
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
                                 }
                             }
                         }
@@ -5608,6 +5646,13 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localSlotOrderStr by remember { mutableStateOf(prefs.getString("widget_shortcut_order", defaultSlotOrder) ?: defaultSlotOrder) }
     var activeShortcutSlot by remember { mutableIntStateOf(1) }
     var draggingSlotKey by remember { mutableStateOf<String?>(null) }
+    val view = androidx.compose.ui.platform.LocalView.current
+    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
+    val coroutineScope = rememberCoroutineScope()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    var slotItemHeightPx by remember { mutableFloatStateOf(with(density) { 84.dp.toPx() }) }
+    var itemDragOffset by remember { mutableFloatStateOf(0f) }
+    var selectedTab by remember { mutableIntStateOf(0) }
 
     Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
@@ -5617,8 +5662,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
-                    val view = androidx.compose.ui.platform.LocalView.current
-                    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
                     androidx.compose.material3.TextButton(onClick = {
                         hapticEngine.performPredictiveBackHaptic(view)
                         localShowGIcon = true
@@ -5676,15 +5719,13 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState(), enabled = draggingSlotKey == null)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Live Preview Card
+            // Live Preview Card (Pinned at the top for real-time visual feedback)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .height(150.dp)
                     .clip(RoundedCornerShape(24.dp))
                     .background(MaterialTheme.colorScheme.background),
                 contentAlignment = Alignment.Center
@@ -5906,320 +5947,305 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
             }
 
-            // G Icon options
-            SettingsCard {
-                SettingsRowToggle(
-                    title = "Display G Icon",
-                    subtitle = "Show Google Logo on Search Bar Widget.",
-                    icon = null,
-                    customIcon = {
-                        if (localThemeStyle == "System Default") {
-                            Image(
-                                painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_g_logo_colored),
-                                contentDescription = "G Icon",
-                                modifier = Modifier.size(24.dp)
-                            )
-                        } else {
-                            ComposeGIcon(
-                                modifier = Modifier.size(24.dp),
-                                primaryColor = MaterialTheme.colorScheme.primary,
-                                secondaryColor = MaterialTheme.colorScheme.secondary,
-                                tertiaryColor = MaterialTheme.colorScheme.tertiary,
-                                isAccented = false,
-                                useOriginalColors = false
-                            )
-                        }
-                    },
-                    isChecked = localShowGIcon,
-                    onCheckedChange = { localShowGIcon = it },
-                    showDivider = true
-                )
-            }
+            // Material 3 Expressive Segmented Tab Bar
+            val tabs = listOf(
+                Pair("Appearance", Icons.Outlined.Palette),
+                Pair("Color Studio", Icons.Outlined.Tune),
+                Pair("Shortcuts & Mic", Icons.Outlined.Widgets)
+            )
 
-            // Theme Buttons
-            SettingsCard {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val isSystem = localThemeStyle == "System Default"
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(if (isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
-                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "System Default"; localSubtheme = "System" },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("System Design", style = MaterialTheme.typography.labelLarge, color = if (isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(if (!isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
-                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "Material You (Minimal)"; localSubtheme = "Material" },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("Material Design", style = MaterialTheme.typography.labelLarge, color = if (!isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-
-            // Floating Theme Pills
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                if (localThemeStyle == "System Default") {
-                    val systemOpts = listOf("System", "Light", "Dark", "Custom")
-                    systemOpts.forEach { opt ->
-                        val isSel = localSubtheme == opt
-                        val dynColor = androidx.compose.ui.graphics.Color(localCustomColorInt)
-                        val bgModifier = if (opt == "Custom") {
-                            if (isSel) {
-                                Modifier.background(dynColor, RoundedCornerShape(32.dp))
-                            } else {
-                                Modifier.background(
-                                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                        colors = listOf(
-                                            dynColor.copy(alpha = 0.5f),
-                                            dynColor
-                                        )
-                                    ),
-                                    shape = RoundedCornerShape(32.dp)
-                                )
-                            }
-                        } else {
-                            Modifier.background(if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f), RoundedCornerShape(32.dp))
-                        }
-                        
-                        val borderMod = Modifier
-                        
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .then(bgModifier)
-                                .then(borderMod)
-                                .clip(RoundedCornerShape(32.dp))
-                                .bouncyClickable(shape = RoundedCornerShape(32.dp)) { localSubtheme = opt },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val textColor = if (isSel) {
-                                if (opt == "Custom") {
-                                    val luminance = (0.299 * dynColor.red + 0.587 * dynColor.green + 0.114 * dynColor.blue)
-                                    if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
-                                } else MaterialTheme.colorScheme.onPrimaryContainer
-                            } else if (opt == "Custom") {
-                                androidx.compose.ui.graphics.Color.White
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                            Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor)
-                        }
-                    }
-                } else {
-                    val matOpts = listOf("Material", "Custom")
-                    matOpts.forEach { opt ->
-                        val isSel = localSubtheme == opt
-                        val dynColor = androidx.compose.ui.graphics.Color(localCustomColorInt)
-                        val bgModifier = if (opt == "Custom") {
-                            if (isSel) {
-                                Modifier.background(dynColor, RoundedCornerShape(32.dp))
-                            } else {
-                                Modifier.background(
-                                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                        colors = listOf(
-                                            dynColor.copy(alpha = 0.5f),
-                                            dynColor
-                                        )
-                                    ),
-                                    shape = RoundedCornerShape(32.dp)
-                                )
-                            }
-                        } else {
-                            Modifier.background(if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f), RoundedCornerShape(32.dp))
-                        }
-                        val borderMod = Modifier
-                        
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .then(bgModifier)
-                                .then(borderMod)
-                                .clip(RoundedCornerShape(32.dp))
-                                .bouncyClickable(shape = RoundedCornerShape(32.dp)) { localSubtheme = opt },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val textColor = if (isSel) {
-                                if (opt == "Custom") {
-                                    val luminance = (0.299 * dynColor.red + 0.587 * dynColor.green + 0.114 * dynColor.blue)
-                                    if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
-                                } else MaterialTheme.colorScheme.onPrimaryContainer
-                            } else if (opt == "Custom") {
-                                androidx.compose.ui.graphics.Color.White
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                            Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor)
-                        }
-                    }
-                }
-            }
-
-            if (localSubtheme == "Custom") {
-                // Material G Icon Row
-                SettingsCard {
-                    Row(
+                tabs.forEachIndexed { index, tab ->
+                    val isSel = selectedTab == index
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp)
-                            .padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .weight(1f)
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(
+                                if (isSel) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                            )
+                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
+                                hapticEngine.performPredictiveBackHaptic(view)
+                                selectedTab = index
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
-                        val opts = listOf("System G Icon", "Material G Icon", "Accented G Icon")
-                        opts.forEach { opt ->
-                            val isSel = localMaterialGIconTheme == opt
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(androidx.compose.foundation.shape.CircleShape)
-                                    .background(if (isSel) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
-                                    .bouncyClickable(shape = androidx.compose.foundation.shape.CircleShape) { localMaterialGIconTheme = opt },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(opt, style = MaterialTheme.typography.labelSmall, color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = tab.second,
+                                contentDescription = tab.first,
+                                tint = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = tab.first,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
             }
 
-            if (localSubtheme == "Custom") {
-                // Sliders Card
-                SettingsCard {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        // Hue
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.Palette, contentDescription = "Hue", tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Hue", fontSize = 16.sp, color = androidx.compose.ui.graphics.Color.White)
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Text("${localHue.toInt()}%", fontSize = 14.sp, color = androidx.compose.ui.graphics.Color.White)
-                                }
-                                Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
-                                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                        colors = listOf(
-                                            androidx.compose.ui.graphics.Color.Red,
-                                            androidx.compose.ui.graphics.Color.Yellow,
-                                            androidx.compose.ui.graphics.Color.Green,
-                                            androidx.compose.ui.graphics.Color.Cyan,
-                                            androidx.compose.ui.graphics.Color.Blue,
-                                            androidx.compose.ui.graphics.Color.Magenta,
-                                            androidx.compose.ui.graphics.Color.Red
+            // Scrollable Content for Active Tab
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState(), enabled = draggingSlotKey == null)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                when (selectedTab) {
+                    0 -> {
+                        // TAB 0: APPEARANCE
+                        // G Icon options
+                        SettingsCard {
+                            SettingsRowToggle(
+                                title = "Display G Icon",
+                                subtitle = "Show Google Logo on Search Bar Widget.",
+                                icon = null,
+                                customIcon = {
+                                    if (localThemeStyle == "System Default") {
+                                        Image(
+                                            painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_g_logo_colored),
+                                            contentDescription = "G Icon",
+                                            modifier = Modifier.size(24.dp)
                                         )
-                                    ),
-                                    shape = RoundedCornerShape(8.dp)
-                                )) {
-                                    Android17Slider(
-                                        showTrack = false,
-                                        value = localHue,
-                                        onValueChange = { 
-                                            localHue = it 
-                                            localCustomColorInt = android.graphics.Color.HSVToColor((localColorOpacity / 100f * 255).toInt().coerceIn(0, 255), floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
-                                        },
-                                        valueRange = 0f..360f,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
+                                    } else {
+                                        ComposeGIcon(
+                                            modifier = Modifier.size(24.dp),
+                                            primaryColor = MaterialTheme.colorScheme.primary,
+                                            secondaryColor = MaterialTheme.colorScheme.secondary,
+                                            tertiaryColor = MaterialTheme.colorScheme.tertiary,
+                                            isAccented = false,
+                                            useOriginalColors = false
+                                        )
+                                    }
+                                },
+                                isChecked = localShowGIcon,
+                                onCheckedChange = { localShowGIcon = it },
+                                showDivider = true
+                            )
+                        }
+
+                        // Theme Buttons
+                        SettingsCard {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val isSystem = localThemeStyle == "System Default"
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .background(if (isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
+                                        .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "System Default"; localSubtheme = "System" },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("System Design", style = MaterialTheme.typography.labelLarge, color = if (isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .background(if (!isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
+                                        .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "Material You (Minimal)"; localSubtheme = "Material" },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("Material Design", style = MaterialTheme.typography.labelLarge, color = if (!isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
-                        
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        // Saturation
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.WaterDrop, contentDescription = "Saturation", tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Saturation", fontSize = 16.sp, color = androidx.compose.ui.graphics.Color.White)
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Text("${localSaturation.toInt()}%", fontSize = 14.sp, color = androidx.compose.ui.graphics.Color.White)
+
+                        // Floating Theme Pills
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (localThemeStyle == "System Default") {
+                                val systemOpts = listOf("System", "Light", "Dark", "Custom")
+                                systemOpts.forEach { opt ->
+                                    val isSel = localSubtheme == opt
+                                    val dynColor = androidx.compose.ui.graphics.Color(localCustomColorInt)
+                                    val bgModifier = if (opt == "Custom") {
+                                        if (isSel) {
+                                            Modifier.background(dynColor, RoundedCornerShape(32.dp))
+                                        } else {
+                                            Modifier.background(
+                                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                    colors = listOf(
+                                                        dynColor.copy(alpha = 0.5f),
+                                                        dynColor
+                                                    )
+                                                ),
+                                                shape = RoundedCornerShape(32.dp)
+                                            )
+                                        }
+                                    } else {
+                                        Modifier.background(if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f), RoundedCornerShape(32.dp))
+                                    }
+                                    
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp)
+                                            .then(bgModifier)
+                                            .clip(RoundedCornerShape(32.dp))
+                                            .bouncyClickable(shape = RoundedCornerShape(32.dp)) { localSubtheme = opt },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        val textColor = if (isSel) {
+                                            if (opt == "Custom") {
+                                                val luminance = (0.299 * dynColor.red + 0.587 * dynColor.green + 0.114 * dynColor.blue)
+                                                if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+                                            } else MaterialTheme.colorScheme.onPrimaryContainer
+                                        } else if (opt == "Custom") {
+                                            androidx.compose.ui.graphics.Color.White
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        }
+                                        Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor)
+                                    }
                                 }
-                                Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
-                                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                        colors = listOf(
-                                            androidx.compose.ui.graphics.Color.White,
-                                            androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(localHue, 1f, 1f)))
-                                        )
-                                    ),
-                                    shape = RoundedCornerShape(8.dp)
-                                )) {
-                                    Android17Slider(
-                                        showTrack = false,
-                                        value = localSaturation,
-                                        onValueChange = { 
-                                            localSaturation = it 
-                                            localCustomColorInt = android.graphics.Color.HSVToColor((localColorOpacity / 100f * 255).toInt().coerceIn(0, 255), floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
-                                        },
-                                        valueRange = 0f..100f,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
+                            } else {
+                                val matOpts = listOf("Material", "Custom")
+                                matOpts.forEach { opt ->
+                                    val isSel = localSubtheme == opt
+                                    val dynColor = androidx.compose.ui.graphics.Color(localCustomColorInt)
+                                    val bgModifier = if (opt == "Custom") {
+                                        if (isSel) {
+                                            Modifier.background(dynColor, RoundedCornerShape(32.dp))
+                                        } else {
+                                            Modifier.background(
+                                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                    colors = listOf(
+                                                        dynColor.copy(alpha = 0.5f),
+                                                        dynColor
+                                                    )
+                                                ),
+                                                shape = RoundedCornerShape(32.dp)
+                                            )
+                                        }
+                                    } else {
+                                        Modifier.background(if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f), RoundedCornerShape(32.dp))
+                                    }
+                                    
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp)
+                                            .then(bgModifier)
+                                            .clip(RoundedCornerShape(32.dp))
+                                            .bouncyClickable(shape = RoundedCornerShape(32.dp)) { localSubtheme = opt },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        val textColor = if (isSel) {
+                                            if (opt == "Custom") {
+                                                val luminance = (0.299 * dynColor.red + 0.587 * dynColor.green + 0.114 * dynColor.blue)
+                                                if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+                                            } else MaterialTheme.colorScheme.onPrimaryContainer
+                                        } else if (opt == "Custom") {
+                                            androidx.compose.ui.graphics.Color.White
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        }
+                                        Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor)
+                                    }
                                 }
                             }
                         }
-                        
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        // Color Opacity
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.Contrast, contentDescription = "Color Opacity", tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Color Opacity", fontSize = 16.sp, color = androidx.compose.ui.graphics.Color.White)
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Text("${localColorOpacity.toInt()}%", fontSize = 14.sp, color = androidx.compose.ui.graphics.Color.White)
-                                }
-                                Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
-                                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                        colors = listOf(
-                                            androidx.compose.ui.graphics.Color.Transparent,
-                                            androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(localHue, localSaturation / 100f, 1f)))
-                                        )
-                                    ),
-                                    shape = RoundedCornerShape(8.dp)
-                                )) {
-                                    Android17Slider(
-                                        value = localColorOpacity,
-                                        onValueChange = { 
-                                            localColorOpacity = it 
-                                            localCustomColorInt = android.graphics.Color.HSVToColor((localColorOpacity / 100f * 255).toInt().coerceIn(0, 255), floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
-                                        },
-                                        valueRange = 0f..100f,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        showTrack = false
-                                    )
+
+                        if (localSubtheme == "Custom") {
+                            // Material G Icon Row
+                            SettingsCard {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(56.dp)
+                                        .padding(4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val opts = listOf("System G Icon", "Material G Icon", "Accented G Icon")
+                                    opts.forEach { opt ->
+                                        val isSel = localMaterialGIconTheme == opt
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .fillMaxHeight()
+                                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                                .background(if (isSel) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+                                                .bouncyClickable(shape = androidx.compose.foundation.shape.CircleShape) { localMaterialGIconTheme = opt },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(opt, style = MaterialTheme.typography.labelSmall, color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
                                 }
                             }
                         }
-                        
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        // Transparency Slider (Widget Container Transparency)
+
+                        val isMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
+                        if (isMaterialYou) {
+                            Text("WIDGET ACTIONS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
+                            SettingsCard {
+                                SettingsDropdownRow(
+                                    title = "Widget Action Icon",
+                                    subtitle = localActionIcon,
+                                    iconContent = {
+                                        if (localActionIcon == "None") {
+                                            Icon(Icons.Default.Close, contentDescription = "None", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        } else {
+                                            ComposeActionIcon(
+                                                iconType = localActionIcon,
+                                                modifier = Modifier.size(24.dp),
+                                                primaryColor = MaterialTheme.colorScheme.primary,
+                                                secondaryColor = MaterialTheme.colorScheme.secondary,
+                                                tertiaryColor = MaterialTheme.colorScheme.tertiary
+                                            )
+                                        }
+                                    },
+                                    options = listOf("None", "Search", "Assistant", "Now Playing"),
+                                    selectedOption = if (localActionIcon == "Gemini") "Assistant" else localActionIcon,
+                                    onOptionSelected = { localActionIcon = it },
+                                    showDivider = false,
+                                    optionIcons = mapOf(
+                                        "Search" to com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive,
+                                        "Assistant" to com.pixel.intelligentsearch.R.drawable.ic_lens_action,
+                                        "Now Playing" to com.pixel.intelligentsearch.R.drawable.ic_music
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    1 -> {
+                        // TAB 1: COLOR STUDIO
                         val dynamicCustomColor = androidx.compose.ui.graphics.Color(localCustomColorInt)
                         val transparencyTrackGradient = remember(localCustomColorInt) {
                             listOf(
@@ -6231,346 +6257,432 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.85f)
                             )
                         }
-                        
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.Opacity, contentDescription = "Transparency", tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Transparency", fontSize = 16.sp, color = androidx.compose.ui.graphics.Color.White)
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Text("${localTransparency.toInt()}%", fontSize = 14.sp, color = androidx.compose.ui.graphics.Color.White)
-                                }
-                                Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
-                                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                        colors = transparencyTrackGradient
-                                    ),
-                                    shape = RoundedCornerShape(8.dp)
-                                )) {
-                                    Android17Slider(
-                                        value = localTransparency,
-                                        onValueChange = { localTransparency = it },
-                                        valueRange = 0f..100f,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        showTrack = false
-                                    )
-                                }
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        // Hex Color Box
-                        val customColorHex = String.format("#%06X", (0xFFFFFF and localCustomColorInt))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .clickable {
-                                    tempHexInput = customColorHex
-                                    showHexInput = true
-                                }
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Tag, contentDescription = "Hex Color", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Text(customColorHex, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(modifier = Modifier.weight(1f))
-                            Icon(Icons.Default.Edit, contentDescription = "Edit Hex", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                        }
-                        
-                        if (localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design") {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .clickable { localLockBlack = !localLockBlack }
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Material Design Inner Pill and Circle Color State", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("Force Inner Pill and Circle to be Hex #121212", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
-                                }
-                                androidx.compose.material3.Switch(
-                                    checked = localLockBlack,
-                                    onCheckedChange = { localLockBlack = it },
-                                    colors = androidx.compose.material3.SwitchDefaults.colors(
-                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                                        uncheckedThumbColor = MaterialTheme.colorScheme.outline,
-                                        uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
 
-            val isMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
-            if (isMaterialYou) {
-                Text("WIDGET ACTIONS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
-                SettingsCard {
-                    SettingsDropdownRow(
-                        title = "Widget Action Icon",
-                        subtitle = localActionIcon,
-                        iconContent = {
-                            if (localActionIcon == "None") {
-                                Icon(Icons.Default.Close, contentDescription = "None", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            } else {
-                                ComposeActionIcon(
-                                    iconType = localActionIcon,
-                                    modifier = Modifier.size(24.dp),
-                                    primaryColor = MaterialTheme.colorScheme.primary,
-                                    secondaryColor = MaterialTheme.colorScheme.secondary,
-                                    tertiaryColor = MaterialTheme.colorScheme.tertiary
-                                )
-                            }
-                        },
-                        options = listOf("None", "Search", "Assistant", "Now Playing"),
-                        selectedOption = if (localActionIcon == "Gemini") "Assistant" else localActionIcon,
-                        onOptionSelected = { localActionIcon = it },
-                        showDivider = false,
-                        optionIcons = mapOf(
-                            "Search" to com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive,
-                            "Assistant" to com.pixel.intelligentsearch.R.drawable.ic_lens_action,
-                            "Now Playing" to com.pixel.intelligentsearch.R.drawable.ic_music
-                        )
-                    )
-                }
-            }
-                Text("WIDGET SHORTCUTS & MICROPHONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp))
-                
-                var itemDragOffset by remember { mutableFloatStateOf(0f) }
-                val coroutineScope = rememberCoroutineScope()
-                val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
-                val view = androidx.compose.ui.platform.LocalView.current
-                val density = androidx.compose.ui.platform.LocalDensity.current
-                var slotItemHeightPx by remember { mutableFloatStateOf(with(density) { 84.dp.toPx() }) }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    val currentOrderList = localSlotOrderStr.split(",").filter { it.isNotBlank() }
-                    currentOrderList.forEach { slotKey ->
-                        key(slotKey) {
-                            val isDragging = draggingSlotKey == slotKey
-                            val elevation by androidx.compose.animation.core.animateDpAsState(
-                                targetValue = if (isDragging) 8.dp else 0.dp,
-                                label = "elevation"
-                            )
-                            val scale by androidx.compose.animation.core.animateFloatAsState(
-                                targetValue = if (isDragging) 1.03f else 1f,
-                                label = "scale"
-                            )
-                            val swipeOffsetX = remember { androidx.compose.animation.core.Animatable(0f) }
-
-                            val currentPositionIndex = currentOrderList.indexOf(slotKey)
-                            val cardTitle = when (slotKey) {
-                                "mic" -> "Microphone Slot:"
-                                else -> "Shortcut Slot: ${currentPositionIndex + 1}"
-                            }
-
-                            val cardSubtext = when (slotKey) {
-                                "mic" -> if (localShowVoice) "Voice Search" else "None"
-                                "shortcut1" -> localShortcut1
-                                "shortcut2" -> localShortcut2
-                                else -> localShortcut3
-                            }
-
-                            val cardIcon = when (slotKey) {
-                                "mic" -> if (localShowVoice) Icons.Default.Mic else Icons.Default.Close
-                                else -> shortcutOptions.find { it.first == cardSubtext }?.second ?: Icons.Default.Close
-                            }
-
-                            val cardModifier = if (isDragging) {
-                                Modifier
-                                    .zIndex(10f)
-                                    .graphicsLayer {
-                                        translationY = itemDragOffset
-                                        scaleX = scale
-                                        scaleY = scale
-                                    }
-                            } else {
-                                Modifier
-                                    .zIndex(0f)
-                                    .graphicsLayer {
-                                        translationX = swipeOffsetX.value
-                                        scaleX = scale
-                                        scaleY = scale
-                                    }
-                            }
-
-                            Box(
-                                modifier = cardModifier
-                                    .fillMaxWidth()
-                                    .onSizeChanged {
-                                        if (it.height > 0) {
-                                            slotItemHeightPx = it.height.toFloat() + with(density) { 12.dp.toPx() }
+                        SettingsCard {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(Icons.Default.Opacity, contentDescription = "Transparency", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Transparency", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            Text("${localTransparency.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
-                                    }
-                                    .pointerInput(slotKey, isDragging) {
-                                        if (!isDragging) {
-                                            detectHorizontalDragGestures(
-                                                onDragEnd = {
-                                                    coroutineScope.launch {
-                                                        if (kotlin.math.abs(swipeOffsetX.value) > 200f) {
-                                                            hapticEngine.performPredictiveBackHaptic(view)
-                                                            when (slotKey) {
-                                                                "mic" -> localShowVoice = false
-                                                                "shortcut1" -> localShortcut1 = "None"
-                                                                "shortcut2" -> localShortcut2 = "None"
-                                                                "shortcut3" -> localShortcut3 = "None"
-                                                            }
-                                                        }
-                                                        swipeOffsetX.animateTo(
-                                                            targetValue = 0f,
-                                                            animationSpec = androidx.compose.animation.core.spring(
-                                                                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                                                                stiffness = androidx.compose.animation.core.Spring.StiffnessLow
-                                                            )
-                                                        )
-                                                    }
-                                                },
-                                                onDragCancel = {
-                                                    coroutineScope.launch {
-                                                        swipeOffsetX.animateTo(
-                                                            targetValue = 0f,
-                                                            animationSpec = androidx.compose.animation.core.spring(
-                                                                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                                                                stiffness = androidx.compose.animation.core.Spring.StiffnessLow
-                                                            )
-                                                        )
-                                                    }
-                                                },
-                                                onHorizontalDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, dragAmount: Float ->
-                                                    change.consume()
-                                                    coroutineScope.launch {
-                                                        swipeOffsetX.snapTo(swipeOffsetX.value + dragAmount)
-                                                    }
-                                                }
+                                        Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
+                                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                colors = transparencyTrackGradient
+                                            ),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )) {
+                                            Android17Slider(
+                                                value = localTransparency,
+                                                onValueChange = { localTransparency = it },
+                                                valueRange = 0f..100f,
+                                                modifier = Modifier.fillMaxWidth(),
+                                                showTrack = false
                                             )
                                         }
                                     }
-                            ) {
-                                Surface(
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Hex Color Box
+                                val customColorHex = String.format("#%06X", (0xFFFFFF and localCustomColorInt))
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .shadow(elevation, RoundedCornerShape(24.dp))
-                                        .clip(RoundedCornerShape(24.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
-                                    color = Color.Transparent
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        .clickable {
+                                            tempHexInput = customColorHex
+                                            showHexInput = true
+                                        }
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    Icon(Icons.Default.Tag, contentDescription = "Hex Color", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Text(customColorHex, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit Hex", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                                }
+
+                                val isMaterialDesign = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
+                                if (isMaterialDesign) {
+                                    Spacer(modifier = Modifier.height(16.dp))
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .clickable { localLockBlack = !localLockBlack }
                                             .padding(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clickable {
-                                                    hapticEngine.performPredictiveBackHaptic(view)
-                                                    if (slotKey == "mic") {
-                                                        localShowVoice = !localShowVoice
-                                                    } else {
-                                                        activeShortcutSlot = when (slotKey) {
-                                                            "shortcut1" -> 1
-                                                            "shortcut2" -> 2
-                                                            else -> 3
-                                                        }
-                                                        showShortcutSheet = true
-                                                    }
-                                                }
-                                        ) {
-                                            Icon(
-                                                imageVector = cardIcon,
-                                                contentDescription = cardSubtext,
-                                                modifier = Modifier.size(36.dp),
-                                                tint = if (cardSubtext == "None") MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary
-                                            )
-                                            Spacer(modifier = Modifier.width(16.dp))
-                                            Column {
-                                                Text(
-                                                    text = cardTitle,
-                                                    color = MaterialTheme.colorScheme.onSurface,
-                                                    fontSize = 16.sp,
-                                                    fontWeight = FontWeight.Medium
-                                                )
-                                                Text(
-                                                    text = cardSubtext,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                                    fontSize = 12.sp
-                                                )
-                                            }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text("Material Design Inner Pill and Circle Color State", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text("Force Inner Pill and Circle to be Hex #121212", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                                         }
-
-                                        val currentSlot by rememberUpdatedState(slotKey)
-                                        Icon(
-                                            imageVector = Icons.Outlined.DragHandle,
-                                            contentDescription = "Drag to reorder",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                            modifier = Modifier.pointerInput(currentSlot) {
-                                                detectVerticalDragGestures(
-                                                    onDragStart = {
-                                                        hapticEngine.performPredictiveBackHaptic(view)
-                                                        draggingSlotKey = currentSlot
-                                                        itemDragOffset = 0f
-                                                    },
-                                                    onDragEnd = {
-                                                        draggingSlotKey = null
-                                                        itemDragOffset = 0f
-                                                    },
-                                                    onDragCancel = {
-                                                        draggingSlotKey = null
-                                                        itemDragOffset = 0f
-                                                    },
-                                                    onVerticalDrag = { change, dragAmount ->
-                                                        change.consume()
-                                                        itemDragOffset += dragAmount
-
-                                                        val currentDraggingSlot = draggingSlotKey ?: return@detectVerticalDragGestures
-                                                        val currentList = localSlotOrderStr.split(",").filter { it.isNotBlank() }
-                                                        val from = currentList.indexOf(currentDraggingSlot)
-                                                        val itemHeight = slotItemHeightPx
-
-                                                        if (from != -1 && itemHeight > 0f) {
-                                                            if (itemDragOffset > itemHeight / 2f && from < currentList.size - 1) {
-                                                                hapticEngine.performPredictiveBackHaptic(view)
-                                                                val updated = currentList.toMutableList()
-                                                                java.util.Collections.swap(updated, from, from + 1)
-                                                                localSlotOrderStr = updated.joinToString(",")
-                                                                itemDragOffset -= itemHeight
-                                                            } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
-                                                                hapticEngine.performPredictiveBackHaptic(view)
-                                                                val updated = currentList.toMutableList()
-                                                                java.util.Collections.swap(updated, from, from - 1)
-                                                                localSlotOrderStr = updated.joinToString(",")
-                                                                itemDragOffset += itemHeight
-                                                            }
-                                                        }
-                                                    }
-                                                )
-                                            }
+                                        androidx.compose.material3.Switch(
+                                            checked = localLockBlack,
+                                            onCheckedChange = { localLockBlack = it },
+                                            colors = androidx.compose.material3.SwitchDefaults.colors(
+                                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                                                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                                            )
                                         )
                                     }
                                 }
                             }
                         }
+
+                        // Sliders Card (Hue, Saturation, Color Opacity)
+                        Text("CUSTOM COLOR PALETTE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
+                        SettingsCard {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                // Hue
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(Icons.Default.Palette, contentDescription = "Hue", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Hue", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            Text("${localHue.toInt()}°", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                        Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
+                                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                colors = listOf(
+                                                    androidx.compose.ui.graphics.Color.Red,
+                                                    androidx.compose.ui.graphics.Color.Yellow,
+                                                    androidx.compose.ui.graphics.Color.Green,
+                                                    androidx.compose.ui.graphics.Color.Cyan,
+                                                    androidx.compose.ui.graphics.Color.Blue,
+                                                    androidx.compose.ui.graphics.Color.Magenta,
+                                                    androidx.compose.ui.graphics.Color.Red
+                                                )
+                                            ),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )) {
+                                            Android17Slider(
+                                                showTrack = false,
+                                                value = localHue,
+                                                onValueChange = { 
+                                                    localSubtheme = "Custom"
+                                                    localHue = it 
+                                                    localCustomColorInt = android.graphics.Color.HSVToColor((localColorOpacity / 100f * 255).toInt().coerceIn(0, 255), floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
+                                                },
+                                                valueRange = 0f..360f,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(24.dp))
+                                
+                                // Saturation
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(Icons.Default.WaterDrop, contentDescription = "Saturation", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Saturation", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            Text("${localSaturation.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                        Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
+                                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                colors = listOf(
+                                                    androidx.compose.ui.graphics.Color.White,
+                                                    androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(localHue, 1f, 1f)))
+                                                )
+                                            ),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )) {
+                                            Android17Slider(
+                                                showTrack = false,
+                                                value = localSaturation,
+                                                onValueChange = { 
+                                                    localSubtheme = "Custom"
+                                                    localSaturation = it 
+                                                    localCustomColorInt = android.graphics.Color.HSVToColor((localColorOpacity / 100f * 255).toInt().coerceIn(0, 255), floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
+                                                },
+                                                valueRange = 0f..100f,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(24.dp))
+                                
+                                // Color Opacity
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(Icons.Default.Contrast, contentDescription = "Color Opacity", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Color Opacity", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            Text("${localColorOpacity.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                        Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
+                                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                colors = listOf(
+                                                    androidx.compose.ui.graphics.Color.Transparent,
+                                                    androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(localHue, localSaturation / 100f, 1f)))
+                                                )
+                                            ),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )) {
+                                            Android17Slider(
+                                                value = localColorOpacity,
+                                                onValueChange = { 
+                                                    localSubtheme = "Custom"
+                                                    localColorOpacity = it 
+                                                    localCustomColorInt = android.graphics.Color.HSVToColor((localColorOpacity / 100f * 255).toInt().coerceIn(0, 255), floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
+                                                },
+                                                valueRange = 0f..100f,
+                                                modifier = Modifier.fillMaxWidth(),
+                                                showTrack = false
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    2 -> {
+                        // TAB 2: SHORTCUTS & MIC
+                        Text("WIDGET SHORTCUTS & MICROPHONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 4.dp))
+                        Text("Drag handle to reorder • Swipe to disable • Tap to customize", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            val currentOrderList = localSlotOrderStr.split(",").filter { it.isNotBlank() }
+                            currentOrderList.forEach { slotKey ->
+                                key(slotKey) {
+                                    val isDragging = draggingSlotKey == slotKey
+                                    val elevation by androidx.compose.animation.core.animateDpAsState(
+                                        targetValue = if (isDragging) 8.dp else 0.dp,
+                                        label = "elevation"
+                                    )
+                                    val scale by androidx.compose.animation.core.animateFloatAsState(
+                                        targetValue = if (isDragging) 1.03f else 1f,
+                                        label = "scale"
+                                    )
+                                    val swipeOffsetX = remember { androidx.compose.animation.core.Animatable(0f) }
+
+                                    val currentPositionIndex = currentOrderList.indexOf(slotKey)
+                                    val cardTitle = when (slotKey) {
+                                        "mic" -> "Microphone Slot:"
+                                        else -> "Shortcut Slot: ${currentPositionIndex + 1}"
+                                    }
+
+                                    val cardSubtext = when (slotKey) {
+                                        "mic" -> if (localShowVoice) "Voice Search" else "None"
+                                        "shortcut1" -> localShortcut1
+                                        "shortcut2" -> localShortcut2
+                                        else -> localShortcut3
+                                    }
+
+                                    val cardIcon = when (slotKey) {
+                                        "mic" -> if (localShowVoice) Icons.Default.Mic else Icons.Default.Close
+                                        else -> shortcutOptions.find { it.first == cardSubtext }?.second ?: Icons.Default.Close
+                                    }
+
+                                    val cardModifier = if (isDragging) {
+                                        Modifier
+                                            .zIndex(10f)
+                                            .graphicsLayer {
+                                                translationY = itemDragOffset
+                                                scaleX = scale
+                                                scaleY = scale
+                                            }
+                                    } else {
+                                        Modifier
+                                            .zIndex(0f)
+                                            .graphicsLayer {
+                                                translationX = swipeOffsetX.value
+                                                scaleX = scale
+                                                scaleY = scale
+                                            }
+                                    }
+
+                                    Box(
+                                        modifier = cardModifier
+                                            .fillMaxWidth()
+                                            .onSizeChanged {
+                                                if (it.height > 0) {
+                                                    slotItemHeightPx = it.height.toFloat() + with(density) { 12.dp.toPx() }
+                                                }
+                                            }
+                                            .pointerInput(slotKey, isDragging) {
+                                                if (!isDragging) {
+                                                    detectHorizontalDragGestures(
+                                                        onDragEnd = {
+                                                            coroutineScope.launch {
+                                                                if (kotlin.math.abs(swipeOffsetX.value) > 200f) {
+                                                                    hapticEngine.performPredictiveBackHaptic(view)
+                                                                    when (slotKey) {
+                                                                        "mic" -> localShowVoice = false
+                                                                        "shortcut1" -> localShortcut1 = "None"
+                                                                        "shortcut2" -> localShortcut2 = "None"
+                                                                        "shortcut3" -> localShortcut3 = "None"
+                                                                    }
+                                                                }
+                                                                swipeOffsetX.animateTo(
+                                                                    targetValue = 0f,
+                                                                    animationSpec = androidx.compose.animation.core.spring(
+                                                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                                                        stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                                                                    )
+                                                                )
+                                                            }
+                                                        },
+                                                        onDragCancel = {
+                                                            coroutineScope.launch {
+                                                                swipeOffsetX.animateTo(
+                                                                    targetValue = 0f,
+                                                                    animationSpec = androidx.compose.animation.core.spring(
+                                                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                                                        stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                                                                    )
+                                                                )
+                                                            }
+                                                        },
+                                                        onHorizontalDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, dragAmount: Float ->
+                                                            change.consume()
+                                                            coroutineScope.launch {
+                                                                swipeOffsetX.snapTo(swipeOffsetX.value + dragAmount)
+                                                            }
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                    ) {
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .shadow(elevation, RoundedCornerShape(24.dp))
+                                                .clip(RoundedCornerShape(24.dp))
+                                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
+                                            color = Color.Transparent
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(16.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .clickable {
+                                                            hapticEngine.performPredictiveBackHaptic(view)
+                                                            if (slotKey == "mic") {
+                                                                localShowVoice = !localShowVoice
+                                                            } else {
+                                                                activeShortcutSlot = when (slotKey) {
+                                                                    "shortcut1" -> 1
+                                                                    "shortcut2" -> 2
+                                                                    else -> 3
+                                                                }
+                                                                showShortcutSheet = true
+                                                            }
+                                                        }
+                                                ) {
+                                                    Icon(
+                                                        imageVector = cardIcon,
+                                                        contentDescription = cardSubtext,
+                                                        modifier = Modifier.size(36.dp),
+                                                        tint = if (cardSubtext == "None") MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary
+                                                    )
+                                                    Spacer(modifier = Modifier.width(16.dp))
+                                                    Column {
+                                                        Text(
+                                                            text = cardTitle,
+                                                            color = MaterialTheme.colorScheme.onSurface,
+                                                            fontSize = 16.sp,
+                                                            fontWeight = FontWeight.Medium
+                                                        )
+                                                        Text(
+                                                            text = cardSubtext,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                            fontSize = 12.sp
+                                                        )
+                                                    }
+                                                }
+
+                                                val currentSlot by rememberUpdatedState(slotKey)
+                                                Icon(
+                                                    imageVector = Icons.Outlined.DragHandle,
+                                                    contentDescription = "Drag to reorder",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                    modifier = Modifier.pointerInput(currentSlot) {
+                                                        detectVerticalDragGestures(
+                                                            onDragStart = {
+                                                                hapticEngine.performPredictiveBackHaptic(view)
+                                                                draggingSlotKey = currentSlot
+                                                                itemDragOffset = 0f
+                                                            },
+                                                            onDragEnd = {
+                                                                draggingSlotKey = null
+                                                                itemDragOffset = 0f
+                                                            },
+                                                            onDragCancel = {
+                                                                draggingSlotKey = null
+                                                                itemDragOffset = 0f
+                                                            },
+                                                            onVerticalDrag = { change, dragAmount ->
+                                                                change.consume()
+                                                                itemDragOffset += dragAmount
+
+                                                                val currentDraggingSlot = draggingSlotKey ?: return@detectVerticalDragGestures
+                                                                val currentList = localSlotOrderStr.split(",").filter { it.isNotBlank() }
+                                                                val from = currentList.indexOf(currentDraggingSlot)
+                                                                val itemHeight = slotItemHeightPx
+
+                                                                if (from != -1 && itemHeight > 0f) {
+                                                                    if (itemDragOffset > itemHeight / 2f && from < currentList.size - 1) {
+                                                                        hapticEngine.performPredictiveBackHaptic(view)
+                                                                        val updated = currentList.toMutableList()
+                                                                        java.util.Collections.swap(updated, from, from + 1)
+                                                                        localSlotOrderStr = updated.joinToString(",")
+                                                                        itemDragOffset -= itemHeight
+                                                                    } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
+                                                                        hapticEngine.performPredictiveBackHaptic(view)
+                                                                        val updated = currentList.toMutableList()
+                                                                        java.util.Collections.swap(updated, from, from - 1)
+                                                                        localSlotOrderStr = updated.joinToString(",")
+                                                                        itemDragOffset += itemHeight
+                                                                    }
+                                                                }
+                                                            }
+                                                        )
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
+            }
+        }
 
             if (showShortcutSheet) {
                 ModalBottomSheet(onDismissRequest = { showShortcutSheet = false }) {
@@ -6775,7 +6887,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             }
         }
     }
-}
+
 
 @Composable
 fun ComposeActionIcon(
@@ -6917,7 +7029,7 @@ fun Android17Slider(
             initialValue = 0f,
             targetValue = 2f * Math.PI.toFloat(),
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 2000, easing = LinearEasing),
+                animation = tween(durationMillis = 2400, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
             ),
             label = "phase"
@@ -7034,11 +7146,11 @@ fun Android17Slider(
 
                         val envelope = envLeft * envRight
 
-                        // Dual-harmonic superposition producing authentic undulating squiggles
+                        // Dual-harmonic integer superposition for seamless 2pi periodic boundary continuity
                         val wave1 = Math.sin(x * (2.0 * Math.PI / waveLength) - effectivePhase).toFloat()
-                        val wave2 = Math.sin(x * (2.0 * Math.PI / waveLength2) + effectivePhase * 1.35).toFloat()
-                        // Dynamic organic amplitude breathing
-                        val breathing = 0.85f + 0.15f * Math.cos(effectivePhase * 1.2 + x * 0.015).toFloat()
+                        val wave2 = Math.sin(x * (2.0 * Math.PI / waveLength2) + effectivePhase * 2.0).toFloat()
+                        // Dynamic organic amplitude breathing with integer harmonic cycle
+                        val breathing = 0.85f + 0.15f * Math.cos(effectivePhase + x * 0.015).toFloat()
 
                         val combinedWave = (wave1 * 0.78f + wave2 * 0.22f) * breathing
                         val y = centerY + combinedWave * baseAmplitude * envelope

@@ -249,7 +249,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 R.id.widget_shortcut_3
             )
 
-            val useMaterialYouIcons = isMaterialYou || effectiveIconTheme == "Material G Icon"
+            val useMaterialYouIcons = isMaterialYou || effectiveIconTheme == "Material G Icon" || isPillLight
             val activeItems = mutableListOf<Triple<String, Int, Intent>>()
             for (key in slotOrder) {
                 when (key) {
@@ -293,11 +293,15 @@ class SearchWidgetProvider : AppWidgetProvider() {
                         }
                         else -> {
                             // System G Icon
-                            if (item.first == "mic") {
-                                views.setColorStateList(targetViewId, "setImageTintList", null)
+                            if (isPillLight) {
+                                val materialDarkTint = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                    context.getColor(android.R.color.system_accent1_700)
+                                } else {
+                                    android.graphics.Color.parseColor("#1F1F1F")
+                                }
+                                views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(materialDarkTint))
                             } else {
-                                val sysTint = if (isPillLight) android.graphics.Color.parseColor("#5F6368") else android.graphics.Color.WHITE
-                                views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(sysTint))
+                                views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE))
                             }
                         }
                     }
@@ -370,7 +374,15 @@ class SearchWidgetProvider : AppWidgetProvider() {
                         views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", null)
                     }
                     else -> {
-                        val sysActionTint = if (isPillLight) android.graphics.Color.parseColor("#5F6368") else android.graphics.Color.WHITE
+                        val sysActionTint = if (isPillLight) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                context.getColor(android.R.color.system_accent1_700)
+                            } else {
+                                android.graphics.Color.parseColor("#1F1F1F")
+                            }
+                        } else {
+                            android.graphics.Color.WHITE
+                        }
                         views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(sysActionTint))
                     }
                 }

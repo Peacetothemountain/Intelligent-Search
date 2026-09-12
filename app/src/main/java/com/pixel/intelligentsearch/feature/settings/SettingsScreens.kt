@@ -5766,6 +5766,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     }
                     
+                    val materialDarkCompose = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        androidx.compose.ui.graphics.Color(context.getColor(android.R.color.system_accent1_700))
+                    } else {
+                        androidx.compose.ui.graphics.Color(0xFF1F1F1F)
+                    }
+
                     val finalPreviewIconTint = if (previewIsMaterialYou) {
                         when (effectiveGIconTheme) {
                             "Accented G Icon" -> accentColor
@@ -5775,7 +5781,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     } else {
                         when (localSubtheme) {
-                            "Light" -> if (effectiveGIconTheme == "Accented G Icon") accentColor else androidx.compose.ui.graphics.Color(0xFF5F6368)
+                            "Light" -> if (effectiveGIconTheme == "Accented G Icon") accentColor else materialDarkCompose
                             else -> {
                                 if (effectiveGIconTheme == "Accented G Icon") accentColor
                                 else androidx.compose.ui.graphics.Color.White
@@ -5844,7 +5850,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             
                             Spacer(Modifier.weight(1f))
                             
-                            val useMaterialYouIcons = previewIsMaterialYou || effectiveGIconTheme == "Material G Icon"
+                            val useMaterialYouIcons = previewIsMaterialYou || effectiveGIconTheme == "Material G Icon" || isPreviewPillLight
                             val slotOrder = localSlotOrderStr.split(",").filter { it.isNotBlank() }
                             val previewActiveItems = mutableListOf<Triple<String, Int, Boolean>>()
                             slotOrder.forEach { key ->
@@ -5877,15 +5883,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 if (idx > 0) {
                                     Spacer(modifier = Modifier.width(16.dp))
                                 }
-                                val isMic = item.third
                                 val iconTint = when (effectiveGIconTheme) {
                                     "Accented G Icon" -> accentColor
                                     "Material G Icon" -> androidx.compose.ui.graphics.Color.Unspecified
                                     else -> { // System G Icon
-                                        if (isMic) {
-                                            androidx.compose.ui.graphics.Color.Unspecified
+                                        if (isPreviewPillLight) {
+                                            materialDarkCompose
                                         } else {
-                                            if (isPreviewPillLight) androidx.compose.ui.graphics.Color(0xFF5F6368) else androidx.compose.ui.graphics.Color.White
+                                            androidx.compose.ui.graphics.Color.White
                                         }
                                     }
                                 }
@@ -5926,7 +5931,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         )
                                     }
                                     else -> { // System G Icon
-                                        val sysActionTint = if (isPreviewPillLight) androidx.compose.ui.graphics.Color(0xFF5F6368) else androidx.compose.ui.graphics.Color.White
+                                        val sysActionTint = if (isPreviewPillLight) materialDarkCompose else androidx.compose.ui.graphics.Color.White
                                         ComposeActionIcon(
                                             iconType = localActionIcon,
                                             modifier = Modifier.size(24.dp),

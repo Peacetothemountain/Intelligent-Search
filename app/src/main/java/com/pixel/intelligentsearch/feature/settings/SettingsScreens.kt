@@ -212,8 +212,17 @@ fun GeminiCornerSwipeWaveLayer(
     colorAccent: androidx.compose.ui.graphics.Color,
     modifier: Modifier = Modifier
 ) {
-    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-        val shader = remember { android.graphics.RuntimeShader(GEMINI_CORNER_SWIPE_SHADER) }
+    val shader = remember {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            try {
+                android.graphics.RuntimeShader(GEMINI_CORNER_SWIPE_SHADER)
+            } catch (_: Throwable) {
+                null
+            }
+        } else null
+    }
+
+    if (shader != null) {
         val brush = remember(shader) { androidx.compose.ui.graphics.ShaderBrush(shader) }
         var time by remember { mutableFloatStateOf(0f) }
         LaunchedEffect(Unit) {
@@ -596,27 +605,35 @@ fun SettingsScreensHub(
         val handleExitBack: () -> Unit = {
             val isBackToOverlay = settingsState.backToSearchOverlay
             if (isBackToOverlay) {
-                val intent = Intent(context, com.pixel.intelligentsearch.MainActivity::class.java).apply {
-                    putExtra("FROM_BACK_SWIPE", true)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                }
-                context.startActivity(intent)
-                val act = context.findActivity() ?: (context as? Activity)
-                if (act != null) {
-                    act.finish()
-                } else {
+                try {
+                    val intent = Intent(context, com.pixel.intelligentsearch.MainActivity::class.java).apply {
+                        putExtra("FROM_BACK_SWIPE", true)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    }
+                    context.startActivity(intent)
+                    val act = context.findActivity() ?: (context as? Activity)
+                    if (act != null) {
+                        act.finish()
+                    } else {
+                        onBackToLauncher()
+                    }
+                } catch (_: Throwable) {
                     onBackToLauncher()
                 }
             } else {
-                val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                    addCategory(Intent.CATEGORY_HOME)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(homeIntent)
-                val act = context.findActivity() ?: (context as? Activity)
-                if (act != null) {
-                    act.finish()
-                } else {
+                try {
+                    val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                        addCategory(Intent.CATEGORY_HOME)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(homeIntent)
+                    val act = context.findActivity() ?: (context as? Activity)
+                    if (act != null) {
+                        act.finish()
+                    } else {
+                        onBackToLauncher()
+                    }
+                } catch (_: Throwable) {
                     onBackToLauncher()
                 }
             }
@@ -2271,9 +2288,11 @@ fun MainSettingsScreen(
                     subtitle = "View and Manage Your Google Activity.",
                     icon = Icons.Outlined.History,
                     onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity"))
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(intent)
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity"))
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                        } catch (_: Throwable) {}
                     },
                     showDivider = true,
 
@@ -2820,10 +2839,13 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                             TextButton(
                                 onClick = {
                                     showContactsSettingsDialog = false
-                                    val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                        data = android.net.Uri.fromParts("package", context.packageName, null)
-                                    }
-                                    context.startActivity(intent)
+                                    try {
+                                        val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                            data = android.net.Uri.fromParts("package", context.packageName, null)
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (_: Throwable) {}
                                 }
                             ) {
                                 Text("Open Settings", style = MaterialTheme.typography.labelLarge)
@@ -2929,10 +2951,13 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                             TextButton(
                                 onClick = {
                                     showFilesSettingsDialog = false
-                                    val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                        data = android.net.Uri.fromParts("package", context.packageName, null)
-                                    }
-                                    context.startActivity(intent)
+                                    try {
+                                        val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                            data = android.net.Uri.fromParts("package", context.packageName, null)
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (_: Throwable) {}
                                 }
                             ) {
                                 Text("Open Settings", style = MaterialTheme.typography.labelLarge)
@@ -2990,10 +3015,13 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                         searchCalendar = true
                     } else {
                         Toast.makeText(context, "Permission denied. Please enable in Settings.", Toast.LENGTH_LONG).show()
-                        val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = android.net.Uri.fromParts("package", context.packageName, null)
-                        }
-                        context.startActivity(intent)
+                        try {
+                            val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = android.net.Uri.fromParts("package", context.packageName, null)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                        } catch (_: Throwable) {}
                     }
                 }
                 SettingsRowToggle(

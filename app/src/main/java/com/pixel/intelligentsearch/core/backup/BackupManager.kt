@@ -78,10 +78,19 @@ class BackupManager @Inject constructor(
         prefsMap["adaptiveIconShape"] = currentSettings.adaptiveIconShape
         prefsMap["dynamicIconMasking"] = currentSettings.dynamicIconMasking.toString()
 
+        val currentVersionCode = try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(context.packageName, 0).versionCode
+            }
+        } catch (_: Throwable) { 95 }
+
         BackupContentPayload(
             schemaVersion = 1,
             exportTimestampMs = System.currentTimeMillis(),
-            appVersionCode = 92,
+            appVersionCode = currentVersionCode,
             preferencesMap = prefsMap,
             customBangsJson = currentSettings.customBangsJson,
             sectionConfigsJson = currentSettings.searchSectionsConfigJson,

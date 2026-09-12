@@ -618,8 +618,31 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         fun getNowPlayingIntent(context: Context): Intent {
-            return context.packageManager.getLaunchIntentForPackage("com.google.android.apps.pixel.nowplaying")
-                ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.pixel.nowplaying")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            // 1. Pixel Now Playing (if present on device)
+            val nowPlayingIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.pixel.nowplaying")
+            if (nowPlayingIntent != null) return nowPlayingIntent
+
+            // 2. Google Sound Search / Assistant Music Search (works on any Android device with Google app)
+            val googleSoundSearchIntent = Intent("com.google.android.googlequicksearchbox.MUSIC_SEARCH").apply {
+                setPackage("com.google.android.googlequicksearchbox")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (context.packageManager.queryIntentActivities(googleSoundSearchIntent, 0).isNotEmpty()) {
+                return googleSoundSearchIntent
+            }
+
+            // 3. Shazam
+            val shazamIntent = context.packageManager.getLaunchIntentForPackage("com.shazam.android")
+            if (shazamIntent != null) return shazamIntent
+
+            // 4. SoundHound
+            val soundHoundIntent = context.packageManager.getLaunchIntentForPackage("com.melodis.midomiMusicIdentifier.freemium")
+            if (soundHoundIntent != null) return soundHoundIntent
+
+            // 5. Universal Google voice music search query
+            return Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=what+song+is+this")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
         }
     }
 }

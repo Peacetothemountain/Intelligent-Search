@@ -138,13 +138,18 @@ object SystemDataProvider {
     }
 
     suspend fun getRecentApps(context: Context, hiddenApps: Set<String> = emptySet()): List<AppItem> = withContext(Dispatchers.IO) {
-        val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            ?: return@withContext getAllApps(context).filter { !hiddenApps.contains(it.packageName) }.take(8)
         val time = System.currentTimeMillis()
-        val stats = usageStatsManager.queryUsageStats(
-            UsageStatsManager.INTERVAL_DAILY,
-            time - 1000 * 60 * 60 * 24, // Last 24 hours
-            time
-        )
+        val stats = try {
+            usageStatsManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                time - 1000 * 60 * 60 * 24, // Last 24 hours
+                time
+            ) ?: emptyList()
+        } catch (_: Throwable) {
+            emptyList()
+        }
 
         val pm = context.packageManager
         val sortedStats = stats.filter { it.totalTimeInForeground > 0 && !hiddenApps.contains(it.packageName) }
@@ -203,41 +208,43 @@ object SystemDataProvider {
             return@withContext events
         }
 
-        val projection = arrayOf(
-            CalendarContract.Events.TITLE,
-            CalendarContract.Events.DTSTART
-        )
+        try {
+            val projection = arrayOf(
+                CalendarContract.Events.TITLE,
+                CalendarContract.Events.DTSTART
+            )
 
-        val now = System.currentTimeMillis()
-        val tomorrow = now + 1000 * 60 * 60 * 24
-        
-        val selection = "${CalendarContract.Events.DTSTART} >= ? AND ${CalendarContract.Events.DTSTART} <= ?"
-        val selectionArgs = arrayOf(now.toString(), tomorrow.toString())
+            val now = System.currentTimeMillis()
+            val tomorrow = now + 1000 * 60 * 60 * 24
+            
+            val selection = "${CalendarContract.Events.DTSTART} >= ? AND ${CalendarContract.Events.DTSTART} <= ?"
+            val selectionArgs = arrayOf(now.toString(), tomorrow.toString())
 
-        context.contentResolver.query(
-            CalendarContract.Events.CONTENT_URI,
-            projection,
-            selection,
-            selectionArgs,
-            "${CalendarContract.Events.DTSTART} ASC"
-        )?.use { cursor ->
-            val titleIndex = cursor.getColumnIndex(CalendarContract.Events.TITLE)
-            val dtStartIndex = cursor.getColumnIndex(CalendarContract.Events.DTSTART)
+            context.contentResolver.query(
+                CalendarContract.Events.CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                "${CalendarContract.Events.DTSTART} ASC"
+            )?.use { cursor ->
+                val titleIndex = cursor.getColumnIndex(CalendarContract.Events.TITLE)
+                val dtStartIndex = cursor.getColumnIndex(CalendarContract.Events.DTSTART)
 
-            while (cursor.moveToNext() && events.size < 3) { // Max 3 events
-                val title = cursor.getString(titleIndex)
-                val startTimeMillis = cursor.getLong(dtStartIndex)
-                
-                val calendar = Calendar.getInstance().apply { timeInMillis = startTimeMillis }
-                val hour = calendar.get(Calendar.HOUR_OF_DAY)
-                val minute = calendar.get(Calendar.MINUTE)
-                val amPm = if (hour < 12) "AM" else "PM"
-                val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
-                val timeString = String.format(java.util.Locale.getDefault(), "%d:%02d %s", displayHour, minute, amPm)
+                while (cursor.moveToNext() && events.size < 3) { // Max 3 events
+                    val title = if (titleIndex >= 0) cursor.getString(titleIndex) else null
+                    val startTimeMillis = if (dtStartIndex >= 0) cursor.getLong(dtStartIndex) else 0L
+                    
+                    val calendar = Calendar.getInstance().apply { timeInMillis = startTimeMillis }
+                    val hour = calendar.get(Calendar.HOUR_OF_DAY)
+                    val minute = calendar.get(Calendar.MINUTE)
+                    val amPm = if (hour < 12) "AM" else "PM"
+                    val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
+                    val timeString = String.format(java.util.Locale.getDefault(), "%d:%02d %s", displayHour, minute, amPm)
 
-                events.add(CalendarEvent(title ?: "Event", timeString))
+                    events.add(CalendarEvent(title ?: "Event", timeString))
+                }
             }
-        }
+        } catch (_: Throwable) {}
         events
     }
 
@@ -247,39 +254,41 @@ object SystemDataProvider {
             return@withContext contacts
         }
 
-        val projection = arrayOf(
-            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-            ContactsContract.CommonDataKinds.Phone.NUMBER,
-            ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
-            ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY
-        )
+        try {
+            val projection = arrayOf(
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                ContactsContract.CommonDataKinds.Phone.NUMBER,
+                ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
+                ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY
+            )
 
-        val selection = "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?"
-        val selectionArgs = arrayOf("%$query%")
+            val selection = "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?"
+            val selectionArgs = arrayOf("%$query%")
 
-        context.contentResolver.query(
-            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-            projection,
-            selection,
-            selectionArgs,
-            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
-        )?.use { cursor ->
-            val nameIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
-            val numberIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
-            val lookupKeyIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY)
-            val idIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
+            context.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+            )?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                val lookupKeyIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY)
+                val idIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
 
-            while (cursor.moveToNext() && contacts.size < 10) {
-                val name = cursor.getString(nameIndex)
-                val number = cursor.getString(numberIndex)
-                val lookupKey = cursor.getString(lookupKeyIndex)
-                val id = cursor.getLong(idIndex)
-                
-                val lookupUri = ContactsContract.Contacts.getLookupUri(id, lookupKey).toString()
-                
-                contacts.add(ContactItem(name, number, lookupUri))
+                while (cursor.moveToNext() && contacts.size < 10) {
+                    val name = if (nameIndex >= 0) cursor.getString(nameIndex) ?: "" else ""
+                    val number = if (numberIndex >= 0) cursor.getString(numberIndex) ?: "" else ""
+                    val lookupKey = if (lookupKeyIndex >= 0) cursor.getString(lookupKeyIndex) ?: "" else ""
+                    val id = if (idIndex >= 0) cursor.getLong(idIndex) else 0L
+                    
+                    val lookupUri = ContactsContract.Contacts.getLookupUri(id, lookupKey)?.toString() ?: ""
+                    
+                    contacts.add(ContactItem(name, number, lookupUri))
+                }
             }
-        }
+        } catch (_: Throwable) {}
         contacts.distinctBy { it.phoneNumber }
     }
 
@@ -549,7 +558,12 @@ object SystemDataProvider {
 
     fun getAppActions(packageName: String): List<AppAction> {
         return when (packageName) {
-            "com.google.android.deskclock" -> listOf(
+            "com.google.android.deskclock",
+            "com.sec.android.app.clockpackage",
+            "com.android.deskclock",
+            "com.coloros.alarm",
+            "com.oneplus.deskclock",
+            "com.motorola.blur.alarmclock" -> listOf(
                 AppAction("Set Alarm", android.provider.AlarmClock.ACTION_SET_ALARM),
                 AppAction("Start Timer", android.provider.AlarmClock.ACTION_SET_TIMER)
             )
@@ -561,6 +575,10 @@ object SystemDataProvider {
             )
             "com.google.android.apps.maps" -> listOf(
                 AppAction("Navigate Home", Intent.ACTION_VIEW, "google.navigation:q=Home")
+            )
+            "com.google.android.calendar",
+            "com.samsung.android.calendar" -> listOf(
+                AppAction("New Event", Intent.ACTION_INSERT, "content://com.android.calendar/events")
             )
             else -> emptyList()
         }

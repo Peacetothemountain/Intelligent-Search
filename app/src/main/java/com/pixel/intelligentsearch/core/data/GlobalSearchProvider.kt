@@ -241,9 +241,10 @@ class GlobalSearchProvider : ContentProvider() {
         uri.getQueryParameter("q")?.let { if (it.isNotBlank()) return it.trim() }
         uri.getQueryParameter(SearchManager.SUGGEST_COLUMN_QUERY)?.let { if (it.isNotBlank()) return it.trim() }
 
-        // Fallback to path segment only if not matching root SEARCH_PATH
+        // Fallback to path segment only if not matching root SEARCH_PATH or standard suggestion subpaths
         val lastSegment = uri.lastPathSegment ?: ""
-        return if (lastSegment.equals(SEARCH_PATH, ignoreCase = true)) "" else lastSegment.trim()
+        val ignoredSegments = setOf(SEARCH_PATH.lowercase(), "search_suggest_query")
+        return if (lastSegment.lowercase() in ignoredSegments) "" else lastSegment.trim()
     }
 
     override fun getType(uri: Uri): String {

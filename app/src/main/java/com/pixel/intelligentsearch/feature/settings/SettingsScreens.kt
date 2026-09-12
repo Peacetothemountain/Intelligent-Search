@@ -6545,7 +6545,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            "Force Inner Pill & Circle to #121212",
+                                            "Force Inner Pill & Circle to #121212.",
                                             fontSize = 14.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -6568,7 +6568,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     "Widget Shortcuts" -> {
                         // TAB 2: WIDGET SHORTCUTS
                         Text("WIDGET SHORTCUTS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 4.dp))
-                        Text("Drag handle to reorder • Swipe to disable • Tap to customize", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
+                        Text("Drag Handle to Reorder, Swipe to Disable, and Tap to Customize.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
 
                         Column(
                             modifier = Modifier.fillMaxWidth(),

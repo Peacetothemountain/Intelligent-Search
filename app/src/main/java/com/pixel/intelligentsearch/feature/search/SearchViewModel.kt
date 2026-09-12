@@ -508,15 +508,25 @@ class SearchViewModel @Inject constructor(
     }
 
     fun addSearchHistory(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return
+        _uiState.update { state ->
+            val updated = (listOf(trimmed) + state.recentSearches.filterNot { it.equals(trimmed, ignoreCase = true) }).take(10)
+            state.copy(recentSearches = updated)
+        }
         viewModelScope.launch(Dispatchers.IO) {
-            if (query.isBlank()) return@launch
-            historyDao.recordAndPrune(query, System.currentTimeMillis(), 10)
+            historyDao.recordAndPrune(trimmed, System.currentTimeMillis(), 10)
         }
     }
 
     fun removeSearchHistory(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return
+        _uiState.update { state ->
+            state.copy(recentSearches = state.recentSearches.filterNot { it.equals(trimmed, ignoreCase = true) })
+        }
         viewModelScope.launch(Dispatchers.IO) {
-            historyDao.deleteSearch(HistoryEntity(query, 0))
+            historyDao.deleteByQuery(trimmed)
         }
     }
 

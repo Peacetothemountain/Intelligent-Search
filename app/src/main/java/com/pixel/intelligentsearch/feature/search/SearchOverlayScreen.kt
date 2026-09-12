@@ -1159,6 +1159,23 @@ fun SearchOverlayScreen(
                 "files" to fileWeight
             ).sortedByDescending { it.second }.map { it.first }
         }
+        val matchingRecent = remember(uiState.query, uiState.recentSearches, settingsState.searchPreviousSearches) {
+            val trimmed = uiState.query.trim()
+            if (!settingsState.searchPreviousSearches || trimmed.isEmpty()) {
+                emptyList()
+            } else {
+                uiState.recentSearches
+                    .filter { it.contains(trimmed, ignoreCase = true) }
+                    .distinct()
+            }
+        }
+        val allDisplaySuggestions = remember(matchingRecent, uiState.webSuggestions, settingsState.webResultsCount) {
+            val maxCount = settingsState.webResultsCount.coerceAtLeast(6)
+            val nonRecentWeb = uiState.webSuggestions.filter { webSugg ->
+                matchingRecent.none { it.equals(webSugg, ignoreCase = true) }
+            }
+            (matchingRecent + nonRecentWeb).distinct().take(maxCount)
+        }
 
         LazyColumn(
             state = searchResultsListState,
@@ -1605,9 +1622,22 @@ fun SearchOverlayScreen(
                                     color = MaterialTheme.colorScheme.onSurface,
                                     fontSize = 15.sp,
                                     fontFamily = GoogleSansFlex,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
-                                Spacer(modifier = Modifier.weight(1f))
+                                IconButton(
+                                    onClick = { viewModel.removeSearchHistory(recentQuery) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remove",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                                 IconButton(
                                     onClick = { viewModel.onQueryChanged(recentQuery) },
                                     modifier = Modifier.size(32.dp)
@@ -1870,9 +1900,9 @@ fun SearchOverlayScreen(
                     }
                     "web" -> {
                         if (showWeb && (settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
-                            if (uiState.webSuggestions.isNotEmpty()) {
-                                itemsIndexed(uiState.webSuggestions.distinct().take(settingsState.webResultsCount.coerceAtLeast(5)), key = { index, suggestion -> "web_suggest_${index}_$suggestion" }) { _, suggestion ->
-                                    val isRecent = uiState.recentSearches.contains(suggestion)
+                            if (allDisplaySuggestions.isNotEmpty()) {
+                                itemsIndexed(allDisplaySuggestions, key = { index, suggestion -> "sugg_${index}_$suggestion" }) { _, suggestion ->
+                                    val isRecent = uiState.recentSearches.any { it.equals(suggestion, ignoreCase = true) }
                                     val trimmed = uiState.query.trim()
                                     val annotatedSuggestion = remember(suggestion, trimmed) {
                                         androidx.compose.ui.text.buildAnnotatedString {
@@ -1903,16 +1933,23 @@ fun SearchOverlayScreen(
                                                 viewModel.addSearchHistory(suggestion)
                                                 launchWebSearch(suggestion)
                                             }
-                                            .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+                                            .padding(
+                                                start = if (isRecent) 16.dp else 20.dp,
+                                                end = 8.dp,
+                                                top = 10.dp,
+                                                bottom = 10.dp
+                                            ),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(
-                                            imageVector = if (isRecent) Icons.Default.History else Icons.Default.Search,
-                                            contentDescription = null,
-                                            tint = if (isRecent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(14.dp))
+                                        if (isRecent) {
+                                            Icon(
+                                                imageVector = Icons.Default.History,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(14.dp))
+                                        }
                                         Text(
                                             text = annotatedSuggestion,
                                             color = MaterialTheme.colorScheme.onSurface,

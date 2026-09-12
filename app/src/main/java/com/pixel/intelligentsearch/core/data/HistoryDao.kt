@@ -16,6 +16,9 @@ interface HistoryDao {
     @Delete
     suspend fun deleteSearch(search: HistoryEntity)
 
+    @Query("DELETE FROM search_history WHERE query = :query")
+    suspend fun deleteByQuery(query: String)
+
     @Query("DELETE FROM search_history")
     suspend fun clearHistory()
 

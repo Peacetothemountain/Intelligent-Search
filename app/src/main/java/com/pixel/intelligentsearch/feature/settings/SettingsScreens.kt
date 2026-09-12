@@ -73,7 +73,9 @@ import android.annotation.SuppressLint
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.navigation.compose.currentBackStackEntryAsState
 
 
@@ -596,12 +598,6 @@ fun SettingsScreensHub(
                 context.startActivity(intent)
                 val act = context.findActivity() ?: (context as? Activity)
                 if (act != null) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                        act.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        act.overridePendingTransition(0, 0)
-                    }
                     act.finish()
                 } else {
                     onBackToLauncher()
@@ -614,12 +610,6 @@ fun SettingsScreensHub(
                 context.startActivity(homeIntent)
                 val act = context.findActivity() ?: (context as? Activity)
                 if (act != null) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                        act.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        act.overridePendingTransition(0, 0)
-                    }
                     act.finish()
                 } else {
                     onBackToLauncher()
@@ -635,26 +625,22 @@ fun SettingsScreensHub(
         val onBack: () -> Unit = {
             if (navController.previousBackStackEntry != null) {
                 navController.popBackStack()
-            } else if (!isAtRootMain) {
-                navController.navigate(com.pixel.intelligentsearch.core.navigation.Route.Main) {
-                    popUpTo(0) { inclusive = true }
-                }
             } else {
                 handleExitBack()
             }
         }
 
-        androidx.activity.compose.PredictiveBackHandler(enabled = !isAtRootMain) { progressFlow ->
+        val exitBackProgress = remember { Animatable(0f) }
+
+        androidx.activity.compose.PredictiveBackHandler(enabled = isAtRootMain) { progressFlow ->
             try {
-                progressFlow.collect { }
-                if (!isAtRootMain) {
-                    navController.navigate(com.pixel.intelligentsearch.core.navigation.Route.Main) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                } else {
-                    handleExitBack()
+                progressFlow.collect { backEvent ->
+                    exitBackProgress.snapTo(backEvent.progress)
                 }
-            } catch (_: java.util.concurrent.CancellationException) {}
+                handleExitBack()
+            } catch (_: java.util.concurrent.CancellationException) {
+                exitBackProgress.animateTo(0f, spring(dampingRatio = 0.85f, stiffness = 300f))
+            }
         }
 
         val startRoute: com.pixel.intelligentsearch.core.navigation.Route = when (initialScreen) {
@@ -679,6 +665,15 @@ fun SettingsScreensHub(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer {
+                    val p = exitBackProgress.value
+                    if (p > 0f) {
+                        scaleX = 1f - (p * 0.08f)
+                        scaleY = 1f - (p * 0.08f)
+                        alpha = (1f - p * 0.25f).coerceIn(0f, 1f)
+                        transformOrigin = TransformOrigin(0.5f, 0.5f)
+                    }
+                }
                 .background(MaterialTheme.colorScheme.background)
         ) {
             var showTutorial by remember { mutableStateOf(TutorialManager.isTutorialActive(prefs)) }
@@ -705,10 +700,50 @@ fun SettingsScreensHub(
                 NavHost(
                     navController = navController,
                     startDestination = startRoute,
-                    enterTransition = { androidx.compose.animation.slideInHorizontally(initialOffsetX = { it }) + androidx.compose.animation.fadeIn() },
-                    exitTransition = { androidx.compose.animation.slideOutHorizontally(targetOffsetX = { -it / 3 }) + androidx.compose.animation.fadeOut() },
-                    popEnterTransition = { androidx.compose.animation.slideInHorizontally(initialOffsetX = { -it / 3 }) + androidx.compose.animation.fadeIn() },
-                    popExitTransition = { androidx.compose.animation.slideOutHorizontally(targetOffsetX = { it }) + androidx.compose.animation.fadeOut() }
+                    enterTransition = {
+                        slideInHorizontally(
+                            initialOffsetX = { (it * 0.22f).toInt() },
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                        ) + fadeIn(
+                            animationSpec = tween(durationMillis = 240, easing = LinearOutSlowInEasing)
+                        ) + scaleIn(
+                            initialScale = 0.94f,
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                        )
+                    },
+                    exitTransition = {
+                        slideOutHorizontally(
+                            targetOffsetX = { -(it * 0.10f).toInt() },
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                        ) + fadeOut(
+                            animationSpec = tween(durationMillis = 180, easing = FastOutLinearInEasing)
+                        ) + scaleOut(
+                            targetScale = 0.96f,
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                        )
+                    },
+                    popEnterTransition = {
+                        slideInHorizontally(
+                            initialOffsetX = { -(it * 0.10f).toInt() },
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                        ) + fadeIn(
+                            animationSpec = tween(durationMillis = 240, easing = LinearOutSlowInEasing)
+                        ) + scaleIn(
+                            initialScale = 0.96f,
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                        )
+                    },
+                    popExitTransition = {
+                        slideOutHorizontally(
+                            targetOffsetX = { (it * 0.22f).toInt() },
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                        ) + fadeOut(
+                            animationSpec = tween(durationMillis = 180, easing = FastOutLinearInEasing)
+                        ) + scaleOut(
+                            targetScale = 0.94f,
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                        )
+                    }
                 ) {
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Main> { MainSettingsScreen(prefs, onNavigate, onBack, context, exoPlayer, showTutorial) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Appearance> { AppearanceScreen(prefs, onNavigate, onBack) }

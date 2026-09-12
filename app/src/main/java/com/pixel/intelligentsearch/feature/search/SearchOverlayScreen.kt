@@ -496,8 +496,8 @@ fun SearchOverlayScreen(
                 overlayProgressAnim.animateTo(
                     targetValue = 1f,
                     animationSpec = spring(
-                        dampingRatio = 0.86f,
-                        stiffness = 180f
+                        dampingRatio = 0.84f,
+                        stiffness = 380f
                     )
                 )
             } else {
@@ -510,8 +510,8 @@ fun SearchOverlayScreen(
                 targetValue = 0f,
                 initialVelocity = currentVel,
                 animationSpec = spring(
-                    dampingRatio = 0.92f,
-                    stiffness = 250f
+                    dampingRatio = 0.88f,
+                    stiffness = 340f
                 )
             )
             val act = context.findActivity()
@@ -684,8 +684,8 @@ fun SearchOverlayScreen(
                         overlayProgressAnim.animateTo(
                             targetValue = 1f,
                             animationSpec = spring(
-                                dampingRatio = 0.86f,
-                                stiffness = 180f
+                                dampingRatio = 0.84f,
+                                stiffness = 380f
                             )
                         )
                     } else {

@@ -37,6 +37,11 @@ class SettingsActivity : AppCompatActivity() {
                 com.pixel.intelligentsearch.R.anim.slide_in_right,
                 com.pixel.intelligentsearch.R.anim.slide_out_left
             )
+            overrideActivityTransition(
+                OVERRIDE_TRANSITION_CLOSE,
+                com.pixel.intelligentsearch.R.anim.slide_in_left,
+                com.pixel.intelligentsearch.R.anim.slide_out_right
+            )
         }
         
         var appWidgetId = android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID

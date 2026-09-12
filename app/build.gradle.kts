@@ -15,8 +15,8 @@ android {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
         targetSdk = 37
-        versionCode = 92
-        versionName = "8.9"
+        versionCode = 93
+        versionName = "9.0"
         ndk {
             abiFilters.addAll(listOf("arm64-v8a", "x86_64"))
         }
@@ -96,7 +96,6 @@ android {
 }
 
 composeCompiler {
-    enableStrongSkippingMode.set(true)
     includeSourceInformation.set(false)
 }
 

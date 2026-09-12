@@ -3,6 +3,7 @@ import com.pixel.intelligentsearch.feature.settings.tutorialTarget
 import android.app.SearchManager
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
+import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
 import com.pixel.intelligentsearch.feature.settings.TutorialSpotlightOverlay
 import com.pixel.intelligentsearch.feature.settings.TutorialManager
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
@@ -1036,7 +1037,7 @@ fun SearchOverlayScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    itemsIndexed(uiState.bangSuggestions, key = { index, bang -> "bang_${index}_${bang.prefix}" }) { _, bang ->
+                    items(uiState.bangSuggestions, key = { bang -> "bang_${bang.prefix}" }) { bang ->
                         AssistChip(
                             onClick = {
                                 val currentQ = uiState.query
@@ -1092,7 +1093,7 @@ fun SearchOverlayScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                itemsIndexed(pillPackages, key = { index, pkg -> "pill_${index}_$pkg" }) { _, packageName ->
+                items(pillPackages, key = { pkg -> "pill_$pkg" }) { packageName ->
                             val appIconState = remember(packageName, settingsState.activeIconPack) { mutableStateOf<AppIconResult?>(null) }
                             val appNameState = remember(packageName) { mutableStateOf("App") }
                             LaunchedEffect(packageName, settingsState.activeIconPack) {
@@ -1218,7 +1219,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.smartClipboardSuggestions && uiState.directActions.isNotEmpty()) {
-                itemsIndexed(uiState.directActions, key = { index, action -> "direct_action_${action.title}_$index" }) { _, action ->
+                items(uiState.directActions, key = { action -> "direct_action_${action.title}_${action.subtitle}" }) { action ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1505,7 +1506,7 @@ fun SearchOverlayScreen(
                         )
                     }
                 }
-                itemsIndexed(uiState.recentSearches.distinct(), key = { index, query -> "recent_${index}_$query" }) { _, recentQuery ->
+                items(uiState.recentSearches.distinct(), key = { query -> "recent_$query" }) { recentQuery ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1669,7 +1670,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
-                itemsIndexed(uiState.calendarEvents, key = { index, event -> "event_${index}_${event.title}_${event.startTime}" }) { _, event ->
+                items(uiState.calendarEvents, key = { event -> "event_${event.title}_${event.startTime}" }) { event ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1759,9 +1760,9 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchShortcuts && uiState.shortcuts.isNotEmpty()) {
-                itemsIndexed(uiState.shortcuts, key = { index, shortcut -> "shortcut_${index}_${shortcut.id}" }) { _, shortcut ->
+                items(uiState.shortcuts, key = { shortcut -> "shortcut_${shortcut.packageName}_${shortcut.id}" }) { shortcut ->
                     Row(
-                        modifier = Modifier.fillMaxWidth().bouncyClickable {
+                        modifier = Modifier.fillMaxWidth().expressiveRowClickable {
                             val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? android.content.pm.LauncherApps
                             try {
                                 launcherApps?.startShortcut(shortcut.packageName, shortcut.id, null, null, android.os.Process.myUserHandle())
@@ -1867,7 +1868,7 @@ fun SearchOverlayScreen(
                                             }
                                         }
                                     }
-                                    itemsIndexed(filteredApps, key = { index, app -> "app_${app.packageName}_$index" }) { _, app ->
+                                    items(filteredApps, key = { app -> "app_${app.packageName}" }) { app ->
                                         AppGridItem(app) { performAppLaunch(app.packageName) }
                                     }
                                 }
@@ -1914,7 +1915,7 @@ fun SearchOverlayScreen(
                     "web" -> {
                         if (showWeb && (settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
                             if (allDisplaySuggestions.isNotEmpty()) {
-                                itemsIndexed(allDisplaySuggestions, key = { index, suggestion -> "sugg_${index}_$suggestion" }) { _, suggestion ->
+                                items(allDisplaySuggestions, key = { suggestion -> "sugg_$suggestion" }) { suggestion ->
                                     val isRecent = uiState.recentSearches.any { it.equals(suggestion, ignoreCase = true) }
                                     val trimmed = uiState.query.trim()
                                     val annotatedSuggestion = remember(suggestion, trimmed) {
@@ -1941,7 +1942,7 @@ fun SearchOverlayScreen(
                                             .padding(horizontal = 16.dp, vertical = 3.dp)
                                             .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(28.dp))
                                             .clip(RoundedCornerShape(28.dp))
-                                            .bouncyClickable {
+                                            .expressiveRowClickable {
                                                 viewModel.onQueryChanged(suggestion)
                                                 viewModel.addSearchHistory(suggestion)
                                                 launchWebSearch(suggestion)
@@ -2004,11 +2005,11 @@ fun SearchOverlayScreen(
                     "contacts" -> {
                         if (showPeople && settingsState.searchContacts && filteredContacts.isNotEmpty()) {
                             item(key = "contacts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                            itemsIndexed(filteredContacts, key = { index, contact -> "contact_${contact.lookupUri}_${contact.phoneNumber}_$index" }) { index, contact ->
+                            items(filteredContacts, key = { contact -> "contact_${contact.lookupUri.ifBlank { contact.phoneNumber }}" }) { contact ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .bouncyClickable {
+                                        .expressiveRowClickable {
                                             hasStartedTyping = false
                                             val intent = if (settingsState.contactDirectCall) {
                                                 Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
@@ -2035,11 +2036,11 @@ fun SearchOverlayScreen(
                     "files" -> {
                         if (showFiles && settingsState.searchFiles && filteredFiles.isNotEmpty()) {
                             item(key = "files_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                            itemsIndexed(filteredFiles, key = { index, file -> "file_${file.uri}_$index" }) { index, file ->
+                            items(filteredFiles, key = { file -> "file_${file.uri}" }) { file ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .bouncyClickable {
+                                        .expressiveRowClickable {
                                             hasStartedTyping = false
                                             val intent = Intent(Intent.ACTION_VIEW).apply {
                                                 setDataAndType(Uri.parse(file.uri), file.mimeType)

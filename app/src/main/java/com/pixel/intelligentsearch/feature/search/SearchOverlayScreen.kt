@@ -425,8 +425,30 @@ fun SearchOverlayScreen(
         when (settingsState.searchEngine) {
             "DuckDuckGo" -> "DuckDuckGo"
             "Bing" -> "Bing"
-            "Custom" -> if (settingsState.customSearchEngineUrl.isNotBlank()) "Web" else "Web"
-            else -> "Google"
+            "Google" -> "Google"
+            "Custom" -> {
+                if (settingsState.customSearchEngineUrl.isNotBlank()) {
+                    try {
+                        val host = Uri.parse(
+                            if (settingsState.customSearchEngineUrl.startsWith("http")) settingsState.customSearchEngineUrl 
+                            else "https://${settingsState.customSearchEngineUrl}"
+                        ).host?.removePrefix("www.")?.substringBefore(".")?.replaceFirstChar { it.uppercase() }
+                        if (!host.isNullOrBlank()) host else "Web"
+                    } catch (e: Exception) {
+                        "Web"
+                    }
+                } else {
+                    "Web"
+                }
+            }
+            else -> if (settingsState.searchEngine.isNotBlank()) settingsState.searchEngine else "Google"
+        }
+    }
+    var hasStartedTyping by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.query) {
+        if (uiState.query.isNotEmpty()) {
+            hasStartedTyping = true
         }
     }
     val transitionState = remember { MutableTransitionState(false).apply { targetState = true } }
@@ -455,6 +477,7 @@ fun SearchOverlayScreen(
 
     val performAppLaunch: (String) -> Unit = remember(sensoryEngine, view, onLaunchApp) {
         { packageName ->
+            hasStartedTyping = false
             sensoryEngine.appLaunch(view)
             onLaunchApp(packageName)
         }
@@ -513,6 +536,7 @@ fun SearchOverlayScreen(
     val hapticContext = LocalContext.current
 
     val closeOverlay = {
+        hasStartedTyping = false
         keyboardController?.hide()
         viewModel.onQueryChanged("")
         if (transitionState.targetState) {
@@ -524,6 +548,7 @@ fun SearchOverlayScreen(
     }
 
     val goToHomeScreen: () -> Unit = {
+        hasStartedTyping = false
         keyboardController?.hide()
         viewModel.onQueryChanged("")
         val act = context.findActivity()
@@ -541,6 +566,7 @@ fun SearchOverlayScreen(
     }
 
     val launchWebSearch: (String) -> Unit = launchWebSearch@{ searchQuery ->
+        hasStartedTyping = false
         val bangMgr = com.pixel.intelligentsearch.core.bangs.SearchBangManager(context, com.pixel.intelligentsearch.core.data.SettingsManager(context))
         val parsedBang = bangMgr.parseBangQuery(searchQuery)
         if (parsedBang != null) {
@@ -635,9 +661,11 @@ fun SearchOverlayScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
+                hasStartedTyping = false
                 keyboardController?.hide()
                 viewModel.onQueryChanged("")
             } else if (event == Lifecycle.Event.ON_RESUME) {
+                hasStartedTyping = false
                 val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
                 if (forceTut) {
                     TutorialManager.resetForForceTutorial(prefs)
@@ -680,6 +708,7 @@ fun SearchOverlayScreen(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            hasStartedTyping = false
             viewModel.onQueryChanged("")
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
@@ -697,6 +726,7 @@ fun SearchOverlayScreen(
                 }
             }
             keyboardController?.hide()
+            hasStartedTyping = false
             viewModel.onQueryChanged("")
             sensoryEngine.springReleaseSnap(view)
             goToHomeScreen()
@@ -846,6 +876,9 @@ fun SearchOverlayScreen(
                 androidx.compose.foundation.text.BasicTextField(
                     value = uiState.query,
                     onValueChange = { newQuery ->
+                        if (newQuery.isNotEmpty()) {
+                            hasStartedTyping = true
+                        }
                         if (newQuery == "*xy88x*") {
                             prefs.edit().putBoolean("debug_unlocked", true).apply()
                             viewModel.onQueryChanged("")
@@ -866,6 +899,7 @@ fun SearchOverlayScreen(
                     cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
                     keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
+                        hasStartedTyping = false
                         keyboardController?.hide()
                         if (uiState.query.isNotEmpty()) {
                             viewModel.addSearchHistory(uiState.query)
@@ -925,7 +959,21 @@ fun SearchOverlayScreen(
                     }
                 )
 
-
+                AnimatedVisibility(
+                    visible = hasStartedTyping,
+                    enter = fadeIn(ExpressiveMotionTokens.gentleSpring()) + expandHorizontally(ExpressiveMotionTokens.gentleSpring()),
+                    exit = fadeOut(ExpressiveMotionTokens.gentleSpring()) + shrinkHorizontally(ExpressiveMotionTokens.gentleSpring())
+                ) {
+                    Text(
+                        text = searchProviderName,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = GoogleSansFlex,
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = 6.dp)
+                    )
+                }
 
                 AnimatedVisibility(
                     visible = uiState.query.isNotEmpty() && !uiState.isLoading,
@@ -949,7 +997,10 @@ fun SearchOverlayScreen(
                 }
 
                 IconButton(
-                    onClick = { onOpenSettings("main") },
+                    onClick = { 
+                        hasStartedTyping = false
+                        onOpenSettings("main") 
+                    },
                     modifier = Modifier
                         .size(48.dp)
                         .zIndex(if (showTutorial) 10000f else 0f)
@@ -1080,6 +1131,7 @@ fun SearchOverlayScreen(
                                              }
                                         }
                                         if (intent != null) {
+                                            hasStartedTyping = false
                                             launchSafeIntent(context, intent)
                                             val act = context.findActivity()
                                             finishWithoutTransition(act)
@@ -1215,6 +1267,7 @@ fun SearchOverlayScreen(
                                     )
                                 }
                                 .bouncyClickable {
+                                    hasStartedTyping = false
                                     action.intent?.let { intent ->
                                         launchSafeIntent(context, intent)
                                     }
@@ -1276,6 +1329,7 @@ fun SearchOverlayScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .bouncyClickable {
+                                        hasStartedTyping = false
                                         val intent = if (settingsState.contactDirectCall) {
                                             Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                         } else {
@@ -1340,6 +1394,7 @@ fun SearchOverlayScreen(
                                             match.actions.forEach { action ->
                                                 AssistChip(
                                                     onClick = {
+                                                        hasStartedTyping = false
                                                         val intent = Intent(action.action)
                                                         if (action.dataUri != null) intent.data = android.net.Uri.parse(action.dataUri)
                                                         intent.setPackage(match.packageName)
@@ -1366,6 +1421,7 @@ fun SearchOverlayScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .bouncyClickable {
+                                        hasStartedTyping = false
                                         val intent = Intent(Intent.ACTION_VIEW).apply {
                                             setDataAndType(Uri.parse(match.uri), match.mimeType)
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -1680,6 +1736,7 @@ fun SearchOverlayScreen(
                         expression = uiState.query,
                         result = uiState.mathResult ?: "",
                         onOpenCalculator = {
+                            hasStartedTyping = false
                             try {
                                 val calcIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR)
                                 launchSafeIntent(context, calcIntent)
@@ -1707,6 +1764,7 @@ fun SearchOverlayScreen(
                             UrlNavigationOneBox(
                                 url = instantAnswer.title,
                                 onClick = {
+                                    hasStartedTyping = false
                                     val targetUrl = if (instantAnswer.title.startsWith("http://") || instantAnswer.title.startsWith("https://")) {
                                         instantAnswer.title
                                     } else "https://${instantAnswer.title}"
@@ -1720,6 +1778,7 @@ fun SearchOverlayScreen(
                                 subtitle = instantAnswer.subtitle,
                                 iconType = instantAnswer.iconType,
                                 onClick = {
+                                    hasStartedTyping = false
                                     if (instantAnswer.iconType == "time") {
                                         launchSafeIntent(context, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
                                     } else {
@@ -1774,6 +1833,7 @@ fun SearchOverlayScreen(
                                     iconRes = R.drawable.ic_camera,
                                     title = "Search with Google Lens",
                                     onClick = {
+                                        hasStartedTyping = false
                                         val intent = SearchWidgetProvider.getLensSearchIntent(context)
                                         launchSafeIntent(context, intent)
                                     }
@@ -1784,6 +1844,7 @@ fun SearchOverlayScreen(
                                     iconRes = R.drawable.ic_mic,
                                     title = "Search with Voice",
                                     onClick = {
+                                        hasStartedTyping = false
                                         val intent = SearchWidgetProvider.getVoiceSearchIntent(context)
                                         launchSafeIntent(context, intent)
                                     }
@@ -1794,6 +1855,7 @@ fun SearchOverlayScreen(
                                     iconRes = R.drawable.ic_lens_action,
                                     title = "Digital Assistant",
                                     onClick = {
+                                        hasStartedTyping = false
                                         val intent = SearchWidgetProvider.getVoiceActionIntent(context)
                                         launchSafeIntent(context, intent)
                                     }
@@ -1803,53 +1865,6 @@ fun SearchOverlayScreen(
                     }
                     "web" -> {
                         if (showWeb && (settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
-                            item(key = "web_search_hero") {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f), RoundedCornerShape(28.dp))
-                                        .clip(RoundedCornerShape(28.dp))
-                                        .bouncyClickable {
-                                            viewModel.addSearchHistory(uiState.query)
-                                            launchWebSearch(uiState.query)
-                                        }
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Search,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(14.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Search $searchProviderName for \"${uiState.query}\"",
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontFamily = GoogleSansFlex,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = "$searchProviderName Search",
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
-                                            fontSize = 12.sp,
-                                            fontFamily = GoogleSansFlex
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-
                             if (uiState.webSuggestions.isNotEmpty()) {
                                 itemsIndexed(uiState.webSuggestions.distinct().take(settingsState.webResultsCount.coerceAtLeast(5)), key = { index, suggestion -> "web_suggest_${index}_$suggestion" }) { _, suggestion ->
                                     val isRecent = uiState.recentSearches.contains(suggestion)
@@ -1939,6 +1954,7 @@ fun SearchOverlayScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .bouncyClickable {
+                                            hasStartedTyping = false
                                             val intent = if (settingsState.contactDirectCall) {
                                                 Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
                                             } else {
@@ -1969,6 +1985,7 @@ fun SearchOverlayScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .bouncyClickable {
+                                            hasStartedTyping = false
                                             val intent = Intent(Intent.ACTION_VIEW).apply {
                                                 setDataAndType(Uri.parse(file.uri), file.mimeType)
                                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

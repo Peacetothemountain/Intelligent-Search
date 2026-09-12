@@ -187,21 +187,45 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
         
         // Determine Material G Icon Theme
+        // Determine Material G Icon Theme
         val materialGIconTheme = prefs.getString("widget_material_g_icon", "Material G Icon") ?: "Material G Icon"
-        val effectiveIconTheme = if (subthemeStr == "Custom") {
+        val effectiveIconTheme = if (subthemeStr == "Custom" || isMaterialYou) {
             materialGIconTheme
-        } else if (!isMaterialYou) {
-            "System G Icon"
         } else {
-            "Material G Icon"
+            "System G Icon"
         }
-        val accentIconTint = if (effectiveIconTheme == "Accented G Icon") actualCustomColor else iconTint
 
         val gIconRes = when (effectiveIconTheme) {
             "System G Icon" -> R.drawable.ic_g_logo_colored
             "Material G Icon" -> R.drawable.ic_g_logo
             "Accented G Icon" -> R.drawable.ic_g_logo
             else -> if (isMaterialYou) R.drawable.ic_g_logo else R.drawable.ic_g_logo_colored
+        }
+
+        val (themePColor, themeSColor, themeTColor) = if (subthemeStr == "Custom") {
+            val hsv = FloatArray(3)
+            android.graphics.Color.colorToHSV(actualCustomColor, hsv)
+            val p = actualCustomColor or 0xFF000000.toInt()
+            val s = android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 18f) % 360f, (hsv[1] * 0.70f).coerceIn(0.1f, 1f), (hsv[2] * 0.95f).coerceIn(0.6f, 1f)))
+            val t = android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 60f) % 360f, (hsv[1] * 0.85f).coerceIn(0.1f, 1f), (hsv[2] * 0.90f).coerceIn(0.7f, 1f)))
+            Triple(p, s, t)
+        } else {
+            val p = if (isPillLight) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_accent1_700) else 0xFF1973E8.toInt()
+            } else {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_accent1_200) else 0xFF8AB4F8.toInt()
+            }
+            val s = if (isPillLight) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_accent2_700) else 0xFF5F6368.toInt()
+            } else {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_accent2_200) else 0xFFBDC1C6.toInt()
+            }
+            val t = if (isPillLight) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_accent3_700) else 0xFF188038.toInt()
+            } else {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_accent3_200) else 0xFF81C995.toInt()
+            }
+            Triple(p, s, t)
         }
         
         val actionIconRes = when (actionIconStr) {
@@ -226,7 +250,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
                 views.setInt(R.id.widget_sound_background, "setImageAlpha", circleAlphaInt)
                 
-                bindGIcon(views, showGIcon, gIconRes, actualCustomColor, effectiveIconTheme, subthemeStr, isMaterialYou, context, isPillLight)
+                bindGIcon(views, showGIcon, gIconRes, themePColor, themeSColor, themeTColor, effectiveIconTheme, subthemeStr, isMaterialYou, context, isPillLight)
 
             } else {
                 // In Colorful mode, outer rim is hidden
@@ -238,7 +262,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
                 views.setInt(R.id.widget_sound_background, "setImageAlpha", circleAlphaInt)
                 
-                bindGIcon(views, showGIcon, gIconRes, actualCustomColor, effectiveIconTheme, subthemeStr, isMaterialYou, context, isPillLight)
+                bindGIcon(views, showGIcon, gIconRes, themePColor, themeSColor, themeTColor, effectiveIconTheme, subthemeStr, isMaterialYou, context, isPillLight)
             }
 
             // Bind 4 ordered shortcut and microphone slots
@@ -289,22 +313,35 @@ class SearchWidgetProvider : AppWidgetProvider() {
 
                     when (effectiveIconTheme) {
                         "Accented G Icon" -> {
-                            views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(actualCustomColor))
+                            views.setImageViewResource(targetViewId, item.second)
+                            views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(themePColor))
                         }
                         "Material G Icon" -> {
-                            views.setColorStateList(targetViewId, "setImageTintList", null)
+                            val themedBitmap = createThemedShortcutBitmap(context, item.second, themePColor, themeSColor, themeTColor)
+                            if (themedBitmap != null) {
+                                views.setImageViewBitmap(targetViewId, themedBitmap)
+                                views.setColorStateList(targetViewId, "setImageTintList", null)
+                            } else {
+                                views.setImageViewResource(targetViewId, item.second)
+                                views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(themePColor))
+                            }
                         }
                         else -> {
                             // System G Icon
-                            if (isPillLight) {
-                                val materialDarkTint = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                    context.getColor(android.R.color.system_accent1_700)
-                                } else {
-                                    android.graphics.Color.parseColor("#1F1F1F")
-                                }
-                                views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(materialDarkTint))
+                            views.setImageViewResource(targetViewId, item.second)
+                            if (item.second == R.drawable.ic_mic_original) {
+                                views.setColorStateList(targetViewId, "setImageTintList", null)
                             } else {
-                                views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE))
+                                val sysTint = if (isPillLight) {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                        context.getColor(android.R.color.system_accent1_700)
+                                    } else {
+                                        android.graphics.Color.parseColor("#1F1F1F")
+                                    }
+                                } else {
+                                    android.graphics.Color.WHITE
+                                }
+                                views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(sysTint))
                             }
                         }
                     }
@@ -368,15 +405,23 @@ class SearchWidgetProvider : AppWidgetProvider() {
                     "Now Playing" -> R.drawable.ic_music
                     else -> R.drawable.ic_search_lens_expressive // Search
                 }
-                views.setImageViewResource(R.id.widget_sound_icon, circleActionIconRes)
                 when (effectiveIconTheme) {
                     "Accented G Icon" -> {
-                        views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(actualCustomColor))
+                        views.setImageViewResource(R.id.widget_sound_icon, circleActionIconRes)
+                        views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(themePColor))
                     }
                     "Material G Icon" -> {
-                        views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", null)
+                        val themedBitmap = createThemedActionIconBitmap(context, circleActionIconRes, themePColor, themeSColor, themeTColor)
+                        if (themedBitmap != null) {
+                            views.setImageViewBitmap(R.id.widget_sound_icon, themedBitmap)
+                            views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", null)
+                        } else {
+                            views.setImageViewResource(R.id.widget_sound_icon, circleActionIconRes)
+                            views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(themePColor))
+                        }
                     }
                     else -> {
+                        views.setImageViewResource(R.id.widget_sound_icon, circleActionIconRes)
                         val sysActionTint = if (isPillLight) {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                                 context.getColor(android.R.color.system_accent1_700)
@@ -553,7 +598,9 @@ class SearchWidgetProvider : AppWidgetProvider() {
             views: RemoteViews, 
             showGIcon: Boolean, 
             gIconRes: Int, 
-            iconTint: Int,
+            pColor: Int,
+            sColor: Int,
+            tColor: Int,
             materialGIconTheme: String,
             subthemeStr: String,
             isMaterialYou: Boolean,
@@ -561,42 +608,26 @@ class SearchWidgetProvider : AppWidgetProvider() {
             isPillLight: Boolean
         ) {
             views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
-            if (materialGIconTheme == "Material G Icon" && subthemeStr == "Custom") {
-                val bitmap = createCustomMaterialGBitmap(iconTint, context)
+            if (materialGIconTheme == "Material G Icon") {
+                val bitmap = createCustomMaterialGBitmap(pColor, sColor, tColor, context)
                 views.setImageViewBitmap(R.id.widget_g_logo, bitmap)
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
+            } else if (materialGIconTheme == "Accented G Icon") {
+                views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo)
+                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(pColor))
             } else {
-                views.setImageViewResource(R.id.widget_g_logo, gIconRes)
-                if (materialGIconTheme == "Accented G Icon") {
-                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
-                } else if (isPillLight && materialGIconTheme == "Material G Icon") {
-                    val darkGTint = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        context.getColor(android.R.color.system_accent1_700)
-                    } else {
-                        android.graphics.Color.parseColor("#1F1F1F")
-                    }
-                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(darkGTint))
-                } else if (isPillLight && materialGIconTheme != "System G Icon") {
-                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(android.graphics.Color.DKGRAY))
-                } else {
-                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
-                }
+                views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo_colored)
+                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
             }
         }
 
-        private fun createCustomMaterialGBitmap(customColor: Int, context: Context): Bitmap {
+        private fun createCustomMaterialGBitmap(pColor: Int, sColor: Int, tColor: Int, context: Context): Bitmap {
             val density = context.resources.displayMetrics.density
             val sizePx = (24 * density).toInt().coerceAtLeast(48)
             val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             val scale = sizePx / 24f
             canvas.scale(scale, scale)
-
-            val hsv = FloatArray(3)
-            android.graphics.Color.colorToHSV(customColor, hsv)
-            val pColor = customColor
-            val sColor = android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 18f) % 360f, (hsv[1] * 0.70f).coerceIn(0.1f, 1f), hsv[2].coerceIn(0.6f, 1f)))
-            val tColor = android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 60f) % 360f, (hsv[1] * 0.85f).coerceIn(0.1f, 1f), hsv[2].coerceIn(0.7f, 1f)))
 
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
@@ -615,6 +646,147 @@ class SearchWidgetProvider : AppWidgetProvider() {
             canvas.drawPath(path4, paint)
 
             return bitmap
+        }
+
+        private fun createThemedShortcutBitmap(
+            context: Context,
+            resId: Int,
+            pColor: Int,
+            sColor: Int,
+            tColor: Int
+        ): Bitmap? {
+            val density = context.resources.displayMetrics.density
+            val sizePx = (24 * density).toInt().coerceAtLeast(48)
+            return when (resId) {
+                R.drawable.ic_mic -> {
+                    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    val scale = sizePx / 24f
+                    canvas.scale(scale, scale)
+                    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+
+                    val p1 = androidx.core.graphics.PathParser.createPathFromPathData("M12,15c1.66,0 2.99,-1.34 2.99,-3L15,5c0,-1.66 -1.34,-3 -3,-3S9,3.34 9,5v7c0,1.66 1.34,3 3,3z")
+                    val p2 = androidx.core.graphics.PathParser.createPathFromPathData("M11,18.92h2V22h-2z")
+                    val p3 = androidx.core.graphics.PathParser.createPathFromPathData("M7,12H5c0,1.93 0.78,3.68 2.05,4.95l1.41,-1.41C7.56,14.63 7,13.38 7,12z")
+                    val p4 = androidx.core.graphics.PathParser.createPathFromPathData("M12,17c-1.38,0 -2.63,-0.56 -3.54,-1.47l-1.41,1.41C8.32,18.21 10.07,19 12.01,19c3.87,0 6.98,-3.14 6.98,-7h-2c0,2.76 -2.23,5 -4.99,5z")
+
+                    paint.color = pColor
+                    canvas.drawPath(p1, paint)
+                    paint.color = sColor
+                    canvas.drawPath(p2, paint)
+                    paint.color = tColor
+                    canvas.drawPath(p3, paint)
+                    paint.color = pColor
+                    canvas.drawPath(p4, paint)
+                    bitmap
+                }
+                R.drawable.ic_camera -> {
+                    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    val scale = sizePx / 100f
+                    canvas.scale(scale, scale)
+                    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+
+                    val p1 = androidx.core.graphics.PathParser.createPathFromPathData("M75.0365 83.3333C79.6388 83.3333 83.3698 79.6023 83.3698 75C83.3698 70.3976 79.6388 66.6666 75.0365 66.6666C70.4341 66.6666 66.7031 70.3976 66.7031 75C66.7031 79.6023 70.4341 83.3333 75.0365 83.3333Z")
+                    val p2 = androidx.core.graphics.PathParser.createPathFromPathData("M50.0364 66.6666C56.9399 66.6666 62.5364 61.0702 62.5364 54.1666C62.5364 47.2631 56.9399 41.6666 50.0364 41.6666C43.1328 41.6666 37.5364 47.2631 37.5364 54.1666C37.5364 61.0702 43.1328 66.6666 50.0364 66.6666Z")
+                    val p3 = androidx.core.graphics.PathParser.createPathFromPathData("M12.5 70.4166C12.5 79.8489 20.151 87.5 29.5833 87.5H50V79.1666L29.1146 79.1145C24.5313 79.1145 20.8333 74.8489 20.8333 69.7916V60.4166H12.5V70.4166Z")
+                    val p4 = androidx.core.graphics.PathParser.createPathFromPathData("M87.5001 37.9167C87.5001 28.4844 79.849 20.8334 70.4167 20.8334H60.4167L70.8334 29.1667C75.4167 29.1667 79.1667 33.4844 79.1667 38.5417V54.1667H87.5001V37.9167Z")
+                    val p5 = androidx.core.graphics.PathParser.createPathFromPathData("M58.3333 12.5H41.6667L35.4167 20.8333H29.5833C20.151 20.8333 12.5 28.4844 12.5 37.9167V47.9167H20.8333V38.5417C20.8333 33.4844 24.5833 29.1667 29.1667 29.1667H70.8333L58.3333 12.5Z")
+
+                    paint.color = pColor
+                    canvas.drawPath(p1, paint)
+                    paint.color = sColor
+                    canvas.drawPath(p2, paint)
+                    paint.color = tColor
+                    canvas.drawPath(p3, paint)
+                    paint.color = pColor
+                    canvas.drawPath(p4, paint)
+                    paint.color = sColor
+                    canvas.drawPath(p5, paint)
+                    bitmap
+                }
+                else -> null
+            }
+        }
+
+        private fun createThemedActionIconBitmap(
+            context: Context,
+            resId: Int,
+            pColor: Int,
+            sColor: Int,
+            tColor: Int
+        ): Bitmap? {
+            val density = context.resources.displayMetrics.density
+            val sizePx = (24 * density).toInt().coerceAtLeast(48)
+            return when (resId) {
+                R.drawable.ic_search_lens_expressive -> {
+                    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    val scale = sizePx / 24f
+                    canvas.scale(scale, scale)
+                    val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.STROKE
+                        strokeCap = Paint.Cap.ROUND
+                    }
+                    val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.FILL
+                    }
+
+                    val p1 = androidx.core.graphics.PathParser.createPathFromPathData("M 10.5,4 A 6.5,6.5 0 0 0 4,10.5 A 6.5,6.5 0 0 0 10.5,17 A 6.5,6.5 0 0 0 15,15")
+                    val p2 = androidx.core.graphics.PathParser.createPathFromPathData("M 14,5 A 6.5,6.5 0 0 0 10.5,4 A 6.5,6.5 0 0 0 5,7.5")
+                    val p3 = androidx.core.graphics.PathParser.createPathFromPathData("M 15.5,15.5 L 20,20")
+                    val p4 = androidx.core.graphics.PathParser.createPathFromPathData("M 18,0.5 C 18,4 21,6.5 24,6.5 C 21,6.5 18,9 18,12.5 C 18,9 15,6.5 12,6.5 C 15,6.5 18,4 18,0.5 Z")
+
+                    strokePaint.strokeWidth = 2.5f
+                    strokePaint.color = pColor
+                    canvas.drawPath(p1, strokePaint)
+
+                    strokePaint.strokeWidth = 2.5f
+                    strokePaint.color = tColor
+                    canvas.drawPath(p2, strokePaint)
+
+                    strokePaint.strokeWidth = 3.0f
+                    strokePaint.color = sColor
+                    canvas.drawPath(p3, strokePaint)
+
+                    fillPaint.color = pColor
+                    canvas.drawPath(p4, fillPaint)
+                    bitmap
+                }
+                R.drawable.ic_music -> {
+                    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    val scale = sizePx / 24f
+                    canvas.scale(scale, scale)
+                    val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.STROKE
+                        strokeCap = Paint.Cap.ROUND
+                        strokeWidth = 3.2f
+                    }
+                    val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.FILL
+                    }
+
+                    val p1 = androidx.core.graphics.PathParser.createPathFromPathData("M 19,11.5 L 19,12.5")
+                    val p2 = androidx.core.graphics.PathParser.createPathFromPathData("M 14.5,9.5 L 14.5,15.5")
+                    val p3 = androidx.core.graphics.PathParser.createPathFromPathData("M 10,7 L 10,16")
+                    val p4 = androidx.core.graphics.PathParser.createPathFromPathData("M 11.6,16.5 C 11.6,19.26 9.36,21.5 6.6,21.5 C 3.84,21.5 1.6,19.26 1.6,16.5 C 1.6,13.74 3.84,11.5 6.6,11.5 C 8.6,11.5 10.3,12.7 11.1,14.4 Z")
+
+                    strokePaint.color = tColor
+                    canvas.drawPath(p1, strokePaint)
+
+                    strokePaint.color = sColor
+                    canvas.drawPath(p2, strokePaint)
+
+                    strokePaint.color = pColor
+                    canvas.drawPath(p3, strokePaint)
+
+                    fillPaint.color = pColor
+                    canvas.drawPath(p4, fillPaint)
+                    bitmap
+                }
+                else -> null
+            }
         }
 
         fun getNowPlayingIntent(context: Context): Intent {

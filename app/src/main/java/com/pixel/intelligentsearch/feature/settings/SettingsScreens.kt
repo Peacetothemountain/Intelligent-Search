@@ -5617,7 +5617,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localLightness by remember { mutableStateOf(prefs.getInt("widget_custom_lightness", 100).toFloat()) }
     var localColorOpacity by remember { mutableStateOf(prefs.getInt("widget_custom_color_opacity", 100).toFloat()) }
     var localTransparency by remember { mutableStateOf(prefs.getInt("widget.background.transparency", 28).toFloat()) }
-    var localCustomColorInt by remember { mutableStateOf(prefs.getInt("widget_custom_color_int", android.graphics.Color.HSVToColor((localColorOpacity / 100f * 255).toInt(), floatArrayOf(localHue, localSaturation / 100f, 1f)))) }
+    val computedCustomColorInt = remember(localHue, localSaturation, localLightness, localColorOpacity) {
+        android.graphics.Color.HSVToColor(
+            (localColorOpacity / 100f * 255).toInt().coerceIn(0, 255),
+            floatArrayOf(localHue, (localSaturation / 100f).coerceIn(0f, 1f), (localLightness / 100f).coerceIn(0f, 1f))
+        )
+    }
     var localLockBlack by remember { mutableStateOf(prefs.getBoolean("widget_material_lock_black", true)) }
     var localShowVoice by remember { mutableStateOf(prefs.getBoolean("widget_show_voice", true)) }
     var localActionIcon by remember { mutableStateOf(prefs.getString("widget_action_icon", "Search") ?: "Search") }
@@ -5658,7 +5663,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         localLightness = 100f
                         localColorOpacity = 100f
                         localTransparency = 28f
-                        localCustomColorInt = android.graphics.Color.HSVToColor(255, floatArrayOf(277f, 0.51f, 1f))
                         localLockBlack = true
                         localShowVoice = true
                         localActionIcon = "Search"
@@ -5680,7 +5684,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .putInt("widget_custom_saturation", localSaturation.toInt())
                             .putInt("widget_custom_lightness", localLightness.toInt())
                             .putInt("widget_custom_color_opacity", localColorOpacity.toInt())
-                            .putInt("widget_custom_color_int", localCustomColorInt)
+                            .putInt("widget_custom_color_int", computedCustomColorInt)
                             .putInt("widget.background.transparency", localTransparency.toInt())
                             .putBoolean("widget_material_lock_black", localLockBlack)
                             .putBoolean("widget_show_voice", localShowVoice)
@@ -5720,7 +5724,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val effectiveColorAlpha = (colorAlpha * containerAlpha).coerceIn(0f, 1f)
                     
                     val accentColor = if (localSubtheme == "Custom") {
-                        androidx.compose.ui.graphics.Color(localCustomColorInt)
+                        androidx.compose.ui.graphics.Color(computedCustomColorInt)
                     } else {
                         MaterialTheme.colorScheme.primary
                     }
@@ -5731,10 +5735,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val matError = MaterialTheme.colorScheme.error
                     val matSurfaceVariant = MaterialTheme.colorScheme.surfaceVariant
 
-                    val activeColor = remember(previewIsMaterialYou, localSubtheme, localCustomColorInt, matPrimary, matSurfaceVariant, effectiveColorAlpha) {
+                    val activeColor = remember(previewIsMaterialYou, localSubtheme, computedCustomColorInt, matPrimary, matSurfaceVariant, effectiveColorAlpha) {
                         if (localSubtheme == "Custom") {
                             val hsv = FloatArray(3)
-                            android.graphics.Color.colorToHSV(localCustomColorInt, hsv)
+                            android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
                             androidx.compose.ui.graphics.Color(
                                 android.graphics.Color.HSVToColor(
                                     255, 
@@ -5757,25 +5761,25 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
                     val waveSecondary = if (isCustomTheme) {
                         val hsv = FloatArray(3)
-                        android.graphics.Color.colorToHSV(localCustomColorInt, hsv)
+                        android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
                         androidx.compose.ui.graphics.Color(
-                            android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 25f) % 360f, (hsv[1] * 0.8f).coerceIn(0.2f, 1f), 1f))
+                            android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 18f) % 360f, (hsv[1] * 0.70f).coerceIn(0.1f, 1f), (hsv[2] * 0.95f).coerceIn(0.6f, 1f)))
                         )
                     } else {
                         matSecondary
                     }
                     val waveTertiary = if (isCustomTheme) {
                         val hsv = FloatArray(3)
-                        android.graphics.Color.colorToHSV(localCustomColorInt, hsv)
+                        android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
                         androidx.compose.ui.graphics.Color(
-                            android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 65f) % 360f, (hsv[1] * 0.9f).coerceIn(0.2f, 1f), 1f))
+                            android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 60f) % 360f, (hsv[1] * 0.85f).coerceIn(0.1f, 1f), (hsv[2] * 0.90f).coerceIn(0.7f, 1f)))
                         )
                     } else {
                         matTertiary
                     }
                     val waveAccent = if (isCustomTheme) {
                         val hsv = FloatArray(3)
-                        android.graphics.Color.colorToHSV(localCustomColorInt, hsv)
+                        android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
                         androidx.compose.ui.graphics.Color(
                             android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 120f) % 360f, (hsv[1] * 0.6f).coerceIn(0.1f, 1f), 0.95f))
                         )
@@ -5805,12 +5809,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     } else androidx.compose.ui.graphics.Color.Transparent
                     
-                    val effectiveGIconTheme = if (localSubtheme == "Custom") {
+                    val effectiveGIconTheme = if (localSubtheme == "Custom" || previewIsMaterialYou) {
                         localMaterialGIconTheme
-                    } else if (!previewIsMaterialYou) {
-                        "System G Icon"
                     } else {
-                        localMaterialGIconTheme
+                        "System G Icon"
                     }
 
                     val customLuminance = (0.299 * accentColor.red + 0.587 * accentColor.green + 0.114 * accentColor.blue)
@@ -5869,6 +5871,30 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     }
                     
+                    val gPrimary = if (isCustomTheme) {
+                        accentColor
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
+                    val gSecondary = if (isCustomTheme) {
+                        val hsv = FloatArray(3)
+                        android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
+                        androidx.compose.ui.graphics.Color(
+                            android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 18f) % 360f, (hsv[1] * 0.70f).coerceIn(0.1f, 1f), (hsv[2] * 0.95f).coerceIn(0.6f, 1f)))
+                        )
+                    } else {
+                        MaterialTheme.colorScheme.secondary
+                    }
+                    val gTertiary = if (isCustomTheme) {
+                        val hsv = FloatArray(3)
+                        android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
+                        androidx.compose.ui.graphics.Color(
+                            android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 60f) % 360f, (hsv[1] * 0.85f).coerceIn(0.1f, 1f), (hsv[2] * 0.90f).coerceIn(0.7f, 1f)))
+                        )
+                    } else {
+                        MaterialTheme.colorScheme.tertiary
+                    }
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -5889,30 +5915,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+
                             if (localShowGIcon) {
-                                val gPrimary = if (isCustomTheme) {
-                                    accentColor
-                                } else {
-                                    MaterialTheme.colorScheme.primary
-                                }
-                                val gSecondary = if (isCustomTheme) {
-                                    val hsv = FloatArray(3)
-                                    android.graphics.Color.colorToHSV(localCustomColorInt, hsv)
-                                    androidx.compose.ui.graphics.Color(
-                                        android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 18f) % 360f, (hsv[1] * 0.70f).coerceIn(0.1f, 1f), hsv[2].coerceIn(0.6f, 1f)))
-                                    )
-                                } else {
-                                    MaterialTheme.colorScheme.secondary
-                                }
-                                val gTertiary = if (isCustomTheme) {
-                                    val hsv = FloatArray(3)
-                                    android.graphics.Color.colorToHSV(localCustomColorInt, hsv)
-                                    androidx.compose.ui.graphics.Color(
-                                        android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 60f) % 360f, (hsv[1] * 0.85f).coerceIn(0.1f, 1f), hsv[2].coerceIn(0.7f, 1f)))
-                                    )
-                                } else {
-                                    MaterialTheme.colorScheme.tertiary
-                                }
                                 val isAccented = effectiveGIconTheme == "Accented G Icon"
                                 val useOriginalGIcon = effectiveGIconTheme == "System G Icon"
                                 ComposeGIcon(
@@ -5962,21 +5966,23 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 if (idx > 0) {
                                     Spacer(modifier = Modifier.width(16.dp))
                                 }
-                                val iconTint = when (effectiveGIconTheme) {
-                                    "Accented G Icon" -> accentColor
-                                    "Material G Icon" -> androidx.compose.ui.graphics.Color.Unspecified
+                                val isMaterial = effectiveGIconTheme == "Material G Icon"
+                                val (scPrimary, scSecondary, scTertiary) = when (effectiveGIconTheme) {
+                                    "Accented G Icon" -> Triple(accentColor, accentColor, accentColor)
+                                    "Material G Icon" -> Triple(gPrimary, gSecondary, gTertiary)
                                     else -> { // System G Icon
-                                        if (isPreviewPillLight) {
-                                            materialDarkCompose
-                                        } else {
-                                            androidx.compose.ui.graphics.Color.White
-                                        }
+                                        val sysTint = if (isPreviewPillLight) materialDarkCompose else androidx.compose.ui.graphics.Color.White
+                                        val finalTint = if (item.second == com.pixel.intelligentsearch.R.drawable.ic_mic_original) androidx.compose.ui.graphics.Color.Unspecified else sysTint
+                                        Triple(finalTint, finalTint, finalTint)
                                     }
                                 }
-                                Icon(
-                                    painter = androidx.compose.ui.res.painterResource(id = item.second),
+                                ComposeThemedShortcutIcon(
+                                    resId = item.second,
                                     contentDescription = item.first,
-                                    tint = iconTint,
+                                    primaryColor = scPrimary,
+                                    secondaryColor = scSecondary,
+                                    tertiaryColor = scTertiary,
+                                    isMaterialTheme = isMaterial,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -5990,36 +5996,21 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     .background(previewPillColorAlpha, androidx.compose.foundation.shape.CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                when (effectiveGIconTheme) {
-                                    "Accented G Icon" -> {
-                                        ComposeActionIcon(
-                                            iconType = localActionIcon,
-                                            modifier = Modifier.size(24.dp),
-                                            primaryColor = accentColor,
-                                            secondaryColor = accentColor,
-                                            tertiaryColor = accentColor
-                                        )
-                                    }
-                                    "Material G Icon" -> {
-                                        ComposeActionIcon(
-                                            iconType = localActionIcon,
-                                            modifier = Modifier.size(24.dp),
-                                            primaryColor = MaterialTheme.colorScheme.primary,
-                                            secondaryColor = MaterialTheme.colorScheme.secondary,
-                                            tertiaryColor = MaterialTheme.colorScheme.tertiary
-                                        )
-                                    }
+                                val (actPrimary, actSecondary, actTertiary) = when (effectiveGIconTheme) {
+                                    "Accented G Icon" -> Triple(accentColor, accentColor, accentColor)
+                                    "Material G Icon" -> Triple(gPrimary, gSecondary, gTertiary)
                                     else -> { // System G Icon
                                         val sysActionTint = if (isPreviewPillLight) materialDarkCompose else androidx.compose.ui.graphics.Color.White
-                                        ComposeActionIcon(
-                                            iconType = localActionIcon,
-                                            modifier = Modifier.size(24.dp),
-                                            primaryColor = sysActionTint,
-                                            secondaryColor = sysActionTint,
-                                            tertiaryColor = sysActionTint
-                                        )
+                                        Triple(sysActionTint, sysActionTint, sysActionTint)
                                     }
                                 }
+                                ComposeActionIcon(
+                                    iconType = localActionIcon,
+                                    modifier = Modifier.size(24.dp),
+                                    primaryColor = actPrimary,
+                                    secondaryColor = actSecondary,
+                                    tertiaryColor = actTertiary
+                                )
                             }
                         }
                     }
@@ -6214,7 +6205,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 val systemOpts = listOf("System", "Light", "Dark", "Custom")
                                 systemOpts.forEach { opt ->
                                     val isSel = localSubtheme == opt
-                                    val dynColor = androidx.compose.ui.graphics.Color(localCustomColorInt)
+                                    val dynColor = androidx.compose.ui.graphics.Color(computedCustomColorInt)
                                     val bgModifier = if (opt == "Custom") {
                                         if (isSel) {
                                             Modifier.background(dynColor, RoundedCornerShape(32.dp))
@@ -6259,7 +6250,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 val matOpts = listOf("Material", "Custom")
                                 matOpts.forEach { opt ->
                                     val isSel = localSubtheme == opt
-                                    val dynColor = androidx.compose.ui.graphics.Color(localCustomColorInt)
+                                    val dynColor = androidx.compose.ui.graphics.Color(computedCustomColorInt)
                                     val bgModifier = if (opt == "Custom") {
                                         if (isSel) {
                                             Modifier.background(dynColor, RoundedCornerShape(32.dp))
@@ -6303,7 +6294,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             }
                         }
 
-                        if (localSubtheme == "Custom") {
+                        val isMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
+                        if (localSubtheme == "Custom" || isMaterialYou) {
+                            Text("G ICON STYLE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
                             // Material G Icon Row
                             SettingsCard {
                                 Row(
@@ -6333,7 +6326,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             }
                         }
 
-                        val isMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
                         if (isMaterialYou) {
                             Text("WIDGET ACTION ICON", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
                             SettingsCard {
@@ -6407,8 +6399,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                     "Color Studio" -> {
                         // TAB 1: COLOR STUDIO
-                        val dynamicCustomColor = androidx.compose.ui.graphics.Color(localCustomColorInt)
-                        val transparencyTrackGradient = remember(localCustomColorInt) {
+                        val dynamicCustomColor = androidx.compose.ui.graphics.Color(computedCustomColorInt)
+                        val transparencyTrackGradient = remember(computedCustomColorInt) {
                             listOf(
                                 dynamicCustomColor,
                                 dynamicCustomColor.copy(alpha = 0.7f),
@@ -6453,7 +6445,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 onValueChange = { 
                                                     localSubtheme = "Custom"
                                                     localHue = it 
-                                                    localCustomColorInt = android.graphics.Color.HSVToColor((localColorOpacity / 100f * 255).toInt().coerceIn(0, 255), floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
                                                 },
                                                 valueRange = 0f..360f,
                                                 modifier = Modifier.fillMaxWidth()
@@ -6489,7 +6480,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 onValueChange = { 
                                                     localSubtheme = "Custom"
                                                     localSaturation = it 
-                                                    localCustomColorInt = android.graphics.Color.HSVToColor((localColorOpacity / 100f * 255).toInt().coerceIn(0, 255), floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
                                                 },
                                                 valueRange = 0f..100f,
                                                 modifier = Modifier.fillMaxWidth()
@@ -6524,7 +6514,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 onValueChange = { 
                                                     localSubtheme = "Custom"
                                                     localColorOpacity = it 
-                                                    localCustomColorInt = android.graphics.Color.HSVToColor((localColorOpacity / 100f * 255).toInt().coerceIn(0, 255), floatArrayOf(localHue, localSaturation / 100f, localLightness / 100f))
                                                 },
                                                 valueRange = 0f..100f,
                                                 modifier = Modifier.fillMaxWidth(),
@@ -6566,7 +6555,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 Spacer(modifier = Modifier.height(20.dp))
 
                                 // 5. Hex Color Pill Bar (pill bar under custom color pallet sliders in the same container)
-                                val customColorHex = String.format("#%06X", (0xFFFFFF and localCustomColorInt))
+                                val customColorHex = String.format("#%06X", (0xFFFFFF and computedCustomColorInt))
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -6992,12 +6981,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         androidx.compose.material3.TextButton(onClick = {
                             try {
                                 val color = android.graphics.Color.parseColor(if (tempHexInput.startsWith("#")) tempHexInput else "#$tempHexInput")
-                                localCustomColorInt = color
                                 val hsv = FloatArray(3)
                                 android.graphics.Color.colorToHSV(color, hsv)
                                 localHue = hsv[0]
                                 localSaturation = hsv[1] * 100
                                 localLightness = hsv[2] * 100
+                                localSubtheme = "Custom"
                             } catch (e: Exception) {}
                             showHexInput = false
                         }) { Text("Save") }
@@ -7138,6 +7127,60 @@ fun ComposeActionIcon(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun ComposeThemedShortcutIcon(
+    resId: Int,
+    contentDescription: String,
+    primaryColor: androidx.compose.ui.graphics.Color,
+    secondaryColor: androidx.compose.ui.graphics.Color,
+    tertiaryColor: androidx.compose.ui.graphics.Color,
+    isMaterialTheme: Boolean,
+    modifier: Modifier = Modifier
+) {
+    if (isMaterialTheme && resId == com.pixel.intelligentsearch.R.drawable.ic_mic) {
+        val path1 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,15c1.66,0 2.99,-1.34 2.99,-3L15,5c0,-1.66 -1.34,-3 -3,-3S9,3.34 9,5v7c0,1.66 1.34,3 3,3z").toPath() }
+        val path2 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M11,18.92h2V22h-2z").toPath() }
+        val path3 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M7,12H5c0,1.93 0.78,3.68 2.05,4.95l1.41,-1.41C7.56,14.63 7,13.38 7,12z").toPath() }
+        val path4 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,17c-1.38,0 -2.63,-0.56 -3.54,-1.47l-1.41,1.41C8.32,18.21 10.07,19 12.01,19c3.87,0 6.98,-3.14 6.98,-7h-2c0,2.76 -2.23,5 -4.99,5z").toPath() }
+
+        androidx.compose.foundation.Canvas(modifier = modifier) {
+            val scaleX = size.width / 24f
+            val scaleY = size.height / 24f
+            scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
+                drawPath(path = path1, color = primaryColor)
+                drawPath(path = path2, color = secondaryColor)
+                drawPath(path = path3, color = tertiaryColor)
+                drawPath(path = path4, color = primaryColor)
+            }
+        }
+    } else if (isMaterialTheme && resId == com.pixel.intelligentsearch.R.drawable.ic_camera) {
+        val path1 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M75.0365 83.3333C79.6388 83.3333 83.3698 79.6023 83.3698 75C83.3698 70.3976 79.6388 66.6666 75.0365 66.6666C70.4341 66.6666 66.7031 70.3976 66.7031 75C66.7031 79.6023 70.4341 83.3333 75.0365 83.3333Z").toPath() }
+        val path2 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M50.0364 66.6666C56.9399 66.6666 62.5364 61.0702 62.5364 54.1666C62.5364 47.2631 56.9399 41.6666 50.0364 41.6666C43.1328 41.6666 37.5364 47.2631 37.5364 54.1666C37.5364 61.0702 43.1328 66.6666 50.0364 66.6666Z").toPath() }
+        val path3 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12.5 70.4166C12.5 79.8489 20.151 87.5 29.5833 87.5H50V79.1666L29.1146 79.1145C24.5313 79.1145 20.8333 74.8489 20.8333 69.7916V60.4166H12.5V70.4166Z").toPath() }
+        val path4 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M87.5001 37.9167C87.5001 28.4844 79.849 20.8334 70.4167 20.8334H60.4167L70.8334 29.1667C75.4167 29.1667 79.1667 33.4844 79.1667 38.5417V54.1667H87.5001V37.9167Z").toPath() }
+        val path5 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M58.3333 12.5H41.6667L35.4167 20.8333H29.5833C20.151 20.8333 12.5 28.4844 12.5 37.9167V47.9167H20.8333V38.5417C20.8333 33.4844 24.5833 29.1667 29.1667 29.1667H70.8333L58.3333 12.5Z").toPath() }
+
+        androidx.compose.foundation.Canvas(modifier = modifier) {
+            val scaleX = size.width / 100f
+            val scaleY = size.height / 100f
+            scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
+                drawPath(path = path1, color = primaryColor)
+                drawPath(path = path2, color = secondaryColor)
+                drawPath(path = path3, color = tertiaryColor)
+                drawPath(path = path4, color = primaryColor)
+                drawPath(path = path5, color = secondaryColor)
+            }
+        }
+    } else {
+        Icon(
+            painter = androidx.compose.ui.res.painterResource(id = resId),
+            contentDescription = contentDescription,
+            tint = primaryColor,
+            modifier = modifier
+        )
     }
 }
 

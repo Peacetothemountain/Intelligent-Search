@@ -5799,23 +5799,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         androidx.compose.ui.graphics.Color(0xFF1F1F1F)
                     }
 
-                    val finalPreviewIconTint = if (previewIsMaterialYou) {
-                        when (effectiveGIconTheme) {
-                            "Accented G Icon" -> accentColor
-                            "Material G Icon" -> androidx.compose.ui.graphics.Color.White
-                            "System G Icon" -> androidx.compose.ui.graphics.Color.White
-                            else -> androidx.compose.ui.graphics.Color.White
-                        }
-                    } else {
-                        when (localSubtheme) {
-                            "Light" -> if (effectiveGIconTheme == "Accented G Icon") accentColor else materialDarkCompose
-                            else -> {
-                                if (effectiveGIconTheme == "Accented G Icon") accentColor
-                                else androidx.compose.ui.graphics.Color.White
-                            }
-                        }
-                    }
-                    
                     val rimBrush = if (previewIsMaterialYou && localSubtheme == "Custom") {
                         androidx.compose.ui.graphics.SolidColor(accentColor.copy(alpha = effectiveColorAlpha))
                     } else {
@@ -5824,7 +5807,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     
                     val previewPillColorAlpha = if (previewIsMaterialYou) {
                         if (localLockBlack) {
-                            androidx.compose.ui.graphics.Color(0xFF121212).copy(alpha = containerAlpha)
+                            val baseColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                androidx.compose.ui.graphics.Color(context.getColor(android.R.color.system_neutral1_900))
+                            } else {
+                                androidx.compose.ui.graphics.Color(0xFF121212)
+                            }
+                            baseColor.copy(alpha = containerAlpha)
                         } else {
                             accentColor.copy(alpha = effectiveColorAlpha)
                         }

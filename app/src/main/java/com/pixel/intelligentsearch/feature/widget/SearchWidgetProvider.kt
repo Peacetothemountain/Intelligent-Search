@@ -14,6 +14,9 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.widget.RemoteViews
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.ui.graphics.toArgb
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -85,6 +88,10 @@ class SearchWidgetProvider : AppWidgetProvider() {
             else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
         }
 
+        val dynamicScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        } else null
+
         val widgetThemeStyle = prefs.getString("widget.theme.style", "System Default")
         val isMaterialYou = widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
 
@@ -101,11 +108,10 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val rimColor = if (isMaterialYou) {
             if (subthemeStr == "Custom") {
                 actualCustomColor
+            } else if (subthemeStr == "Material") {
+                dynamicScheme?.primaryContainer?.toArgb() ?: (if (isDark) context.getColor(android.R.color.system_accent1_800) else context.getColor(android.R.color.system_accent1_200))
             } else {
-                context.getColor(
-                    if (isDark) android.R.color.system_accent1_800
-                    else android.R.color.system_accent1_200
-                )
+                dynamicScheme?.primary?.toArgb() ?: (if (isDark) context.getColor(android.R.color.system_accent1_800) else context.getColor(android.R.color.system_accent1_200))
             }
         } else {
             android.graphics.Color.TRANSPARENT
@@ -210,21 +216,9 @@ class SearchWidgetProvider : AppWidgetProvider() {
             val t = android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 60f) % 360f, (hsv[1] * 0.85f).coerceIn(0.1f, 1f), (hsv[2] * 0.90f).coerceIn(0.7f, 1f)))
             Triple(p, s, t)
         } else {
-            val p = if (isPillLight) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_accent1_700) else 0xFF1973E8.toInt()
-            } else {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_accent1_200) else 0xFF8AB4F8.toInt()
-            }
-            val s = if (isPillLight) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_accent2_700) else 0xFF5F6368.toInt()
-            } else {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_accent2_200) else 0xFFBDC1C6.toInt()
-            }
-            val t = if (isPillLight) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_accent3_700) else 0xFF188038.toInt()
-            } else {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_accent3_200) else 0xFF81C995.toInt()
-            }
+            val p = dynamicScheme?.primary?.toArgb() ?: (if (isDark) 0xFF8AB4F8.toInt() else 0xFF1973E8.toInt())
+            val s = dynamicScheme?.secondary?.toArgb() ?: (if (isDark) 0xFFBDC1C6.toInt() else 0xFF5F6368.toInt())
+            val t = dynamicScheme?.tertiary?.toArgb() ?: (if (isDark) 0xFF81C995.toInt() else 0xFF188038.toInt())
             Triple(p, s, t)
         }
         

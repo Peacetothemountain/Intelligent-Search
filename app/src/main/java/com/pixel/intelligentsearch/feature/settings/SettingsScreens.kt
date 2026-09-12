@@ -5746,8 +5746,28 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     } else androidx.compose.ui.graphics.Color.Transparent
                     
+                    val effectiveGIconTheme = if (localSubtheme == "Custom") {
+                        localMaterialGIconTheme
+                    } else if (!previewIsMaterialYou) {
+                        "System G Icon"
+                    } else {
+                        "Material G Icon"
+                    }
+
+                    val customLuminance = (0.299 * accentColor.red + 0.587 * accentColor.green + 0.114 * accentColor.blue)
+                    val isPreviewPillLight = if (previewIsMaterialYou) {
+                        !localLockBlack && (customLuminance > 0.5f)
+                    } else {
+                        when (localSubtheme) {
+                            "Light" -> true
+                            "Dark" -> false
+                            "Custom" -> customLuminance > 0.5f
+                            else -> !androidx.compose.foundation.isSystemInDarkTheme()
+                        }
+                    }
+                    
                     val finalPreviewIconTint = if (previewIsMaterialYou) {
-                        when (localMaterialGIconTheme) {
+                        when (effectiveGIconTheme) {
                             "Accented G Icon" -> accentColor
                             "Material G Icon" -> androidx.compose.ui.graphics.Color.White
                             "System G Icon" -> androidx.compose.ui.graphics.Color.White
@@ -5755,9 +5775,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     } else {
                         when (localSubtheme) {
-                            "Light" -> if (localMaterialGIconTheme == "Accented G Icon") accentColor else androidx.compose.ui.graphics.Color(0xFF5F6368)
+                            "Light" -> if (effectiveGIconTheme == "Accented G Icon") accentColor else androidx.compose.ui.graphics.Color(0xFF5F6368)
                             else -> {
-                                if (localMaterialGIconTheme == "Accented G Icon") accentColor
+                                if (effectiveGIconTheme == "Accented G Icon") accentColor
                                 else androidx.compose.ui.graphics.Color.White
                             }
                         }
@@ -5805,17 +5825,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (localShowGIcon) {
-                                val gIconTint = when (localMaterialGIconTheme) {
+                                val gIconTint = when (effectiveGIconTheme) {
                                     "Accented G Icon" -> accentColor
                                     else -> androidx.compose.ui.graphics.Color.Unspecified
                                 }
-                                val useOriginalGIcon = localMaterialGIconTheme == "System G Icon"
+                                val useOriginalGIcon = effectiveGIconTheme == "System G Icon"
                                 ComposeGIcon(
                                     modifier = Modifier.size(24.dp),
                                     primaryColor = MaterialTheme.colorScheme.primary,
                                     secondaryColor = MaterialTheme.colorScheme.secondary,
                                     tertiaryColor = MaterialTheme.colorScheme.tertiary,
-                                    isAccented = localMaterialGIconTheme == "Accented G Icon",
+                                    isAccented = effectiveGIconTheme == "Accented G Icon",
                                     accentColor = accentColor,
                                     fallbackTint = gIconTint,
                                     useOriginalColors = useOriginalGIcon
@@ -5824,7 +5844,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             
                             Spacer(Modifier.weight(1f))
                             
-                            val useMaterialYouIcons = previewIsMaterialYou || localMaterialGIconTheme == "Material G Icon"
+                            val useMaterialYouIcons = previewIsMaterialYou || effectiveGIconTheme == "Material G Icon"
                             val slotOrder = localSlotOrderStr.split(",").filter { it.isNotBlank() }
                             val previewActiveItems = mutableListOf<Triple<String, Int, Boolean>>()
                             slotOrder.forEach { key ->
@@ -5858,16 +5878,16 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     Spacer(modifier = Modifier.width(16.dp))
                                 }
                                 val isMic = item.third
-                                val iconTint = if (localMaterialGIconTheme == "Accented G Icon") {
-                                    accentColor
-                                } else if (localMaterialGIconTheme == "Material G Icon") {
-                                    androidx.compose.ui.graphics.Color.Unspecified
-                                } else if (localSubtheme == "Light" && !previewIsMaterialYou) {
-                                    androidx.compose.ui.graphics.Color(0xFF5F6368)
-                                } else if (isMic && localMaterialGIconTheme == "System G Icon") {
-                                    androidx.compose.ui.graphics.Color.Unspecified
-                                } else {
-                                    androidx.compose.ui.graphics.Color.White
+                                val iconTint = when (effectiveGIconTheme) {
+                                    "Accented G Icon" -> accentColor
+                                    "Material G Icon" -> androidx.compose.ui.graphics.Color.Unspecified
+                                    else -> { // System G Icon
+                                        if (isMic) {
+                                            androidx.compose.ui.graphics.Color.Unspecified
+                                        } else {
+                                            if (isPreviewPillLight) androidx.compose.ui.graphics.Color(0xFF5F6368) else androidx.compose.ui.graphics.Color.White
+                                        }
+                                    }
                                 }
                                 Icon(
                                     painter = androidx.compose.ui.res.painterResource(id = item.second),
@@ -5886,18 +5906,36 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     .background(previewPillColorAlpha, androidx.compose.foundation.shape.CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                val actIcon = when (localActionIcon) {
-                                    "Search" -> com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive
-                                    "Assistant", "Gemini" -> com.pixel.intelligentsearch.R.drawable.ic_lens_action
-                                    "Now Playing" -> com.pixel.intelligentsearch.R.drawable.ic_music
-                                    else -> com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive
+                                when (effectiveGIconTheme) {
+                                    "Accented G Icon" -> {
+                                        ComposeActionIcon(
+                                            iconType = localActionIcon,
+                                            modifier = Modifier.size(24.dp),
+                                            primaryColor = accentColor,
+                                            secondaryColor = accentColor,
+                                            tertiaryColor = accentColor
+                                        )
+                                    }
+                                    "Material G Icon" -> {
+                                        ComposeActionIcon(
+                                            iconType = localActionIcon,
+                                            modifier = Modifier.size(24.dp),
+                                            primaryColor = MaterialTheme.colorScheme.primary,
+                                            secondaryColor = MaterialTheme.colorScheme.secondary,
+                                            tertiaryColor = MaterialTheme.colorScheme.tertiary
+                                        )
+                                    }
+                                    else -> { // System G Icon
+                                        val sysActionTint = if (isPreviewPillLight) androidx.compose.ui.graphics.Color(0xFF5F6368) else androidx.compose.ui.graphics.Color.White
+                                        ComposeActionIcon(
+                                            iconType = localActionIcon,
+                                            modifier = Modifier.size(24.dp),
+                                            primaryColor = sysActionTint,
+                                            secondaryColor = sysActionTint,
+                                            tertiaryColor = sysActionTint
+                                        )
+                                    }
                                 }
-                                Icon(
-                                    painter = androidx.compose.ui.res.painterResource(id = actIcon),
-                                    contentDescription = "Action",
-                                    tint = Color.Unspecified,
-                                    modifier = Modifier.size(24.dp)
-                                )
                             }
                         }
                     }
@@ -5962,11 +6000,31 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             }
 
             // Material 3 Expressive Segmented Tab Bar
-            val tabs = listOf(
-                Pair("Appearance", Icons.Outlined.Palette),
-                Pair("Color Studio", Icons.Outlined.Tune),
-                Pair("Widget Shortcuts", Icons.Outlined.Widgets)
-            )
+            val isCustomActive = localSubtheme == "Custom"
+            val tabs = remember(isCustomActive) {
+                if (isCustomActive) {
+                    listOf(
+                        Pair("Appearance", Icons.Outlined.Palette),
+                        Pair("Color Studio", Icons.Outlined.Tune),
+                        Pair("Widget Shortcuts", Icons.Outlined.Widgets)
+                    )
+                } else {
+                    listOf(
+                        Pair("Appearance", Icons.Outlined.Palette),
+                        Pair("Widget Shortcuts", Icons.Outlined.Widgets)
+                    )
+                }
+            }
+
+            LaunchedEffect(isCustomActive) {
+                if (!isCustomActive) {
+                    if (selectedTab == 1) {
+                        selectedTab = 0
+                    } else if (selectedTab > 1) {
+                        selectedTab = 1
+                    }
+                }
+            }
 
             Row(
                 modifier = Modifier
@@ -6027,8 +6085,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                when (selectedTab) {
-                    0 -> {
+                val activeTabName = tabs.getOrNull(selectedTab)?.first ?: "Appearance"
+                when (activeTabName) {
+                    "Appearance" -> {
                         // TAB 0: APPEARANCE
                         // G Icon options
                         SettingsCard {
@@ -6192,39 +6251,77 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                         val isMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
                         if (isMaterialYou) {
-                            Text("WIDGET ACTIONS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
+                            Text("WIDGET ACTION ICON", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
                             SettingsCard {
-                                SettingsDropdownRow(
-                                    title = "Widget Action Icon",
-                                    subtitle = localActionIcon,
-                                    iconContent = {
-                                        if (localActionIcon == "None") {
-                                            Icon(Icons.Default.Close, contentDescription = "None", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        } else {
-                                            ComposeActionIcon(
-                                                iconType = localActionIcon,
-                                                modifier = Modifier.size(24.dp),
-                                                primaryColor = MaterialTheme.colorScheme.primary,
-                                                secondaryColor = MaterialTheme.colorScheme.secondary,
-                                                tertiaryColor = MaterialTheme.colorScheme.tertiary
-                                            )
-                                        }
-                                    },
-                                    options = listOf("None", "Search", "Assistant", "Now Playing"),
-                                    selectedOption = if (localActionIcon == "Gemini") "Assistant" else localActionIcon,
-                                    onOptionSelected = { localActionIcon = it },
-                                    showDivider = false,
-                                    optionIcons = mapOf(
-                                        "Search" to com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive,
-                                        "Assistant" to com.pixel.intelligentsearch.R.drawable.ic_lens_action,
-                                        "Now Playing" to com.pixel.intelligentsearch.R.drawable.ic_music
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val actionOptions = listOf(
+                                        Triple("None", "None", null),
+                                        Triple("Search", "Search", com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive),
+                                        Triple("Assistant", "Assistant", com.pixel.intelligentsearch.R.drawable.ic_lens_action),
+                                        Triple("Now Playing", "Playing", com.pixel.intelligentsearch.R.drawable.ic_music)
                                     )
-                                )
+                                    val currentAction = if (localActionIcon == "Gemini") "Assistant" else localActionIcon
+                                    actionOptions.forEach { (optionKey, label, iconRes) ->
+                                        val isSel = currentAction == optionKey
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(64.dp)
+                                                .clip(RoundedCornerShape(20.dp))
+                                                .background(
+                                                    if (isSel) MaterialTheme.colorScheme.primaryContainer 
+                                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                                )
+                                                .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
+                                                    hapticEngine.performPredictiveBackHaptic(view)
+                                                    localActionIcon = optionKey
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.Center,
+                                                modifier = Modifier.padding(4.dp)
+                                            ) {
+                                                if (iconRes != null) {
+                                                    ComposeActionIcon(
+                                                        iconType = optionKey,
+                                                        modifier = Modifier.size(22.dp),
+                                                        primaryColor = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        secondaryColor = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        tertiaryColor = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        Icons.Default.Close,
+                                                        contentDescription = "None",
+                                                        modifier = Modifier.size(22.dp),
+                                                        tint = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = label,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
 
-                    1 -> {
+                    "Color Studio" -> {
                         // TAB 1: COLOR STUDIO
                         val dynamicCustomColor = androidx.compose.ui.graphics.Color(localCustomColorInt)
                         val transparencyTrackGradient = remember(localCustomColorInt) {
@@ -6437,14 +6534,15 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             "Inner Pill & Circle State",
-                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontSize = 16.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
+                                        Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             "Force Inner Pill & Circle to #121212",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                     androidx.compose.material3.Switch(
@@ -6462,7 +6560,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     }
 
-                    2 -> {
+                    "Widget Shortcuts" -> {
                         // TAB 2: WIDGET SHORTCUTS
                         Text("WIDGET SHORTCUTS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 4.dp))
                         Text("Drag handle to reorder • Swipe to disable • Tap to customize", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))

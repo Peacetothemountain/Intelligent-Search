@@ -53,12 +53,47 @@ class NativeAppPredictionProvider @Inject constructor(
             Log.d(TAG, "UsageStatsManager recents fallback: ${e.message}")
         }
 
-        // 3. Fallback: all installed apps
+        // 3. Local persistent on-device launch history (covers all non-Pixel devices without usage access)
+        try {
+            val prefs = context.getSharedPreferences("NATIVE_APP_LAUNCH_PREDICTIONS", Context.MODE_PRIVATE)
+            val allKeys = prefs.all.keys.filter { it.startsWith("count_") }
+            if (allKeys.isNotEmpty()) {
+                val scoredList = allKeys.mapNotNull { countKey ->
+                    val pkg = countKey.removePrefix("count_")
+                    val app = allAppsMap[pkg] ?: return@mapNotNull null
+                    val count = prefs.getInt(countKey, 0)
+                    val lastTime = prefs.getLong("time_$pkg", 0L)
+                    val recencyHours = (System.currentTimeMillis() - lastTime).coerceAtLeast(0L) / (1000 * 60 * 60)
+                    val recencyScore = (100f / (recencyHours + 1f))
+                    val totalScore = count * 10f + recencyScore
+                    Pair(app, totalScore)
+                }.sortedByDescending { it.second }
+                .map { it.first }
+
+                if (scoredList.isNotEmpty()) {
+                    val combined = (scoredList + allApps).distinctBy { it.packageName }.take(8)
+                    return@withContext combined
+                }
+            }
+        } catch (e: Throwable) {
+            Log.d(TAG, "Local launch history fallback error: ${e.message}")
+        }
+
+        // 4. Fallback: all installed apps
         allApps.take(8)
     }
 
     fun notifyAppLaunch(packageName: String, className: String? = null) {
-        // App launch event notification placeholder for future system analytics
+        try {
+            val prefs = context.getSharedPreferences("NATIVE_APP_LAUNCH_PREDICTIONS", Context.MODE_PRIVATE)
+            val currentCount = prefs.getInt("count_$packageName", 0)
+            prefs.edit()
+                .putInt("count_$packageName", currentCount + 1)
+                .putLong("time_$packageName", System.currentTimeMillis())
+                .apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to record local app launch prediction", e)
+        }
     }
 
     fun destroy() {

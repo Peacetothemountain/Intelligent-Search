@@ -103,7 +103,14 @@ class GlobalSearchProvider : ContentProvider() {
             // 2. Apps
             for (app in results.apps) {
                 if (cancellationSignal?.isCanceled == true) break
-                val launchIntentUri = context?.packageManager?.getLaunchIntentForPackage(app.packageName)?.toUri(Intent.URI_INTENT_SCHEME)
+                val launchIntent = context?.packageManager?.getLaunchIntentForPackage(app.packageName)
+                    ?: if (app.activityName != null) {
+                        Intent(Intent.ACTION_MAIN).apply {
+                            addCategory(Intent.CATEGORY_LAUNCHER)
+                            setClassName(app.packageName, app.activityName)
+                        }
+                    } else null
+                val launchIntentUri = launchIntent?.toUri(Intent.URI_INTENT_SCHEME)
                     ?: "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${app.packageName};end"
 
                 cursor.addRow(arrayOf<Any?>(
@@ -118,19 +125,26 @@ class GlobalSearchProvider : ContentProvider() {
                 ))
             }
 
-            // 3. Contacts
-            for (contact in results.contacts) {
-                if (cancellationSignal?.isCanceled == true) break
-                cursor.addRow(arrayOf<Any?>(
-                    rowId++,
-                    contact.name,
-                    contact.phoneNumber.ifBlank { "Contact" },
-                    "android.resource://${context?.packageName}/drawable/ic_search_lens_expressive",
-                    Intent.ACTION_VIEW,
-                    contact.lookupUri.ifBlank { "tel:${contact.phoneNumber}" },
-                    contact.name,
-                    "contact:${contact.name.hashCode()}"
-                ))
+            // 3. Contacts (Restricted to callers with READ_CONTACTS or self/system)
+            val caller = callingPackage
+            val isAuthorized = caller == null || 
+                caller == context?.packageName || 
+                context?.packageManager?.checkPermission(android.Manifest.permission.READ_CONTACTS, caller) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+            if (isAuthorized) {
+                for (contact in results.contacts) {
+                    if (cancellationSignal?.isCanceled == true) break
+                    cursor.addRow(arrayOf<Any?>(
+                        rowId++,
+                        contact.name,
+                        contact.phoneNumber.ifBlank { "Contact" },
+                        "android.resource://${context?.packageName}/drawable/ic_search_lens_expressive",
+                        Intent.ACTION_VIEW,
+                        contact.lookupUri.ifBlank { "tel:${contact.phoneNumber}" },
+                        contact.name,
+                        "contact:${contact.name.hashCode()}"
+                    ))
+                }
             }
 
             // 4. App Shortcuts

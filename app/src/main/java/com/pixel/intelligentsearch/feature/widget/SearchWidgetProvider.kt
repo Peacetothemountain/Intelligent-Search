@@ -10,6 +10,9 @@ import android.net.Uri
 import android.os.Build
 import android.speech.RecognizerIntent
 import android.view.View
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.widget.RemoteViews
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.GlobalScope
@@ -558,21 +561,60 @@ class SearchWidgetProvider : AppWidgetProvider() {
             isPillLight: Boolean
         ) {
             views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
-            views.setImageViewResource(R.id.widget_g_logo, gIconRes)
-            if (materialGIconTheme == "Accented G Icon") {
-                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
-            } else if (isPillLight && materialGIconTheme == "Material G Icon") {
-                val darkGTint = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    context.getColor(android.R.color.system_accent1_700)
-                } else {
-                    android.graphics.Color.parseColor("#1F1F1F")
-                }
-                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(darkGTint))
-            } else if (isPillLight && materialGIconTheme != "System G Icon") {
-                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(android.graphics.Color.DKGRAY))
-            } else {
+            if (materialGIconTheme == "Material G Icon" && subthemeStr == "Custom") {
+                val bitmap = createCustomMaterialGBitmap(iconTint, context)
+                views.setImageViewBitmap(R.id.widget_g_logo, bitmap)
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
+            } else {
+                views.setImageViewResource(R.id.widget_g_logo, gIconRes)
+                if (materialGIconTheme == "Accented G Icon") {
+                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
+                } else if (isPillLight && materialGIconTheme == "Material G Icon") {
+                    val darkGTint = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        context.getColor(android.R.color.system_accent1_700)
+                    } else {
+                        android.graphics.Color.parseColor("#1F1F1F")
+                    }
+                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(darkGTint))
+                } else if (isPillLight && materialGIconTheme != "System G Icon") {
+                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(android.graphics.Color.DKGRAY))
+                } else {
+                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
+                }
             }
+        }
+
+        private fun createCustomMaterialGBitmap(customColor: Int, context: Context): Bitmap {
+            val density = context.resources.displayMetrics.density
+            val sizePx = (24 * density).toInt().coerceAtLeast(48)
+            val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            val scale = sizePx / 24f
+            canvas.scale(scale, scale)
+
+            val hsv = FloatArray(3)
+            android.graphics.Color.colorToHSV(customColor, hsv)
+            val pColor = customColor
+            val sColor = android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 18f) % 360f, (hsv[1] * 0.70f).coerceIn(0.1f, 1f), hsv[2].coerceIn(0.6f, 1f)))
+            val tColor = android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 60f) % 360f, (hsv[1] * 0.85f).coerceIn(0.1f, 1f), hsv[2].coerceIn(0.7f, 1f)))
+
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+
+            val path1 = androidx.core.graphics.PathParser.createPathFromPathData("M22.56,12.25C22.56,11.47 22.49,10.72 22.36,10L12,10L12,14.26L17.92,14.26C17.66,15.63 16.88,16.79 15.71,17.57L15.71,20.34L19.28,20.34C21.36,18.42 22.56,15.6 22.56,12.25Z")
+            val path2 = androidx.core.graphics.PathParser.createPathFromPathData("M12,23C14.97,23 17.46,22.02 19.28,20.34L15.71,17.57C14.73,18.23 13.48,18.63 12,18.63C9.14,18.63 6.71,16.7 5.84,14.1L2.18,14.1L2.18,16.94C3.99,20.53 7.7,23 12,23Z")
+            val path3 = androidx.core.graphics.PathParser.createPathFromPathData("M5.84,14.09C5.62,13.43 5.5,12.73 5.5,12C5.5,11.27 5.62,10.57 5.84,9.91L5.84,7.07L2.18,7.07C1.43,8.55 1,10.22 1,12C1,13.78 1.43,15.45 2.18,16.93L5.84,14.09Z")
+            val path4 = androidx.core.graphics.PathParser.createPathFromPathData("M12,5.38C13.62,5.38 15.06,5.94 16.21,7.02L19.36,3.87C17.45,2.09 14.97,1 12,1C7.7,1 3.99,3.47 2.18,7.07L5.84,9.91C6.71,7.31 9.14,5.38 12,5.38Z")
+
+            paint.color = pColor
+            canvas.drawPath(path1, paint)
+            paint.color = sColor
+            canvas.drawPath(path2, paint)
+            paint.color = tColor
+            canvas.drawPath(path3, paint)
+            paint.color = pColor
+            canvas.drawPath(path4, paint)
+
+            return bitmap
         }
 
         fun getNowPlayingIntent(context: Context): Intent {

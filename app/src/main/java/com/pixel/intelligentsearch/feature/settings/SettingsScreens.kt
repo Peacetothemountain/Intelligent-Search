@@ -5720,10 +5720,40 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     }
 
-                    val wavePrimary = if (previewIsMaterialYou) matPrimary else accentColor
-                    val waveSecondary = if (previewIsMaterialYou) matSecondary else matPrimary
-                    val waveTertiary = if (previewIsMaterialYou) matTertiary else matSecondary
-                    val waveAccent = if (previewIsMaterialYou) MaterialTheme.colorScheme.primaryContainer else accentColor
+                    val isCustomTheme = localSubtheme == "Custom"
+
+                    val wavePrimary = if (isCustomTheme) {
+                        accentColor
+                    } else {
+                        matPrimary
+                    }
+                    val waveSecondary = if (isCustomTheme) {
+                        val hsv = FloatArray(3)
+                        android.graphics.Color.colorToHSV(localCustomColorInt, hsv)
+                        androidx.compose.ui.graphics.Color(
+                            android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 25f) % 360f, (hsv[1] * 0.8f).coerceIn(0.2f, 1f), 1f))
+                        )
+                    } else {
+                        matSecondary
+                    }
+                    val waveTertiary = if (isCustomTheme) {
+                        val hsv = FloatArray(3)
+                        android.graphics.Color.colorToHSV(localCustomColorInt, hsv)
+                        androidx.compose.ui.graphics.Color(
+                            android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 65f) % 360f, (hsv[1] * 0.9f).coerceIn(0.2f, 1f), 1f))
+                        )
+                    } else {
+                        matTertiary
+                    }
+                    val waveAccent = if (isCustomTheme) {
+                        val hsv = FloatArray(3)
+                        android.graphics.Color.colorToHSV(localCustomColorInt, hsv)
+                        androidx.compose.ui.graphics.Color(
+                            android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 120f) % 360f, (hsv[1] * 0.6f).coerceIn(0.1f, 1f), 0.95f))
+                        )
+                    } else {
+                        MaterialTheme.colorScheme.primaryContainer
+                    }
 
                     GeminiCornerSwipeWaveLayer(
                         colorPrimary = wavePrimary,
@@ -5752,7 +5782,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     } else if (!previewIsMaterialYou) {
                         "System G Icon"
                     } else {
-                        "Material G Icon"
+                        localMaterialGIconTheme
                     }
 
                     val customLuminance = (0.299 * accentColor.red + 0.587 * accentColor.green + 0.114 * accentColor.blue)
@@ -5832,19 +5862,39 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (localShowGIcon) {
-                                val gIconTint = when (effectiveGIconTheme) {
-                                    "Accented G Icon" -> accentColor
-                                    else -> androidx.compose.ui.graphics.Color.Unspecified
+                                val gPrimary = if (isCustomTheme) {
+                                    accentColor
+                                } else {
+                                    MaterialTheme.colorScheme.primary
                                 }
+                                val gSecondary = if (isCustomTheme) {
+                                    val hsv = FloatArray(3)
+                                    android.graphics.Color.colorToHSV(localCustomColorInt, hsv)
+                                    androidx.compose.ui.graphics.Color(
+                                        android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 18f) % 360f, (hsv[1] * 0.70f).coerceIn(0.1f, 1f), hsv[2].coerceIn(0.6f, 1f)))
+                                    )
+                                } else {
+                                    MaterialTheme.colorScheme.secondary
+                                }
+                                val gTertiary = if (isCustomTheme) {
+                                    val hsv = FloatArray(3)
+                                    android.graphics.Color.colorToHSV(localCustomColorInt, hsv)
+                                    androidx.compose.ui.graphics.Color(
+                                        android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 60f) % 360f, (hsv[1] * 0.85f).coerceIn(0.1f, 1f), hsv[2].coerceIn(0.7f, 1f)))
+                                    )
+                                } else {
+                                    MaterialTheme.colorScheme.tertiary
+                                }
+                                val isAccented = effectiveGIconTheme == "Accented G Icon"
                                 val useOriginalGIcon = effectiveGIconTheme == "System G Icon"
                                 ComposeGIcon(
                                     modifier = Modifier.size(24.dp),
-                                    primaryColor = MaterialTheme.colorScheme.primary,
-                                    secondaryColor = MaterialTheme.colorScheme.secondary,
-                                    tertiaryColor = MaterialTheme.colorScheme.tertiary,
-                                    isAccented = effectiveGIconTheme == "Accented G Icon",
+                                    primaryColor = gPrimary,
+                                    secondaryColor = gSecondary,
+                                    tertiaryColor = gTertiary,
+                                    isAccented = isAccented,
                                     accentColor = accentColor,
-                                    fallbackTint = gIconTint,
+                                    fallbackTint = androidx.compose.ui.graphics.Color.Unspecified,
                                     useOriginalColors = useOriginalGIcon
                                 )
                             }

@@ -88,18 +88,7 @@ object SystemDataProvider {
             return@withContext cachedApps!!
         }
 
-        // 1. Try multi-profile retrieval first (handles Personal, Work, Private Space, Clone)
-        try {
-            val multiProfileManager = com.pixel.intelligentsearch.core.profile.MultiProfileManager(context)
-            val profileApps = multiProfileManager.getAllProfileApps(forceRefresh)
-            if (profileApps.isNotEmpty()) {
-                cachedApps = profileApps
-                return@withContext profileApps
-            }
-        } catch (_: Exception) {
-            // Fall back to standard PM query below
-        }
-
+        // 1. Universal PackageManager query guarantees all installed apps on any device/OEM are found
         val pm = context.packageManager
         val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
@@ -110,7 +99,7 @@ object SystemDataProvider {
             @Suppress("DEPRECATION")
             pm.queryIntentActivities(mainIntent, 0)
         }
-        val apps = resolveInfos.asSequence()
+        val baseApps = resolveInfos.asSequence()
             .distinctBy { it.activityInfo.packageName }
             .map {
                 val label = it.loadLabel(pm).toString()
@@ -124,10 +113,28 @@ object SystemDataProvider {
                     activityName = it.activityInfo.name
                 )
             }
-            .sortedBy { it.name.lowercase() }
             .toList()
-        cachedApps = apps
-        apps
+
+        // 2. Discover multi-profile apps (Work Profile, Private Space, Dual Apps) and merge
+        val mergedMap = LinkedHashMap<String, AppItem>()
+        for (app in baseApps) {
+            mergedMap[app.packageName] = app
+        }
+
+        try {
+            val multiProfileManager = com.pixel.intelligentsearch.core.profile.MultiProfileManager(context)
+            val profileApps = multiProfileManager.getAllProfileApps(forceRefresh)
+            for (app in profileApps) {
+                val key = if (app.profileType != ProfileType.PERSONAL) "${app.packageName}_${app.userHandle}" else app.packageName
+                mergedMap[key] = app
+            }
+        } catch (_: Exception) {
+            // Non-fatal, base apps remain intact
+        }
+
+        val finalApps = mergedMap.values.sortedBy { it.name.lowercase() }
+        cachedApps = finalApps
+        finalApps
     }
 
     suspend fun getRecentApps(context: Context, hiddenApps: Set<String> = emptySet()): List<AppItem> = withContext(Dispatchers.IO) {

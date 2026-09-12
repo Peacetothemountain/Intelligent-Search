@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.LauncherActivityInfo
 import android.content.pm.LauncherApps
+import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
 import android.os.Build
@@ -307,14 +308,47 @@ class MultiProfileManager @Inject constructor(
         }
 
         // Fallback to standard package manager
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)?.apply {
+        val pm = context.packageManager
+        val launchIntent = pm.getLaunchIntentForPackage(packageName)?.apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
             sourceBounds?.let { bounds -> this.sourceBounds = bounds }
         }
         if (launchIntent != null) {
-            context.startActivity(launchIntent, opts)
-            return true
+            try {
+                context.startActivity(launchIntent, opts)
+                return true
+            } catch (e: Exception) {
+                Log.w(TAG, "Standard launch intent failed for $packageName", e)
+            }
         }
+
+        // Explicit component resolution fallback for OEM apps (e.g. Samsung Calendar/Notes/Gallery, Xiaomi, Motorola)
+        try {
+            val queryIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+                setPackage(packageName)
+            }
+            val resolves = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.queryIntentActivities(queryIntent, PackageManager.ResolveInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.queryIntentActivities(queryIntent, 0)
+            }
+            val targetClass = resolves.firstOrNull()?.activityInfo?.name ?: activityName
+            if (targetClass != null) {
+                val explicitIntent = Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                    component = ComponentName(packageName, targetClass)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                    sourceBounds?.let { bounds -> this.sourceBounds = bounds }
+                }
+                context.startActivity(explicitIntent, opts)
+                return true
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Explicit component launch fallback failed for $packageName", e)
+        }
+
         return false
     }
 }

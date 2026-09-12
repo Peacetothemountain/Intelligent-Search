@@ -120,6 +120,7 @@
             android:directBootAware="true"
             android:exported="true">
             <intent-filter>
+                <action android:name="android.intent.action.SEARCH" />
                 <action android:name="android.intent.action.WEB_SEARCH" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
@@ -239,8 +240,7 @@
         <provider
             android:name="com.pixel.intelligentsearch.core.data.GlobalSearchProvider"
             android:authorities="com.pixel.intelligentsearch.globalsearch"
-            android:exported="true"
-            android:permission="android.permission.GLOBAL_SEARCH" />
+            android:exported="true" />
 
     </application>
 </manifest>

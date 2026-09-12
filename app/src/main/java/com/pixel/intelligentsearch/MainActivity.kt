@@ -171,6 +171,7 @@ open class MainActivity : AppCompatActivity() {
                                     startActivity(intent, options.toBundle())
                                 },
                                 onLaunchApp = { packageName ->
+                                    searchViewModel.notifyAppLaunch(packageName)
                                     searchViewModel.onQueryChanged("")
                                     val multiProfileManager = com.pixel.intelligentsearch.core.profile.MultiProfileManager(this@MainActivity)
                                     val launched = multiProfileManager.launchApp(packageName = packageName)

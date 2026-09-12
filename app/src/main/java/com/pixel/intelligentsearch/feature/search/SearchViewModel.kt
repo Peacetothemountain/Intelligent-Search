@@ -547,6 +547,10 @@ class SearchViewModel @Inject constructor(
             state.copy(calendarEvents = state.calendarEvents.filter { it != event })
         }
     }
+
+    fun notifyAppLaunch(packageName: String) {
+        nativeAppPredictionProvider.notifyAppLaunch(packageName)
+    }
 }
 
 

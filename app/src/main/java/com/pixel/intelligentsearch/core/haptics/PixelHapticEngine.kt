@@ -106,43 +106,7 @@ class PixelHapticEngine(private val context: Context) {
         amplitudeScale: Float = 1.0f,
         velocity: Float = 0f
     ) {
-        var vibrated = false
-        if (vibrator != null && vibrator.hasVibrator()) {
-            try {
-                val effect = composeWaveform(type, amplitudeScale, velocity)
-                if (effect != null) {
-                    vibrateWithAttributes(effect)
-                    vibrated = true
-                } else {
-                    val fallback = when (type) {
-                        PixelHapticType.CLICK -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
-                        PixelHapticType.HEAVY_IMPACT -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK)
-                        PixelHapticType.TICK, PixelHapticType.LOW_TICK -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
-                        else -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
-                    }
-                    vibrateWithAttributes(fallback)
-                    vibrated = true
-                }
-            } catch (_: Exception) {}
-        }
-
-        if (!vibrated && view != null) {
-            try {
-                val constant = when (type) {
-                    PixelHapticType.CLICK -> HapticFeedbackConstants.KEYBOARD_PRESS
-                    PixelHapticType.HEAVY_IMPACT -> HapticFeedbackConstants.CONFIRM
-                    PixelHapticType.LOW_TICK, PixelHapticType.TICK -> {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                            HapticFeedbackConstants.SEGMENT_TICK
-                        } else {
-                            HapticFeedbackConstants.CLOCK_TICK
-                        }
-                    }
-                    else -> HapticFeedbackConstants.CLOCK_TICK
-                }
-                view.performHapticFeedback(constant)
-            } catch (_: Exception) {}
-        }
+        performPredictiveBackHaptic(view)
     }
 
     private fun vibrateWithAttributes(effect: VibrationEffect) {

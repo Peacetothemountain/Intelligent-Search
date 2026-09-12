@@ -338,8 +338,8 @@ fun rememberBooleanPreference(
         "search.shortcuts" -> settingsState?.searchShortcuts ?: prefs.getBoolean(key, defaultValue)
         "search.background.show.wall" -> settingsState?.showWallpaper ?: prefs.getBoolean(key, defaultValue)
         "app_animations" -> settingsState?.appAnimations ?: prefs.getBoolean(key, defaultValue)
-        "settings.bottom.search" -> settingsState?.bottomSearch ?: prefs.getBoolean(key, defaultValue)
-        "settings.bottom.search.result" -> settingsState?.bottomSearchResult ?: prefs.getBoolean(key, defaultValue)
+        "settings.bottom.search" -> settingsState?.bottomSearch ?: prefs.getBoolean(key, true)
+        "settings.bottom.search.result" -> settingsState?.bottomSearchResult ?: prefs.getBoolean(key, true)
         "g_icon_enabled" -> settingsState?.gIconEnabled ?: prefs.getBoolean(key, defaultValue)
         "widget_show_voice" -> settingsState?.widgetShowVoice ?: prefs.getBoolean(key, defaultValue)
         "widget_show_gemini" -> settingsState?.widgetShowGemini ?: prefs.getBoolean(key, defaultValue)
@@ -373,7 +373,11 @@ fun rememberBooleanPreference(
     androidx.compose.runtime.DisposableEffect(prefs, key) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
             if (changedKey == key) {
-                state.value = sharedPreferences.getBoolean(key, defaultValue)
+                val fallback = when (key) {
+                    "settings.bottom.search", "settings.bottom.search.result" -> true
+                    else -> defaultValue
+                }
+                state.value = sharedPreferences.getBoolean(key, fallback)
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -2310,64 +2314,13 @@ fun MainSettingsScreen(
                                 }
                             }
                             else -> {
-                                val clearDataUrl = "chrome://settings/clearBrowserData"
-                                var launched = false
-                                // 1. Try googlechrome://navigate?url=chrome://settings/clearBrowserData targeting Chrome
+                                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity?product=6")).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
                                 try {
-                                    val navIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("googlechrome://navigate?url=$clearDataUrl")).apply {
-                                        setPackage("com.android.chrome")
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    context.startActivity(navIntent)
-                                    launched = true
-                                } catch (e: Exception) {}
-
-                                // 2. Try generic googlechrome:// navigate
-                                if (!launched) {
-                                    try {
-                                        val genericNavIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("googlechrome://navigate?url=$clearDataUrl")).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                        context.startActivity(genericNavIntent)
-                                        launched = true
-                                    } catch (e: Exception) {}
-                                }
-
-                                // 3. Try Chrome Launcher Activity directly with chrome:// URI
-                                if (!launched) {
-                                    try {
-                                        val launcherIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(clearDataUrl)).apply {
-                                            component = android.content.ComponentName("com.android.chrome", "org.chromium.chrome.browser.document.ChromeLauncherActivity")
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                        context.startActivity(launcherIntent)
-                                        launched = true
-                                    } catch (e: Exception) {}
-                                }
-
-                                // 4. Try Chrome launch intent with data
-                                if (!launched) {
-                                    try {
-                                        val launchIntent = context.packageManager.getLaunchIntentForPackage("com.android.chrome")
-                                        if (launchIntent != null) {
-                                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            launchIntent.data = android.net.Uri.parse(clearDataUrl)
-                                            context.startActivity(launchIntent)
-                                            launched = true
-                                        }
-                                    } catch (e: Exception) {}
-                                }
-
-                                // 5. Fallback to Google preferences (never myactivity)
-                                if (!launched) {
-                                    try {
-                                        val fallback = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com/preferences")).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                        context.startActivity(fallback)
-                                    } catch (e: Exception) {
-                                        e.printStackTrace()
-                                    }
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
                                 }
                             }
                         }
@@ -5135,7 +5088,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onCheckedChange = { bottomSearch = it },
                     showDivider = true
                 )
-                var bottomResult by rememberBooleanPreference(prefs, "settings.bottom.search.result", false)
+                var bottomResult by rememberBooleanPreference(prefs, "settings.bottom.search.result", true)
                 SettingsRowToggle(
                     title = "Bottom Search Results",
                     subtitle = "Order List from Bottom Up Depending on Search Bar Placement.",
@@ -5223,13 +5176,16 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 // REUSABLE COMPONENTS
 // -----------------------------------------------------------------------------------------
 @Composable
-fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
+fun SettingsCard(
+    modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+    content: @Composable ColumnScope.() -> Unit
+) {
     Card(
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+        modifier = modifier
     ) {
         Column(modifier = Modifier.padding(vertical = 12.dp)) {
             content()
@@ -5947,11 +5903,69 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
             }
 
+            // System vs Material Design Switcher
+            SettingsCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .padding(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val isSystem = localThemeStyle == "System Default"
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(if (isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
+                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
+                                hapticEngine.performPredictiveBackHaptic(view)
+                                localThemeStyle = "System Default"
+                                localSubtheme = "System"
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "System Design",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (isSystem) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(if (!isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
+                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
+                                hapticEngine.performPredictiveBackHaptic(view)
+                                localThemeStyle = "Material You (Minimal)"
+                                localSubtheme = "Material"
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Material Design",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (!isSystem) FontWeight.Bold else FontWeight.Normal,
+                            color = if (!isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             // Material 3 Expressive Segmented Tab Bar
             val tabs = listOf(
                 Pair("Appearance", Icons.Outlined.Palette),
                 Pair("Color Studio", Icons.Outlined.Tune),
-                Pair("Shortcuts & Mic", Icons.Outlined.Widgets)
+                Pair("Widget Shortcuts", Icons.Outlined.Widgets)
             )
 
             Row(
@@ -6044,40 +6058,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 onCheckedChange = { localShowGIcon = it },
                                 showDivider = true
                             )
-                        }
-
-                        // Theme Buttons
-                        SettingsCard {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(56.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val isSystem = localThemeStyle == "System Default"
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
-                                        .clip(RoundedCornerShape(24.dp))
-                                        .background(if (isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
-                                        .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "System Default"; localSubtheme = "System" },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("System Design", style = MaterialTheme.typography.labelLarge, color = if (isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
-                                        .clip(RoundedCornerShape(24.dp))
-                                        .background(if (!isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
-                                        .bouncyClickable(shape = RoundedCornerShape(24.dp)) { localThemeStyle = "Material You (Minimal)"; localSubtheme = "Material" },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("Material Design", style = MaterialTheme.typography.labelLarge, color = if (!isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
                         }
 
                         // Floating Theme Pills
@@ -6258,93 +6238,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             )
                         }
 
+                        // Custom Color Palette Container on Top
+                        Text("CUSTOM COLOR PALETTE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 4.dp))
                         SettingsCard {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                                    Icon(Icons.Default.Opacity, contentDescription = "Transparency", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("Transparency", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                                            Spacer(modifier = Modifier.weight(1f))
-                                            Text("${localTransparency.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
-                                        Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
-                                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                                colors = transparencyTrackGradient
-                                            ),
-                                            shape = RoundedCornerShape(8.dp)
-                                        )) {
-                                            Android17Slider(
-                                                value = localTransparency,
-                                                onValueChange = { localTransparency = it },
-                                                valueRange = 0f..100f,
-                                                modifier = Modifier.fillMaxWidth(),
-                                                showTrack = false
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                // Hex Color Box
-                                val customColorHex = String.format("#%06X", (0xFFFFFF and localCustomColorInt))
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                                        .clickable {
-                                            tempHexInput = customColorHex
-                                            showHexInput = true
-                                        }
-                                        .padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Default.Tag, contentDescription = "Hex Color", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Text(customColorHex, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Icon(Icons.Default.Edit, contentDescription = "Edit Hex", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                                }
-
-                                val isMaterialDesign = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
-                                if (isMaterialDesign) {
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                                            .clickable { localLockBlack = !localLockBlack }
-                                            .padding(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text("Material Design Inner Pill and Circle Color State", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            Text("Force Inner Pill and Circle to be Hex #121212", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
-                                        }
-                                        androidx.compose.material3.Switch(
-                                            checked = localLockBlack,
-                                            onCheckedChange = { localLockBlack = it },
-                                            colors = androidx.compose.material3.SwitchDefaults.colors(
-                                                checkedThumbColor = MaterialTheme.colorScheme.primary,
-                                                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                                                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
-                                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Sliders Card (Hue, Saturation, Color Opacity)
-                        Text("CUSTOM COLOR PALETTE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
-                        SettingsCard {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                // Hue
+                                // 1. Hue Slider
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                     Icon(Icons.Default.Palette, contentDescription = "Hue", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                                     Spacer(modifier = Modifier.width(16.dp))
@@ -6385,7 +6283,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 
                                 Spacer(modifier = Modifier.height(24.dp))
                                 
-                                // Saturation
+                                // 2. Saturation Slider
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                     Icon(Icons.Default.WaterDrop, contentDescription = "Saturation", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                                     Spacer(modifier = Modifier.width(16.dp))
@@ -6421,7 +6319,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 
                                 Spacer(modifier = Modifier.height(24.dp))
                                 
-                                // Color Opacity
+                                // 3. Color Opacity Slider
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                     Icon(Icons.Default.Contrast, contentDescription = "Color Opacity", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                                     Spacer(modifier = Modifier.width(16.dp))
@@ -6454,13 +6352,119 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         }
                                     }
                                 }
+
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                // 4. Transparency Slider (under color opacity in the same container)
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(Icons.Default.Opacity, contentDescription = "Transparency", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Transparency", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            Text("${localTransparency.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                        Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
+                                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                colors = transparencyTrackGradient
+                                            ),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )) {
+                                            Android17Slider(
+                                                value = localTransparency,
+                                                onValueChange = { localTransparency = it },
+                                                valueRange = 0f..100f,
+                                                modifier = Modifier.fillMaxWidth(),
+                                                showTrack = false
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(20.dp))
+
+                                // 5. Hex Color Pill Bar (pill bar under custom color pallet sliders in the same container)
+                                val customColorHex = String.format("#%06X", (0xFFFFFF and localCustomColorInt))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp)
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                                        .clickable {
+                                            tempHexInput = customColorHex
+                                            showHexInput = true
+                                        }
+                                        .padding(horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .clip(androidx.compose.foundation.shape.CircleShape)
+                                            .background(dynamicCustomColor)
+                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, androidx.compose.foundation.shape.CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        customColorHex,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Icon(
+                                        Icons.Default.Edit,
+                                        contentDescription = "Edit Hex",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Material Design Inner Pill & Circle Switcher (its own separate, smaller container)
+                        val isMaterialDesign = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
+                        if (isMaterialDesign) {
+                            SettingsCard {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Inner Pill & Circle State",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            "Force Inner Pill & Circle to #121212",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                                        )
+                                    }
+                                    androidx.compose.material3.Switch(
+                                        checked = localLockBlack,
+                                        onCheckedChange = { localLockBlack = it },
+                                        colors = androidx.compose.material3.SwitchDefaults.colors(
+                                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                                            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                    )
+                                }
                             }
                         }
                     }
 
                     2 -> {
-                        // TAB 2: SHORTCUTS & MIC
-                        Text("WIDGET SHORTCUTS & MICROPHONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 4.dp))
+                        // TAB 2: WIDGET SHORTCUTS
+                        Text("WIDGET SHORTCUTS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 4.dp))
                         Text("Drag handle to reorder • Swipe to disable • Tap to customize", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
 
                         Column(
@@ -7113,10 +7117,9 @@ fun Android17Slider(
     ) {
         androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
             val trackHeight = 6.dp.toPx()
-            val baseAmplitude = 4.5.dp.toPx()
-            val waveLength = 26.dp.toPx()
-            val waveLength2 = 17.dp.toPx()
-            val transitionLen = 18.dp.toPx()
+            val baseAmplitude = 3.5.dp.toPx()
+            val waveLength = 32.dp.toPx()
+            val transitionLen = 16.dp.toPx()
             val thumbWidth = 6.dp.toPx()
             val thumbHeight = 36.dp.toPx()
 
@@ -7146,14 +7149,9 @@ fun Android17Slider(
 
                         val envelope = envLeft * envRight
 
-                        // Dual-harmonic integer superposition for seamless 2pi periodic boundary continuity
-                        val wave1 = Math.sin(x * (2.0 * Math.PI / waveLength) - effectivePhase).toFloat()
-                        val wave2 = Math.sin(x * (2.0 * Math.PI / waveLength2) + effectivePhase * 2.0).toFloat()
-                        // Dynamic organic amplitude breathing with integer harmonic cycle
-                        val breathing = 0.85f + 0.15f * Math.cos(effectivePhase + x * 0.015).toFloat()
-
-                        val combinedWave = (wave1 * 0.78f + wave2 * 0.22f) * breathing
-                        val y = centerY + combinedWave * baseAmplitude * envelope
+                        // Silky unidirectional sine wave without breathing distortion
+                        val wave = Math.sin(x * (2.0 * Math.PI / waveLength) - effectivePhase).toFloat()
+                        val y = centerY + wave * baseAmplitude * envelope
 
                         path.lineTo(x, y)
                         x += step

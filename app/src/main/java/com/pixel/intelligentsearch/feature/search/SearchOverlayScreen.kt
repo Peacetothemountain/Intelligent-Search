@@ -445,10 +445,17 @@ fun SearchOverlayScreen(
         }
     }
     var hasStartedTyping by rememberSaveable { mutableStateOf(false) }
+    var textFieldValue by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(uiState.query, androidx.compose.ui.text.TextRange(uiState.query.length))) }
 
     LaunchedEffect(uiState.query) {
         if (uiState.query.isNotEmpty()) {
             hasStartedTyping = true
+        }
+        if (uiState.query != textFieldValue.text) {
+            textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
+                text = uiState.query,
+                selection = androidx.compose.ui.text.TextRange(uiState.query.length)
+            )
         }
     }
     val transitionState = remember { MutableTransitionState(false).apply { targetState = true } }
@@ -491,7 +498,6 @@ fun SearchOverlayScreen(
 
     LaunchedEffect(isOpening) {
         if (isOpening) {
-            sensoryEngine.overlayOpen(view)
             if (!isFromBackSwipe) {
                 overlayProgressAnim.animateTo(
                     targetValue = 1f,
@@ -878,14 +884,17 @@ fun SearchOverlayScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     androidx.compose.foundation.text.BasicTextField(
-                        value = uiState.query,
-                        onValueChange = { newQuery ->
+                        value = textFieldValue,
+                        onValueChange = { newTfv ->
+                            textFieldValue = newTfv
+                            val newQuery = newTfv.text
                             if (newQuery.isNotEmpty()) {
                                 hasStartedTyping = true
                             }
                             if (newQuery == "*xy88x*") {
                                 prefs.edit().putBoolean("debug_unlocked", true).apply()
                                 viewModel.onQueryChanged("")
+                                textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
                                 showDebugPill = true
                                 coroutineScope.launch {
                                     delay(3000)
@@ -1043,6 +1052,10 @@ fun SearchOverlayScreen(
                                 } else {
                                     "${bang.prefix} "
                                 }
+                                textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
+                                    text = newQ,
+                                    selection = androidx.compose.ui.text.TextRange(newQ.length)
+                                )
                                 viewModel.onQueryChanged(newQ)
                             },
                             label = { Text("${bang.prefix} ${bang.name}", fontSize = 12.sp, fontFamily = GoogleSansFlex) },

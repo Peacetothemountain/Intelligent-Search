@@ -180,34 +180,14 @@ object SystemDataProvider {
         recentApps.distinctBy { it.packageName }
     }
 
-        suspend fun getContextAwareQuickApps(context: Context): List<AppItem> = withContext(Dispatchers.IO) {
+    suspend fun getContextAwareQuickApps(context: Context): List<AppItem> = withContext(Dispatchers.IO) {
+        val recents = getRecentApps(context)
+        if (recents.size >= 6) {
+            return@withContext recents.take(6)
+        }
         val allApps = getAllApps(context)
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        
-        val suggestedPackages = when (hour) {
-            in 6..11 -> listOf("com.google.android.calendar", "com.google.android.gm", "com.google.android.apps.magazines", "com.google.android.deskclock") // Morning
-            in 12..17 -> listOf("com.slack", "com.google.android.apps.docs", "com.google.android.apps.maps", "com.linkedin.android") // Afternoon
-            else -> listOf("com.google.android.youtube", "com.spotify.music", "com.netflix.mediaclient", "com.instagram.android") // Evening
-        }
-        
-        val result = mutableListOf<AppItem>()
-        for (pkg in suggestedPackages) {
-            val app = allApps.find { it.packageName == pkg }
-            if (app != null) result.add(app)
-        }
-        
-        // Fill the rest with recent apps if not enough
-        if (result.size < 6) {
-            val recents = getRecentApps(context)
-            for (recent in recents) {
-                if (result.size >= 6) break
-                if (result.none { it.packageName == recent.packageName }) {
-                    result.add(recent)
-                }
-            }
-        }
-        
-        result.take(6)
+        val combined = (recents + allApps).distinctBy { it.packageName }
+        combined.take(6)
     }
 
     suspend fun getUpcomingEvents(context: Context): List<CalendarEvent> = withContext(Dispatchers.IO) {
@@ -294,6 +274,90 @@ object SystemDataProvider {
             }
         }
         contacts.distinctBy { it.phoneNumber }
+    }
+
+    suspend fun getAllContacts(context: Context): List<ContactItem> = withContext(Dispatchers.IO) {
+        val contacts = mutableListOf<ContactItem>()
+        if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            return@withContext contacts
+        }
+
+        val projection = arrayOf(
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+            ContactsContract.CommonDataKinds.Phone.NUMBER,
+            ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
+            ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY
+        )
+
+        try {
+            context.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                projection,
+                null,
+                null,
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+            )?.use { cursor ->
+                val nameIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val numberIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                val lookupKeyIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY)
+                val idIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
+
+                while (cursor.moveToNext()) {
+                    val name = cursor.getString(nameIndex) ?: continue
+                    val number = cursor.getString(numberIndex) ?: ""
+                    val lookupKey = cursor.getString(lookupKeyIndex) ?: ""
+                    val id = cursor.getLong(idIndex)
+
+                    val lookupUri = ContactsContract.Contacts.getLookupUri(id, lookupKey)?.toString() ?: ""
+                    contacts.add(ContactItem(name, number, lookupUri))
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        contacts.distinctBy { it.phoneNumber }
+    }
+
+    suspend fun getAllRecentFiles(context: Context, limit: Int = 300, includeHidden: Boolean = false): List<FileItem> = withContext(Dispatchers.IO) {
+        val files = mutableListOf<FileItem>()
+        try {
+            val projection = arrayOf(
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.DATA,
+                MediaStore.Files.FileColumns.MIME_TYPE,
+                MediaStore.Files.FileColumns._ID
+            )
+
+            context.contentResolver.query(
+                MediaStore.Files.getContentUri("external"),
+                projection,
+                null,
+                null,
+                "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+            )?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                val dataIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATA)
+                val mimeIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.MIME_TYPE)
+                val idIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns._ID)
+
+                while (cursor.moveToNext() && files.size < limit) {
+                    if (nameIndex != -1) {
+                        val name = cursor.getString(nameIndex) ?: continue
+                        if (!includeHidden && name.startsWith(".")) continue
+
+                        val path = if (dataIndex != -1) cursor.getString(dataIndex) ?: "" else ""
+                        val mimeType = if (mimeIndex != -1) cursor.getString(mimeIndex) ?: "*/*" else "*/*"
+                        val id = if (idIndex != -1) cursor.getLong(idIndex) else 0L
+                        val uri = android.content.ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), id).toString()
+
+                        files.add(FileItem(name, path, mimeType, uri))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        files
     }
 
     suspend fun getFiles(context: Context, query: String, includeHidden: Boolean): List<FileItem> = withContext(Dispatchers.IO) {

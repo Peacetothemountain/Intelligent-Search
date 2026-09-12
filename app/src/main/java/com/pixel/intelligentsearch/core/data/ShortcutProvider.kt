@@ -56,7 +56,43 @@ object ShortcutProvider {
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        
+        return results
+    }
+
+    fun getAllShortcuts(context: Context): List<AppShortcutItem> {
+        val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? LauncherApps
+            ?: return emptyList()
+        val results = mutableListOf<AppShortcutItem>()
+        try {
+            if (launcherApps.hasShortcutHostPermission()) {
+                val queryObj = LauncherApps.ShortcutQuery().apply {
+                    setQueryFlags(
+                        LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or 
+                        LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED or 
+                        LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST
+                    )
+                }
+                val userHandle = Process.myUserHandle()
+                val shortcuts = launcherApps.getShortcuts(queryObj, userHandle)
+                shortcuts?.forEach { info ->
+                    val shortLabel = info.shortLabel?.toString() ?: ""
+                    val longLabel = info.longLabel?.toString() ?: ""
+                    if (shortLabel.isNotBlank() || longLabel.isNotBlank()) {
+                        results.add(
+                            AppShortcutItem(
+                                id = info.id,
+                                packageName = info.`package`,
+                                shortLabel = shortLabel,
+                                longLabel = longLabel,
+                                shortcutInfo = info
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         return results
     }
 }

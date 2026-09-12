@@ -66,7 +66,9 @@ class SearchViewModel @Inject constructor(
     private val historyDao: HistoryDao,
     private val settingsManager: SettingsManager,
     private val bangManager: com.pixel.intelligentsearch.core.bangs.SearchBangManager,
-    private val unifiedSearchCoordinator: com.pixel.intelligentsearch.core.search.UnifiedSearchCoordinator
+    private val unifiedSearchCoordinator: com.pixel.intelligentsearch.core.search.UnifiedSearchCoordinator,
+    private val corpusIndexManager: com.pixel.intelligentsearch.core.search.CorpusIndexManager,
+    private val nativeAppPredictionProvider: com.pixel.intelligentsearch.core.system.NativeAppPredictionProvider
 ) : ViewModel() {
     
     private val settingsState = settingsManager.settingsFlow
@@ -96,6 +98,7 @@ class SearchViewModel @Inject constructor(
 
     init {
         adpfThermalManager.applyTopAppThreadPriority()
+        corpusIndexManager.initialize()
         loadInitialData()
 
         // Tier 2: Debounced Remote Web Suggestions (80ms human-pause debounce)
@@ -165,12 +168,17 @@ class SearchViewModel @Inject constructor(
             try {
                 val appsDeferred = async { SystemDataProvider.getAllApps(context) }
                 val launcherPredictedDeferred = async {
-                    nexusLauncherBridge.getPredictedApps().mapNotNull { pred ->
-                        try {
-                            val iconDrawable = context.packageManager.getApplicationIcon(pred.packageName)
-                            AppItem(name = pred.displayName, packageName = pred.packageName, icon = iconDrawable)
-                        } catch (e: Exception) {
-                            null
+                    val nativePredicted = nativeAppPredictionProvider.getPredictedApps()
+                    if (nativePredicted.isNotEmpty()) {
+                        nativePredicted
+                    } else {
+                        nexusLauncherBridge.getPredictedApps().mapNotNull { pred ->
+                            try {
+                                val iconDrawable = context.packageManager.getApplicationIcon(pred.packageName)
+                                AppItem(name = pred.displayName, packageName = pred.packageName, icon = iconDrawable)
+                            } catch (e: Exception) {
+                                null
+                            }
                         }
                     }
                 }
@@ -263,6 +271,19 @@ class SearchViewModel @Inject constructor(
             return
         }
 
+        // TIER 0: Sub-2ms Synchronous Direct Prefix / Calculation / System Toggle Execution
+        val tier0 = unifiedSearchCoordinator.executeTier0Search(newQuery)
+        val tier0Toggle = when (val action = tier0.systemAction) {
+            is com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.Toggle -> action.toggleUiState
+            else -> null
+        }
+        val tier0Math = when (val math = tier0.mathResult) {
+            is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.Computation -> math.formattedResult
+            is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.Bitwise -> "${math.decimalValue} (0x${math.hexValue})"
+            is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.UnitConversion -> math.formatted
+            null -> null
+        }
+
         val availableBangs = bangManager.getAllBangsSync()
         val parsedBang = bangManager.parseBangQuery(newQuery, availableBangs)
         val trigger = bangManager.getTriggerSymbol()
@@ -274,15 +295,20 @@ class SearchViewModel @Inject constructor(
             emptyList()
         }
 
-        _uiState.update { it.copy(
-            bangSuggestions = bangSuggestions,
-            detectedBangQuery = parsedBang
-        ) }
+        _uiState.update { current ->
+            current.copy(
+                bangSuggestions = bangSuggestions,
+                detectedBangQuery = parsedBang,
+                filteredApps = if (tier0.apps.isNotEmpty()) tier0.apps else current.filteredApps,
+                mathResult = tier0Math ?: current.mathResult,
+                systemToggle = tier0Toggle ?: current.systemToggle
+            )
+        }
 
-        // TIER 1: ZERO-DEBOUNCE (0ms) Immediate Local Execution
+        // TIER 1: ZERO-DEBOUNCE (0ms) Immediate Local Execution across all corpuses
         executeLocalSearch(newQuery)
 
-        // TIER 2: Debounced Web Suggestions (250ms)
+        // TIER 2: Debounced Web Suggestions (80ms human-pause debounce)
         _remoteSearchQueryFlow.value = newQuery
 
         // TIER 3: Idle Indexing (1500ms)
@@ -368,9 +394,7 @@ class SearchViewModel @Inject constructor(
                 if (unifiedResults.apps.isNotEmpty()) {
                     unifiedResults.apps
                 } else {
-                    _uiState.value.allApps.filter { app ->
-                        app.name.contains(newQuery, ignoreCase = true) || app.packageName.contains(newQuery, ignoreCase = true)
-                    }
+                    unifiedSearchCoordinator.searchApps(newQuery, 12)
                 }
             } else emptyList()
 
@@ -385,7 +409,7 @@ class SearchViewModel @Inject constructor(
                 if (unifiedResults.contacts.isNotEmpty()) {
                     unifiedResults.contacts.take(settings.contactResultsCount)
                 } else {
-                    SystemDataProvider.getContacts(context, newQuery).take(settings.contactResultsCount)
+                    unifiedSearchCoordinator.searchContacts(newQuery, settings.contactResultsCount)
                 }
             } else emptyList()
 
@@ -393,7 +417,7 @@ class SearchViewModel @Inject constructor(
                 if (unifiedResults.files.isNotEmpty()) {
                     unifiedResults.files.take(settings.fileResultsCount)
                 } else {
-                    SystemDataProvider.getFiles(context, newQuery, settings.filesHiddenFiles).take(settings.fileResultsCount)
+                    unifiedSearchCoordinator.searchFiles(newQuery, settings.fileResultsCount)
                 }
             } else emptyList()
 
@@ -401,7 +425,7 @@ class SearchViewModel @Inject constructor(
                 if (unifiedResults.shortcuts.isNotEmpty()) {
                     unifiedResults.shortcuts.take(settings.shortcutResultsCount)
                 } else {
-                    ShortcutProvider.getShortcuts(context, newQuery).take(settings.shortcutResultsCount)
+                    unifiedSearchCoordinator.searchShortcuts(newQuery, settings.shortcutResultsCount)
                 }
             } else emptyList()
 

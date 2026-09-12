@@ -94,6 +94,11 @@ import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
+import com.pixel.intelligentsearch.core.ui.MathResultOneBox
+import com.pixel.intelligentsearch.core.ui.ConversionOneBox
+import com.pixel.intelligentsearch.core.ui.DictionaryOneBox
+import com.pixel.intelligentsearch.core.ui.UrlNavigationOneBox
+import com.pixel.intelligentsearch.core.ui.TimeWeatherOneBox
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -619,7 +624,6 @@ fun SearchOverlayScreen(
         if (transitionState.targetState) {
             if (!showTutorial) {
                 try {
-                    delay(220)
                     focusRequester.requestFocus()
                     keyboardController?.show()
                 } catch (e: Exception) {}
@@ -663,7 +667,6 @@ fun SearchOverlayScreen(
 
                 try {
                     coroutineScope.launch {
-                        delay(220)
                         focusRequester.requestFocus()
                         keyboardController?.show()
                     }
@@ -1673,86 +1676,64 @@ fun SearchOverlayScreen(
 
             if (uiState.mathResult != null) {
                 item(key = "math_result") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(imageVector = Icons.Default.Calculate, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(text = uiState.mathResult ?: "", color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = GoogleSansFlex)
-                    }
+                    MathResultOneBox(
+                        expression = uiState.query,
+                        result = uiState.mathResult ?: "",
+                        onOpenCalculator = {
+                            try {
+                                val calcIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR)
+                                launchSafeIntent(context, calcIntent)
+                            } catch (_: Exception) {}
+                        }
+                    )
                 }
-                item(key = "math_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             val instantAnswer = uiState.instantAnswer
             if (instantAnswer != null) {
                 item(key = "instant_answer") {
-                    val icon = when (instantAnswer.iconType) {
-                        "weather" -> Icons.Default.WbSunny
-                        "time" -> Icons.Default.AccessTime
-                        "conversion" -> Icons.Default.SyncAlt
-                        "dictionary" -> Icons.AutoMirrored.Filled.MenuBook
-                        "url" -> Icons.Default.Language
-                        else -> Icons.Default.Info
-                    }
-                    val tint = when (instantAnswer.iconType) {
-                        "weather" -> Color(0xFFFFD54F)
-                        "time" -> Color(0xFF64B5F6)
-                        "conversion" -> MaterialTheme.colorScheme.primary
-                        "dictionary" -> MaterialTheme.colorScheme.tertiary
-                        "url" -> MaterialTheme.colorScheme.primary
-                        else -> MaterialTheme.colorScheme.onSurface
-                    }
-                    
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .clip(RoundedCornerShape(32.dp))
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f), RoundedCornerShape(32.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainer)
-                            .bouncyClickable {
-                                when (instantAnswer.iconType) {
-                                    "dictionary" -> launchWebSearch("define ${instantAnswer.title}")
-                                    "url" -> {
-                                        val targetUrl = if (instantAnswer.title.startsWith("http://") || instantAnswer.title.startsWith("https://")) {
-                                            instantAnswer.title
-                                        } else "https://${instantAnswer.title}"
-                                        launchSafeIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
-                                    }
-                                    "weather" -> launchWebSearch("weather ${uiState.query}")
-                                    "time" -> launchSafeIntent(context, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
-                                    else -> launchWebSearch(uiState.query)
+                    when (instantAnswer.iconType) {
+                        "conversion" -> {
+                            ConversionOneBox(conversionText = instantAnswer.title)
+                        }
+                        "dictionary" -> {
+                            DictionaryOneBox(
+                                word = instantAnswer.title,
+                                providerName = searchProviderName,
+                                onClick = { launchWebSearch("define ${instantAnswer.title}") }
+                            )
+                        }
+                        "url" -> {
+                            UrlNavigationOneBox(
+                                url = instantAnswer.title,
+                                onClick = {
+                                    val targetUrl = if (instantAnswer.title.startsWith("http://") || instantAnswer.title.startsWith("https://")) {
+                                        instantAnswer.title
+                                    } else "https://${instantAnswer.title}"
+                                    launchSafeIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
                                 }
-                            }
-                            .padding(20.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(36.dp))
-                            Spacer(modifier = Modifier.width(20.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = instantAnswer.title,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = GoogleSansFlex
-                                )
-                                Text(
-                                    text = instantAnswer.subtitle,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 14.sp,
-                                    fontFamily = GoogleSansFlex
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        "weather", "time" -> {
+                            TimeWeatherOneBox(
+                                title = instantAnswer.title,
+                                subtitle = instantAnswer.subtitle,
+                                iconType = instantAnswer.iconType,
+                                onClick = {
+                                    if (instantAnswer.iconType == "time") {
+                                        launchSafeIntent(context, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
+                                    } else {
+                                        launchWebSearch("weather ${uiState.query}")
+                                    }
+                                }
+                            )
+                        }
+                        else -> {
+                            TimeWeatherOneBox(
+                                title = instantAnswer.title,
+                                subtitle = instantAnswer.subtitle,
+                                iconType = "info",
+                                onClick = { launchWebSearch(uiState.query) }
                             )
                         }
                     }
@@ -2109,18 +2090,15 @@ fun SearchOverlayScreen(
                     .graphicsLayer {
                         val progress = overlayProgressAnim.value.coerceIn(0.001f, 1f)
                         val backProg = predictiveBackProgress.value.coerceIn(0f, 1f)
-                        val predictiveScale = 1f - (backProg * 0.10f)
+                        val predictiveScale = 1f - (backProg * 0.08f)
 
-                        val currentW = (initialWidth.toPx() + (targetWidth.toPx() - initialWidth.toPx()) * progress) * predictiveScale
-                        val currentH = (initialHeight.toPx() + (targetHeight.toPx() - initialHeight.toPx()) * progress) * predictiveScale
-                        
-                        scaleX = currentW / targetWidth.toPx()
-                        scaleY = currentH / targetHeight.toPx()
+                        scaleX = predictiveScale
+                        scaleY = predictiveScale
 
                         translationX = 0f
 
-                        transformOrigin = TransformOrigin(0.5f, 1.0f)
-                        alpha = if (settingsState.showWallpaper) (progress * (1f - backProg * 0.12f)).coerceIn(0f, 1f) else progress
+                        transformOrigin = TransformOrigin(0.5f, 0.5f)
+                        alpha = (progress * (1f - backProg * 0.25f)).coerceIn(0f, 1f)
                     }
                     .clip(RoundedCornerShape(24.dp))
                     .then(
@@ -2143,41 +2121,42 @@ fun SearchOverlayScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (!settingsState.bottomSearch) {
-                        Spacer(modifier = Modifier.fillMaxHeight(0.2f))
+                        Spacer(modifier = Modifier.statusBarsPadding())
+                        Spacer(modifier = Modifier.height(8.dp))
                         Box(modifier = Modifier.graphicsLayer {
                             val p = overlayProgressAnim.value.coerceIn(0f, 1f)
                             alpha = p
-                            translationY = (1f - p) * 40f
+                            translationY = (1f - p) * 24f
                         }) { searchBarContent() }
                         Box(modifier = Modifier.graphicsLayer {
                             val p = overlayProgressAnim.value.coerceIn(0f, 1f)
                             val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
                             alpha = a
-                            translationY = (1f - a) * 40f
+                            translationY = (1f - a) * 24f
                         }) { quickAppPanelContent() }
                         Box(modifier = Modifier.weight(1f).graphicsLayer {
                             val p = overlayProgressAnim.value.coerceIn(0f, 1f)
                             val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
                             alpha = a
-                            translationY = (1f - a) * 40f
+                            translationY = (1f - a) * 24f
                         }) { searchResultsContent() }
                     } else {
                         Box(modifier = Modifier.weight(1f).graphicsLayer {
                             val p = overlayProgressAnim.value.coerceIn(0f, 1f)
                             val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
                             alpha = a
-                            translationY = -(1f - a) * 40f
+                            translationY = -(1f - a) * 24f
                         }) { searchResultsContent() }
                         Box(modifier = Modifier.graphicsLayer {
                             val p = overlayProgressAnim.value.coerceIn(0f, 1f)
                             val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
                             alpha = a
-                            translationY = -(1f - a) * 40f
+                            translationY = -(1f - a) * 24f
                         }) { quickAppPanelContent() }
                         Box(modifier = Modifier.graphicsLayer {
                             val p = overlayProgressAnim.value.coerceIn(0f, 1f)
                             alpha = p
-                            translationY = -(1f - p) * 40f
+                            translationY = -(1f - p) * 24f
                         }) { searchBarContent() }
                     }
                 }

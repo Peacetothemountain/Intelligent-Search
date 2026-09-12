@@ -45,6 +45,14 @@ class UnifiedSearchCoordinator @Inject constructor(
         val metadata: SearchScoringEngine.ScoringMetadata = SearchScoringEngine.ScoringMetadata()
     )
 
+    data class Tier0SearchResults(
+        val query: String,
+        val mathResult: MathematicalExpressionEngine.MathEvaluationResult? = null,
+        val systemAction: SystemActionRouter.ActionResult? = null,
+        val apps: List<AppItem> = emptyList(),
+        val executionTimeMs: Long = 0L
+    )
+
     data class UnifiedSearchResults(
         val query: String,
         val mathResult: MathematicalExpressionEngine.MathEvaluationResult? = null,
@@ -85,18 +93,22 @@ class UnifiedSearchCoordinator @Inject constructor(
         )
         itemRegistry[searchItem.id] = searchItem
 
-        // Index full title and package name
+        // Index full title, normalized title, and package name
         radixTree.insert(app.name, searchItem)
+        val normalizedTitle = QueryNormalizer.normalize(app.name)
+        if (normalizedTitle.isNotEmpty() && !normalizedTitle.equals(app.name, ignoreCase = true)) {
+            radixTree.insert(normalizedTitle, searchItem)
+        }
         radixTree.insert(app.packageName, searchItem)
 
         // Index acronym / initials (e.g. "yt" -> "YouTube", "gpm" -> "Google Play Music")
-        val words = app.name.split("\\s+".toRegex()).filter { it.isNotEmpty() }
-        if (words.size > 1) {
-            val initials = words.map { it[0] }.joinToString("")
+        val initials = QueryNormalizer.extractInitials(app.name)
+        if (initials.isNotEmpty()) {
             radixTree.insert(initials, searchItem)
-            for (w in words) {
-                radixTree.insert(w, searchItem)
-            }
+        }
+        val words = QueryNormalizer.tokenize(app.name)
+        for (w in words) {
+            radixTree.insert(w, searchItem)
         }
 
         // Index phonetic codes
@@ -129,12 +141,16 @@ class UnifiedSearchCoordinator @Inject constructor(
         )
         itemRegistry[searchItem.id] = searchItem
 
-        // Index full name and phone number
+        // Index full name, normalized name, and phone number
         radixTree.insert(contact.name, searchItem)
+        val normalizedContact = QueryNormalizer.normalize(contact.name)
+        if (normalizedContact.isNotEmpty() && !normalizedContact.equals(contact.name, ignoreCase = true)) {
+            radixTree.insert(normalizedContact, searchItem)
+        }
         radixTree.insert(contact.phoneNumber.filter { it.isDigit() }, searchItem)
 
         // Index individual name tokens (First name, Last name)
-        val tokens = contact.name.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+        val tokens = QueryNormalizer.tokenize(contact.name)
         for (token in tokens) {
             radixTree.insert(token, searchItem)
             val tokenMetaphone = DoubleMetaphone.encode(token)
@@ -216,8 +232,213 @@ class UnifiedSearchCoordinator @Inject constructor(
     }
 
     // ---------------------------------------------------------------------------------------------
-    // HIGH-PERFORMANCE SEARCH PIPELINE (< 5ms)
+    // HIGH-PERFORMANCE SEARCH PIPELINES (< 2ms Tier 0 / < 5ms Full)
     // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Tier 0 Instant Search (< 2ms) executed synchronously on keystrokes.
+     * Evaluates instant calculators, system toggles/actions, and Radix Tree app prefix lookups.
+     */
+    fun executeTier0Search(rawQuery: String): Tier0SearchResults {
+        val startTime = System.nanoTime()
+        val query = rawQuery.trim()
+        if (query.isEmpty()) {
+            return Tier0SearchResults(query = query)
+        }
+
+        // 1. Instant System Action / Slider Router
+        val systemAction = systemActionRouter.matchAction(query)
+
+        // 2. Instant Math, Scientific, & Unit Evaluator
+        val mathResult = MathematicalExpressionEngine.evaluate(query)
+
+        // 3. Fast Radix prefix search for apps only
+        val candidates = mutableSetOf<SearchItem>()
+        val directMatches = radixTree.searchPrefix(query, limit = 20)
+        for (item in directMatches) {
+            if (item.domain == SearchScoringEngine.EntityDomain.APPLICATION) {
+                candidates.add(item)
+            }
+        }
+
+        val normalized = QueryNormalizer.normalize(query)
+        if (normalized.isNotEmpty() && !normalized.equals(query, ignoreCase = true)) {
+            val normMatches = radixTree.searchPrefix(normalized, limit = 20)
+            for (item in normMatches) {
+                if (item.domain == SearchScoringEngine.EntityDomain.APPLICATION) {
+                    candidates.add(item)
+                }
+            }
+        }
+
+        // If candidates are small and query has multiple words, search first token or initials
+        if (candidates.size < 3) {
+            val tokens = QueryNormalizer.tokenize(query)
+            if (tokens.isNotEmpty()) {
+                val tokenMatches = radixTree.searchPrefix(tokens[0], limit = 20)
+                for (item in tokenMatches) {
+                    if (item.domain == SearchScoringEngine.EntityDomain.APPLICATION) {
+                        candidates.add(item)
+                    }
+                }
+            }
+            val initials = QueryNormalizer.extractInitials(query)
+            if (initials.isNotEmpty()) {
+                val initialMatches = radixTree.searchPrefix(initials, limit = 10)
+                for (item in initialMatches) {
+                    if (item.domain == SearchScoringEngine.EntityDomain.APPLICATION) {
+                        candidates.add(item)
+                    }
+                }
+            }
+        }
+
+        val now = System.currentTimeMillis()
+        val matchedApps = candidates.map { item ->
+            val score = SearchScoringEngine.evaluateScore(
+                query = query,
+                targetTitle = item.title,
+                metadata = item.metadata,
+                currentTimeMs = now,
+                domainWeightMultiplier = 1.0f
+            )
+            Pair(item.payload as AppItem, score.totalScore)
+        }.sortedByDescending { it.second }
+        .map { it.first }
+        .take(8)
+
+        val elapsedMs = (System.nanoTime() - startTime) / 1_000_000
+
+        return Tier0SearchResults(
+            query = query,
+            mathResult = mathResult,
+            systemAction = systemAction,
+            apps = matchedApps,
+            executionTimeMs = elapsedMs
+        )
+    }
+
+    /**
+     * In-memory search for apps (< 1ms).
+     */
+    fun searchApps(query: String, limit: Int = 12): List<AppItem> {
+        val q = query.trim()
+        if (q.isEmpty()) return emptyList()
+        val candidates = mutableSetOf<SearchItem>()
+        radixTree.searchPrefix(q, limit = limit * 3).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.APPLICATION }
+
+        val normalized = QueryNormalizer.normalize(q)
+        if (normalized.isNotEmpty() && !normalized.equals(q, ignoreCase = true)) {
+            radixTree.searchPrefix(normalized, limit = limit * 3).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.APPLICATION }
+        }
+
+        val now = System.currentTimeMillis()
+        return candidates.map { item ->
+            val score = SearchScoringEngine.evaluateScore(
+                query = q,
+                targetTitle = item.title,
+                metadata = item.metadata,
+                currentTimeMs = now,
+                domainWeightMultiplier = 1.0f
+            )
+            Pair(item.payload as AppItem, score.totalScore)
+        }.sortedByDescending { it.second }
+        .map { it.first }
+        .take(limit)
+    }
+
+    /**
+     * Queries indexed contacts from memory (< 1ms).
+     */
+    fun searchContacts(query: String, limit: Int = 10): List<ContactItem> {
+        val q = query.trim()
+        if (q.isEmpty()) return emptyList()
+        val candidates = mutableSetOf<SearchItem>()
+        radixTree.searchPrefix(q, limit = limit * 3).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
+
+        val normalized = QueryNormalizer.normalize(q)
+        if (normalized.isNotEmpty() && !normalized.equals(q, ignoreCase = true)) {
+            radixTree.searchPrefix(normalized, limit = limit * 3).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
+        }
+
+        val queryMetaphone = DoubleMetaphone.encode(q)
+        if (queryMetaphone.primary.isNotEmpty()) {
+            phoneticIndex[queryMetaphone.primary]?.filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
+        }
+
+        val now = System.currentTimeMillis()
+        return candidates.map { item ->
+            val score = SearchScoringEngine.evaluateScore(
+                query = q,
+                targetTitle = item.title,
+                metadata = item.metadata,
+                currentTimeMs = now,
+                domainWeightMultiplier = 1.0f,
+                precomputedQueryMetaphone = queryMetaphone
+            )
+            Pair(item.payload as ContactItem, score.totalScore)
+        }.sortedByDescending { it.second }
+        .map { it.first }
+        .take(limit)
+    }
+
+    /**
+     * Queries indexed shortcuts from memory (< 1ms).
+     */
+    fun searchShortcuts(query: String, limit: Int = 6): List<AppShortcutItem> {
+        val q = query.trim()
+        if (q.isEmpty()) return emptyList()
+        val candidates = mutableSetOf<SearchItem>()
+        radixTree.searchPrefix(q, limit = limit * 2).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.APP_SHORTCUT }
+
+        val normalized = QueryNormalizer.normalize(q)
+        if (normalized.isNotEmpty() && !normalized.equals(q, ignoreCase = true)) {
+            radixTree.searchPrefix(normalized, limit = limit * 2).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.APP_SHORTCUT }
+        }
+
+        val now = System.currentTimeMillis()
+        return candidates.map { item ->
+            val score = SearchScoringEngine.evaluateScore(
+                query = q,
+                targetTitle = item.title,
+                metadata = item.metadata,
+                currentTimeMs = now,
+                domainWeightMultiplier = 1.0f
+            )
+            Pair(item.payload as AppShortcutItem, score.totalScore)
+        }.sortedByDescending { it.second }
+        .map { it.first }
+        .take(limit)
+    }
+
+    /**
+     * Queries indexed files from memory (< 1ms).
+     */
+    fun searchFiles(query: String, limit: Int = 10): List<FileItem> {
+        val q = query.trim()
+        if (q.isEmpty()) return emptyList()
+        val candidates = mutableSetOf<SearchItem>()
+        radixTree.searchPrefix(q, limit = limit * 2).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.FILE }
+
+        val normalized = QueryNormalizer.normalize(q)
+        if (normalized.isNotEmpty() && !normalized.equals(q, ignoreCase = true)) {
+            radixTree.searchPrefix(normalized, limit = limit * 2).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.FILE }
+        }
+
+        val now = System.currentTimeMillis()
+        return candidates.map { item ->
+            val score = SearchScoringEngine.evaluateScore(
+                query = q,
+                targetTitle = item.title,
+                metadata = item.metadata,
+                currentTimeMs = now,
+                domainWeightMultiplier = 1.0f
+            )
+            Pair(item.payload as FileItem, score.totalScore)
+        }.sortedByDescending { it.second }
+        .map { it.first }
+        .take(limit)
+    }
 
     suspend fun executeSearch(rawQuery: String): UnifiedSearchResults = withContext(Dispatchers.Default) {
         executeSearchInternal(rawQuery)
@@ -247,6 +468,19 @@ class UnifiedSearchCoordinator @Inject constructor(
         // 4. Candidate Retrieval via Radix Tree Prefix Search (< 0.5ms)
         val candidates = mutableSetOf<SearchItem>()
         candidates.addAll(radixTree.searchPrefix(query, limit = 80))
+
+        val normalized = QueryNormalizer.normalize(query)
+        if (normalized.isNotEmpty() && !normalized.equals(query, ignoreCase = true)) {
+            candidates.addAll(radixTree.searchPrefix(normalized, limit = 80))
+        }
+
+        // Multi-token lookup for multi-word queries (e.g. "goo chr")
+        val tokens = QueryNormalizer.tokenize(query)
+        if (tokens.size > 1) {
+            for (token in tokens) {
+                candidates.addAll(radixTree.searchPrefix(token, limit = 40))
+            }
+        }
 
         // 5. Phonetic Candidate Retrieval via Double Metaphone (< 0.2ms)
         val queryMetaphone = DoubleMetaphone.encode(query)

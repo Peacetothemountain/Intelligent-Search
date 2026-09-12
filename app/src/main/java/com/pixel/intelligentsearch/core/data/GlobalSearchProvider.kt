@@ -39,6 +39,15 @@ class GlobalSearchProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
         sortOrder: String?
     ): Cursor {
+        return query(uri, projection, null, null)
+    }
+
+    override fun query(
+        uri: Uri,
+        projection: Array<out String>?,
+        queryArgs: android.os.Bundle?,
+        cancellationSignal: android.os.CancellationSignal?
+    ): Cursor {
         val columns = arrayOf(
             BaseColumns._ID,
             SearchManager.SUGGEST_COLUMN_TEXT_1,
@@ -51,6 +60,9 @@ class GlobalSearchProvider : ContentProvider() {
         )
         val cursor = MatrixCursor(columns)
 
+        if (cancellationSignal?.isCanceled == true) return cursor
+
+        val selectionArgs = queryArgs?.getStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS)
         val queryTerm = extractQueryTerm(uri, selectionArgs)
         if (queryTerm.isBlank()) return cursor
 
@@ -66,7 +78,7 @@ class GlobalSearchProvider : ContentProvider() {
 
         var rowId = 1L
 
-        if (coordinator != null) {
+        if (coordinator != null && cancellationSignal?.isCanceled != true) {
             val results = coordinator.executeSearchSync(queryTerm)
 
             // 1. Math calculation result if available
@@ -90,6 +102,7 @@ class GlobalSearchProvider : ContentProvider() {
 
             // 2. Apps
             for (app in results.apps) {
+                if (cancellationSignal?.isCanceled == true) break
                 val launchIntentUri = context?.packageManager?.getLaunchIntentForPackage(app.packageName)?.toUri(Intent.URI_INTENT_SCHEME)
                     ?: "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${app.packageName};end"
 
@@ -107,6 +120,7 @@ class GlobalSearchProvider : ContentProvider() {
 
             // 3. Contacts
             for (contact in results.contacts) {
+                if (cancellationSignal?.isCanceled == true) break
                 cursor.addRow(arrayOf<Any?>(
                     rowId++,
                     contact.name,
@@ -121,6 +135,7 @@ class GlobalSearchProvider : ContentProvider() {
 
             // 4. App Shortcuts
             for (shortcut in results.shortcuts) {
+                if (cancellationSignal?.isCanceled == true) break
                 val shortcutLaunchUri = "intent:#Intent;action=android.intent.action.MAIN;package=${shortcut.packageName};end"
                 cursor.addRow(arrayOf<Any?>(
                     rowId++,
@@ -170,7 +185,9 @@ class GlobalSearchProvider : ContentProvider() {
             }
         }
 
-        val suggestions = WebSearchProvider.getWebSuggestionsSync(queryTerm, engine, timeoutMs = 600)
+        // Check in-memory cache first (< 0.1ms). If uncached, fetch with strict 80ms timeout to avoid Binder stall.
+        val cached = WebSearchProvider.getCachedSuggestions(queryTerm, engine)
+        val suggestions = cached ?: WebSearchProvider.getWebSuggestionsSync(queryTerm, engine, timeoutMs = 80)
         for (suggestion in suggestions.take(5)) {
             val suggestUrl = buildWebSearchUrl(suggestion)
             cursor.addRow(arrayOf<Any?>(

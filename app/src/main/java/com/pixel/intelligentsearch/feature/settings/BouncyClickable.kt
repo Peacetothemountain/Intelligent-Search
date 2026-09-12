@@ -93,3 +93,70 @@ fun Modifier.bouncyClickable(
             onClick = clickAction
         )
 }
+
+/**
+ * Material 3 Expressive Row Clickable.
+ * Features bounded ripple, subtle micro-scale (0.985f), and tactile sonic haptics.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+fun Modifier.expressiveRowClickable(
+    enabled: Boolean = true,
+    interactionSource: MutableInteractionSource? = null,
+    onLongClick: (() -> Unit)? = null,
+    onClick: () -> Unit
+): Modifier = composed {
+    val effectiveInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
+    val isPressed by effectiveInteractionSource.collectIsPressedAsState()
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.985f else 1f,
+        animationSpec = spring(
+            stiffness = Spring.StiffnessMediumLow,
+            dampingRatio = 0.85f
+        ),
+        label = "expressive_row_scale"
+    )
+
+    val context = LocalContext.current
+    val view = LocalView.current
+    val sensoryEngine = remember(context) { TactileSonicEngine.get(context) }
+
+    val currentOnClick by rememberUpdatedState(onClick)
+    val currentOnLongClick by rememberUpdatedState(onLongClick)
+
+    androidx.compose.runtime.LaunchedEffect(isPressed) {
+        if (isPressed) {
+            sensoryEngine.tick(view, scale = 0.40f)
+        }
+    }
+
+    val clickAction = remember(view, sensoryEngine) {
+        {
+            sensoryEngine.click(view)
+            currentOnClick()
+        }
+    }
+
+    val longClickAction: (() -> Unit)? = remember(view, sensoryEngine, onLongClick != null) {
+        if (onLongClick != null) {
+            {
+                sensoryEngine.hapticEngine.performHaptic(view, PixelHapticType.HEAVY_IMPACT)
+                currentOnLongClick?.invoke()
+            }
+        } else null
+    }
+
+    this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .combinedClickable(
+            interactionSource = effectiveInteractionSource,
+            indication = androidx.compose.material3.ripple(),
+            enabled = enabled,
+            onLongClick = longClickAction,
+            onClick = clickAction
+        )
+}
+

@@ -284,7 +284,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 editor.putStringSet(key.name, HashSet(stringSet))
             }
         }
-        editor.commit()
+        editor.apply()
 
         context.dataStore.edit { preferences ->
             preferences[key] = value

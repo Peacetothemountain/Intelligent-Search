@@ -1,7 +1,10 @@
 package com.pixel.intelligentsearch.core.backup
 
 import android.app.Activity
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import com.pixel.intelligentsearch.core.bangs.SearchBangManager
 import com.pixel.intelligentsearch.core.data.HistoryDao
@@ -17,8 +20,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.InputStream
-import java.io.OutputStream
 import javax.crypto.SecretKey
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -42,6 +43,7 @@ class BackupManager @Inject constructor(
         val historyList = historyDao.getSearchHistory().map { it.query }
         val customBangs = searchBangManager.parseCustomBangs(currentSettings.customBangsJson)
 
+        // 1. DataStore settings map for backward compatibility
         val prefsMap = mutableMapOf<String, String>()
         prefsMap["theme"] = currentSettings.theme
         prefsMap["searchApps"] = currentSettings.searchApps.toString()
@@ -78,6 +80,44 @@ class BackupManager @Inject constructor(
         prefsMap["adaptiveIconShape"] = currentSettings.adaptiveIconShape
         prefsMap["dynamicIconMasking"] = currentSettings.dynamicIconMasking.toString()
 
+        // 2. Comprehensive capture of ALL customizations from PREFERENCES_CUSTOMISATIONS with type fidelity
+        val sharedPrefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val allCustomPrefs = sharedPrefs.all
+        val spJsonObj = JSONObject()
+        for ((k, v) in allCustomPrefs) {
+            if (v == null) continue
+            val itemObj = JSONObject()
+            when (v) {
+                is Boolean -> {
+                    itemObj.put("type", "BOOLEAN")
+                    itemObj.put("value", v)
+                }
+                is Int -> {
+                    itemObj.put("type", "INT")
+                    itemObj.put("value", v)
+                }
+                is Long -> {
+                    itemObj.put("type", "LONG")
+                    itemObj.put("value", v)
+                }
+                is Float -> {
+                    itemObj.put("type", "FLOAT")
+                    itemObj.put("value", v.toDouble())
+                }
+                is String -> {
+                    itemObj.put("type", "STRING")
+                    itemObj.put("value", v)
+                }
+                is Set<*> -> {
+                    itemObj.put("type", "STRING_SET")
+                    val arr = JSONArray()
+                    v.forEach { item -> if (item is String) arr.put(item) }
+                    itemObj.put("value", arr)
+                }
+            }
+            spJsonObj.put(k, itemObj)
+        }
+
         val currentVersionCode = try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                 context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
@@ -85,17 +125,18 @@ class BackupManager @Inject constructor(
                 @Suppress("DEPRECATION")
                 context.packageManager.getPackageInfo(context.packageName, 0).versionCode
             }
-        } catch (_: Throwable) { 95 }
+        } catch (_: Throwable) { 96 }
 
         BackupContentPayload(
-            schemaVersion = 1,
+            schemaVersion = 2,
             exportTimestampMs = System.currentTimeMillis(),
             appVersionCode = currentVersionCode,
             preferencesMap = prefsMap,
             customBangsJson = currentSettings.customBangsJson,
             sectionConfigsJson = currentSettings.searchSectionsConfigJson,
             searchHistory = historyList,
-            hiddenApps = currentSettings.hiddenApps.toList()
+            hiddenApps = currentSettings.hiddenApps.toList(),
+            sharedPreferencesJson = spJsonObj.toString()
         )
     }
 
@@ -106,7 +147,7 @@ class BackupManager @Inject constructor(
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
-        val runExport: suspend () -> Unit = suspend {
+        val runExport: suspend () -> Unit = {
             try {
                 val payload = createBackupPayload()
                 val plainJson = serializePayload(payload)
@@ -145,9 +186,13 @@ class BackupManager @Inject constructor(
                     os.write(envelopeJson.toByteArray(Charsets.UTF_8))
                     os.flush()
                 }
-                onSuccess()
-            } catch (e: Exception) {
-                onError(e.localizedMessage ?: "Failed to export backup")
+                withContext(Dispatchers.Main) {
+                    onSuccess()
+                }
+            } catch (e: Throwable) {
+                withContext(Dispatchers.Main) {
+                    onError(e.localizedMessage ?: "Failed to export backup")
+                }
             }
         }
 
@@ -157,13 +202,30 @@ class BackupManager @Inject constructor(
                 title = "Verify Identity to Export Backup",
                 subtitle = "Biometric authentication required to protect sensitive data",
                 onSuccess = {
-                    kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch { runExport() }
+                    CoroutineScope(Dispatchers.IO).launch { runExport() }
                 },
-                onError = { _, err -> onError("Authentication failed: $err") },
-                onCancel = { onError("Export cancelled by user") }
+                onError = { _, err ->
+                    CoroutineScope(Dispatchers.Main).launch { onError("Authentication failed: $err") }
+                },
+                onCancel = {
+                    CoroutineScope(Dispatchers.Main).launch { onError("Export cancelled by user") }
+                }
             )
         } else {
-            runExport()
+            withContext(Dispatchers.IO) {
+                runExport()
+            }
+        }
+    }
+
+    fun inspectBackupEnvelope(uri: Uri): Result<EncryptedBackupEnvelope> {
+        return try {
+            val envelopeJson = context.contentResolver.openInputStream(uri)?.use { input ->
+                input.bufferedReader().readText()
+            } ?: return Result.failure(IllegalArgumentException("Could not read backup file"))
+            Result.success(parseEnvelope(envelopeJson))
+        } catch (e: Throwable) {
+            Result.failure(e)
         }
     }
 
@@ -174,7 +236,7 @@ class BackupManager @Inject constructor(
         onSuccess: (itemsRestored: Int) -> Unit,
         onError: (String) -> Unit
     ) {
-        val runImport: suspend () -> Unit = suspend {
+        val runImport: suspend () -> Unit = {
             try {
                 val envelopeJson = context.contentResolver.openInputStream(uri)?.use { input ->
                     input.bufferedReader().readText()
@@ -186,13 +248,23 @@ class BackupManager @Inject constructor(
                 val cipherBytes = BackupCryptoEngine.decodeBase64(envelope.encryptedPayloadBase64)
                 val calculatedSha = BackupCryptoEngine.calculateSha256(cipherBytes)
                 if (calculatedSha != envelope.payloadSha256) {
-                    throw SecurityException("Backup integrity verification failed (SHA-256 mismatch)")
+                    throw SecurityException("Backup integrity verification failed (SHA-256 checksum mismatch). File may be corrupted.")
                 }
 
                 val iv = BackupCryptoEngine.decodeBase64(envelope.cipher.ivBase64)
                 val decryptedJson: String = if (envelope.isHardwareBacked) {
-                    val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
-                    BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                    try {
+                        val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
+                        BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                    } catch (e: Throwable) {
+                        if (!passphrase.isNullOrBlank() && envelope.kdf != null) {
+                            val salt = BackupCryptoEngine.decodeBase64(envelope.kdf.saltBase64)
+                            val key = BackupCryptoEngine.deriveKeyFromPassphrase(passphrase.toCharArray(), salt)
+                            BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                        } else {
+                            throw SecurityException("Device KeyStore key unavailable. This backup was bound to hardware keys that were reset. Please use a password-protected backup for cross-device/reinstall restoration.")
+                        }
+                    }
                 } else {
                     if (passphrase.isNullOrBlank()) {
                         throw IllegalArgumentException("Passphrase required to decrypt this backup")
@@ -200,15 +272,24 @@ class BackupManager @Inject constructor(
                     val saltBase64 = envelope.kdf?.saltBase64 ?: throw IllegalArgumentException("Missing salt in backup")
                     val salt = BackupCryptoEngine.decodeBase64(saltBase64)
                     val key = BackupCryptoEngine.deriveKeyFromPassphrase(passphrase.toCharArray(), salt)
-                    BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                    try {
+                        BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                    } catch (e: javax.crypto.AEADBadTagException) {
+                        throw SecurityException("Incorrect passphrase. Authentication tag mismatch.")
+                    } catch (e: Throwable) {
+                        throw SecurityException("Failed to decrypt: ${e.message ?: "Invalid passphrase"}")
+                    }
                 }
 
                 val payload = parsePayload(decryptedJson)
-                restorePayload(payload)
-                val count = payload.preferencesMap.size + payload.searchHistory.size
-                onSuccess(count)
-            } catch (e: Exception) {
-                onError(e.localizedMessage ?: "Failed to restore backup")
+                val restoredCount = restorePayload(payload)
+                withContext(Dispatchers.Main) {
+                    onSuccess(restoredCount)
+                }
+            } catch (e: Throwable) {
+                withContext(Dispatchers.Main) {
+                    onError(e.localizedMessage ?: "Failed to restore backup")
+                }
             }
         }
 
@@ -218,74 +299,305 @@ class BackupManager @Inject constructor(
                 title = "Verify Identity to Restore Backup",
                 subtitle = "Biometric authentication required to restore data",
                 onSuccess = {
-                    kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch { runImport() }
+                    CoroutineScope(Dispatchers.IO).launch { runImport() }
                 },
-                onError = { _, err -> onError("Authentication failed: $err") },
-                onCancel = { onError("Import cancelled by user") }
+                onError = { _, err ->
+                    CoroutineScope(Dispatchers.Main).launch { onError("Authentication failed: $err") }
+                },
+                onCancel = {
+                    CoroutineScope(Dispatchers.Main).launch { onError("Import cancelled by user") }
+                }
             )
         } else {
-            runImport()
+            withContext(Dispatchers.IO) {
+                runImport()
+            }
         }
     }
 
-    private suspend fun restorePayload(payload: BackupContentPayload) = withContext(Dispatchers.IO) {
-        // 1. Restore Preferences
-        payload.preferencesMap.forEach { (k, v) ->
-            when (k) {
-                "theme" -> settingsManager.updateSetting(SettingsManager.THEME, v)
-                "searchApps" -> settingsManager.updateSetting(SettingsManager.SEARCH_APPS, v.toBoolean())
-                "searchContacts" -> settingsManager.updateSetting(SettingsManager.SEARCH_CONTACTS, v.toBoolean())
-                "searchFiles" -> settingsManager.updateSetting(SettingsManager.SEARCH_FILES, v.toBoolean())
-                "searchWeb" -> settingsManager.updateSetting(SettingsManager.SEARCH_WEB, v.toBoolean())
-                "searchCalculator" -> settingsManager.updateSetting(SettingsManager.SEARCH_CALCULATOR, v.toBoolean())
-                "searchCalendar" -> settingsManager.updateSetting(SettingsManager.SEARCH_CALENDAR, v.toBoolean())
-                "searchShortcuts" -> settingsManager.updateSetting(SettingsManager.SEARCH_SHORTCUTS, v.toBoolean())
-                "backgroundBlur" -> settingsManager.updateSetting(SettingsManager.BACKGROUND_BLUR, v.toIntOrNull() ?: 50)
-                "showWallpaper" -> settingsManager.updateSetting(SettingsManager.SHOW_WALLPAPER, v.toBoolean())
-                "backgroundTransparency" -> settingsManager.updateSetting(SettingsManager.BACKGROUND_TRANSPARENCY, v.toIntOrNull() ?: 50)
-                "pillOpacity" -> settingsManager.updateSetting(SettingsManager.PILL_OPACITY, v.toIntOrNull() ?: 50)
-                "searchEngine" -> settingsManager.updateSetting(SettingsManager.SEARCH_ENGINE, v)
-                "customSearchEngineUrl" -> settingsManager.updateSetting(SettingsManager.CUSTOM_SEARCH_ENGINE_URL, v)
-                "filesHiddenFiles" -> settingsManager.updateSetting(SettingsManager.FILES_HIDDEN_FILES, v.toBoolean())
-                "filesThumbnails" -> settingsManager.updateSetting(SettingsManager.FILES_THUMBNAILS, v.toBoolean())
-                "appAnimations" -> settingsManager.updateSetting(SettingsManager.APP_ANIMATIONS, v.toBoolean())
-                "bottomSearch" -> settingsManager.updateSetting(SettingsManager.BOTTOM_SEARCH, v.toBoolean())
-                "bottomSearchResult" -> settingsManager.updateSetting(SettingsManager.BOTTOM_SEARCH_RESULT, v.toBoolean())
-                "searchPills" -> settingsManager.updateSetting(SettingsManager.SEARCH_PILLS, v)
-                "appQuickLaunch" -> settingsManager.updateSetting(SettingsManager.APP_QUICK_LAUNCH, v.toBoolean())
-                "contactDirectCall" -> settingsManager.updateSetting(SettingsManager.CONTACT_DIRECT_CALL, v.toBoolean())
-                "shortcutInline" -> settingsManager.updateSetting(SettingsManager.SHORTCUT_INLINE, v.toBoolean())
-                "appFuzzySearch" -> settingsManager.updateSetting(SettingsManager.APP_FUZZY_SEARCH, v.toBoolean())
-                "quickSearchHorizontal" -> settingsManager.updateSetting(SettingsManager.QUICK_SEARCH_HORIZONTAL, v.toBoolean())
-                "webResultsCount" -> settingsManager.updateSetting(SettingsManager.WEB_RESULTS_COUNT, v.toIntOrNull() ?: 5)
-                "contactResultsCount" -> settingsManager.updateSetting(SettingsManager.CONTACT_RESULTS_COUNT, v.toIntOrNull() ?: 5)
-                "fileResultsCount" -> settingsManager.updateSetting(SettingsManager.FILE_RESULTS_COUNT, v.toIntOrNull() ?: 5)
-                "shortcutResultsCount" -> settingsManager.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, v.toIntOrNull() ?: 6)
-                "activeIconPack" -> settingsManager.updateSetting(SettingsManager.ACTIVE_ICON_PACK, v)
-                "customIconPills" -> settingsManager.updateSetting(SettingsManager.CUSTOM_ICON_PILLS, v)
-                "searchPreviousSearches" -> settingsManager.updateSetting(SettingsManager.SEARCH_PREVIOUS_SEARCHES, v.toBoolean())
-                "adaptiveIconShape" -> settingsManager.updateSetting(SettingsManager.ADAPTIVE_ICON_SHAPE, v)
-                "dynamicIconMasking" -> settingsManager.updateSetting(SettingsManager.DYNAMIC_ICON_MASKING, v.toBoolean())
+    private suspend fun restorePayload(payload: BackupContentPayload): Int = withContext(Dispatchers.IO) {
+        var restoredCount = 0
+        val sharedPrefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+
+        // 1. Restore all rich typed preferences from sharedPreferencesJson (Schema 2+)
+        if (payload.sharedPreferencesJson.isNotBlank() && payload.sharedPreferencesJson != "{}") {
+            try {
+                val spObj = JSONObject(payload.sharedPreferencesJson)
+                val editor = sharedPrefs.edit()
+                val keys = spObj.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    val itemObj = spObj.getJSONObject(key)
+                    val type = itemObj.optString("type")
+                    when (type) {
+                        "BOOLEAN" -> editor.putBoolean(key, itemObj.getBoolean("value"))
+                        "INT" -> editor.putInt(key, itemObj.getInt("value"))
+                        "LONG" -> editor.putLong(key, itemObj.getLong("value"))
+                        "FLOAT" -> editor.putFloat(key, itemObj.getDouble("value").toFloat())
+                        "STRING" -> editor.putString(key, itemObj.getString("value"))
+                        "STRING_SET" -> {
+                            val arr = itemObj.getJSONArray("value")
+                            val set = mutableSetOf<String>()
+                            for (i in 0 until arr.length()) {
+                                set.add(arr.getString(i))
+                            }
+                            editor.putStringSet(key, set)
+                        }
+                    }
+                    restoredCount++
+                }
+                editor.commit()
+            } catch (e: Throwable) {
+                android.util.Log.w("BackupManager", "Failed to restore typed SharedPreferences", e)
             }
         }
 
-        // 2. Restore Custom Bangs & Section Configs
-        if (payload.customBangsJson.isNotBlank()) {
-            settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, payload.customBangsJson)
+        // 2. Restore DataStore preferences & fallback to SharedPreferences for Schema 1 backups
+        val editor = sharedPrefs.edit()
+        payload.preferencesMap.forEach { (k, v) ->
+            when (k) {
+                "theme" -> {
+                    settingsManager.updateSetting(SettingsManager.THEME, v)
+                    editor.putString("theme", v)
+                    restoredCount++
+                }
+                "searchApps" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.SEARCH_APPS, b)
+                    editor.putBoolean("search.apps", b)
+                    restoredCount++
+                }
+                "searchContacts" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.SEARCH_CONTACTS, b)
+                    editor.putBoolean("search.contacts", b)
+                    restoredCount++
+                }
+                "searchFiles" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.SEARCH_FILES, b)
+                    editor.putBoolean("search.files", b)
+                    restoredCount++
+                }
+                "searchWeb" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.SEARCH_WEB, b)
+                    editor.putBoolean("search.web", b)
+                    restoredCount++
+                }
+                "searchCalculator" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.SEARCH_CALCULATOR, b)
+                    editor.putBoolean("search.calculator", b)
+                    restoredCount++
+                }
+                "searchCalendar" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.SEARCH_CALENDAR, b)
+                    editor.putBoolean("search.calendar", b)
+                    restoredCount++
+                }
+                "searchShortcuts" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.SEARCH_SHORTCUTS, b)
+                    editor.putBoolean("search.shortcuts", b)
+                    restoredCount++
+                }
+                "backgroundBlur" -> {
+                    val intVal = v.toIntOrNull() ?: 50
+                    settingsManager.updateSetting(SettingsManager.BACKGROUND_BLUR, intVal)
+                    editor.putInt("background.blur", intVal)
+                    restoredCount++
+                }
+                "showWallpaper" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.SHOW_WALLPAPER, b)
+                    editor.putBoolean("show.wallpaper", b)
+                    restoredCount++
+                }
+                "backgroundTransparency" -> {
+                    val intVal = v.toIntOrNull() ?: 50
+                    settingsManager.updateSetting(SettingsManager.BACKGROUND_TRANSPARENCY, intVal)
+                    editor.putInt("background.transparency", intVal)
+                    restoredCount++
+                }
+                "pillOpacity" -> {
+                    val intVal = v.toIntOrNull() ?: 50
+                    settingsManager.updateSetting(SettingsManager.PILL_OPACITY, intVal)
+                    editor.putInt("pill.opacity", intVal)
+                    restoredCount++
+                }
+                "searchEngine" -> {
+                    settingsManager.updateSetting(SettingsManager.SEARCH_ENGINE, v)
+                    editor.putString("search.engine", v)
+                    restoredCount++
+                }
+                "customSearchEngineUrl" -> {
+                    settingsManager.updateSetting(SettingsManager.CUSTOM_SEARCH_ENGINE_URL, v)
+                    editor.putString("custom_search_engine_url", v)
+                    restoredCount++
+                }
+                "filesHiddenFiles" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.FILES_HIDDEN_FILES, b)
+                    editor.putBoolean("files.hidden.files", b)
+                    restoredCount++
+                }
+                "filesThumbnails" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.FILES_THUMBNAILS, b)
+                    editor.putBoolean("files.thumbnails", b)
+                    restoredCount++
+                }
+                "appAnimations" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.APP_ANIMATIONS, b)
+                    editor.putBoolean("app.animations", b)
+                    restoredCount++
+                }
+                "bottomSearch" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.BOTTOM_SEARCH, b)
+                    editor.putBoolean("settings.bottom.search", b)
+                    restoredCount++
+                }
+                "bottomSearchResult" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.BOTTOM_SEARCH_RESULT, b)
+                    editor.putBoolean("settings.bottom.search.result", b)
+                    restoredCount++
+                }
+                "searchPills" -> {
+                    settingsManager.updateSetting(SettingsManager.SEARCH_PILLS, v)
+                    editor.putString("search.pills", v)
+                    restoredCount++
+                }
+                "appQuickLaunch" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.APP_QUICK_LAUNCH, b)
+                    editor.putBoolean("app.quick.launch", b)
+                    restoredCount++
+                }
+                "contactDirectCall" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.CONTACT_DIRECT_CALL, b)
+                    editor.putBoolean("contact.direct.call", b)
+                    restoredCount++
+                }
+                "shortcutInline" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.SHORTCUT_INLINE, b)
+                    editor.putBoolean("shortcut.inline", b)
+                    restoredCount++
+                }
+                "appFuzzySearch" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.APP_FUZZY_SEARCH, b)
+                    editor.putBoolean("app.fuzzy.search", b)
+                    restoredCount++
+                }
+                "quickSearchHorizontal" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.QUICK_SEARCH_HORIZONTAL, b)
+                    editor.putBoolean("quick.search.horizontal", b)
+                    restoredCount++
+                }
+                "webResultsCount" -> {
+                    val intVal = v.toIntOrNull() ?: 5
+                    settingsManager.updateSetting(SettingsManager.WEB_RESULTS_COUNT, intVal)
+                    editor.putInt("web.results.count", intVal)
+                    restoredCount++
+                }
+                "contactResultsCount" -> {
+                    val intVal = v.toIntOrNull() ?: 5
+                    settingsManager.updateSetting(SettingsManager.CONTACT_RESULTS_COUNT, intVal)
+                    editor.putInt("contact.results.count", intVal)
+                    restoredCount++
+                }
+                "fileResultsCount" -> {
+                    val intVal = v.toIntOrNull() ?: 5
+                    settingsManager.updateSetting(SettingsManager.FILE_RESULTS_COUNT, intVal)
+                    editor.putInt("file.results.count", intVal)
+                    restoredCount++
+                }
+                "shortcutResultsCount" -> {
+                    val intVal = v.toIntOrNull() ?: 6
+                    settingsManager.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, intVal)
+                    editor.putInt("shortcut.results.count", intVal)
+                    restoredCount++
+                }
+                "activeIconPack" -> {
+                    settingsManager.updateSetting(SettingsManager.ACTIVE_ICON_PACK, v)
+                    editor.putString("active_icon_pack", v)
+                    restoredCount++
+                }
+                "customIconPills" -> {
+                    settingsManager.updateSetting(SettingsManager.CUSTOM_ICON_PILLS, v)
+                    editor.putString("custom_icon_pills", v)
+                    restoredCount++
+                }
+                "searchPreviousSearches" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.SEARCH_PREVIOUS_SEARCHES, b)
+                    editor.putBoolean("search_previous_searches", b)
+                    restoredCount++
+                }
+                "adaptiveIconShape" -> {
+                    settingsManager.updateSetting(SettingsManager.ADAPTIVE_ICON_SHAPE, v)
+                    editor.putString("adaptive_icon_shape", v)
+                    restoredCount++
+                }
+                "dynamicIconMasking" -> {
+                    val b = v.toBoolean()
+                    settingsManager.updateSetting(SettingsManager.DYNAMIC_ICON_MASKING, b)
+                    editor.putBoolean("dynamic_icon_masking", b)
+                    restoredCount++
+                }
+            }
         }
-        if (payload.sectionConfigsJson.isNotBlank()) {
+        editor.commit()
+
+        // 3. Restore Custom Bangs & Section Configs
+        if (payload.customBangsJson.isNotBlank() && payload.customBangsJson != "[]") {
+            settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, payload.customBangsJson)
+            restoredCount++
+        }
+        if (payload.sectionConfigsJson.isNotBlank() && payload.sectionConfigsJson != "[]") {
             settingsManager.updateSetting(SettingsManager.SEARCH_SECTIONS_CONFIG_JSON, payload.sectionConfigsJson)
+            restoredCount++
         }
         if (payload.hiddenApps.isNotEmpty()) {
             settingsManager.updateSetting(SettingsManager.HIDDEN_APPS, payload.hiddenApps.toSet())
+            restoredCount += payload.hiddenApps.size
         }
 
-        // 3. Restore Search History
+        // 4. Restore Search History
         if (payload.searchHistory.isNotEmpty()) {
             payload.searchHistory.forEach { q ->
                 historyDao.insertSearch(HistoryEntity(query = q, timestamp = System.currentTimeMillis()))
+                restoredCount++
             }
         }
+
+        // 5. Update Home Screen Widgets immediately
+        try {
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val component = ComponentName(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java)
+            val appWidgetIds = appWidgetManager.getAppWidgetIds(component)
+            if (appWidgetIds != null && appWidgetIds.isNotEmpty()) {
+                val updateIntent = Intent(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
+                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, appWidgetIds)
+                }
+                context.sendBroadcast(updateIntent)
+            }
+        } catch (_: Throwable) {}
+
+        try {
+            com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
+        } catch (_: Throwable) {}
+
+        restoredCount
     }
 
     private fun serializePayload(payload: BackupContentPayload): String {
@@ -308,6 +620,8 @@ class BackupManager @Inject constructor(
         val hiddenArray = JSONArray()
         payload.hiddenApps.forEach { hiddenArray.put(it) }
         root.put("hiddenApps", hiddenArray)
+
+        root.put("sharedPreferencesJson", payload.sharedPreferencesJson)
 
         return root.toString()
     }
@@ -337,14 +651,15 @@ class BackupManager @Inject constructor(
         }
 
         return BackupContentPayload(
-            schemaVersion = root.optInt("schemaVersion", 1),
+            schemaVersion = root.optInt("schemaVersion", 2),
             exportTimestampMs = root.optLong("exportTimestampMs", System.currentTimeMillis()),
-            appVersionCode = root.optInt("appVersionCode", 92),
+            appVersionCode = root.optInt("appVersionCode", 96),
             preferencesMap = prefsMap,
             customBangsJson = root.optString("customBangsJson", "[]"),
             sectionConfigsJson = root.optString("sectionConfigsJson", "[]"),
             searchHistory = history,
-            hiddenApps = hidden
+            hiddenApps = hidden,
+            sharedPreferencesJson = root.optString("sharedPreferencesJson", "{}")
         )
     }
 

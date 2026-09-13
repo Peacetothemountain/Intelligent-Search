@@ -43,5 +43,6 @@ data class BackupContentPayload(
     val customBangsJson: String = "[]",
     val sectionConfigsJson: String = "[]",
     val searchHistory: List<String> = emptyList(),
-    val hiddenApps: List<String> = emptyList()
+    val hiddenApps: List<String> = emptyList(),
+    val sharedPreferencesJson: String = "{}"
 )

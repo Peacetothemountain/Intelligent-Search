@@ -158,6 +158,10 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun inspectBackupEnvelope(uri: Uri): Result<com.pixel.intelligentsearch.core.backup.EncryptedBackupEnvelope> {
+        return backupManager.inspectBackupEnvelope(uri)
+    }
+
     fun clearIconCaches() {
         iconEngine.clearCache()
         com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()

@@ -220,7 +220,15 @@ class SystemToggleManager @Inject constructor(
             _isFlashlightOn.value = enabled
         } catch (e: Exception) {
             Log.e(TAG, "Failed to toggle torch", e)
-            Toast.makeText(context, "Flashlight unavailable", Toast.LENGTH_SHORT).show()
+            safeToast("Flashlight unavailable", Toast.LENGTH_SHORT)
+        }
+    }
+
+    private fun safeToast(message: String, length: Int = Toast.LENGTH_SHORT) {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            try {
+                Toast.makeText(context.applicationContext, message, length).show()
+            } catch (_: Throwable) {}
         }
     }
 
@@ -425,7 +433,7 @@ class SystemToggleManager @Inject constructor(
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
-            Toast.makeText(context, "Grant write settings permission to toggle Auto-Rotate directly", Toast.LENGTH_LONG).show()
+            safeToast("Grant write settings permission to toggle Auto-Rotate directly", Toast.LENGTH_LONG)
         } else {
             openSettingsIntent(Settings.ACTION_DISPLAY_SETTINGS)
         }
@@ -471,7 +479,7 @@ class SystemToggleManager @Inject constructor(
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
-            Toast.makeText(context, "Grant Do Not Disturb access", Toast.LENGTH_LONG).show()
+            safeToast("Grant Do Not Disturb access", Toast.LENGTH_LONG)
         } else {
             openSettingsIntent(Settings.ACTION_SOUND_SETTINGS)
         }

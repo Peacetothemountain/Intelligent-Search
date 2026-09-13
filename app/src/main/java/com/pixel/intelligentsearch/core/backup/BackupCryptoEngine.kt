@@ -61,10 +61,18 @@ object BackupCryptoEngine {
     }
 
     fun encodeBase64(bytes: ByteArray): String {
-        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+        return try {
+            Base64.encodeToString(bytes, Base64.NO_WRAP)
+        } catch (_: Throwable) {
+            java.util.Base64.getEncoder().encodeToString(bytes)
+        }
     }
 
     fun decodeBase64(str: String): ByteArray {
-        return Base64.decode(str, Base64.NO_WRAP)
+        return try {
+            Base64.decode(str, Base64.NO_WRAP)
+        } catch (_: Throwable) {
+            java.util.Base64.getDecoder().decode(str)
+        }
     }
 }

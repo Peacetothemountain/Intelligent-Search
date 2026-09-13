@@ -93,25 +93,35 @@ object SystemDataProvider {
         val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
         }
-        val resolveInfos = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            pm.queryIntentActivities(mainIntent, PackageManager.ResolveInfoFlags.of(0))
-        } else {
-            @Suppress("DEPRECATION")
-            pm.queryIntentActivities(mainIntent, 0)
+        val resolveInfos = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.queryIntentActivities(mainIntent, PackageManager.ResolveInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.queryIntentActivities(mainIntent, 0)
+            }
+        } catch (e: Throwable) {
+            android.util.Log.w("SystemDataProvider", "IPC binder transaction error querying activities", e)
+            cachedApps?.let { return@withContext it }
+            emptyList()
         }
         val baseApps = resolveInfos.asSequence()
             .distinctBy { it.activityInfo.packageName }
-            .map {
-                val label = it.loadLabel(pm).toString()
-                val packageName = it.activityInfo.packageName
-                val icon = it.loadIcon(pm)
-                AppItem(
-                    name = label,
-                    packageName = packageName,
-                    icon = icon,
-                    actions = getAppActions(packageName),
-                    activityName = it.activityInfo.name
-                )
+            .mapNotNull {
+                try {
+                    val label = it.loadLabel(pm).toString()
+                    val packageName = it.activityInfo.packageName
+                    val icon = it.loadIcon(pm)
+                    AppItem(
+                        name = label,
+                        packageName = packageName,
+                        icon = icon,
+                        actions = getAppActions(packageName),
+                        activityName = it.activityInfo.name
+                    )
+                } catch (e: Throwable) {
+                    null
+                }
             }
             .toList()
 
@@ -180,8 +190,8 @@ object SystemDataProvider {
                         )
                     )
                 }
-            } catch (e: PackageManager.NameNotFoundException) {
-                // Ignore
+            } catch (_: Throwable) {
+                // Ignore package resolution failures
             }
         }
         

@@ -8778,7 +8778,43 @@ fun BackupRestoreScreen(
     }
 
     var passphrase by remember { mutableStateOf("") }
-    var usePasswordProtection by remember { mutableStateOf(true) }
+    var passphraseVisible by remember { mutableStateOf(false) }
+    var showRestorePassphraseDialog by remember { mutableStateOf(false) }
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+    var dialogPassphrase by remember { mutableStateOf("") }
+    var dialogPassphraseVisible by remember { mutableStateOf(false) }
+    var dialogErrorMessage by remember { mutableStateOf<String?>(null) }
+
+    val safeShowToast: (String) -> Unit = { message ->
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            try {
+                Toast.makeText(context.applicationContext, message, Toast.LENGTH_LONG).show()
+            } catch (_: Throwable) {}
+        }
+    }
+
+    val performRestore: (Uri, String?) -> Unit = { targetUri, targetPass ->
+        if (activity != null) {
+            viewModel?.importBackup(
+                activity = activity,
+                uri = targetUri,
+                passphrase = targetPass,
+                onSuccess = { count ->
+                    showRestorePassphraseDialog = false
+                    dialogErrorMessage = null
+                    safeShowToast("Restored $count configuration items and customizations!")
+                },
+                onError = { err ->
+                    if (err.contains("passphrase", ignoreCase = true) || err.contains("tag mismatch", ignoreCase = true)) {
+                        pendingRestoreUri = targetUri
+                        dialogErrorMessage = err
+                        showRestorePassphraseDialog = true
+                    }
+                    safeShowToast("Restore error: $err")
+                }
+            )
+        }
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -8787,12 +8823,12 @@ fun BackupRestoreScreen(
             viewModel?.exportBackup(
                 activity = activity,
                 uri = uri,
-                passphrase = if (usePasswordProtection) passphrase else null,
+                passphrase = passphrase.ifBlank { null },
                 onSuccess = {
-                    Toast.makeText(context, "Encrypted backup exported successfully!", Toast.LENGTH_LONG).show()
+                    safeShowToast("Encrypted backup exported successfully!")
                 },
                 onError = { err ->
-                    Toast.makeText(context, "Export error: $err", Toast.LENGTH_LONG).show()
+                    safeShowToast("Export error: $err")
                 }
             )
         }
@@ -8802,18 +8838,111 @@ fun BackupRestoreScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null && activity != null) {
-            viewModel?.importBackup(
-                activity = activity,
-                uri = uri,
-                passphrase = if (usePasswordProtection) passphrase else null,
-                onSuccess = { count ->
-                    Toast.makeText(context, "Restored $count configuration items!", Toast.LENGTH_LONG).show()
-                },
-                onError = { err ->
-                    Toast.makeText(context, "Restore error: $err", Toast.LENGTH_LONG).show()
-                }
-            )
+            val inspectResult = viewModel?.inspectBackupEnvelope(uri)
+            val envelope = inspectResult?.getOrNull()
+            val needsPass = envelope?.let { !it.isHardwareBacked || it.kdf != null } ?: true
+            if (needsPass && passphrase.isBlank()) {
+                pendingRestoreUri = uri
+                dialogPassphrase = ""
+                dialogErrorMessage = null
+                showRestorePassphraseDialog = true
+            } else {
+                performRestore(uri, passphrase.ifBlank { null })
+            }
         }
+    }
+
+    if (showRestorePassphraseDialog && pendingRestoreUri != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showRestorePassphraseDialog = false
+                dialogErrorMessage = null
+            },
+            title = {
+                Text(
+                    "Enter Backup Passphrase",
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        "This backup is protected with encryption. Enter the passphrase to restore your settings and customizations.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (dialogErrorMessage != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            dialogErrorMessage ?: "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = dialogPassphrase,
+                        onValueChange = {
+                            dialogPassphrase = it
+                            dialogErrorMessage = null
+                        },
+                        placeholder = { Text("Enter passphrase", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, fontSize = 14.sp) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Lock,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = { dialogPassphraseVisible = !dialogPassphraseVisible }, modifier = Modifier.size(32.dp)) {
+                                Icon(
+                                    imageVector = if (dialogPassphraseVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                    contentDescription = if (dialogPassphraseVisible) "Hide passphrase" else "Show passphrase",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        },
+                        visualTransformation = if (dialogPassphraseVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(percent = 50),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val uri = pendingRestoreUri ?: return@Button
+                        performRestore(uri, dialogPassphrase)
+                    },
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text("Restore", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showRestorePassphraseDialog = false
+                        dialogErrorMessage = null
+                    },
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text("Cancel", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -8854,12 +8983,50 @@ fun BackupRestoreScreen(
                 OutlinedTextField(
                     value = passphrase,
                     onValueChange = { passphrase = it },
-                    label = { Text("Passphrase") },
+                    placeholder = { Text("Enter passphrase (optional)", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, fontSize = 14.sp) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (passphrase.isNotEmpty()) {
+                                IconButton(onClick = { passphrase = "" }, modifier = Modifier.size(32.dp)) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            IconButton(onClick = { passphraseVisible = !passphraseVisible }, modifier = Modifier.size(32.dp)) {
+                                Icon(
+                                    imageVector = if (passphraseVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                    contentDescription = if (passphraseVisible) "Hide passphrase" else "Show passphrase",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                    },
+                    visualTransformation = if (passphraseVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    singleLine = true
+                    shape = RoundedCornerShape(percent = 50),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
                 )
             }
 

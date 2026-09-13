@@ -244,7 +244,7 @@ class MultiProfileManager @Inject constructor(
                         )
                     )
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.w(TAG, "Failed to load apps for profile ${desc.userHandle}", e)
             }
         }

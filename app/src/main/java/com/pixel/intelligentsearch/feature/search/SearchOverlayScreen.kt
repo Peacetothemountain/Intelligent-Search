@@ -1197,11 +1197,11 @@ fun SearchOverlayScreen(
                 .fillMaxSize()
                 .statusBarsPadding(),
             contentPadding = PaddingValues(
-                top = if (settingsState.bottomSearch && settingsState.bottomSearchResult) 72.dp else 8.dp,
+                top = 8.dp,
                 bottom = 8.dp
             ),
-            reverseLayout = if (!settingsState.bottomSearch) false else settingsState.bottomSearchResult,
-            verticalArrangement = if (settingsState.bottomSearch) Arrangement.Bottom else Arrangement.Top
+            reverseLayout = if (settingsState.bottomSearch) settingsState.bottomSearchResult else false,
+            verticalArrangement = Arrangement.Top
         ) {
             val showApps = true
             val showWeb = true

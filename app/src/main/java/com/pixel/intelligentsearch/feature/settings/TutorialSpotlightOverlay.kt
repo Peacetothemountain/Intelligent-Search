@@ -257,14 +257,14 @@ fun TutorialSpotlightOverlay(
                 val sinA = kotlin.math.sin(angle)
 
                 if (length >= 12f) {
-                    val numSquiggles = (length / 32f).toInt().coerceIn(1, 4)
-                    val amplitude = kotlin.math.min(12f, length * 0.20f)
+                    val numSquiggles = (length / 38f).toInt().coerceIn(2, 6)
+                    val amplitude = kotlin.math.min(14f, length * 0.16f)
                     val frequency = (numSquiggles * Math.PI * 2) / length
 
                     squigglePath.reset()
                     squigglePath.moveTo(startPoint.x, startPoint.y)
 
-                    val numPoints = 80
+                    val numPoints = 100
                     for (i in 1..numPoints) {
                         val t = i / numPoints.toFloat()
                         val x = t * length
@@ -297,12 +297,12 @@ fun TutorialSpotlightOverlay(
                     drawPath(
                         path = animatedSquigglePath,
                         brush = gradientBrush,
-                        style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                     )
 
                     if (animationProgress.value > 0.90f) {
                         val alpha = ((animationProgress.value - 0.90f) * 10f).coerceIn(0f, 1f)
-                        val arrowHeadLen = kotlin.math.min(22f, length * 0.35f)
+                        val arrowHeadLen = kotlin.math.min(26f, length * 0.30f)
                         val arrowPath = Path().apply {
                             moveTo(endPoint.x, endPoint.y)
                             lineTo(
@@ -319,7 +319,7 @@ fun TutorialSpotlightOverlay(
                             path = arrowPath,
                             brush = gradientBrush,
                             alpha = alpha,
-                            style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                         )
                     }
                 }
@@ -338,38 +338,9 @@ fun TutorialSpotlightOverlay(
             MaterialTheme.colorScheme.inverseOnSurface
         }
 
-        // Calculate dynamic alignment and responsive padding based on targetRect location
-        val isTargetInBottomHalf = localTargetRect != null && (localTargetRect.center.y > constraints.maxHeight / 2f)
-
-        val cardModifier = when {
-            localTargetRect != null && stepInfo.showArrow && isTargetInBottomHalf -> {
-                // Target is in the bottom half (e.g. search bar). Position Card ABOVE target.
-                val targetTopDp = with(density) { localTargetRect.top.toDp() }
-                val arrowGap = 44.dp
-                val bottomSpacing = (maxHeight - targetTopDp + arrowGap).coerceAtLeast(16.dp)
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = bottomSpacing)
-                    .padding(top = statusBarTopPadding + 8.dp)
-                    .padding(horizontal = 24.dp)
-            }
-            localTargetRect != null && stepInfo.showArrow && !isTargetInBottomHalf -> {
-                // Target is in the top half (e.g. top search bar). Position Card BELOW target.
-                val targetBottomDp = with(density) { localTargetRect.bottom.toDp() }
-                val arrowGap = 44.dp
-                val topSpacing = (targetBottomDp + arrowGap).coerceAtLeast(statusBarTopPadding + 8.dp)
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = topSpacing)
-                    .padding(bottom = 16.dp)
-                    .padding(horizontal = 24.dp)
-            }
-            else -> {
-                Modifier
-                    .align(stepInfo.cardAlignment)
-                    .padding(horizontal = 24.dp, vertical = 24.dp)
-            }
-        }
+        val cardModifier = Modifier
+            .align(stepInfo.cardAlignment)
+            .padding(horizontal = 28.dp, vertical = 24.dp)
 
         Card(
             shape = RoundedCornerShape(24.dp),

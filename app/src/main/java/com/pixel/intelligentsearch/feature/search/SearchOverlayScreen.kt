@@ -655,19 +655,10 @@ fun SearchOverlayScreen(
 
     LaunchedEffect(transitionState.targetState) {
         if (transitionState.targetState) {
-            if (!showTutorial) {
-                try {
-                    focusRequester.requestFocus()
-                    keyboardController?.show()
-                } catch (e: Exception) {}
-            }
-        }
-    }
-
-    LaunchedEffect(showTutorial) {
-        if (showTutorial) {
             try {
-                keyboardController?.hide()
+                delay(60)
+                focusRequester.requestFocus()
+                keyboardController?.show()
             } catch (e: Exception) {}
         }
     }
@@ -710,6 +701,7 @@ fun SearchOverlayScreen(
 
                 try {
                     coroutineScope.launch {
+                        delay(100)
                         focusRequester.requestFocus()
                         keyboardController?.show()
                     }

@@ -1,6 +1,8 @@
 package com.pixel.intelligentsearch.core.theme
 
 import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -10,32 +12,61 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 private val RobinDarkColorScheme = darkColorScheme(
     primary = GoogleDarkPrimary,
     onPrimary = GoogleDarkOnPrimary,
+    primaryContainer = GoogleDarkPrimaryContainer,
+    onPrimaryContainer = GoogleDarkOnPrimaryContainer,
+    secondary = GoogleDarkSecondary,
+    onSecondary = GoogleDarkOnSecondary,
     secondaryContainer = GoogleDarkSecondaryContainer,
     onSecondaryContainer = GoogleDarkOnSecondaryContainer,
+    tertiary = GoogleDarkTertiary,
+    onTertiary = GoogleDarkOnTertiary,
+    tertiaryContainer = GoogleDarkTertiaryContainer,
+    onTertiaryContainer = GoogleDarkOnTertiaryContainer,
+    surface = GoogleDarkSurface,
+    onSurface = GoogleDarkOnSurface,
+    onSurfaceVariant = GoogleDarkOnSurfaceVariant,
     surfaceContainer = GoogleDarkSurfaceContainer,
     surfaceContainerLow = GoogleDarkSurfaceContainerLow,
     surfaceContainerHigh = GoogleDarkSurfaceContainerHigh,
     surfaceContainerHighest = GoogleDarkSurfaceContainerHighest,
+    outline = GoogleDarkOutline,
     outlineVariant = GoogleDarkOutlineVariant
 )
 
 private val LightColorScheme = lightColorScheme(
     primary = GoogleLightPrimary,
     onPrimary = GoogleLightOnPrimary,
+    primaryContainer = GoogleLightPrimaryContainer,
+    onPrimaryContainer = GoogleLightOnPrimaryContainer,
+    secondary = GoogleLightSecondary,
+    onSecondary = GoogleLightOnSecondary,
     secondaryContainer = GoogleLightSecondaryContainer,
     onSecondaryContainer = GoogleLightOnSecondaryContainer,
+    tertiary = GoogleLightTertiary,
+    onTertiary = GoogleLightOnTertiary,
+    tertiaryContainer = GoogleLightTertiaryContainer,
+    onTertiaryContainer = GoogleLightOnTertiaryContainer,
+    surface = GoogleLightSurface,
+    onSurface = GoogleLightOnSurface,
+    onSurfaceVariant = GoogleLightOnSurfaceVariant,
     surfaceContainer = GoogleLightSurfaceContainer,
     surfaceContainerLow = GoogleLightSurfaceContainerLow,
     surfaceContainerHigh = GoogleLightSurfaceContainerHigh,
     surfaceContainerHighest = GoogleLightSurfaceContainerHighest,
+    outline = GoogleLightOutline,
     outlineVariant = GoogleLightOutlineVariant
 )
 
@@ -57,9 +88,11 @@ fun IntelligentSearchTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.surface.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            val activity = view.context.findActivity() ?: return@SideEffect
+            val window = activity.window
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            insetsController.isAppearanceLightStatusBars = !darkTheme
+            insetsController.isAppearanceLightNavigationBars = !darkTheme
         }
     }
 

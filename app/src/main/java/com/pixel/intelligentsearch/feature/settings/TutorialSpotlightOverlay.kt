@@ -182,6 +182,13 @@ fun TutorialSpotlightOverlay(
             }
     ) {
         if (stepInfo.showArrow && targetRect != null) {
+            val squigglePath = remember { Path() }
+            val animatedSquigglePath = remember { Path() }
+            val pathMeasure = remember { androidx.compose.ui.graphics.PathMeasure() }
+            val gradientColors = remember(primaryColor, tertiaryColor) {
+                listOf(primaryColor, tertiaryColor, primaryColor, tertiaryColor, primaryColor)
+            }
+
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val cardCenter = if (cardBounds != Rect.Zero) cardBounds.center else Offset(size.width / 2, size.height / 2)
                 val targetCenter = targetRect.center
@@ -192,7 +199,8 @@ fun TutorialSpotlightOverlay(
                 // Only draw the pulse circle when explicitly requested for this step
                 if (stepInfo.showCircle) {
                     drawCircle(
-                        color = primaryColor.copy(alpha = pulseAlpha),
+                        color = primaryColor,
+                        alpha = pulseAlpha,
                         radius = (kotlin.math.max(targetRect.width, targetRect.height) / 2f + 8.dp.toPx()) * pulseScale,
                         center = targetCenter,
                         style = Stroke(width = 3.dp.toPx())
@@ -211,8 +219,8 @@ fun TutorialSpotlightOverlay(
                     Offset(targetCenter.x, if (dy > 0) targetRect.top - 24f else targetRect.bottom + 24f)
                 }
 
-                val path = Path()
-                path.moveTo(startPoint.x, startPoint.y)
+                squigglePath.reset()
+                squigglePath.moveTo(startPoint.x, startPoint.y)
                 
                 val pdx = endPoint.x - startPoint.x
                 val pdy = endPoint.y - startPoint.y
@@ -225,7 +233,6 @@ fun TutorialSpotlightOverlay(
                 val amplitude = 15f
                 val frequency = (numSquiggles * Math.PI * 2) / length
                 
-                path.moveTo(startPoint.x, startPoint.y)
                 val numPoints = 100
                 for (i in 1..numPoints) {
                     val t = i / numPoints.toFloat()
@@ -236,17 +243,16 @@ fun TutorialSpotlightOverlay(
                     val rx = x * cosA - y * sinA
                     val ry = x * sinA + y * cosA
                     
-                    path.lineTo(startPoint.x + rx, startPoint.y + ry)
+                    squigglePath.lineTo(startPoint.x + rx, startPoint.y + ry)
                 }
                 
-                val pathMeasure = androidx.compose.ui.graphics.PathMeasure()
-                pathMeasure.setPath(path, false)
+                pathMeasure.setPath(squigglePath, false)
                 
-                val animatedPath = Path()
-                pathMeasure.getSegment(0f, pathMeasure.length * animationProgress.value, animatedPath, true)
+                animatedSquigglePath.reset()
+                pathMeasure.getSegment(0f, pathMeasure.length * animationProgress.value, animatedSquigglePath, true)
                 
                 val gradientBrush = Brush.linearGradient(
-                    colors = listOf(primaryColor, tertiaryColor, primaryColor, tertiaryColor, primaryColor),
+                    colors = gradientColors,
                     start = Offset(
                         startPoint.x + pdx * (colorPhase - 1f),
                         startPoint.y + pdy * (colorPhase - 1f)
@@ -258,7 +264,7 @@ fun TutorialSpotlightOverlay(
                 )
 
                 drawPath(
-                    path = animatedPath,
+                    path = animatedSquigglePath,
                     brush = gradientBrush,
                     style = Stroke(width = 8f, cap = StrokeCap.Round, join = StrokeJoin.Round)
                 )

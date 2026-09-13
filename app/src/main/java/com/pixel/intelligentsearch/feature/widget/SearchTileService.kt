@@ -1,36 +1,69 @@
 package com.pixel.intelligentsearch.feature.widget
-import android.content.Intent
+
+import android.app.ActivityOptions
 import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 
 class SearchTileService : TileService() {
+
     override fun onStartListening() {
         super.onStartListening()
-        val tile = qsTile
-        tile?.state = Tile.STATE_INACTIVE
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            tile?.subtitle = ""
+        val tile = qsTile ?: return
+        tile.state = Tile.STATE_INACTIVE
+        tile.label = "Intelligent Search"
+
+        val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val lastQuery = prefs.getString("last_search_query", null)
+        val subtitle = if (!lastQuery.isNullOrBlank()) {
+            "Last: $lastQuery"
+        } else {
+            "Search phone and web"
         }
-        tile?.label = "Intelligent Search"
-        tile?.updateTile()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            tile.subtitle = subtitle
+        }
+        tile.updateTile()
     }
 
     @android.annotation.SuppressLint("StartActivityAndCollapseDeprecated")
     override fun onClick() {
         super.onClick()
-        val intent = Intent(this, WidgetActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+        val launchAction = Runnable {
+            val intent = Intent(this, WidgetActivity::class.java).apply {
+                action = "com.pixel.intelligentsearch.QUICK_TILE_LAUNCH"
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+
+            if (Build.VERSION.SDK_INT >= 34) {
+                val options = ActivityOptions.makeBasic().apply {
+                    setPendingIntentBackgroundActivityStartMode(
+                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                    )
+                }
+                val pendingIntent = PendingIntent.getActivity(
+                    this,
+                    1001,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                    options.toBundle()
+                )
+                startActivityAndCollapse(pendingIntent)
+            } else {
+                @Suppress("DEPRECATION")
+                startActivityAndCollapse(intent)
+            }
         }
-        if (android.os.Build.VERSION.SDK_INT >= 34) {
-            val pendingIntent = android.app.PendingIntent.getActivity(
-                this, 0, intent,
-                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-            )
-            startActivityAndCollapse(pendingIntent)
+
+        if (isLocked) {
+            unlockAndRun(launchAction)
         } else {
-            @Suppress("DEPRECATION")
-            startActivityAndCollapse(intent)
+            launchAction.run()
         }
     }
 }

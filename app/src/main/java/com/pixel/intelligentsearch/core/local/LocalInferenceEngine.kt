@@ -1,4 +1,4 @@
-package com.pixel.intelligentsearch.core.ai
+package com.pixel.intelligentsearch.core.local
 
 import android.content.Context
 import android.util.Log
@@ -21,10 +21,10 @@ data class EmbeddingResult(
     }
 }
 
-class LiteRtEngine(private val context: Context) {
+class LocalInferenceEngine(private val context: Context) {
 
     companion object {
-        private const val TAG = "LiteRtEngine"
+        private const val TAG = "LocalInferenceEngine"
         private const val EMBEDDING_DIM = 128
     }
 
@@ -42,7 +42,7 @@ class LiteRtEngine(private val context: Context) {
                 vector[i] = hashVal / words.size.coerceAtLeast(1)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "NPU embedding generation fallback: ${e.message}")
+            Log.e(TAG, "Embedding vector generation fallback: ${e.message}")
         }
 
         val elapsedTime = System.currentTimeMillis() - startTime

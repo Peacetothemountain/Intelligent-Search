@@ -10,7 +10,13 @@ import android.net.Uri
 import android.os.Build
 import android.speech.RecognizerIntent
 import android.view.View
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.widget.RemoteViews
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.ui.graphics.toArgb
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -47,7 +53,15 @@ class SearchWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        updateWidgetsSync(context, appWidgetManager, appWidgetIds)
+        val pendingResult = goAsync()
+        val asyncScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Default)
+        asyncScope.launch {
+            try {
+                updateWidgetsSync(context, appWidgetManager, appWidgetIds)
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     private fun updateWidgetsSync(
@@ -74,6 +88,10 @@ class SearchWidgetProvider : AppWidgetProvider() {
             else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
         }
 
+        val dynamicScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        } else null
+
         val widgetThemeStyle = prefs.getString("widget.theme.style", "System Default")
         val isMaterialYou = widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
 
@@ -90,11 +108,10 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val rimColor = if (isMaterialYou) {
             if (subthemeStr == "Custom") {
                 actualCustomColor
+            } else if (subthemeStr == "Material") {
+                dynamicScheme?.primaryContainer?.toArgb() ?: (if (isDark) context.getColor(android.R.color.system_accent1_800) else context.getColor(android.R.color.system_accent1_200))
             } else {
-                context.getColor(
-                    if (isDark) android.R.color.system_accent1_800
-                    else android.R.color.system_accent1_200
-                )
+                dynamicScheme?.primary?.toArgb() ?: (if (isDark) context.getColor(android.R.color.system_accent1_800) else context.getColor(android.R.color.system_accent1_200))
             }
         } else {
             android.graphics.Color.TRANSPARENT
@@ -108,10 +125,10 @@ class SearchWidgetProvider : AppWidgetProvider() {
             } else actualCustomColor
         } else {
             when (subthemeStr) {
-                "Light" -> 0xFFF8F9FA.toInt()
+                "Light" -> 0xFFF1F3F4.toInt()
                 "Dark" -> 0xFF303134.toInt()
                 "Custom" -> actualCustomColor
-                else -> if (isDark) 0xFF303134.toInt() else 0xFFF8F9FA.toInt()
+                else -> if (isDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
             }
         }
 
@@ -154,6 +171,11 @@ class SearchWidgetProvider : AppWidgetProvider() {
         // Luminance helper for custom color
         val customColorLuminance = (0.299 * android.graphics.Color.red(actualCustomColor) + 0.587 * android.graphics.Color.green(actualCustomColor) + 0.114 * android.graphics.Color.blue(actualCustomColor)) / 255
         val customIconTint = if (customColorLuminance > 0.5) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+        val isPillLight = if (!isMaterialYou) {
+            subthemeStr == "Light" || (subthemeStr == "System" && !isDark) || (subthemeStr == "Custom" && customColorLuminance > 0.5)
+        } else {
+            !lockBlack && (customColorLuminance > 0.5)
+        }
 
         // Determine Icon Tint
         val iconTint = when {
@@ -171,21 +193,43 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
         
         // Determine Material G Icon Theme
+        // Determine Material G Icon Theme
         val materialGIconTheme = prefs.getString("widget_material_g_icon", "Material G Icon") ?: "Material G Icon"
-        val accentIconTint = if (materialGIconTheme == "Accented G Icon") actualCustomColor else iconTint
+        val effectiveIconTheme = if (subthemeStr == "Custom" || isMaterialYou) {
+            materialGIconTheme
+        } else {
+            "System G Icon"
+        }
 
-        val gIconRes = when (materialGIconTheme) {
+        val gIconRes = when (effectiveIconTheme) {
             "System G Icon" -> R.drawable.ic_g_logo_colored
             "Material G Icon" -> R.drawable.ic_g_logo
             "Accented G Icon" -> R.drawable.ic_g_logo
             else -> if (isMaterialYou) R.drawable.ic_g_logo else R.drawable.ic_g_logo_colored
         }
+
+        val (themePColor, themeSColor, themeTColor) = if (subthemeStr == "Custom") {
+            val customHue = prefs.getInt("widget_custom_hue", 277).toFloat()
+            val customSaturation = prefs.getInt("widget_custom_saturation", 51).toFloat()
+            val isDarkSurface = !isPillLight
+            val m3Colors = com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper.getMaterialYouTonalColors(
+                hue = customHue,
+                saturation = customSaturation,
+                isDarkSurface = isDarkSurface
+            )
+            Triple(m3Colors.primary, m3Colors.secondary, m3Colors.tertiary)
+        } else {
+            val p = dynamicScheme?.primary?.toArgb() ?: (if (isDark) 0xFF8AB4F8.toInt() else 0xFF1973E8.toInt())
+            val s = dynamicScheme?.secondary?.toArgb() ?: (if (isDark) 0xFFBDC1C6.toInt() else 0xFF5F6368.toInt())
+            val t = dynamicScheme?.tertiary?.toArgb() ?: (if (isDark) 0xFF81C995.toInt() else 0xFF188038.toInt())
+            Triple(p, s, t)
+        }
         
         val actionIconRes = when (actionIconStr) {
-            "Search" -> R.drawable.ic_search_ai_colored
-            "Gemini" -> R.drawable.ic_gemini
+            "Search" -> R.drawable.ic_search_lens_expressive
+            "Assistant", "Voice", "Gemini" -> R.drawable.ic_lens_action
             "Now Playing" -> R.drawable.ic_music
-            else -> R.drawable.ic_search_ai_colored
+            else -> R.drawable.ic_search_lens_expressive
         }
         
         for (appWidgetId in appWidgetIds) {
@@ -203,14 +247,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
                 views.setInt(R.id.widget_sound_background, "setImageAlpha", circleAlphaInt)
                 
-                bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme, subthemeStr, isMaterialYou)
-                if (materialGIconTheme == "Accented G Icon") {
-                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
-                    views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
-                } else {
-                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
-                    views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", null)
-                }
+                bindGIcon(views, showGIcon, gIconRes, themePColor, themeSColor, themeTColor, effectiveIconTheme, subthemeStr, isMaterialYou, context, isPillLight)
 
             } else {
                 // In Colorful mode, outer rim is hidden
@@ -222,7 +259,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
                 views.setInt(R.id.widget_sound_background, "setImageAlpha", circleAlphaInt)
                 
-                bindGIcon(views, showGIcon, gIconRes, accentIconTint, materialGIconTheme, subthemeStr, isMaterialYou)
+                bindGIcon(views, showGIcon, gIconRes, themePColor, themeSColor, themeTColor, effectiveIconTheme, subthemeStr, isMaterialYou, context, isPillLight)
             }
 
             // Bind 4 ordered shortcut and microphone slots
@@ -236,7 +273,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 R.id.widget_shortcut_3
             )
 
-            val useMaterialYouIcons = isMaterialYou || materialGIconTheme == "Material G Icon"
+            val useMaterialYouIcons = isMaterialYou || effectiveIconTheme == "Material G Icon" || isPillLight
             val activeItems = mutableListOf<Triple<String, Int, Intent>>()
             for (key in slotOrder) {
                 when (key) {
@@ -271,18 +308,42 @@ class SearchWidgetProvider : AppWidgetProvider() {
                     views.setViewVisibility(targetViewId, View.VISIBLE)
                     views.setImageViewResource(targetViewId, item.second)
 
-                    if (materialGIconTheme == "Accented G Icon") {
-                        views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(accentIconTint))
-                    } else if (materialGIconTheme == "Material G Icon") {
-                        views.setColorStateList(targetViewId, "setImageTintList", null)
-                    } else if (!isMaterialYou && subthemeStr == "Light") {
-                        views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(android.graphics.Color.DKGRAY))
-                    } else if (item.first == "mic" && materialGIconTheme == "System G Icon") {
-                        views.setColorStateList(targetViewId, "setImageTintList", null)
-                    } else if (!isMaterialYou) {
-                        views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE))
-                    } else {
-                        views.setColorStateList(targetViewId, "setImageTintList", null)
+                    when (effectiveIconTheme) {
+                        "Accented G Icon" -> {
+                            views.setImageViewResource(targetViewId, item.second)
+                            views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(themePColor))
+                            views.setInt(targetViewId, "setImageAlpha", 255)
+                        }
+                        "Material G Icon" -> {
+                            val themedBitmap = createThemedShortcutBitmap(context, item.second, themePColor, themeSColor, themeTColor)
+                            if (themedBitmap != null) {
+                                views.setImageViewBitmap(targetViewId, themedBitmap)
+                                views.setColorStateList(targetViewId, "setImageTintList", null)
+                            } else {
+                                views.setImageViewResource(targetViewId, item.second)
+                                views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(themePColor))
+                            }
+                            views.setInt(targetViewId, "setImageAlpha", 255)
+                        }
+                        else -> {
+                            // System G Icon
+                            views.setImageViewResource(targetViewId, item.second)
+                            if (item.second == R.drawable.ic_mic_original) {
+                                views.setColorStateList(targetViewId, "setImageTintList", null)
+                            } else {
+                                val sysTint = if (isPillLight) {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                        context.getColor(android.R.color.system_accent1_700)
+                                    } else {
+                                        android.graphics.Color.parseColor("#1F1F1F")
+                                    }
+                                } else {
+                                    android.graphics.Color.WHITE
+                                }
+                                views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(sysTint))
+                            }
+                            views.setInt(targetViewId, "setImageAlpha", 255)
+                        }
                     }
 
                     val pi = PendingIntent.getActivity(
@@ -300,7 +361,6 @@ class SearchWidgetProvider : AppWidgetProvider() {
             val enableSearchOverlay = prefs.getBoolean("search_overlay_enabled", true)
             val mainIntent = if (enableSearchOverlay) {
                 Intent(context, WidgetActivity::class.java).apply {
-                    putExtra("SHOW_GEMINI_OVERLAY", false)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
             } else {
@@ -318,35 +378,63 @@ class SearchWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_pill_container, mainPI)
             views.setOnClickPendingIntent(R.id.widget_g_logo, mainPI)
 
-            // Tap sparkle circle inside pill -> Gemini
-            val geminiPI = PendingIntent.getActivity(context, appWidgetId + 2500,
-                getGeminiSearchIntent(context),
+            // Tap action button inside search pill
+            val actionPI = PendingIntent.getActivity(context, appWidgetId + 2500,
+                getVoiceActionIntent(context),
                 PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            views.setOnClickPendingIntent(R.id.widget_gemini_search, geminiPI)
+            views.setOnClickPendingIntent(R.id.widget_action_search, actionPI)
             
             // Set up custom action icon (Circle Button) - Material Design ONLY
             if (!isMaterialYou || actionIconStr == "None") {
                 views.setViewVisibility(R.id.widget_sound_search, View.GONE)
             } else {
                 views.setViewVisibility(R.id.widget_sound_search, View.VISIBLE)
-                val actionIntent = when (actionIconStr) {
-                    "Gemini" -> getGeminiSearchIntent(context)
+                val circleActionIntent = when (actionIconStr) {
+                    "Assistant", "Voice", "Gemini" -> getVoiceActionIntent(context)
                     "Now Playing" -> getNowPlayingIntent(context)
-                    else -> getGeminiSearchIntent(context) // Search acts as Gemini
+                    else -> getVoiceActionIntent(context)
                 }
-                val actionPI = PendingIntent.getActivity(context, appWidgetId + 3000,
-                    actionIntent,
+                val circleActionPI = PendingIntent.getActivity(context, appWidgetId + 3000,
+                    circleActionIntent,
                     PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-                views.setOnClickPendingIntent(R.id.widget_sound_search, actionPI)
+                views.setOnClickPendingIntent(R.id.widget_sound_search, circleActionPI)
                 
                 // Set the icon
-                val actionIconRes = when (actionIconStr) {
-                    "Gemini" -> R.drawable.ic_gemini
+                val circleActionIconRes = when (actionIconStr) {
+                    "Assistant", "Voice", "Gemini" -> R.drawable.ic_lens_action
                     "Now Playing" -> R.drawable.ic_music
-                    else -> R.drawable.ic_search_ai_colored // Search
+                    else -> R.drawable.ic_search_lens_expressive // Search
                 }
-                views.setImageViewResource(R.id.widget_sound_icon, actionIconRes)
-                views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", null)
+                when (effectiveIconTheme) {
+                    "Accented G Icon" -> {
+                        views.setImageViewResource(R.id.widget_sound_icon, circleActionIconRes)
+                        views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(themePColor))
+                    }
+                    "Material G Icon" -> {
+                        val themedBitmap = createThemedActionIconBitmap(context, circleActionIconRes, themePColor, themeSColor, themeTColor)
+                        if (themedBitmap != null) {
+                            views.setImageViewBitmap(R.id.widget_sound_icon, themedBitmap)
+                            views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", null)
+                        } else {
+                            views.setImageViewResource(R.id.widget_sound_icon, circleActionIconRes)
+                            views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(themePColor))
+                        }
+                    }
+                    else -> {
+                        views.setImageViewResource(R.id.widget_sound_icon, circleActionIconRes)
+                        val sysActionTint = if (isPillLight) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                context.getColor(android.R.color.system_accent1_700)
+                            } else {
+                                android.graphics.Color.parseColor("#1F1F1F")
+                            }
+                        } else {
+                            android.graphics.Color.WHITE
+                        }
+                        views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(sysActionTint))
+                    }
+                }
+                views.setInt(R.id.widget_sound_icon, "setImageAlpha", 255)
             }
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
@@ -365,7 +453,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
             return when (shortcut) {
                 "Voice Search" -> if (isMaterialYou) R.drawable.ic_mic else R.drawable.ic_mic_original
                 "Google Lens" -> R.drawable.ic_camera
-                "Live" -> R.drawable.ic_gemini
+                "Assistant", "Live" -> R.drawable.ic_lens_action
                 "Translate (text)" -> R.drawable.ic_translate
                 "Translate (camera)" -> R.drawable.ic_document_scanner
                 "Weather" -> R.drawable.ic_weather
@@ -380,6 +468,20 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         fun getLensSearchIntent(context: Context): Intent {
+            try {
+                val lensStandalone = context.packageManager.getLaunchIntentForPackage("com.google.ar.lens")?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (lensStandalone != null) return lensStandalone
+
+                val lensIntent = Intent().apply {
+                    setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (context.packageManager.resolveActivity(lensIntent, 0) != null) {
+                    return lensIntent
+                }
+            } catch (e: Exception) {}
             return Intent(context, WidgetActivity::class.java).apply {
                 action = "com.pixel.intelligentsearch.LAUNCH_LENS"
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -387,6 +489,22 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         fun getLensTranslateIntent(context: Context): Intent {
+            try {
+                val lensStandalone = context.packageManager.getLaunchIntentForPackage("com.google.ar.lens")?.apply {
+                    putExtra("lens_mode", "translate")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (lensStandalone != null) return lensStandalone
+
+                val translateIntent = Intent().apply {
+                    setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
+                    putExtra("lens_mode", "translate")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (context.packageManager.resolveActivity(translateIntent, 0) != null) {
+                    return translateIntent
+                }
+            } catch (e: Exception) {}
             return Intent(context, WidgetActivity::class.java).apply {
                 action = "com.pixel.intelligentsearch.LAUNCH_LENS_TRANSLATE"
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -394,16 +512,19 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         // Triggers the system's native voice command overlay via Intent.ACTION_VOICE_COMMAND
-        fun getGeminiSearchIntent(context: Context): Intent {
+        fun getVoiceActionIntent(context: Context): Intent {
             return Intent(Intent.ACTION_VOICE_COMMAND).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
         }
         
+        // Backward compatibility alias
+        fun getGeminiSearchIntent(context: Context): Intent = getVoiceActionIntent(context)
+        
         fun getShortcutIntent(context: Context, shortcut: String): Intent {
             return when (shortcut) {
                 "Voice Search" -> getVoiceSearchIntent(context)
-                "Live" -> getGeminiSearchIntent(context)
+                "Assistant", "Live" -> getVoiceActionIntent(context)
                 "Translate (text)" -> context.packageManager.getLaunchIntentForPackage("com.google.android.apps.translate") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://translate.google.com")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
                 "Translate (camera)" -> getLensTranslateIntent(context)
                 "Weather" -> getCustomIntentOrDefault(context, "Weather") {
@@ -478,25 +599,224 @@ class SearchWidgetProvider : AppWidgetProvider() {
             views: RemoteViews, 
             showGIcon: Boolean, 
             gIconRes: Int, 
-            iconTint: Int,
+            pColor: Int,
+            sColor: Int,
+            tColor: Int,
             materialGIconTheme: String,
             subthemeStr: String,
-            isMaterialYou: Boolean
+            isMaterialYou: Boolean,
+            context: Context,
+            isPillLight: Boolean
         ) {
             views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
-            views.setImageViewResource(R.id.widget_g_logo, gIconRes)
-            if (materialGIconTheme == "Accented G Icon") {
-                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(iconTint))
-            } else if (!isMaterialYou && subthemeStr == "Light" && materialGIconTheme != "System G Icon") {
-                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(android.graphics.Color.DKGRAY))
+            views.setInt(R.id.widget_g_logo, "setImageAlpha", 255)
+            if (materialGIconTheme == "Material G Icon") {
+                val bitmap = createCustomMaterialGBitmap(pColor, sColor, tColor, context)
+                views.setImageViewBitmap(R.id.widget_g_logo, bitmap)
+                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
+            } else if (materialGIconTheme == "Accented G Icon") {
+                views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo)
+                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(pColor))
             } else {
+                views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo_colored)
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
             }
         }
 
+        private fun createCustomMaterialGBitmap(pColor: Int, sColor: Int, tColor: Int, context: Context): Bitmap {
+            val density = context.resources.displayMetrics.density
+            val sizePx = (24 * density).toInt().coerceAtLeast(48)
+            val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            val scale = sizePx / 24f
+            canvas.scale(scale, scale)
+
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+
+            val path1 = androidx.core.graphics.PathParser.createPathFromPathData("M22.56,12.25C22.56,11.47 22.49,10.72 22.36,10L12,10L12,14.26L17.92,14.26C17.66,15.63 16.88,16.79 15.71,17.57L15.71,20.34L19.28,20.34C21.36,18.42 22.56,15.6 22.56,12.25Z")
+            val path2 = androidx.core.graphics.PathParser.createPathFromPathData("M12,23C14.97,23 17.46,22.02 19.28,20.34L15.71,17.57C14.73,18.23 13.48,18.63 12,18.63C9.14,18.63 6.71,16.7 5.84,14.1L2.18,14.1L2.18,16.94C3.99,20.53 7.7,23 12,23Z")
+            val path3 = androidx.core.graphics.PathParser.createPathFromPathData("M5.84,14.09C5.62,13.43 5.5,12.73 5.5,12C5.5,11.27 5.62,10.57 5.84,9.91L5.84,7.07L2.18,7.07C1.43,8.55 1,10.22 1,12C1,13.78 1.43,15.45 2.18,16.93L5.84,14.09Z")
+            val path4 = androidx.core.graphics.PathParser.createPathFromPathData("M12,5.38C13.62,5.38 15.06,5.94 16.21,7.02L19.36,3.87C17.45,2.09 14.97,1 12,1C7.7,1 3.99,3.47 2.18,7.07L5.84,9.91C6.71,7.31 9.14,5.38 12,5.38Z")
+
+            paint.color = pColor
+            canvas.drawPath(path1, paint)
+            paint.color = sColor
+            canvas.drawPath(path2, paint)
+            paint.color = tColor
+            canvas.drawPath(path3, paint)
+            paint.color = pColor
+            canvas.drawPath(path4, paint)
+
+            return bitmap
+        }
+
+        private fun createThemedShortcutBitmap(
+            context: Context,
+            resId: Int,
+            pColor: Int,
+            sColor: Int,
+            tColor: Int
+        ): Bitmap? {
+            val density = context.resources.displayMetrics.density
+            val sizePx = (24 * density).toInt().coerceAtLeast(48)
+            return when (resId) {
+                R.drawable.ic_mic -> {
+                    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    val scale = sizePx / 24f
+                    canvas.scale(scale, scale)
+                    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+
+                    val p1 = androidx.core.graphics.PathParser.createPathFromPathData("M12,15c1.66,0 2.99,-1.34 2.99,-3L15,5c0,-1.66 -1.34,-3 -3,-3S9,3.34 9,5v7c0,1.66 1.34,3 3,3z")
+                    val p2 = androidx.core.graphics.PathParser.createPathFromPathData("M11,18.92h2V22h-2z")
+                    val p3 = androidx.core.graphics.PathParser.createPathFromPathData("M7,12H5c0,1.93 0.78,3.68 2.05,4.95l1.41,-1.41C7.56,14.63 7,13.38 7,12z")
+                    val p4 = androidx.core.graphics.PathParser.createPathFromPathData("M12,17c-1.38,0 -2.63,-0.56 -3.54,-1.47l-1.41,1.41C8.32,18.21 10.07,19 12.01,19c3.87,0 6.98,-3.14 6.98,-7h-2c0,2.76 -2.23,5 -4.99,5z")
+
+                    paint.color = pColor
+                    canvas.drawPath(p1, paint)
+                    paint.color = sColor
+                    canvas.drawPath(p2, paint)
+                    paint.color = tColor
+                    canvas.drawPath(p3, paint)
+                    paint.color = pColor
+                    canvas.drawPath(p4, paint)
+                    bitmap
+                }
+                R.drawable.ic_camera -> {
+                    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    val scale = sizePx / 100f
+                    canvas.scale(scale, scale)
+                    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+
+                    val p1 = androidx.core.graphics.PathParser.createPathFromPathData("M75.0365 83.3333C79.6388 83.3333 83.3698 79.6023 83.3698 75C83.3698 70.3976 79.6388 66.6666 75.0365 66.6666C70.4341 66.6666 66.7031 70.3976 66.7031 75C66.7031 79.6023 70.4341 83.3333 75.0365 83.3333Z")
+                    val p2 = androidx.core.graphics.PathParser.createPathFromPathData("M50.0364 66.6666C56.9399 66.6666 62.5364 61.0702 62.5364 54.1666C62.5364 47.2631 56.9399 41.6666 50.0364 41.6666C43.1328 41.6666 37.5364 47.2631 37.5364 54.1666C37.5364 61.0702 43.1328 66.6666 50.0364 66.6666Z")
+                    val p3 = androidx.core.graphics.PathParser.createPathFromPathData("M12.5 70.4166C12.5 79.8489 20.151 87.5 29.5833 87.5H50V79.1666L29.1146 79.1145C24.5313 79.1145 20.8333 74.8489 20.8333 69.7916V60.4166H12.5V70.4166Z")
+                    val p4 = androidx.core.graphics.PathParser.createPathFromPathData("M87.5001 37.9167C87.5001 28.4844 79.849 20.8334 70.4167 20.8334H60.4167L70.8334 29.1667C75.4167 29.1667 79.1667 33.4844 79.1667 38.5417V54.1667H87.5001V37.9167Z")
+                    val p5 = androidx.core.graphics.PathParser.createPathFromPathData("M58.3333 12.5H41.6667L35.4167 20.8333H29.5833C20.151 20.8333 12.5 28.4844 12.5 37.9167V47.9167H20.8333V38.5417C20.8333 33.4844 24.5833 29.1667 29.1667 29.1667H70.8333L58.3333 12.5Z")
+
+                    paint.color = pColor
+                    canvas.drawPath(p1, paint)
+                    paint.color = sColor
+                    canvas.drawPath(p2, paint)
+                    paint.color = tColor
+                    canvas.drawPath(p3, paint)
+                    paint.color = pColor
+                    canvas.drawPath(p4, paint)
+                    paint.color = sColor
+                    canvas.drawPath(p5, paint)
+                    bitmap
+                }
+                else -> null
+            }
+        }
+
+        private fun createThemedActionIconBitmap(
+            context: Context,
+            resId: Int,
+            pColor: Int,
+            sColor: Int,
+            tColor: Int
+        ): Bitmap? {
+            val density = context.resources.displayMetrics.density
+            val sizePx = (24 * density).toInt().coerceAtLeast(48)
+            return when (resId) {
+                R.drawable.ic_search_lens_expressive -> {
+                    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    val scale = sizePx / 24f
+                    canvas.scale(scale, scale)
+                    val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.STROKE
+                        strokeCap = Paint.Cap.ROUND
+                    }
+                    val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.FILL
+                    }
+
+                    val p1 = androidx.core.graphics.PathParser.createPathFromPathData("M 10.5,4 A 6.5,6.5 0 0 0 4,10.5 A 6.5,6.5 0 0 0 10.5,17 A 6.5,6.5 0 0 0 15,15")
+                    val p2 = androidx.core.graphics.PathParser.createPathFromPathData("M 14,5 A 6.5,6.5 0 0 0 10.5,4 A 6.5,6.5 0 0 0 5,7.5")
+                    val p3 = androidx.core.graphics.PathParser.createPathFromPathData("M 15.5,15.5 L 20,20")
+                    val p4 = androidx.core.graphics.PathParser.createPathFromPathData("M 18,0.5 C 18,4 21,6.5 24,6.5 C 21,6.5 18,9 18,12.5 C 18,9 15,6.5 12,6.5 C 15,6.5 18,4 18,0.5 Z")
+
+                    strokePaint.strokeWidth = 2.5f
+                    strokePaint.color = pColor
+                    canvas.drawPath(p1, strokePaint)
+
+                    strokePaint.strokeWidth = 2.5f
+                    strokePaint.color = tColor
+                    canvas.drawPath(p2, strokePaint)
+
+                    strokePaint.strokeWidth = 3.0f
+                    strokePaint.color = sColor
+                    canvas.drawPath(p3, strokePaint)
+
+                    fillPaint.color = pColor
+                    canvas.drawPath(p4, fillPaint)
+                    bitmap
+                }
+                R.drawable.ic_music -> {
+                    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    val scale = sizePx / 24f
+                    canvas.scale(scale, scale)
+                    val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.STROKE
+                        strokeCap = Paint.Cap.ROUND
+                        strokeWidth = 3.2f
+                    }
+                    val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.FILL
+                    }
+
+                    val p1 = androidx.core.graphics.PathParser.createPathFromPathData("M 19,11.5 L 19,12.5")
+                    val p2 = androidx.core.graphics.PathParser.createPathFromPathData("M 14.5,9.5 L 14.5,15.5")
+                    val p3 = androidx.core.graphics.PathParser.createPathFromPathData("M 10,7 L 10,16")
+                    val p4 = androidx.core.graphics.PathParser.createPathFromPathData("M 11.6,16.5 C 11.6,19.26 9.36,21.5 6.6,21.5 C 3.84,21.5 1.6,19.26 1.6,16.5 C 1.6,13.74 3.84,11.5 6.6,11.5 C 8.6,11.5 10.3,12.7 11.1,14.4 Z")
+
+                    strokePaint.color = tColor
+                    canvas.drawPath(p1, strokePaint)
+
+                    strokePaint.color = sColor
+                    canvas.drawPath(p2, strokePaint)
+
+                    strokePaint.color = pColor
+                    canvas.drawPath(p3, strokePaint)
+
+                    fillPaint.color = pColor
+                    canvas.drawPath(p4, fillPaint)
+                    bitmap
+                }
+                else -> null
+            }
+        }
+
         fun getNowPlayingIntent(context: Context): Intent {
-            return context.packageManager.getLaunchIntentForPackage("com.google.android.apps.pixel.nowplaying")
-                ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.pixel.nowplaying")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            // 1. Pixel Now Playing (if present on device)
+            val nowPlayingIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.pixel.nowplaying")
+            if (nowPlayingIntent != null) return nowPlayingIntent
+
+            // 2. Google Sound Search / Assistant Music Search (works on any Android device with Google app)
+            val googleSoundSearchIntent = Intent("com.google.android.googlequicksearchbox.MUSIC_SEARCH").apply {
+                setPackage("com.google.android.googlequicksearchbox")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (context.packageManager.queryIntentActivities(googleSoundSearchIntent, 0).isNotEmpty()) {
+                return googleSoundSearchIntent
+            }
+
+            // 3. Shazam
+            val shazamIntent = context.packageManager.getLaunchIntentForPackage("com.shazam.android")
+            if (shazamIntent != null) return shazamIntent
+
+            // 4. SoundHound
+            val soundHoundIntent = context.packageManager.getLaunchIntentForPackage("com.melodis.midomiMusicIdentifier.freemium")
+            if (soundHoundIntent != null) return soundHoundIntent
+
+            // 5. Universal Google voice music search query
+            return Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=what+song+is+this")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
         }
     }
 }

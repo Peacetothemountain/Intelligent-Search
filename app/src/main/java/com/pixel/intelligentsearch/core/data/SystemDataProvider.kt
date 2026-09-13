@@ -13,30 +13,49 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class AppAction(
     val title: String,
     val action: String,
     val dataUri: String? = null
 )
 
+enum class ProfileType {
+    PERSONAL,
+    WORK,
+    PRIVATE,
+    CLONE
+}
+
+@Immutable
 data class AppItem(
     val name: String,
     val packageName: String,
     val icon: Drawable,
-    val actions: List<AppAction> = emptyList()
+    val actions: List<AppAction> = emptyList(),
+    val userHandle: android.os.UserHandle? = null,
+    val profileType: ProfileType = ProfileType.PERSONAL,
+    val isPrivateProfile: Boolean = false,
+    val isQuietMode: Boolean = false,
+    val activityName: String? = null
 )
 
+@Immutable
 data class CalendarEvent(
     val title: String,
     val startTime: String
 )
 
+@Immutable
 data class ContactItem(
     val name: String,
     val phoneNumber: String,
     val lookupUri: String
 )
 
+@Immutable
 data class FileItem(
     val name: String,
     val path: String,
@@ -68,43 +87,79 @@ object SystemDataProvider {
         if (!forceRefresh && cachedApps != null) {
             return@withContext cachedApps!!
         }
+
+        // 1. Universal PackageManager query guarantees all installed apps on any device/OEM are found
         val pm = context.packageManager
         val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
         }
-        val resolveInfos = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            pm.queryIntentActivities(mainIntent, PackageManager.ResolveInfoFlags.of(0))
-        } else {
-            @Suppress("DEPRECATION")
-            pm.queryIntentActivities(mainIntent, 0)
-        }
-        val apps = resolveInfos.asSequence()
-            .distinctBy { it.activityInfo.packageName }
-            .map {
-                val label = it.loadLabel(pm).toString()
-                val packageName = it.activityInfo.packageName
-                val icon = it.loadIcon(pm)
-                AppItem(
-                    name = label,
-                    packageName = packageName,
-                    icon = icon,
-                    actions = getAppActions(packageName)
-                )
+        val resolveInfos = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.queryIntentActivities(mainIntent, PackageManager.ResolveInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.queryIntentActivities(mainIntent, 0)
             }
-            .sortedBy { it.name.lowercase() }
+        } catch (e: Throwable) {
+            android.util.Log.w("SystemDataProvider", "IPC binder transaction error querying activities", e)
+            cachedApps?.let { return@withContext it }
+            emptyList()
+        }
+        val baseApps = resolveInfos.asSequence()
+            .distinctBy { it.activityInfo.packageName }
+            .mapNotNull {
+                try {
+                    val label = it.loadLabel(pm).toString()
+                    val packageName = it.activityInfo.packageName
+                    val icon = it.loadIcon(pm)
+                    AppItem(
+                        name = label,
+                        packageName = packageName,
+                        icon = icon,
+                        actions = getAppActions(packageName),
+                        activityName = it.activityInfo.name
+                    )
+                } catch (e: Throwable) {
+                    null
+                }
+            }
             .toList()
-        cachedApps = apps
-        apps
+
+        // 2. Discover multi-profile apps (Work Profile, Private Space, Dual Apps) and merge
+        val mergedMap = LinkedHashMap<String, AppItem>()
+        for (app in baseApps) {
+            mergedMap[app.packageName] = app
+        }
+
+        try {
+            val multiProfileManager = com.pixel.intelligentsearch.core.profile.MultiProfileManager(context)
+            val profileApps = multiProfileManager.getAllProfileApps(forceRefresh)
+            for (app in profileApps) {
+                val key = if (app.profileType != ProfileType.PERSONAL) "${app.packageName}_${app.userHandle}" else app.packageName
+                mergedMap[key] = app
+            }
+        } catch (_: Exception) {
+            // Non-fatal, base apps remain intact
+        }
+
+        val finalApps = mergedMap.values.sortedBy { it.name.lowercase() }
+        cachedApps = finalApps
+        finalApps
     }
 
     suspend fun getRecentApps(context: Context, hiddenApps: Set<String> = emptySet()): List<AppItem> = withContext(Dispatchers.IO) {
-        val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            ?: return@withContext getAllApps(context).filter { !hiddenApps.contains(it.packageName) }.take(8)
         val time = System.currentTimeMillis()
-        val stats = usageStatsManager.queryUsageStats(
-            UsageStatsManager.INTERVAL_DAILY,
-            time - 1000 * 60 * 60 * 24, // Last 24 hours
-            time
-        )
+        val stats = try {
+            usageStatsManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                time - 1000 * 60 * 60 * 24, // Last 24 hours
+                time
+            ) ?: emptyList()
+        } catch (_: Throwable) {
+            emptyList()
+        }
 
         val pm = context.packageManager
         val sortedStats = stats.filter { it.totalTimeInForeground > 0 && !hiddenApps.contains(it.packageName) }
@@ -135,8 +190,8 @@ object SystemDataProvider {
                         )
                     )
                 }
-            } catch (e: PackageManager.NameNotFoundException) {
-                // Ignore
+            } catch (_: Throwable) {
+                // Ignore package resolution failures
             }
         }
         
@@ -147,34 +202,14 @@ object SystemDataProvider {
         recentApps.distinctBy { it.packageName }
     }
 
-        suspend fun getContextAwareQuickApps(context: Context): List<AppItem> = withContext(Dispatchers.IO) {
+    suspend fun getContextAwareQuickApps(context: Context): List<AppItem> = withContext(Dispatchers.IO) {
+        val recents = getRecentApps(context)
+        if (recents.size >= 6) {
+            return@withContext recents.take(6)
+        }
         val allApps = getAllApps(context)
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        
-        val suggestedPackages = when (hour) {
-            in 6..11 -> listOf("com.google.android.calendar", "com.google.android.gm", "com.google.android.apps.magazines", "com.google.android.deskclock") // Morning
-            in 12..17 -> listOf("com.slack", "com.google.android.apps.docs", "com.google.android.apps.maps", "com.linkedin.android") // Afternoon
-            else -> listOf("com.google.android.youtube", "com.spotify.music", "com.netflix.mediaclient", "com.instagram.android") // Evening
-        }
-        
-        val result = mutableListOf<AppItem>()
-        for (pkg in suggestedPackages) {
-            val app = allApps.find { it.packageName == pkg }
-            if (app != null) result.add(app)
-        }
-        
-        // Fill the rest with recent apps if not enough
-        if (result.size < 6) {
-            val recents = getRecentApps(context)
-            for (recent in recents) {
-                if (result.size >= 6) break
-                if (result.none { it.packageName == recent.packageName }) {
-                    result.add(recent)
-                }
-            }
-        }
-        
-        result.take(6)
+        val combined = (recents + allApps).distinctBy { it.packageName }
+        combined.take(6)
     }
 
     suspend fun getUpcomingEvents(context: Context): List<CalendarEvent> = withContext(Dispatchers.IO) {
@@ -183,47 +218,93 @@ object SystemDataProvider {
             return@withContext events
         }
 
-        val projection = arrayOf(
-            CalendarContract.Events.TITLE,
-            CalendarContract.Events.DTSTART
-        )
+        try {
+            val projection = arrayOf(
+                CalendarContract.Events.TITLE,
+                CalendarContract.Events.DTSTART
+            )
 
-        val now = System.currentTimeMillis()
-        val tomorrow = now + 1000 * 60 * 60 * 24
-        
-        val selection = "${CalendarContract.Events.DTSTART} >= ? AND ${CalendarContract.Events.DTSTART} <= ?"
-        val selectionArgs = arrayOf(now.toString(), tomorrow.toString())
+            val now = System.currentTimeMillis()
+            val tomorrow = now + 1000 * 60 * 60 * 24
+            
+            val selection = "${CalendarContract.Events.DTSTART} >= ? AND ${CalendarContract.Events.DTSTART} <= ?"
+            val selectionArgs = arrayOf(now.toString(), tomorrow.toString())
 
-        context.contentResolver.query(
-            CalendarContract.Events.CONTENT_URI,
-            projection,
-            selection,
-            selectionArgs,
-            "${CalendarContract.Events.DTSTART} ASC"
-        )?.use { cursor ->
-            val titleIndex = cursor.getColumnIndex(CalendarContract.Events.TITLE)
-            val dtStartIndex = cursor.getColumnIndex(CalendarContract.Events.DTSTART)
+            context.contentResolver.query(
+                CalendarContract.Events.CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                "${CalendarContract.Events.DTSTART} ASC"
+            )?.use { cursor ->
+                val titleIndex = cursor.getColumnIndex(CalendarContract.Events.TITLE)
+                val dtStartIndex = cursor.getColumnIndex(CalendarContract.Events.DTSTART)
 
-            while (cursor.moveToNext() && events.size < 3) { // Max 3 events
-                val title = cursor.getString(titleIndex)
-                val startTimeMillis = cursor.getLong(dtStartIndex)
-                
-                val calendar = Calendar.getInstance().apply { timeInMillis = startTimeMillis }
-                val hour = calendar.get(Calendar.HOUR_OF_DAY)
-                val minute = calendar.get(Calendar.MINUTE)
-                val amPm = if (hour < 12) "AM" else "PM"
-                val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
-                val timeString = String.format(java.util.Locale.getDefault(), "%d:%02d %s", displayHour, minute, amPm)
+                while (cursor.moveToNext() && events.size < 3) { // Max 3 events
+                    val title = if (titleIndex >= 0) cursor.getString(titleIndex) else null
+                    val startTimeMillis = if (dtStartIndex >= 0) cursor.getLong(dtStartIndex) else 0L
+                    
+                    val calendar = Calendar.getInstance().apply { timeInMillis = startTimeMillis }
+                    val hour = calendar.get(Calendar.HOUR_OF_DAY)
+                    val minute = calendar.get(Calendar.MINUTE)
+                    val amPm = if (hour < 12) "AM" else "PM"
+                    val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
+                    val timeString = String.format(java.util.Locale.getDefault(), "%d:%02d %s", displayHour, minute, amPm)
 
-                events.add(CalendarEvent(title ?: "Event", timeString))
+                    events.add(CalendarEvent(title ?: "Event", timeString))
+                }
             }
-        }
+        } catch (_: Throwable) {}
         events
     }
 
     suspend fun getContacts(context: Context, query: String): List<ContactItem> = withContext(Dispatchers.IO) {
         val contacts = mutableListOf<ContactItem>()
         if (query.isEmpty() || context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            return@withContext contacts
+        }
+
+        try {
+            val projection = arrayOf(
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                ContactsContract.CommonDataKinds.Phone.NUMBER,
+                ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
+                ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY
+            )
+
+            val selection = "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?"
+            val selectionArgs = arrayOf("%$query%")
+
+            context.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+            )?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                val lookupKeyIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY)
+                val idIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
+
+                while (cursor.moveToNext() && contacts.size < 10) {
+                    val name = if (nameIndex >= 0) cursor.getString(nameIndex) ?: "" else ""
+                    val number = if (numberIndex >= 0) cursor.getString(numberIndex) ?: "" else ""
+                    val lookupKey = if (lookupKeyIndex >= 0) cursor.getString(lookupKeyIndex) ?: "" else ""
+                    val id = if (idIndex >= 0) cursor.getLong(idIndex) else 0L
+                    
+                    val lookupUri = ContactsContract.Contacts.getLookupUri(id, lookupKey)?.toString() ?: ""
+                    
+                    contacts.add(ContactItem(name, number, lookupUri))
+                }
+            }
+        } catch (_: Throwable) {}
+        contacts.distinctBy { it.phoneNumber }
+    }
+
+    suspend fun getAllContacts(context: Context): List<ContactItem> = withContext(Dispatchers.IO) {
+        val contacts = mutableListOf<ContactItem>()
+        if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
             return@withContext contacts
         }
 
@@ -234,33 +315,75 @@ object SystemDataProvider {
             ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY
         )
 
-        val selection = "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?"
-        val selectionArgs = arrayOf("%$query%")
+        try {
+            context.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                projection,
+                null,
+                null,
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+            )?.use { cursor ->
+                val nameIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val numberIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                val lookupKeyIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY)
+                val idIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
 
-        context.contentResolver.query(
-            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-            projection,
-            selection,
-            selectionArgs,
-            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
-        )?.use { cursor ->
-            val nameIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
-            val numberIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
-            val lookupKeyIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY)
-            val idIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
+                while (cursor.moveToNext()) {
+                    val name = cursor.getString(nameIndex) ?: continue
+                    val number = cursor.getString(numberIndex) ?: ""
+                    val lookupKey = cursor.getString(lookupKeyIndex) ?: ""
+                    val id = cursor.getLong(idIndex)
 
-            while (cursor.moveToNext() && contacts.size < 10) {
-                val name = cursor.getString(nameIndex)
-                val number = cursor.getString(numberIndex)
-                val lookupKey = cursor.getString(lookupKeyIndex)
-                val id = cursor.getLong(idIndex)
-                
-                val lookupUri = ContactsContract.Contacts.getLookupUri(id, lookupKey).toString()
-                
-                contacts.add(ContactItem(name, number, lookupUri))
+                    val lookupUri = ContactsContract.Contacts.getLookupUri(id, lookupKey)?.toString() ?: ""
+                    contacts.add(ContactItem(name, number, lookupUri))
+                }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
         contacts.distinctBy { it.phoneNumber }
+    }
+
+    suspend fun getAllRecentFiles(context: Context, limit: Int = 300, includeHidden: Boolean = false): List<FileItem> = withContext(Dispatchers.IO) {
+        val files = mutableListOf<FileItem>()
+        try {
+            val projection = arrayOf(
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.DATA,
+                MediaStore.Files.FileColumns.MIME_TYPE,
+                MediaStore.Files.FileColumns._ID
+            )
+
+            context.contentResolver.query(
+                MediaStore.Files.getContentUri("external"),
+                projection,
+                null,
+                null,
+                "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+            )?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                val dataIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATA)
+                val mimeIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.MIME_TYPE)
+                val idIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns._ID)
+
+                while (cursor.moveToNext() && files.size < limit) {
+                    if (nameIndex != -1) {
+                        val name = cursor.getString(nameIndex) ?: continue
+                        if (!includeHidden && name.startsWith(".")) continue
+
+                        val path = if (dataIndex != -1) cursor.getString(dataIndex) ?: "" else ""
+                        val mimeType = if (mimeIndex != -1) cursor.getString(mimeIndex) ?: "*/*" else "*/*"
+                        val id = if (idIndex != -1) cursor.getLong(idIndex) else 0L
+                        val uri = android.content.ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), id).toString()
+
+                        files.add(FileItem(name, path, mimeType, uri))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        files
     }
 
     suspend fun getFiles(context: Context, query: String, includeHidden: Boolean): List<FileItem> = withContext(Dispatchers.IO) {
@@ -445,7 +568,12 @@ object SystemDataProvider {
 
     fun getAppActions(packageName: String): List<AppAction> {
         return when (packageName) {
-            "com.google.android.deskclock" -> listOf(
+            "com.google.android.deskclock",
+            "com.sec.android.app.clockpackage",
+            "com.android.deskclock",
+            "com.coloros.alarm",
+            "com.oneplus.deskclock",
+            "com.motorola.blur.alarmclock" -> listOf(
                 AppAction("Set Alarm", android.provider.AlarmClock.ACTION_SET_ALARM),
                 AppAction("Start Timer", android.provider.AlarmClock.ACTION_SET_TIMER)
             )
@@ -457,6 +585,10 @@ object SystemDataProvider {
             )
             "com.google.android.apps.maps" -> listOf(
                 AppAction("Navigate Home", Intent.ACTION_VIEW, "google.navigation:q=Home")
+            )
+            "com.google.android.calendar",
+            "com.samsung.android.calendar" -> listOf(
+                AppAction("New Event", Intent.ACTION_INSERT, "content://com.android.calendar/events")
             )
             else -> emptyList()
         }

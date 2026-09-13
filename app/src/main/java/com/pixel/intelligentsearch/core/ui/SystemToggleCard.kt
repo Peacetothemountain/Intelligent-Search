@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 
+@androidx.compose.runtime.Immutable
 data class SystemToggleUiState(
     val id: String,
     val title: String,
@@ -84,13 +86,15 @@ fun SystemToggleCard(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .bouncyClickable(
+                suppressClickHaptic = true,
                 onClick = {
                     if (toggleState.isActionOnly) {
+                        com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click()
                         toggleState.onOpenSettings()
                     } else {
-                        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
                         val newState = !isChecked
                         isChecked = newState
+                        com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).toggle(isChecked = newState)
                         toggleState.onToggle(newState)
                     }
                 },
@@ -122,7 +126,10 @@ fun SystemToggleCard(
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .scale(iconScale)
+                    .graphicsLayer {
+                        scaleX = iconScale
+                        scaleY = iconScale
+                    }
                     .background(
                         color = if (isChecked) activeColor.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
                         shape = CircleShape
@@ -184,13 +191,13 @@ fun SystemToggleCard(
                 Switch(
                     checked = isChecked,
                     onCheckedChange = { newState ->
-                        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                        com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).toggle(isChecked = newState)
                         isChecked = newState
                         toggleState.onToggle(newState)
                     },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                        checkedTrackColor = activeColor,
+                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
                         uncheckedThumbColor = MaterialTheme.colorScheme.outline,
                         uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                     )

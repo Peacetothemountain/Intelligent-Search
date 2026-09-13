@@ -123,23 +123,23 @@
                     android:clickable="true"
                     android:focusable="true" />
 
-                <!-- Gemini (hidden by default) -->
+                <!-- Voice command action (hidden by default) -->
                 <ImageView
-                    android:id="@+id/widget_gemini_search"
+                    android:id="@+id/widget_action_search"
                     android:layout_width="22dp"
                     android:layout_height="22dp"
-                    android:src="@drawable/ic_gemini"
+                    android:src="@drawable/ic_lens_action"
                     android:scaleType="fitCenter"
                     android:layout_marginStart="16dp"
                     android:visibility="gone"
-                    android:contentDescription="Gemini"
+                    android:contentDescription="Voice Command"
                     android:clickable="true"
                     android:focusable="true" />
 
             </LinearLayout>
         </FrameLayout>
 
-        <!-- Circle Gemini button -->
+        <!-- Circle action button -->
         <FrameLayout
             android:id="@+id/widget_sound_search"
             android:layout_width="52dp"
@@ -160,9 +160,9 @@
                 android:layout_width="22dp"
                 android:layout_height="22dp"
                 android:layout_gravity="center"
-                android:src="@drawable/ic_search_ai_colored"
+                android:src="@drawable/ic_search_lens_expressive"
                 android:scaleType="fitCenter"
-                android:contentDescription="Gemini Search" />
+                android:contentDescription="Search Action" />
 
         </FrameLayout>
 

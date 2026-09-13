@@ -1,7 +1,11 @@
 package com.pixel.intelligentsearch.core.data
 
 import android.content.Context
-import android.util.Log
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
+import javax.inject.Inject
+import javax.inject.Singleton
 
 data class IndexedSearchDocument(
     val id: String,
@@ -11,28 +15,42 @@ data class IndexedSearchDocument(
     val timestampMs: Long
 )
 
-class AppSearchEngine(private val context: Context) {
-
+@Singleton
+class AppSearchEngine @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
     companion object {
-        private const val TAG = "AppSearchEngine"
-        private const val DATABASE_NAME = "intelligent_search_appsearch"
+        private const val MAX_DOCUMENT_CAPACITY = 256
     }
 
-    private val localCache = mutableMapOf<String, IndexedSearchDocument>()
+    private val localCache = ConcurrentHashMap<String, IndexedSearchDocument>()
+    private val evictionQueue = ConcurrentLinkedQueue<String>()
 
     fun indexDocument(doc: IndexedSearchDocument) {
+        if (!localCache.containsKey(doc.id)) {
+            if (localCache.size >= MAX_DOCUMENT_CAPACITY) {
+                evictionQueue.poll()?.let { oldestId ->
+                    localCache.remove(oldestId)
+                }
+            }
+            evictionQueue.offer(doc.id)
+        }
         localCache[doc.id] = doc
-        Log.d(TAG, "Indexed document via AppSearch database: ${doc.title}")
     }
 
     fun queryDocuments(query: String): List<IndexedSearchDocument> {
-        if (query.isBlank()) return localCache.values.toList()
-        return localCache.values.filter {
-            it.title.contains(query, ignoreCase = true) || it.snippet.contains(query, ignoreCase = true)
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) {
+            return localCache.values.sortedByDescending { it.timestampMs }
         }
+        return localCache.values.filter {
+            it.title.contains(trimmed, ignoreCase = true) || 
+            it.snippet.contains(trimmed, ignoreCase = true)
+        }.sortedByDescending { it.timestampMs }
     }
 
     fun clearIndex() {
         localCache.clear()
+        evictionQueue.clear()
     }
 }

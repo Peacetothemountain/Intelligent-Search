@@ -15,8 +15,11 @@ android {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
         targetSdk = 37
-        versionCode = 91
-        versionName = "8.9"
+        versionCode = 97
+        versionName = "9.02"
+        ndk {
+            abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86"))
+        }
     }
 
     signingConfigs {
@@ -27,8 +30,15 @@ android {
                 localProperties.load(localPropertiesFile.inputStream())
             }
             val customStore = localProperties.getProperty("RELEASE_STORE_FILE")
-            if (customStore != null && file(customStore).exists()) {
-                storeFile = file(customStore)
+            val targetStore = when {
+                customStore != null && file(customStore).exists() -> file(customStore)
+                customStore != null && rootProject.file(customStore).exists() -> rootProject.file(customStore)
+                rootProject.file("release.keystore").exists() -> rootProject.file("release.keystore")
+                file("F:/release.keystore").exists() -> file("F:/release.keystore")
+                else -> null
+            }
+            if (targetStore != null && targetStore.exists()) {
+                storeFile = targetStore
                 storePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD") ?: "password"
                 keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS") ?: "release"
                 keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD") ?: "password"
@@ -52,6 +62,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    java {
+        toolchain {
+            languageVersion.set(JavaLanguageVersion.of(17))
+        }
+    }
     buildFeatures {
       compose = true
       aidl = false
@@ -59,24 +74,43 @@ android {
       shaders = false
     }
 
+    testOptions {
+      unitTests {
+        isReturnDefaultValues = true
+      }
+    }
+
     packaging {
       resources {
-        excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        excludes += listOf(
+            "/META-INF/{AL2.0,LGPL2.1}",
+            "/META-INF/INDEX.LIST",
+            "/META-INF/*.version",
+            "/META-INF/DEPENDENCIES"
+        )
       }
       jniLibs {
-        useLegacyPackaging = true
+        useLegacyPackaging = false
       }
     }
 }
 
+composeCompiler {
+    includeSourceInformation.set(false)
+}
+
 dependencies {
-  implementation("androidx.media3:media3-exoplayer:1.11.0")
-  implementation("androidx.media3:media3-ui:1.11.0")
-  implementation("com.google.android.material:material:1.14.0")
+  implementation(libs.media3.exoplayer)
+  implementation(libs.media3.ui)
+  implementation(libs.google.material)
   // Core
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.androidx.lifecycle.process)
+  implementation(libs.androidx.lifecycle.runtime.compose)
+  implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.activity.compose)
+  implementation(libs.androidx.profileinstaller)
   implementation(platform(libs.androidx.compose.bom))
 
   // Compose
@@ -92,8 +126,8 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.test.manifest)
 
   // Local tests: jUnit, coroutines, Android runner
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlin:kotlin-reflect")
+  testImplementation(libs.junit)
+  testImplementation("org.jetbrains.kotlin:kotlin-reflect")
   testImplementation(libs.kotlinx.coroutines.test)
 
   // Instrumented tests: jUnit rules and runners
@@ -102,32 +136,28 @@ dependencies {
   androidTestImplementation(libs.androidx.test.runner)
   androidTestImplementation(libs.androidx.test.espresso.core)
 
-  // Navigation
+  // Navigation & Serialization
   implementation(libs.androidx.navigation.compose)
-  implementation(libs.androidx.navigation3.runtime)
-  implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+  implementation(libs.kotlinx.serialization.json)
 
   // Room Database
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.room.ktx)
-  "ksp"(libs.androidx.room.compiler)
+  ksp(libs.androidx.room.compiler)
 
   // Hilt
   implementation(libs.hilt.android)
-  "ksp"(libs.hilt.android.compiler)
+  ksp(libs.hilt.android.compiler)
   implementation(libs.hilt.navigation.compose)
 
   // Preferences DataStore
   implementation(libs.androidx.datastore.preferences)
 
-  // Google Generative AI
-  implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
-
   // Lottie for Animations
-  implementation("com.airbnb.android:lottie-compose:6.7.1")
+  implementation(libs.lottie.compose)
 
   // Graphics Shapes for Material Morph Animations
-  implementation("androidx.graphics:graphics-shapes:1.1.0")
+  implementation(libs.androidx.graphics.shapes)
 }
 
 

@@ -1,10 +1,10 @@
 package com.pixel.intelligentsearch.core.data
 
+import android.app.Activity
 import android.content.Context
-import android.content.pm.LauncherApps
-import android.os.Build
 import android.os.UserHandle
-import android.os.UserManager
+import com.pixel.intelligentsearch.core.profile.MultiProfileManager
+import com.pixel.intelligentsearch.core.profile.ProfileDescriptor
 
 data class ProfileContainerState(
     val hasPrivateSpace: Boolean,
@@ -14,74 +14,32 @@ data class ProfileContainerState(
 
 class PrivateSpaceManager(private val context: Context) {
 
-    private val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
-    private val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? LauncherApps
+    private val multiProfileManager = MultiProfileManager(context)
 
     fun getProfileContainerState(): ProfileContainerState {
-        if (userManager == null) {
-            return ProfileContainerState(
-                hasPrivateSpace = false,
-                isPrivateSpaceLocked = false,
-                activeProfilesCount = 1
-            )
-        }
-
-        var hasPrivateSpace = false
-        var isPrivateSpaceLocked = false
-        var activeProfiles = 1
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            try {
-                val userProfiles = userManager.userProfiles
-                activeProfiles = userProfiles.size
-
-                for (profile in userProfiles) {
-                    if (isPrivateProfileHandle(profile)) {
-                        hasPrivateSpace = true
-                        if (userManager.isQuietModeEnabled(profile)) {
-                            isPrivateSpaceLocked = true
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                // Fallback for standard profile checks
-            }
-        }
-
+        val profiles = multiProfileManager.refreshProfiles()
+        val privateProfile = profiles.firstOrNull { it.profileType == ProfileType.PRIVATE }
         return ProfileContainerState(
-            hasPrivateSpace = hasPrivateSpace,
-            isPrivateSpaceLocked = isPrivateSpaceLocked,
-            activeProfilesCount = activeProfiles
+            hasPrivateSpace = privateProfile != null,
+            isPrivateSpaceLocked = privateProfile?.isLocked ?: false,
+            activeProfilesCount = profiles.size
         )
     }
 
-    private fun isPrivateProfileHandle(userHandle: UserHandle): Boolean {
-        if (Build.VERSION.SDK_INT >= 35 && launcherApps != null) {
-            try {
-                val info = launcherApps.getLauncherUserInfo(userHandle)
-                if (info != null && info.userType == "android.os.usertype.profile.PRIVATE") {
-                    return true
-                }
-            } catch (e: Throwable) {
-                // Ignore
-            }
-        }
+    fun hasPrivateSpace(): Boolean = multiProfileManager.hasPrivateSpace()
 
-        if (userManager != null) {
-            try {
-                val getUserPropertiesMethod = userManager.javaClass.getMethod("getUserProperties", UserHandle::class.java)
-                val userProperties = getUserPropertiesMethod.invoke(userManager, userHandle)
-                if (userProperties != null) {
-                    val getProfileTypeMethod = userProperties.javaClass.getMethod("getProfileType")
-                    val profileType = getProfileTypeMethod.invoke(userProperties) as? String
-                    if (profileType == "android.os.usertype.profile.PRIVATE") {
-                        return true
-                    }
-                }
-            } catch (e: Throwable) {
-                // Ignore API reflection failures
-            }
+    fun isPrivateSpaceLocked(): Boolean = multiProfileManager.isPrivateSpaceLocked()
+
+    fun getProfiles(): List<ProfileDescriptor> = multiProfileManager.refreshProfiles()
+
+    fun requestUnlockPrivateSpace(activity: Activity) {
+        val privateProfile = multiProfileManager.profilesState.value.firstOrNull { it.profileType == ProfileType.PRIVATE }
+        if (privateProfile != null) {
+            multiProfileManager.requestUnlockProfile(privateProfile.userHandle, activity)
         }
-        return false
+    }
+
+    suspend fun getAllProfileApps(forceRefresh: Boolean = false): List<AppItem> {
+        return multiProfileManager.getAllProfileApps(forceRefresh)
     }
 }

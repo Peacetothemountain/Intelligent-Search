@@ -209,12 +209,15 @@ class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         val (themePColor, themeSColor, themeTColor) = if (subthemeStr == "Custom") {
-            val hsv = FloatArray(3)
-            android.graphics.Color.colorToHSV(actualCustomColor, hsv)
-            val p = actualCustomColor or 0xFF000000.toInt()
-            val s = android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 18f) % 360f, (hsv[1] * 0.70f).coerceIn(0.1f, 1f), (hsv[2] * 0.95f).coerceIn(0.6f, 1f)))
-            val t = android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 60f) % 360f, (hsv[1] * 0.85f).coerceIn(0.1f, 1f), (hsv[2] * 0.90f).coerceIn(0.7f, 1f)))
-            Triple(p, s, t)
+            val customHue = prefs.getInt("widget_custom_hue", 277).toFloat()
+            val customSaturation = prefs.getInt("widget_custom_saturation", 51).toFloat()
+            val isDarkSurface = !isPillLight
+            val m3Colors = com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper.getMaterialYouTonalColors(
+                hue = customHue,
+                saturation = customSaturation,
+                isDarkSurface = isDarkSurface
+            )
+            Triple(m3Colors.primary, m3Colors.secondary, m3Colors.tertiary)
         } else {
             val p = dynamicScheme?.primary?.toArgb() ?: (if (isDark) 0xFF8AB4F8.toInt() else 0xFF1973E8.toInt())
             val s = dynamicScheme?.secondary?.toArgb() ?: (if (isDark) 0xFFBDC1C6.toInt() else 0xFF5F6368.toInt())
@@ -309,6 +312,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                         "Accented G Icon" -> {
                             views.setImageViewResource(targetViewId, item.second)
                             views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(themePColor))
+                            views.setInt(targetViewId, "setImageAlpha", 255)
                         }
                         "Material G Icon" -> {
                             val themedBitmap = createThemedShortcutBitmap(context, item.second, themePColor, themeSColor, themeTColor)
@@ -319,6 +323,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                                 views.setImageViewResource(targetViewId, item.second)
                                 views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(themePColor))
                             }
+                            views.setInt(targetViewId, "setImageAlpha", 255)
                         }
                         else -> {
                             // System G Icon
@@ -337,6 +342,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                                 }
                                 views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(sysTint))
                             }
+                            views.setInt(targetViewId, "setImageAlpha", 255)
                         }
                     }
 
@@ -428,6 +434,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
                         views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(sysActionTint))
                     }
                 }
+                views.setInt(R.id.widget_sound_icon, "setImageAlpha", 255)
             }
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
@@ -602,6 +609,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
             isPillLight: Boolean
         ) {
             views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
+            views.setInt(R.id.widget_g_logo, "setImageAlpha", 255)
             if (materialGIconTheme == "Material G Icon") {
                 val bitmap = createCustomMaterialGBitmap(pColor, sColor, tColor, context)
                 views.setImageViewBitmap(R.id.widget_g_logo, bitmap)

@@ -5657,26 +5657,27 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     }
                     
+                    val isDarkSurface = !isPreviewPillLight
+                    val customM3Colors = remember(localHue, localSaturation, isDarkSurface) {
+                        com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper.getMaterialYouTonalColors(
+                            hue = localHue,
+                            saturation = localSaturation,
+                            isDarkSurface = isDarkSurface
+                        )
+                    }
+
                     val gPrimary = if (isCustomTheme) {
-                        accentColor
+                        androidx.compose.ui.graphics.Color(customM3Colors.primary)
                     } else {
                         MaterialTheme.colorScheme.primary
                     }
                     val gSecondary = if (isCustomTheme) {
-                        val hsv = FloatArray(3)
-                        android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
-                        androidx.compose.ui.graphics.Color(
-                            android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 18f) % 360f, (hsv[1] * 0.70f).coerceIn(0.1f, 1f), (hsv[2] * 0.95f).coerceIn(0.6f, 1f)))
-                        )
+                        androidx.compose.ui.graphics.Color(customM3Colors.secondary)
                     } else {
                         MaterialTheme.colorScheme.secondary
                     }
                     val gTertiary = if (isCustomTheme) {
-                        val hsv = FloatArray(3)
-                        android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
-                        androidx.compose.ui.graphics.Color(
-                            android.graphics.Color.HSVToColor(255, floatArrayOf((hsv[0] + 60f) % 360f, (hsv[1] * 0.85f).coerceIn(0.1f, 1f), (hsv[2] * 0.90f).coerceIn(0.7f, 1f)))
-                        )
+                        androidx.compose.ui.graphics.Color(customM3Colors.tertiary)
                     } else {
                         MaterialTheme.colorScheme.tertiary
                     }
@@ -5711,7 +5712,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     secondaryColor = gSecondary,
                                     tertiaryColor = gTertiary,
                                     isAccented = isAccented,
-                                    accentColor = accentColor,
+                                    accentColor = gPrimary,
                                     fallbackTint = androidx.compose.ui.graphics.Color.Unspecified,
                                     useOriginalColors = useOriginalGIcon
                                 )
@@ -5754,7 +5755,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 }
                                 val isMaterial = effectiveGIconTheme == "Material G Icon"
                                 val (scPrimary, scSecondary, scTertiary) = when (effectiveGIconTheme) {
-                                    "Accented G Icon" -> Triple(accentColor, accentColor, accentColor)
+                                    "Accented G Icon" -> Triple(gPrimary, gPrimary, gPrimary)
                                     "Material G Icon" -> Triple(gPrimary, gSecondary, gTertiary)
                                     else -> { // System G Icon
                                         val sysTint = if (isPreviewPillLight) materialDarkCompose else androidx.compose.ui.graphics.Color.White
@@ -5783,7 +5784,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 contentAlignment = Alignment.Center
                             ) {
                                 val (actPrimary, actSecondary, actTertiary) = when (effectiveGIconTheme) {
-                                    "Accented G Icon" -> Triple(accentColor, accentColor, accentColor)
+                                    "Accented G Icon" -> Triple(gPrimary, gPrimary, gPrimary)
                                     "Material G Icon" -> Triple(gPrimary, gSecondary, gTertiary)
                                     else -> { // System G Icon
                                         val sysActionTint = if (isPreviewPillLight) materialDarkCompose else androidx.compose.ui.graphics.Color.White

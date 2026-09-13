@@ -61,7 +61,7 @@ data class EncryptedPayload(
  */
 @Singleton
 class StrongBoxSecurityManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) {
 
     companion object {
@@ -77,6 +77,7 @@ class StrongBoxSecurityManager @Inject constructor(
         const val KEY_ALIAS_MASTER = "com.pixel.intelligentsearch.vault.master_v1"
         const val KEY_ALIAS_BIOMETRIC_GATE = "com.pixel.intelligentsearch.vault.biometric_gate_v1"
         const val KEY_ALIAS_BLIND_INDEX = "com.pixel.intelligentsearch.vault.blind_index_v1"
+        const val KEY_ALIAS_SAVED_PASSPHRASE = "com.pixel.intelligentsearch.vault.saved_passphrase_v1"
     }
 
     private val keyStore: KeyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply {
@@ -355,6 +356,67 @@ class StrongBoxSecurityManager @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to purge key alias: $alias", e)
+            false
+        }
+    }
+
+    /**
+     * Encrypts and saves the backup encryption passphrase into hardware security chip (Titan M2 / StrongBox KeyStore).
+     */
+    @Synchronized
+    fun savePassphrase(passphrase: String): Boolean {
+        return try {
+            val (key, _) = getOrCreateSymmetricKey(KEY_ALIAS_SAVED_PASSPHRASE)
+            val cipher = Cipher.getInstance(CIPHER_ALGORITHM)
+            cipher.init(Cipher.ENCRYPT_MODE, key)
+            val iv = cipher.iv
+            val cipherBytes = cipher.doFinal(passphrase.toByteArray(Charsets.UTF_8))
+            val sp = context.getSharedPreferences("secure_hardware_vault", Context.MODE_PRIVATE)
+            sp.edit()
+                .putString("saved_passphrase_cipher", android.util.Base64.encodeToString(cipherBytes, android.util.Base64.NO_WRAP))
+                .putString("saved_passphrase_iv", android.util.Base64.encodeToString(iv, android.util.Base64.NO_WRAP))
+                .commit()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save passphrase to hardware security chip", e)
+            false
+        }
+    }
+
+    /**
+     * Retrieves and decrypts the backup encryption passphrase from hardware security chip (Titan M2 / StrongBox KeyStore).
+     */
+    @Synchronized
+    fun getSavedPassphrase(): String? {
+        return try {
+            val sp = context.getSharedPreferences("secure_hardware_vault", Context.MODE_PRIVATE)
+            val cipherBase64 = sp.getString("saved_passphrase_cipher", null) ?: return null
+            val ivBase64 = sp.getString("saved_passphrase_iv", null) ?: return null
+            val cipherBytes = android.util.Base64.decode(cipherBase64, android.util.Base64.NO_WRAP)
+            val iv = android.util.Base64.decode(ivBase64, android.util.Base64.NO_WRAP)
+            val (key, _) = getOrCreateSymmetricKey(KEY_ALIAS_SAVED_PASSPHRASE)
+            val cipher = Cipher.getInstance(CIPHER_ALGORITHM)
+            cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
+            val decrypted = cipher.doFinal(cipherBytes)
+            String(decrypted, Charsets.UTF_8)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to retrieve saved passphrase from hardware security chip", e)
+            null
+        }
+    }
+
+    /**
+     * Clears any saved passphrase from the hardware security chip and storage.
+     */
+    @Synchronized
+    fun clearSavedPassphrase(): Boolean {
+        return try {
+            val sp = context.getSharedPreferences("secure_hardware_vault", Context.MODE_PRIVATE)
+            sp.edit().remove("saved_passphrase_cipher").remove("saved_passphrase_iv").commit()
+            deleteKey(KEY_ALIAS_SAVED_PASSPHRASE)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to clear saved passphrase", e)
             false
         }
     }

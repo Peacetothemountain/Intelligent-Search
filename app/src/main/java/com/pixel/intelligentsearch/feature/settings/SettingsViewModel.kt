@@ -29,7 +29,8 @@ class SettingsViewModel @Inject constructor(
     private val historyDao: HistoryDao,
     private val bangManager: SearchBangManager,
     private val backupManager: BackupManager,
-    private val iconEngine: UniversalIconEngine
+    private val iconEngine: UniversalIconEngine,
+    private val strongBoxSecurityManager: com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager
 ) : ViewModel() {
 
     val settingsState: StateFlow<IntelligentSearchSettings> = settingsManager.settingsFlow
@@ -165,5 +166,17 @@ class SettingsViewModel @Inject constructor(
     fun clearIconCaches() {
         iconEngine.clearCache()
         com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
+    }
+
+    fun savePassphraseToSecurityChip(passphrase: String): Boolean {
+        return strongBoxSecurityManager.savePassphrase(passphrase)
+    }
+
+    fun getSavedPassphraseFromSecurityChip(): String? {
+        return strongBoxSecurityManager.getSavedPassphrase()
+    }
+
+    fun clearSavedPassphraseFromSecurityChip(): Boolean {
+        return strongBoxSecurityManager.clearSavedPassphrase()
     }
 }

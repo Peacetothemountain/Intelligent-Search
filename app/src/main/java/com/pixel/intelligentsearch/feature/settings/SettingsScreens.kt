@@ -8779,11 +8779,20 @@ fun BackupRestoreScreen(
 
     var passphrase by remember { mutableStateOf("") }
     var passphraseVisible by remember { mutableStateOf(false) }
+    var isPassphraseSavedOnChip by remember { mutableStateOf(false) }
     var showRestorePassphraseDialog by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
     var dialogPassphrase by remember { mutableStateOf("") }
     var dialogPassphraseVisible by remember { mutableStateOf(false) }
     var dialogErrorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        val saved = viewModel?.getSavedPassphraseFromSecurityChip()
+        if (!saved.isNullOrBlank()) {
+            passphrase = saved
+            isPassphraseSavedOnChip = true
+        }
+    }
 
     val safeShowToast: (String) -> Unit = { message ->
         android.os.Handler(android.os.Looper.getMainLooper()).post {
@@ -8802,7 +8811,10 @@ fun BackupRestoreScreen(
                 onSuccess = { count ->
                     showRestorePassphraseDialog = false
                     dialogErrorMessage = null
-                    safeShowToast("Restored $count configuration items and customizations!")
+                    if (!targetPass.isNullOrBlank() && passphrase.isBlank()) {
+                        passphrase = targetPass
+                    }
+                    safeShowToast("Intelligent Search Settings Restored")
                 },
                 onError = { err ->
                     if (err.contains("passphrase", ignoreCase = true) || err.contains("tag mismatch", ignoreCase = true)) {
@@ -8849,8 +8861,9 @@ fun BackupRestoreScreen(
             val envelope = inspectResult.getOrNull()
             val needsPass = envelope?.kdf != null
             if (needsPass) {
-                if (passphrase.isNotBlank()) {
-                    performRestore(uri, passphrase)
+                val effectivePass = passphrase.ifBlank { viewModel.getSavedPassphraseFromSecurityChip() ?: "" }
+                if (effectivePass.isNotBlank()) {
+                    performRestore(uri, effectivePass)
                 } else {
                     pendingRestoreUri = uri
                     dialogPassphrase = ""
@@ -8993,7 +9006,12 @@ fun BackupRestoreScreen(
                 )
                 OutlinedTextField(
                     value = passphrase,
-                    onValueChange = { passphrase = it },
+                    onValueChange = {
+                        passphrase = it
+                        if (isPassphraseSavedOnChip && it.isBlank()) {
+                            isPassphraseSavedOnChip = false
+                        }
+                    },
                     placeholder = { Text("Enter passphrase (optional)", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, fontSize = 14.sp) },
                     leadingIcon = {
                         Icon(
@@ -9006,7 +9024,13 @@ fun BackupRestoreScreen(
                     trailingIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (passphrase.isNotEmpty()) {
-                                IconButton(onClick = { passphrase = "" }, modifier = Modifier.size(32.dp)) {
+                                IconButton(onClick = {
+                                    passphrase = ""
+                                    if (isPassphraseSavedOnChip) {
+                                        isPassphraseSavedOnChip = false
+                                        viewModel?.clearSavedPassphraseFromSecurityChip()
+                                    }
+                                }, modifier = Modifier.size(32.dp)) {
                                     Icon(
                                         imageVector = Icons.Default.Close,
                                         contentDescription = "Clear",
@@ -9039,6 +9063,89 @@ fun BackupRestoreScreen(
                         unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
                 )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilledTonalButton(
+                        onClick = {
+                            if (passphrase.isNotBlank()) {
+                                val saved = viewModel?.savePassphraseToSecurityChip(passphrase) == true
+                                if (saved) {
+                                    isPassphraseSavedOnChip = true
+                                    hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                                    safeShowToast("Passphrase saved to device security chip")
+                                } else {
+                                    safeShowToast("Failed to save to security chip")
+                                }
+                            } else {
+                                safeShowToast("Enter a passphrase first")
+                            }
+                        },
+                        shape = RoundedCornerShape(percent = 50),
+                        modifier = Modifier.weight(1f),
+                        enabled = passphrase.isNotBlank()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Security,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            if (isPassphraseSavedOnChip) "Passphrase Saved" else "Save to Security Chip",
+                            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    if (isPassphraseSavedOnChip) {
+                        OutlinedButton(
+                            onClick = {
+                                viewModel?.clearSavedPassphraseFromSecurityChip()
+                                isPassphraseSavedOnChip = false
+                                hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                                safeShowToast("Passphrase removed from security chip")
+                            },
+                            shape = RoundedCornerShape(percent = 50)
+                        ) {
+                            Text(
+                                "Clear",
+                                fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+
+                if (isPassphraseSavedOnChip) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Secured with Hardware KeyStore (StrongBox / Titan M2)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
             }
 
             // Export Card

@@ -152,6 +152,9 @@ class BackupManager @Inject constructor(
                 val payload = createBackupPayload()
                 val plainJson = serializePayload(payload)
 
+                val isHwBacked = strongBoxSecurityManager.isStrongBoxSupported()
+                val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
+
                 val envelope = if (!passphrase.isNullOrBlank()) {
                     val salt = BackupCryptoEngine.generateRandomSalt()
                     val iv = BackupCryptoEngine.generateRandomIv()
@@ -160,7 +163,9 @@ class BackupManager @Inject constructor(
                     val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
 
                     EncryptedBackupEnvelope(
-                        isHardwareBacked = false,
+                        isHardwareBacked = isHwBacked,
+                        hardwareChip = hwInfo.chipName,
+                        deviceModel = hwInfo.deviceDisplayName,
                         kdf = KdfMetadata(saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
                         cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
                         encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
@@ -173,7 +178,9 @@ class BackupManager @Inject constructor(
                     val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
 
                     EncryptedBackupEnvelope(
-                        isHardwareBacked = false,
+                        isHardwareBacked = isHwBacked,
+                        hardwareChip = hwInfo.chipName,
+                        deviceModel = hwInfo.deviceDisplayName,
                         kdf = null,
                         cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
                         encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
@@ -636,6 +643,8 @@ class BackupManager @Inject constructor(
         root.put("schemaVersion", envelope.schemaVersion)
         root.put("timestampMs", envelope.timestampMs)
         root.put("isHardwareBacked", envelope.isHardwareBacked)
+        if (envelope.hardwareChip != null) root.put("hardwareChip", envelope.hardwareChip)
+        if (envelope.deviceModel != null) root.put("deviceModel", envelope.deviceModel)
 
         if (envelope.kdf != null) {
             val kdfObj = JSONObject().apply {
@@ -678,11 +687,16 @@ class BackupManager @Inject constructor(
             tagLengthBits = cipherObj.optInt("tagLengthBits", 128)
         )
 
+        val hwChip = root.optString("hardwareChip").takeIf { it.isNotBlank() }
+        val devModel = root.optString("deviceModel").takeIf { it.isNotBlank() }
+
         return EncryptedBackupEnvelope(
             format = root.optString("format", "INTELLIGENT_SEARCH_ENCRYPTED_BACKUP"),
             schemaVersion = root.optInt("schemaVersion", 1),
             timestampMs = root.optLong("timestampMs", System.currentTimeMillis()),
             isHardwareBacked = root.optBoolean("isHardwareBacked", false),
+            hardwareChip = hwChip,
+            deviceModel = devModel,
             kdf = kdf,
             cipher = cipher,
             encryptedPayloadBase64 = root.getString("encryptedPayloadBase64"),

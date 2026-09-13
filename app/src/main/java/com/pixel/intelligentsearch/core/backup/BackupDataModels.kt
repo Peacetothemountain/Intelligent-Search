@@ -27,6 +27,8 @@ data class EncryptedBackupEnvelope(
     val schemaVersion: Int = 1,
     val timestampMs: Long = System.currentTimeMillis(),
     val isHardwareBacked: Boolean = false,
+    val hardwareChip: String? = null,
+    val deviceModel: String? = null,
     val kdf: KdfMetadata? = null,
     val cipher: CipherMetadata,
     val encryptedPayloadBase64: String,

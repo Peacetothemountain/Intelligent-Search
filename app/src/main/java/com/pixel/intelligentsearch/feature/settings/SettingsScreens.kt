@@ -1829,199 +1829,8 @@ fun MainSettingsScreen(
             val attestationResult = remember { attestationVerifier.generateAndVerifyAttestation() }
             val hardwareLevel = remember { secureRepo.getHardwareSecurityLevel() }
             
-            val (securityTitle, securityDescription) = remember(hardwareLevel) {
-                val manufacturer = android.os.Build.MANUFACTURER.lowercase()
-                val brand = android.os.Build.BRAND.lowercase()
-                val model = android.os.Build.MODEL.lowercase()
-                val device = android.os.Build.DEVICE.lowercase()
-                val hardware = android.os.Build.HARDWARE.lowercase()
-                val board = android.os.Build.BOARD.lowercase()
-                val product = android.os.Build.PRODUCT.lowercase()
-                val socModel = if (android.os.Build.VERSION.SDK_INT >= 31) {
-                    try {
-                        android.os.Build.SOC_MODEL.lowercase()
-                    } catch (e: Throwable) {
-                        ""
-                    }
-                } else {
-                    ""
-                }
-
-                val isPixel = manufacturer.contains("google") || brand.contains("google") || model.contains("pixel") || product.contains("pixel")
-                
-                val (chipName, teeName) = when {
-                    // 1. Google Pixel Family
-                    isPixel -> {
-                        val pixelChip = when {
-                            // Pixel 11 / Tensor G6 generation (Titan M3+)
-                            model.contains("pixel 11") || model.contains("pixel11") || socModel.contains("tensor g6") || socModel.contains("malibu") || board.contains("malibu") || hardware.contains("malibu") -> "Google Titan M3+"
-                            
-                            // Pixel 10 / Tensor G5 generation (Titan M3+)
-                            model.contains("pixel 10") || model.contains("pixel10") || socModel.contains("tensor g5") || socModel.contains("laguna") || board.contains("laguna") || hardware.contains("laguna") ||
-                            device.contains("frankel") || device.contains("blazer") || device.contains("mustang") || device.contains("rango") -> "Google Titan M3+"
-
-                            // Legacy Pixel 3, 4, 5 series (Snapdragon SoCs + 1st Gen Titan M)
-                            model.contains("pixel 3") || model.contains("pixel 4") || model.contains("pixel 5") ||
-                            device.contains("blueline") || device.contains("crosshatch") || device.contains("sargo") || device.contains("bonito") ||
-                            device.contains("flame") || device.contains("coral") || device.contains("sunfish") || device.contains("bramble") ||
-                            device.contains("redfin") || device.contains("barbet") -> "Google Titan M"
-
-                            // Tensor G1 - G4 Pixels: Pixel 6, 7, 8, 9, Pixel Fold (1st Gen), Pixel 9 Pro Fold, Pixel Tablet, etc.
-                            // ALL Tensor G1-G4 devices globally use Titan M2!
-                            model.contains("pixel 6") || model.contains("pixel 7") || model.contains("pixel 8") || model.contains("pixel 9") ||
-                            model.contains("fold") || model.contains("tablet") ||
-                            device.contains("felix") || device.contains("comet") || device.contains("tangorpro") ||
-                            device.contains("caimito") || device.contains("komodo") || device.contains("tokay") ||
-                            device.contains("shiba") || device.contains("husky") || device.contains("akita") ||
-                            device.contains("cheetah") || device.contains("panther") || device.contains("lynx") ||
-                            device.contains("oriole") || device.contains("raven") || device.contains("bluejay") ||
-                            socModel.contains("tensor") || socModel.contains("gs101") || socModel.contains("gs201") || socModel.contains("zuma") ||
-                            board.contains("gs101") || board.contains("gs201") || board.contains("zuma") ||
-                            hardware.contains("gs101") || hardware.contains("gs201") || hardware.contains("zuma") -> "Google Titan M2"
-
-                            // Global fallback for any Google Pixel device
-                            else -> "Google Titan M2"
-                        }
-                        Pair(pixelChip, "Google Tensor TrustZone TEE")
-                    }
-
-                    // 2. Samsung Galaxy
-                    manufacturer.contains("samsung") || brand.contains("samsung") -> {
-                        Pair("Samsung Knox Vault (EAL6+)", "Samsung Knox TEE (TEEGRIS / Kinibi)")
-                    }
-
-                    // 3. Xiaomi / Redmi / POCO / Black Shark
-                    manufacturer.contains("xiaomi") || brand.contains("xiaomi") || brand.contains("redmi") || brand.contains("poco") || brand.contains("blackshark") -> {
-                        Pair("Xiaomi HyperOS Hardware Security Element", "Xiaomi HyperOS TEE")
-                    }
-
-                    // 4. OnePlus / OPPO / Realme (OPlus Group)
-                    manufacturer.contains("oneplus") || brand.contains("oneplus") || manufacturer.contains("oppo") || brand.contains("oppo") || manufacturer.contains("realme") || brand.contains("realme") -> {
-                        Pair("OPlus Discrete Security Element (StrongBox)", "OxygenOS / ColorOS Secure TEE")
-                    }
-
-                    // 5. Motorola / Lenovo
-                    manufacturer.contains("motorola") || brand.contains("motorola") || brand.contains("moto") || manufacturer.contains("lenovo") || brand.contains("lenovo") -> {
-                        Pair("Moto ThinkShield Hardware Security", "ThinkShield ARM TrustZone TEE")
-                    }
-
-                    // 6. Sony Xperia
-                    manufacturer.contains("sony") || brand.contains("sony") -> {
-                        Pair("Sony Xperia Hardware Security Module", "Sony Xperia Qualcomm QTEE")
-                    }
-
-                    // 7. Nothing / CMF
-                    manufacturer.contains("nothing") || brand.contains("nothing") || brand.contains("cmf") -> {
-                        Pair("Nothing OS Hardware Security Engine", "Nothing OS ARM TrustZone TEE")
-                    }
-
-                    // 8. Honor
-                    manufacturer.contains("honor") || brand.contains("honor") -> {
-                        Pair("Honor Discrete Security Chip (HTEE)", "Honor MagicOS HTEE Dual-Engine")
-                    }
-
-                    // 9. Huawei
-                    manufacturer.contains("huawei") || brand.contains("huawei") -> {
-                        Pair("Huawei In-Chip Security Element (iSE)", "Huawei iTrustee TEE (CC EAL5+)")
-                    }
-
-                    // 10. Vivo / iQOO
-                    manufacturer.contains("vivo") || brand.contains("vivo") || brand.contains("iqoo") -> {
-                        Pair("Vivo Dual-Security Hardware Core", "OriginOS / Funtouch OS Secure TEE")
-                    }
-
-                    // 11. ASUS (ROG / Zenfone)
-                    manufacturer.contains("asus") || brand.contains("asus") || brand.contains("rog") -> {
-                        Pair("ASUS ROG Hardware Security Engine", "ASUS Secure Execution TEE")
-                    }
-
-                    // 12. ZTE / Nubia / RedMagic
-                    manufacturer.contains("zte") || brand.contains("zte") || brand.contains("nubia") || brand.contains("redmagic") -> {
-                        Pair("RedMagic Dedicated Hardware Security Core", "Nubia Secure Execution TEE")
-                    }
-
-                    // 13. Fairphone
-                    manufacturer.contains("fairphone") || brand.contains("fairphone") -> {
-                        Pair("Fairphone StrongBox KeyMint Module", "Fairphone ARM TrustZone TEE")
-                    }
-
-                    // 14. Nokia / HMD Global
-                    manufacturer.contains("hmd") || brand.contains("hmd") || brand.contains("nokia") -> {
-                        Pair("HMD Global Hardware StrongBox Keystore", "Nokia ARM TrustZone TEE")
-                    }
-
-                    // 15. Transsion Group (Infinix / Tecno / itel)
-                    manufacturer.contains("transsion") || brand.contains("infinix") || brand.contains("tecno") || brand.contains("itel") -> {
-                        Pair("Transsion Hardware Security Module", "HiOS / XOS Secure TEE")
-                    }
-
-                    // 16. Meizu
-                    manufacturer.contains("meizu") || brand.contains("meizu") -> {
-                        Pair("Flyme All-Scenario Security Core", "Flyme Secure TEE")
-                    }
-
-                    // 17. TCL / Alcatel
-                    manufacturer.contains("tcl") || brand.contains("tcl") || brand.contains("alcatel") -> {
-                        Pair("TCL Hardware Security Module", "TCL ARM TrustZone TEE")
-                    }
-
-                    // 18. Sharp Aquos
-                    manufacturer.contains("sharp") || brand.contains("sharp") -> {
-                        Pair("Sharp Aquos Hardware Security Engine", "Sharp Secure Execution TEE")
-                    }
-
-                    // 19. Kyocera
-                    manufacturer.contains("kyocera") || brand.contains("kyocera") -> {
-                        Pair("Kyocera Rugged Hardware Security Core", "Kyocera Secure TEE")
-                    }
-
-                    // 20. HTC
-                    manufacturer.contains("htc") || brand.contains("htc") -> {
-                        Pair("HTC Hardware Security Module", "HTC ARM TrustZone TEE")
-                    }
-
-                    // 21. LG Electronics
-                    manufacturer.contains("lge") || brand.contains("lge") || brand.contains("lg") -> {
-                        Pair("LG Gatekeeper Hardware Keystore", "LG ARM TrustZone TEE")
-                    }
-
-                    // 22. SoC Architectures
-                    socModel.contains("snapdragon") || hardware.contains("qcom") || board.contains("qcom") || manufacturer.contains("qualcomm") -> {
-                        Pair("Qualcomm SPU (Secure Processing Unit)", "Qualcomm Secure Execution Environment (QTEE)")
-                    }
-                    socModel.contains("dimensity") || socModel.contains("helio") || hardware.contains("mt") || manufacturer.contains("mediatek") -> {
-                        Pair("MediaTek MTEE StrongBox Coprocessor", "MediaTek Micro-TEE (MTEE)")
-                    }
-                    socModel.contains("unisoc") || hardware.contains("unisoc") || hardware.contains("sprd") -> {
-                        Pair("UNISOC Secure Processing Core", "UNISOC Secure TEE")
-                    }
-
-                    // 23. Universal Android Ready SE / KeyMint Hardware Fallback
-                    else -> {
-                        Pair("Android Ready SE / KeyMint StrongBox", "ARM TrustZone TEE Keystore")
-                    }
-                }
-
-                when (hardwareLevel) {
-                    com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> {
-                        Pair(
-                            "$chipName Hardware Secured",
-                            "Your cryptographic keys and sensitive tokens are protected by $chipName isolated discrete hardware coprocessor (StrongBox KeyMint HAL with EAL4+/EAL6+ tamper resistance and AES-256 GCM Envelope Encryption)."
-                        )
-                    }
-                    com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE -> {
-                        Pair(
-                            "$teeName Hardware Secured",
-                            "Your cryptographic keys are protected by the $teeName (TrustZone Secure Keystore Module)."
-                        )
-                    }
-                    com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.SOFTWARE -> {
-                        Pair(
-                            "Software Encryption",
-                            "Cryptographic keys are stored using Android KeyStore software backing."
-                        )
-                    }
-                }
+            val hardwareInfo = remember(hardwareLevel) {
+                com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detectSecurityHardware(context, hardwareLevel)
             }
 
             AlertDialog(
@@ -2119,7 +1928,7 @@ fun MainSettingsScreen(
                                                 modifier = Modifier.size(26.dp)
                                             )
                                             Text(
-                                                text = securityTitle,
+                                                text = hardwareInfo.title,
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -2127,7 +1936,7 @@ fun MainSettingsScreen(
                                         }
                                     }
                                     Text(
-                                        text = securityDescription,
+                                        text = hardwareInfo.description,
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
@@ -2140,6 +1949,29 @@ fun MainSettingsScreen(
                                             modifier = Modifier.padding(12.dp),
                                             verticalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
+                                            Text(
+                                                text = "Device: ${hardwareInfo.deviceDisplayName}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "Hardware Security: ${hardwareInfo.chipName}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = "TEE Architecture: ${hardwareInfo.teeName}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Text(
+                                                text = "SoC Platform: ${hardwareInfo.socDisplayName}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
                                             Text(
                                                 text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): " + if (attestationResult.isHardwareAttested) "Verified ✓" else "Attested",
                                                 style = MaterialTheme.typography.bodySmall,
@@ -8780,8 +8612,10 @@ fun BackupRestoreScreen(
     var passphrase by remember { mutableStateOf("") }
     var passphraseVisible by remember { mutableStateOf(false) }
     var isPassphraseSavedOnChip by remember { mutableStateOf(false) }
+    val hardwareInfo = remember { com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context) }
     var showRestorePassphraseDialog by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingEnvelope by remember { mutableStateOf<com.pixel.intelligentsearch.core.backup.EncryptedBackupEnvelope?>(null) }
     var dialogPassphrase by remember { mutableStateOf("") }
     var dialogPassphraseVisible by remember { mutableStateOf(false) }
     var dialogErrorMessage by remember { mutableStateOf<String?>(null) }
@@ -8859,6 +8693,7 @@ fun BackupRestoreScreen(
             }
 
             val envelope = inspectResult.getOrNull()
+            pendingEnvelope = envelope
             val needsPass = envelope?.kdf != null
             if (needsPass) {
                 val effectivePass = passphrase.ifBlank { viewModel.getSavedPassphraseFromSecurityChip() ?: "" }
@@ -8896,6 +8731,34 @@ fun BackupRestoreScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    pendingEnvelope?.let { env ->
+                        if (!env.hardwareChip.isNullOrBlank() || !env.deviceModel.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(8.dp)) {
+                                    if (!env.hardwareChip.isNullOrBlank()) {
+                                        Text(
+                                            "Security Chip: ${env.hardwareChip}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    if (!env.deviceModel.isNullOrBlank()) {
+                                        Text(
+                                            "Device: ${env.deviceModel}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     if (dialogErrorMessage != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -9078,9 +8941,9 @@ fun BackupRestoreScreen(
                                 if (saved) {
                                     isPassphraseSavedOnChip = true
                                     hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
-                                    safeShowToast("Passphrase saved to device security chip")
+                                    safeShowToast("Passphrase saved to ${hardwareInfo.shortChipName}")
                                 } else {
-                                    safeShowToast("Failed to save to security chip")
+                                    safeShowToast("Failed to save to ${hardwareInfo.shortChipName}")
                                 }
                             } else {
                                 safeShowToast("Enter a passphrase first")
@@ -9097,7 +8960,7 @@ fun BackupRestoreScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            if (isPassphraseSavedOnChip) "Passphrase Saved" else "Save to Security Chip",
+                            if (isPassphraseSavedOnChip) "Saved to ${hardwareInfo.shortChipName}" else "Save to ${hardwareInfo.shortChipName}",
                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
@@ -9110,7 +8973,7 @@ fun BackupRestoreScreen(
                                 viewModel?.clearSavedPassphraseFromSecurityChip()
                                 isPassphraseSavedOnChip = false
                                 hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
-                                safeShowToast("Passphrase removed from security chip")
+                                safeShowToast("Passphrase removed from ${hardwareInfo.shortChipName}")
                             },
                             shape = RoundedCornerShape(percent = 50)
                         ) {
@@ -9138,7 +9001,7 @@ fun BackupRestoreScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            "Secured with Hardware KeyStore (StrongBox / Titan M2)",
+                            "Secured with ${hardwareInfo.chipName} (${hardwareInfo.deviceDisplayName})",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex

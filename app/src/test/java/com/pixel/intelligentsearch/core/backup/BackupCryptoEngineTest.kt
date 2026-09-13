@@ -89,4 +89,23 @@ class BackupCryptoEngineTest {
 
         assertArrayEquals(key1.encoded, key2.encoded)
     }
+
+    @Test
+    fun testHardwareBackedEnvelopeMetadata() {
+        val envelope = EncryptedBackupEnvelope(
+            isHardwareBacked = true,
+            hardwareChip = "Google Titan M3",
+            deviceModel = "Google Pixel 11 Pro XL",
+            kdf = KdfMetadata(saltBase64 = "dGVzdFNhbHQ="),
+            cipher = CipherMetadata(ivBase64 = "dGVzdElWMTIzNA=="),
+            encryptedPayloadBase64 = "ZW5jcnlwdGVkRGF0YQ==",
+            payloadSha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        )
+
+        assertTrue(envelope.isHardwareBacked)
+        assertEquals("Google Titan M3", envelope.hardwareChip)
+        assertEquals("Google Pixel 11 Pro XL", envelope.deviceModel)
+        assertEquals("INTELLIGENT_SEARCH_ENCRYPTED_BACKUP", envelope.format)
+        assertEquals(1, envelope.schemaVersion)
+    }
 }

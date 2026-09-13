@@ -3,10 +3,17 @@ import com.pixel.intelligentsearch.feature.settings.tutorialTarget
 import android.app.SearchManager
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
+import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
 import com.pixel.intelligentsearch.feature.settings.TutorialSpotlightOverlay
 import com.pixel.intelligentsearch.feature.settings.TutorialManager
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
 import com.pixel.intelligentsearch.feature.settings.performClickHaptic
+import com.pixel.intelligentsearch.core.haptics.TactileSonicEngine
+import com.pixel.intelligentsearch.core.haptics.PixelHapticType
+import com.pixel.intelligentsearch.core.haptics.rememberTactileSonicEngine
+import com.pixel.intelligentsearch.core.haptics.rememberScrollDetentController
+import com.pixel.intelligentsearch.core.haptics.rememberMagneticDismissController
+import androidx.compose.foundation.lazy.rememberLazyListState
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.AppItem
@@ -18,6 +25,8 @@ import android.os.Build
 import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
+import androidx.activity.BackEventCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.speech.RecognizerIntent
@@ -29,8 +38,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -55,6 +67,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -80,6 +93,14 @@ import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.feature.settings.SettingsActivity
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
+import com.pixel.intelligentsearch.core.ui.MathResultOneBox
+import com.pixel.intelligentsearch.core.ui.ConversionOneBox
+import com.pixel.intelligentsearch.core.ui.DictionaryOneBox
+import com.pixel.intelligentsearch.core.ui.UrlNavigationOneBox
+import com.pixel.intelligentsearch.core.ui.TimeWeatherOneBox
+
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -106,6 +127,9 @@ fun AppGridItem(app: AppItem, onClick: () -> Unit) {
         }
     }
     val appIcon = appIconState.value
+    val fallbackBitmap = remember(app.packageName) {
+        runCatching { app.icon.toBitmap().asImageBitmap() }.getOrNull()
+    }
 
     Column(
         modifier = Modifier
@@ -121,9 +145,9 @@ fun AppGridItem(app: AppItem, onClick: () -> Unit) {
                 modifier = Modifier.size(48.dp),
                 colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
             )
-        } else {
+        } else if (fallbackBitmap != null) {
             Image(
-                bitmap = app.icon.toBitmap().asImageBitmap(),
+                bitmap = fallbackBitmap,
                 contentDescription = app.name,
                 modifier = Modifier.size(48.dp)
             )
@@ -196,24 +220,29 @@ fun ShortcutRow(iconRes: Int, title: String, onClick: () -> Unit) {
 data class AppIconResult(val bitmap: androidx.compose.ui.graphics.ImageBitmap, val isMonochrome: Boolean)
 
 private val themedIconCache = android.util.LruCache<String, AppIconResult>(256)
+private var cachedActivePack: String? = null
 
 fun clearThemedIconCache() {
+    cachedActivePack = null
     themedIconCache.evictAll()
+    com.pixel.intelligentsearch.core.util.MaterialOutlineManager.clearCache()
 }
 
 fun peekThemedAppIcon(packageName: String, activePackOverride: String? = null): AppIconResult? {
-    val activePack = activePackOverride ?: "system_default"
+    val activePack = activePackOverride ?: cachedActivePack ?: "system_default"
     return themedIconCache.get("$activePack:$packageName")
 }
 
 fun getThemedAppIcon(context: Context, packageName: String, activePackOverride: String? = null): AppIconResult? {
     try {
-        val activePack = activePackOverride ?: run {
+        val activePack = activePackOverride ?: cachedActivePack ?: run {
             val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
             val p = prefs.getString("active_icon_pack", null)
-            if (p != null) p else {
+            val resolved = if (p != null) p else {
                 context.getSharedPreferences("intelligent_search_settings", Context.MODE_PRIVATE).getString("active_icon_pack", "system_default") ?: "system_default"
             }
+            cachedActivePack = resolved
+            resolved
         }
         val cacheKey = "$activePack:$packageName"
         val cached = themedIconCache.get(cacheKey)
@@ -259,6 +288,22 @@ fun getThemedAppIcon(context: Context, packageName: String, activePackOverride: 
             }
         }
 
+        if (activePack == "system_default") {
+            val appLabel = try {
+                val info = pm.getApplicationInfo(packageName, 0)
+                pm.getApplicationLabel(info).toString()
+            } catch (e: Exception) { null }
+
+            val outlineBitmap = com.pixel.intelligentsearch.core.util.MaterialOutlineManager.getMaterialOutlineIcon(
+                context, packageName, appLabel, icon
+            )
+            if (outlineBitmap != null) {
+                val res = AppIconResult(outlineBitmap.asImageBitmap(), isMonochrome = true)
+                themedIconCache.put(cacheKey, res)
+                return res
+            }
+        }
+
         val res = AppIconResult(drawableToBitmap(icon).asImageBitmap(), isMonochrome = false)
         themedIconCache.put(cacheKey, res)
         return res
@@ -284,12 +329,27 @@ fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: S
     val iconSize = (18 * scale).dp
     val textSize = (14 * scale).sp
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val cornerRadius by animateDpAsState(
+        targetValue = if (isPressed) 12.dp else 24.dp,
+        animationSpec = ExpressiveMotionTokens.morphSpring(),
+        label = "pill_corner_morph"
+    )
+
+    val shape = remember(cornerRadius) { RoundedCornerShape(cornerRadius) }
+
     Row(
         modifier = Modifier
             .padding(end = (8 * scale).dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(percent = 50))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(percent = 50))
-            .bouncyClickable(onClick = onClick)
+            .graphicsLayer {
+                this.shape = shape
+                clip = true
+            }
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isPressed) 0.65f else 0.4f), shape)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = if (isPressed) 0.35f else 0.15f), shape)
+            .bouncyClickable(interactionSource = interactionSource, onClick = onClick)
             .padding(horizontal = hPadding, vertical = vPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -317,11 +377,15 @@ fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: S
 @Suppress("DEPRECATION")
 private fun finishWithoutTransition(activity: android.app.Activity?) {
     if (activity != null && !activity.isFinishing) {
-        activity.finish()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            activity.overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
-        } else {
-            activity.overridePendingTransition(0, 0)
+        val moved = activity.moveTaskToBack(true)
+        if (!moved) {
+            activity.finish()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                activity.overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
+            } else {
+                @Suppress("DEPRECATION")
+                activity.overridePendingTransition(0, 0)
+            }
         }
     }
 }
@@ -357,6 +421,44 @@ fun SearchOverlayScreen(
     val settingsState by settingsViewModel.settingsState.collectAsStateWithLifecycle()
     
     val prefs = remember(context) { context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE) }
+    val suggestionsEnabled = remember(prefs) { prefs.getBoolean("search.web.suggestions", true) }
+    val searchProviderName = remember(settingsState.searchEngine, settingsState.customSearchEngineUrl) {
+        when (settingsState.searchEngine) {
+            "DuckDuckGo" -> "DuckDuckGo"
+            "Bing" -> "Bing"
+            "Google" -> "Google"
+            "Custom" -> {
+                if (settingsState.customSearchEngineUrl.isNotBlank()) {
+                    try {
+                        val host = Uri.parse(
+                            if (settingsState.customSearchEngineUrl.startsWith("http")) settingsState.customSearchEngineUrl 
+                            else "https://${settingsState.customSearchEngineUrl}"
+                        ).host?.removePrefix("www.")?.substringBefore(".")?.replaceFirstChar { it.uppercase() }
+                        if (!host.isNullOrBlank()) host else "Web"
+                    } catch (e: Exception) {
+                        "Web"
+                    }
+                } else {
+                    "Web"
+                }
+            }
+            else -> if (settingsState.searchEngine.isNotBlank()) settingsState.searchEngine else "Google"
+        }
+    }
+    var hasStartedTyping by rememberSaveable { mutableStateOf(false) }
+    var textFieldValue by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(uiState.query, androidx.compose.ui.text.TextRange(uiState.query.length))) }
+
+    LaunchedEffect(uiState.query) {
+        if (uiState.query.isNotEmpty()) {
+            hasStartedTyping = true
+        }
+        if (uiState.query != textFieldValue.text) {
+            textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
+                text = uiState.query,
+                selection = androidx.compose.ui.text.TextRange(uiState.query.length)
+            )
+        }
+    }
     val transitionState = remember { MutableTransitionState(false).apply { targetState = true } }
     val isOpening = transitionState.targetState
     
@@ -365,11 +467,35 @@ fun SearchOverlayScreen(
         activity?.intent?.getBooleanExtra("FROM_BACK_SWIPE", false) == true
     }
 
+    val density = LocalDensity.current
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    val screenHeight = configuration.screenHeightDp.dp
+
     val coroutineScope = rememberCoroutineScope()
     // Animatable for the overlay expansion progress: 0f = collapsed pill, 1f = fully expanded
     val overlayProgressAnim = remember { Animatable(if (isFromBackSwipe) 1f else 0f) }
-    
-    val morphProgress = overlayProgressAnim.value.coerceIn(0f, 1f)
+    val predictiveBackProgress = remember { Animatable(0f) }
+    var predictiveBackEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
+
+    val sensoryEngine = rememberTactileSonicEngine()
+    val view = androidx.compose.ui.platform.LocalView.current
+    val searchResultsListState = rememberLazyListState()
+    rememberScrollDetentController(searchResultsListState, sensoryEngine)
+
+    val performAppLaunch: (String) -> Unit = remember(sensoryEngine, view, onLaunchApp) {
+        { packageName ->
+            hasStartedTyping = false
+            sensoryEngine.appLaunch(view)
+            onLaunchApp(packageName)
+        }
+    }
+
+    LaunchedEffect(uiState.mathResult) {
+        if (!uiState.mathResult.isNullOrBlank()) {
+            sensoryEngine.mathCalculation(view)
+        }
+    }
 
     LaunchedEffect(isOpening) {
         if (isOpening) {
@@ -377,31 +503,32 @@ fun SearchOverlayScreen(
                 overlayProgressAnim.animateTo(
                     targetValue = 1f,
                     animationSpec = spring(
-                        dampingRatio = 0.86f,
-                        stiffness = 180f
+                        dampingRatio = 0.84f,
+                        stiffness = 380f
                     )
                 )
             } else {
                 overlayProgressAnim.snapTo(1f)
             }
         } else {
+            sensoryEngine.overlayDismiss(view)
             val currentVel = overlayProgressAnim.velocity
             overlayProgressAnim.animateTo(
                 targetValue = 0f,
                 initialVelocity = currentVel,
                 animationSpec = spring(
-                    dampingRatio = 0.92f,
-                    stiffness = 250f
+                    dampingRatio = 0.88f,
+                    stiffness = 340f
                 )
             )
             val act = context.findActivity()
             finishWithoutTransition(act)
-            act?.finish()
         }
     }
-    val overlayProgress = overlayProgressAnim.value
 
     val focusRequester = remember { FocusRequester() }
+    
+
     
     val isForceTutorial = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
     var showTutorial by remember {
@@ -416,7 +543,7 @@ fun SearchOverlayScreen(
     val hapticContext = LocalContext.current
 
     val closeOverlay = {
-        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
+        hasStartedTyping = false
         keyboardController?.hide()
         viewModel.onQueryChanged("")
         if (transitionState.targetState) {
@@ -424,12 +551,11 @@ fun SearchOverlayScreen(
         } else {
             val act = context.findActivity()
             finishWithoutTransition(act)
-            act?.finish()
         }
     }
 
     val goToHomeScreen: () -> Unit = {
-        com.pixel.intelligentsearch.core.haptics.PixelHapticEngine(context).performHaptic(type = com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
+        hasStartedTyping = false
         keyboardController?.hide()
         viewModel.onQueryChanged("")
         val act = context.findActivity()
@@ -444,10 +570,21 @@ fun SearchOverlayScreen(
             e.printStackTrace()
         }
         finishWithoutTransition(act)
-        act?.finish()
     }
 
-    val launchWebSearch: (String) -> Unit = { searchQuery ->
+    val launchWebSearch: (String) -> Unit = launchWebSearch@{ searchQuery ->
+        hasStartedTyping = false
+        val bangMgr = com.pixel.intelligentsearch.core.bangs.SearchBangManager(context, com.pixel.intelligentsearch.core.data.SettingsManager(context))
+        val parsedBang = bangMgr.parseBangQuery(searchQuery)
+        if (parsedBang != null) {
+            val bangIntent = bangMgr.dispatchBangSearch(parsedBang)
+            launchSafeIntent(context, bangIntent)
+            val act = context.findActivity()
+            finishWithoutTransition(act)
+            act?.finish()
+            return@launchWebSearch
+        }
+
         val engine = settingsState.searchEngine
         val customUrl = settingsState.customSearchEngineUrl
         val encodedQuery = Uri.encode(searchQuery)
@@ -520,7 +657,6 @@ fun SearchOverlayScreen(
         if (transitionState.targetState) {
             if (!showTutorial) {
                 try {
-                    delay(220)
                     focusRequester.requestFocus()
                     keyboardController?.show()
                 } catch (e: Exception) {}
@@ -532,9 +668,11 @@ fun SearchOverlayScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
+                hasStartedTyping = false
                 keyboardController?.hide()
                 viewModel.onQueryChanged("")
             } else if (event == Lifecycle.Event.ON_RESUME) {
+                hasStartedTyping = false
                 val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
                 if (forceTut) {
                     TutorialManager.resetForForceTutorial(prefs)
@@ -545,9 +683,25 @@ fun SearchOverlayScreen(
                 
                 transitionState.targetState = true
                 viewModel.loadInitialData()
+
+                val fromBack = activity?.intent?.getBooleanExtra("FROM_BACK_SWIPE", false) == true
+                coroutineScope.launch {
+                    if (!fromBack) {
+                        overlayProgressAnim.snapTo(0f)
+                        overlayProgressAnim.animateTo(
+                            targetValue = 1f,
+                            animationSpec = spring(
+                                dampingRatio = 0.84f,
+                                stiffness = 380f
+                            )
+                        )
+                    } else {
+                        overlayProgressAnim.snapTo(1f)
+                    }
+                }
+
                 try {
                     coroutineScope.launch {
-                        delay(50)
                         focusRequester.requestFocus()
                         keyboardController?.show()
                     }
@@ -561,36 +715,77 @@ fun SearchOverlayScreen(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            hasStartedTyping = false
             viewModel.onQueryChanged("")
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
     
-    BackHandler(enabled = true) {
-        if (showTutorial) {
-            // Suppress exit during tutorial
-        } else {
+    PredictiveBackHandler(enabled = !showTutorial) { progressFlow ->
+        try {
+            var lastEmittedBackProg = 0f
+            progressFlow.collect { backEvent ->
+                predictiveBackEdge = backEvent.swipeEdge
+                predictiveBackProgress.snapTo(backEvent.progress)
+                if (backEvent.progress > 0.15f && kotlin.math.abs(backEvent.progress - lastEmittedBackProg) > 0.18f) {
+                    lastEmittedBackProg = backEvent.progress
+                    sensoryEngine.magneticResistance(view, backEvent.progress)
+                }
+            }
+            keyboardController?.hide()
+            hasStartedTyping = false
+            viewModel.onQueryChanged("")
+            sensoryEngine.springReleaseSnap(view)
             goToHomeScreen()
+        } catch (_: java.util.concurrent.CancellationException) {
+            sensoryEngine.tick(view, scale = 0.5f)
+            predictiveBackProgress.animateTo(
+                targetValue = 0f,
+                animationSpec = spring(dampingRatio = 0.85f, stiffness = 300f)
+            )
         }
     }
 
     val visibleApps = remember(uiState.filteredApps, settingsState.hiddenApps) {
-        uiState.filteredApps.filter { !settingsState.hiddenApps.contains(it.packageName) }
+        uiState.filteredApps.filter { !settingsState.hiddenApps.contains(it.packageName) }.distinctBy { it.packageName }
     }
 
-    val bestMatch = remember(uiState.query, uiState.contacts, visibleApps, uiState.files, settingsState.searchApps, settingsState.searchContacts, settingsState.searchFiles) {
+    val appWeight = remember(prefs) { prefs.getInt("search_weight_apps", 50) }
+    val webWeight = remember(prefs) { prefs.getInt("search_weight_web", 50) }
+    val contactWeight = remember(prefs) { prefs.getInt("search_weight_contacts", 50) }
+    val fileWeight = remember(prefs) { prefs.getInt("search_weight_files", 50) }
+
+    val domainMatchPriorities = remember(appWeight, contactWeight, fileWeight) {
+        listOf(
+            "contacts" to contactWeight,
+            "apps" to appWeight,
+            "files" to fileWeight
+        ).sortedByDescending { it.second }
+    }
+
+    val bestMatch = remember(uiState.query, uiState.contacts, visibleApps, uiState.files, settingsState.searchApps, settingsState.searchContacts, settingsState.searchFiles, domainMatchPriorities) {
         if (uiState.query.isEmpty()) return@remember null
-        if (settingsState.searchContacts) {
-            val contactMatch = uiState.contacts.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
-            if (contactMatch != null) return@remember contactMatch
-        }
-        if (settingsState.searchApps) {
-            val appMatch = visibleApps.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
-            if (appMatch != null) return@remember appMatch
-        }
-        if (settingsState.searchFiles) {
-            val fileMatch = uiState.files.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
-            if (fileMatch != null) return@remember fileMatch
+        for ((domain, _) in domainMatchPriorities) {
+            when (domain) {
+                "contacts" -> {
+                    if (settingsState.searchContacts) {
+                        val contactMatch = uiState.contacts.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
+                        if (contactMatch != null) return@remember contactMatch
+                    }
+                }
+                "apps" -> {
+                    if (settingsState.searchApps) {
+                        val appMatch = visibleApps.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
+                        if (appMatch != null) return@remember appMatch
+                    }
+                }
+                "files" -> {
+                    if (settingsState.searchFiles) {
+                        val fileMatch = uiState.files.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
+                        if (fileMatch != null) return@remember fileMatch
+                    }
+                }
+            }
         }
         null
     }
@@ -676,99 +871,151 @@ fun SearchOverlayScreen(
                         ),
                         RoundedCornerShape(percent = 50)
                     )
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.ic_search_ai_colored),
+                    painter = painterResource(id = R.drawable.ic_search_lens_expressive),
                     contentDescription = "Google",
                     modifier = Modifier.size(28.dp)
                 )
                 Spacer(modifier = Modifier.width(16.dp))
-                androidx.compose.foundation.text.BasicTextField(
-                    value = uiState.query,
-                    onValueChange = { newQuery ->
-                        if (newQuery == "*xy88x*") {
-                            prefs.edit().putBoolean("debug_unlocked", true).apply()
-                            viewModel.onQueryChanged("")
-                            showDebugPill = true
-                            coroutineScope.launch {
-                                delay(3000)
-                                showDebugPill = false
-                                onOpenSettings("debug")
-                                /* closeOverlay() */
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = textFieldValue,
+                        onValueChange = { newTfv ->
+                            textFieldValue = newTfv
+                            val newQuery = newTfv.text
+                            if (newQuery.isNotEmpty()) {
+                                hasStartedTyping = true
                             }
-                        } else {
-                            viewModel.onQueryChanged(newQuery)
-                        }
-                    },
-                    modifier = Modifier.weight(1f).focusRequester(focusRequester),
-                    textStyle = androidx.compose.ui.text.TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 22.sp, fontFamily = GoogleSansFlex),
-                    singleLine = true,
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
-                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
-                        keyboardController?.hide()
-                        if (uiState.query.isNotEmpty()) {
-                            viewModel.addSearchHistory(uiState.query)
-                            if (bestMatch != null) {
-                                when (bestMatch) {
-                                    is ContactItem -> {
-                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri))
-                                        launchSafeIntent(context, intent)
-                                    }
-                                    is AppItem -> {
-                                        onLaunchApp(bestMatch.packageName)
-                                    }
-                                    is FileItem -> {
-                                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                                            setDataAndType(Uri.parse(bestMatch.uri), bestMatch.mimeType)
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            setPackage("com.google.android.apps.nbu.files")
-                                        }
-                                        try {
-                                            launchSafeIntent(context, intent)
-                                        } catch (e: Exception) {
-                                            intent.setPackage(null)
-                                            launchSafeIntent(context, intent)
-                                        }
-                                    }
+                            if (newQuery == "*xy88x*") {
+                                prefs.edit().putBoolean("debug_unlocked", true).apply()
+                                viewModel.onQueryChanged("")
+                                textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
+                                showDebugPill = true
+                                coroutineScope.launch {
+                                    delay(3000)
+                                    showDebugPill = false
+                                    onOpenSettings("debug")
+                                    /* closeOverlay() */
                                 }
-                                /* closeOverlay() */
-                            } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
-                                onLaunchApp(visibleApps.first().packageName)
                             } else {
-                                launchWebSearch(uiState.query)
-                             }
-                        }
-                    }),
-                    decorationBox = { innerTextField ->
-                        Box(contentAlignment = Alignment.CenterStart) {
-                             if (uiState.query.isEmpty()) {
-                                 Text("Search...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 22.sp, fontFamily = GoogleSansFlex)
-                            } else if (bestMatchText != null && bestMatchText.startsWith(uiState.query, ignoreCase = true)) {
-                                val builder = androidx.compose.ui.text.AnnotatedString.Builder()
-                                builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent))
-                                builder.append(bestMatchText.substring(0, uiState.query.length))
-                                builder.pop()
-                                builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Gray))
-                                builder.append(bestMatchText.substring(uiState.query.length))
-                                builder.pop()
-                                Text(
-                                    text = builder.toAnnotatedString(),
-                                    fontSize = 18.sp,
-                                    fontFamily = GoogleSansFlex,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                viewModel.onQueryChanged(newQuery)
                             }
-                            innerTextField()
+                        },
+                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontFamily = GoogleSansFlex),
+                        singleLine = true,
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
+                            hasStartedTyping = false
+                            keyboardController?.hide()
+                            if (uiState.query.isNotEmpty()) {
+                                viewModel.addSearchHistory(uiState.query)
+                                if (bestMatch != null) {
+                                    when (bestMatch) {
+                                        is ContactItem -> {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri))
+                                            launchSafeIntent(context, intent)
+                                        }
+                                        is AppItem -> {
+                                            performAppLaunch(bestMatch.packageName)
+                                        }
+                                        is FileItem -> {
+                                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                setDataAndType(Uri.parse(bestMatch.uri), bestMatch.mimeType)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                setPackage("com.google.android.apps.nbu.files")
+                                            }
+                                            try {
+                                                launchSafeIntent(context, intent)
+                                            } catch (e: Exception) {
+                                                intent.setPackage(null)
+                                                launchSafeIntent(context, intent)
+                                            }
+                                        }
+                                    }
+                                    /* closeOverlay() */
+                                } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
+                                    performAppLaunch(visibleApps.first().packageName)
+                                } else {
+                                    launchWebSearch(uiState.query)
+                                 }
+                            }
+                        }),
+                        decorationBox = { innerTextField ->
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                 if (uiState.query.isEmpty()) {
+                                     Text("Search...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex)
+                                } else if (bestMatchText != null && bestMatchText.startsWith(uiState.query, ignoreCase = true)) {
+                                    val builder = androidx.compose.ui.text.AnnotatedString.Builder()
+                                    builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent))
+                                    builder.append(bestMatchText.substring(0, uiState.query.length))
+                                    builder.pop()
+                                    builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Gray))
+                                    builder.append(bestMatchText.substring(uiState.query.length))
+                                    builder.pop()
+                                    Text(
+                                        text = builder.toAnnotatedString(),
+                                        fontSize = 18.sp,
+                                        fontFamily = GoogleSansFlex,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                innerTextField()
+                            }
                         }
+                    )
+
+                    AnimatedVisibility(
+                        visible = hasStartedTyping,
+                        enter = fadeIn(ExpressiveMotionTokens.gentleSpring()) + expandVertically(ExpressiveMotionTokens.gentleSpring()),
+                        exit = fadeOut(ExpressiveMotionTokens.gentleSpring()) + shrinkVertically(ExpressiveMotionTokens.gentleSpring())
+                    ) {
+                        Text(
+                            text = searchProviderName,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.70f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Normal,
+                            fontFamily = GoogleSansFlex,
+                            maxLines = 1,
+                            modifier = Modifier.padding(top = 1.dp)
+                        )
                     }
-                )
+                }
+
+                AnimatedVisibility(
+                    visible = uiState.query.isNotEmpty() && !uiState.isLoading,
+                    enter = fadeIn(ExpressiveMotionTokens.bouncySpring()) + scaleIn(ExpressiveMotionTokens.bouncySpring()),
+                    exit = fadeOut(ExpressiveMotionTokens.gentleSpring()) + scaleOut(ExpressiveMotionTokens.gentleSpring())
+                ) {
+                    IconButton(
+                        onClick = { viewModel.onQueryChanged("") },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .bouncyClickable { viewModel.onQueryChanged("") }
+                            .padding(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
 
                 IconButton(
-                    onClick = { onOpenSettings("main") },
+                    onClick = { 
+                        hasStartedTyping = false
+                        onOpenSettings("main") 
+                    },
                     modifier = Modifier
                         .size(48.dp)
                         .zIndex(if (showTutorial) 10000f else 0f)
@@ -778,6 +1025,51 @@ fun SearchOverlayScreen(
                     Icon(Icons.Default.MoreVert, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+
+            AnimatedVisibility(
+                visible = uiState.bangSuggestions.isNotEmpty(),
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(uiState.bangSuggestions, key = { bang -> "bang_${bang.prefix}" }) { bang ->
+                        AssistChip(
+                            onClick = {
+                                val currentQ = uiState.query
+                                val bangTrigger = if (bang.prefix.isNotEmpty() && !bang.prefix[0].isLetterOrDigit()) {
+                                    bang.prefix[0].toString()
+                                } else {
+                                    "!"
+                                }
+                                val newQ = if (currentQ.startsWith(bangTrigger)) {
+                                    "${bang.prefix} "
+                                } else if (currentQ.contains(bangTrigger)) {
+                                    "${currentQ.substringBeforeLast(bangTrigger)}${bang.prefix} "
+                                } else {
+                                    "${bang.prefix} "
+                                }
+                                textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
+                                    text = newQ,
+                                    selection = androidx.compose.ui.text.TextRange(newQ.length)
+                                )
+                                viewModel.onQueryChanged(newQ)
+                            },
+                            label = { Text("${bang.prefix} ${bang.name}", fontSize = 12.sp, fontFamily = GoogleSansFlex) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            border = null,
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -785,20 +1077,23 @@ fun SearchOverlayScreen(
 
     val quickAppPanelContent = @Composable {
         if (settingsState.quickSearchHorizontal) {
+            val pillPackages = remember(settingsState.contextAwareQuickApps, settingsState.searchPills, settingsState.shortcutResultsCount, uiState.recentApps) {
+                val raw = if (settingsState.contextAwareQuickApps) {
+                    uiState.recentApps.map { it.packageName }
+                } else {
+                    settingsState.searchPills.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                }
+                raw.distinct().take(settingsState.shortcutResultsCount)
+            }
+            val dynamicScale = if (pillPackages.size > 6) (6f / pillPackages.size.toFloat()).coerceIn(0.6f, 1f) else 1f
             LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 12.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                                            val pillPackages = if (settingsState.contextAwareQuickApps) {
-                        uiState.recentApps.take(settingsState.shortcutResultsCount).map { it.packageName }
-                    } else {
-                        settingsState.searchPills.split(",").filter { it.isNotBlank() }.take(settingsState.shortcutResultsCount)
-                    }
-                        val dynamicScale = if (pillPackages.size > 6) (6f / pillPackages.size.toFloat()).coerceIn(0.6f, 1f) else 1f
-                        items(pillPackages, key = { it }) { packageName ->
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(pillPackages, key = { pkg -> "pill_$pkg" }) { packageName ->
                             val appIconState = remember(packageName, settingsState.activeIconPack) { mutableStateOf<AppIconResult?>(null) }
                             val appNameState = remember(packageName) { mutableStateOf("App") }
                             LaunchedEffect(packageName, settingsState.activeIconPack) {
@@ -817,7 +1112,7 @@ fun SearchOverlayScreen(
                                     
                                     val searchStr = uiState.query
                                     if (searchStr.isEmpty()) {
-                                        onLaunchApp(packageName)
+                                        performAppLaunch(packageName)
                                     } else {
                                         val intent = when (packageName) {
                                             "com.android.chrome" -> {
@@ -855,6 +1150,7 @@ fun SearchOverlayScreen(
                                              }
                                         }
                                         if (intent != null) {
+                                            hasStartedTyping = false
                                             launchSafeIntent(context, intent)
                                             val act = context.findActivity()
                                             finishWithoutTransition(act)
@@ -869,18 +1165,93 @@ fun SearchOverlayScreen(
     }
 
     val searchResultsContent = @Composable {
+        val sortedResultSections = remember(appWeight, webWeight, contactWeight, fileWeight) {
+            listOf(
+                "apps" to appWeight,
+                "web" to webWeight,
+                "contacts" to contactWeight,
+                "files" to fileWeight
+            ).sortedByDescending { it.second }.map { it.first }
+        }
+        val matchingRecent = remember(uiState.query, uiState.recentSearches, settingsState.searchPreviousSearches) {
+            val trimmed = uiState.query.trim()
+            if (!settingsState.searchPreviousSearches || trimmed.isEmpty()) {
+                emptyList()
+            } else {
+                uiState.recentSearches
+                    .filter { it.contains(trimmed, ignoreCase = true) }
+                    .distinct()
+            }
+        }
+        val allDisplaySuggestions = remember(matchingRecent, uiState.webSuggestions, settingsState.webResultsCount) {
+            val maxCount = settingsState.webResultsCount.coerceAtLeast(6)
+            val nonRecentWeb = uiState.webSuggestions.filter { webSugg ->
+                matchingRecent.none { it.equals(webSugg, ignoreCase = true) }
+            }
+            (matchingRecent + nonRecentWeb).distinct().take(maxCount)
+        }
+
+        val isBottomResults = settingsState.bottomSearch && settingsState.bottomSearchResult
+
         LazyColumn(
+            state = searchResultsListState,
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .animateContentSize(animationSpec = tween(180, easing = androidx.compose.animation.core.FastOutSlowInEasing)),
+                .statusBarsPadding(),
             contentPadding = PaddingValues(
-                top = if (settingsState.bottomSearch && settingsState.bottomSearchResult) 72.dp else 8.dp,
+                top = 8.dp,
                 bottom = 8.dp
             ),
-            reverseLayout = if (!settingsState.bottomSearch) false else settingsState.bottomSearchResult,
-            verticalArrangement = if (settingsState.bottomSearch) Arrangement.Bottom else Arrangement.Top
+            reverseLayout = false,
+            verticalArrangement = if (isBottomResults) Arrangement.Bottom else Arrangement.Top
         ) {
+            val showApps = true
+            val showWeb = true
+            val showPeople = true
+            val showFiles = true
+
+            val renderInlineShortcuts = {
+                if (settingsState.shortcutInline && uiState.query.isNotEmpty()) {
+                    item(key = "inline_shortcuts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                    item(key = "lens_shortcut") {
+                        ShortcutRow(
+                            iconRes = R.drawable.ic_camera,
+                            title = "Search with Google Lens",
+                            onClick = {
+                                hasStartedTyping = false
+                                val intent = SearchWidgetProvider.getLensSearchIntent(context)
+                                launchSafeIntent(context, intent)
+                            }
+                        )
+                    }
+                    item(key = "voice_shortcut") {
+                        ShortcutRow(
+                            iconRes = R.drawable.ic_mic,
+                            title = "Search with Voice",
+                            onClick = {
+                                hasStartedTyping = false
+                                val intent = SearchWidgetProvider.getVoiceSearchIntent(context)
+                                launchSafeIntent(context, intent)
+                            }
+                        )
+                    }
+                    item(key = "assistant_shortcut") {
+                        ShortcutRow(
+                            iconRes = R.drawable.ic_lens_action,
+                            title = "Digital Assistant",
+                            onClick = {
+                                hasStartedTyping = false
+                                val intent = SearchWidgetProvider.getVoiceActionIntent(context)
+                                launchSafeIntent(context, intent)
+                            }
+                        )
+                    }
+                }
+            }
+
+            if (isBottomResults) {
+                renderInlineShortcuts()
+            }
 
             val systemToggle = uiState.systemToggle
             if (systemToggle != null) {
@@ -893,7 +1264,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.smartClipboardSuggestions && uiState.directActions.isNotEmpty()) {
-                itemsIndexed(uiState.directActions, key = { index, action -> "direct_action_${action.title}_$index" }) { _, action ->
+                items(uiState.directActions, key = { action -> "direct_action_${action.title}_${action.subtitle}" }) { action ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -902,6 +1273,7 @@ fun SearchOverlayScreen(
 
                     LaunchedEffect(dismissed) {
                         if (dismissed) {
+                            sensoryEngine.deleteThud(view)
                             launch {
                                 offsetX.animateTo(
                                     targetValue = dismissDirection * 1500f,
@@ -943,7 +1315,6 @@ fun SearchOverlayScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 4.dp)
-                                .graphicsLayer { translationX = offsetX.value }
                                 .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f), RoundedCornerShape(32.dp))
                                 .clip(RoundedCornerShape(32.dp))
                                 .pointerInput(action) {
@@ -977,6 +1348,7 @@ fun SearchOverlayScreen(
                                     )
                                 }
                                 .bouncyClickable {
+                                    hasStartedTyping = false
                                     action.intent?.let { intent ->
                                         launchSafeIntent(context, intent)
                                     }
@@ -1038,6 +1410,7 @@ fun SearchOverlayScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .bouncyClickable {
+                                        hasStartedTyping = false
                                         val intent = if (settingsState.contactDirectCall) {
                                             Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                         } else {
@@ -1066,14 +1439,17 @@ fun SearchOverlayScreen(
                                     appIconState.value = icon
                                 }
                             }
-                            val appIcon = appIconState.value
+                            val fallbackBitmap = remember(match.packageName) {
+                                runCatching { match.icon.toBitmap().asImageBitmap() }.getOrNull()
+                            }
 
                             Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                                 Column {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth().bouncyClickable { onLaunchApp(match.packageName) },
+                                        modifier = Modifier.fillMaxWidth().bouncyClickable { performAppLaunch(match.packageName) },
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        val appIcon = appIconState.value
                                         if (appIcon != null) {
                                             Image(
                                                 bitmap = appIcon.bitmap,
@@ -1081,8 +1457,8 @@ fun SearchOverlayScreen(
                                                 modifier = Modifier.size(48.dp),
                                                 colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
                                             )
-                                        } else {
-                                            Image(bitmap = match.icon.toBitmap().asImageBitmap(), contentDescription = null, modifier = Modifier.size(48.dp))
+                                        } else if (fallbackBitmap != null) {
+                                            Image(bitmap = fallbackBitmap, contentDescription = null, modifier = Modifier.size(48.dp))
                                         }
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Column {
@@ -1099,6 +1475,7 @@ fun SearchOverlayScreen(
                                             match.actions.forEach { action ->
                                                 AssistChip(
                                                     onClick = {
+                                                        hasStartedTyping = false
                                                         val intent = Intent(action.action)
                                                         if (action.dataUri != null) intent.data = android.net.Uri.parse(action.dataUri)
                                                         intent.setPackage(match.packageName)
@@ -1125,6 +1502,7 @@ fun SearchOverlayScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .bouncyClickable {
+                                        hasStartedTyping = false
                                         val intent = Intent(Intent.ACTION_VIEW).apply {
                                             setDataAndType(Uri.parse(match.uri), match.mimeType)
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -1173,7 +1551,7 @@ fun SearchOverlayScreen(
                         )
                     }
                 }
-                items(uiState.recentSearches, key = { "recent_$it" }) { recentQuery ->
+                items(uiState.recentSearches.distinct(), key = { query -> "recent_$query" }) { recentQuery ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1182,6 +1560,7 @@ fun SearchOverlayScreen(
 
                     LaunchedEffect(dismissed) {
                         if (dismissed) {
+                            sensoryEngine.deleteThud(view)
                             launch {
                                 offsetX.animateTo(
                                     targetValue = dismissDirection * 1500f,
@@ -1302,15 +1681,33 @@ fun SearchOverlayScreen(
                                     color = MaterialTheme.colorScheme.onSurface,
                                     fontSize = 15.sp,
                                     fontFamily = GoogleSansFlex,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
-                                Spacer(modifier = Modifier.weight(1f))
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                IconButton(
+                                    onClick = { viewModel.removeSearchHistory(recentQuery) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remove",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { viewModel.onQueryChanged(recentQuery) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.NorthWest,
+                                        contentDescription = "Insert query",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -1318,7 +1715,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
-                items(uiState.calendarEvents, key = { "event_${it.title}_${it.startTime}" }) { event ->
+                items(uiState.calendarEvents, key = { event -> "event_${event.title}_${event.startTime}" }) { event ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1327,6 +1724,7 @@ fun SearchOverlayScreen(
 
                     LaunchedEffect(dismissed) {
                         if (dismissed) {
+                            sensoryEngine.deleteThud(view)
                             launch {
                                 offsetX.animateTo(
                                     targetValue = dismissDirection * 1500f,
@@ -1359,7 +1757,6 @@ fun SearchOverlayScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .graphicsLayer { translationX = offsetX.value }
                                 .pointerInput(event) {
                                     detectHorizontalDragGestures(
                                         onHorizontalDrag = { change, dragAmount ->
@@ -1408,9 +1805,9 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchShortcuts && uiState.shortcuts.isNotEmpty()) {
-                items(uiState.shortcuts, key = { "shortcut_${it.id}" }) { shortcut ->
+                items(uiState.shortcuts, key = { shortcut -> "shortcut_${shortcut.packageName}_${shortcut.id}" }) { shortcut ->
                     Row(
-                        modifier = Modifier.fillMaxWidth().bouncyClickable {
+                        modifier = Modifier.fillMaxWidth().expressiveRowClickable {
                             val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? android.content.pm.LauncherApps
                             try {
                                 launcherApps?.startShortcut(shortcut.packageName, shortcut.id, null, null, android.os.Process.myUserHandle())
@@ -1427,231 +1824,276 @@ fun SearchOverlayScreen(
                 item(key = "shortcuts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
-            if (settingsState.searchWeb) {
-                if (uiState.webSuggestions.isNotEmpty()) {
-                    items(uiState.webSuggestions.take(settingsState.webResultsCount), key = { "web_suggest_$it" }) { suggestion ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .animateItem(
-                                    placementSpec = androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
-                                    fadeInSpec = androidx.compose.animation.core.tween(150),
-                                    fadeOutSpec = androidx.compose.animation.core.tween(150)
-                                )
-                                .padding(horizontal = 16.dp, vertical = 4.dp)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(32.dp))
-                                .clip(RoundedCornerShape(32.dp))
-                                .bouncyClickable {
-                                    viewModel.onQueryChanged(suggestion)
-                                    launchWebSearch(suggestion)
-                                }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Text(text = suggestion, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp, fontFamily = GoogleSansFlex)
-                            Spacer(modifier = Modifier.weight(1f))
-                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
-            }
-
             if (uiState.mathResult != null) {
                 item(key = "math_result") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(imageVector = Icons.Default.Calculate, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(text = uiState.mathResult ?: "", color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = GoogleSansFlex)
-                    }
+                    MathResultOneBox(
+                        expression = uiState.query,
+                        result = uiState.mathResult ?: "",
+                        onOpenCalculator = {
+                            hasStartedTyping = false
+                            try {
+                                val calcIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR)
+                                launchSafeIntent(context, calcIntent)
+                            } catch (_: Exception) {}
+                        }
+                    )
                 }
-                item(key = "math_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             val instantAnswer = uiState.instantAnswer
             if (instantAnswer != null) {
                 item(key = "instant_answer") {
-                    val icon = when (instantAnswer.iconType) {
-                        "weather" -> Icons.Default.WbSunny
-                        "time" -> Icons.Default.AccessTime
-                        "conversion" -> Icons.Default.SyncAlt
-                        else -> Icons.Default.Info
-                    }
-                    val tint = when (instantAnswer.iconType) {
-                        "weather" -> Color(0xFFFFD54F)
-                        "time" -> Color(0xFF64B5F6)
-                        "conversion" -> MaterialTheme.colorScheme.primary
-                        else -> MaterialTheme.colorScheme.onSurface
-                    }
-                    
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .clip(RoundedCornerShape(32.dp))
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f), RoundedCornerShape(32.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainer)
-                            .padding(20.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(36.dp))
-                            Spacer(modifier = Modifier.width(20.dp))
-                            Column {
-                                Text(
-                                    text = instantAnswer.title,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = GoogleSansFlex
-                                )
-                                Text(
-                                    text = instantAnswer.subtitle,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 14.sp,
-                                    fontFamily = GoogleSansFlex
-                                )
-                            }
+                    when (instantAnswer.iconType) {
+                        "conversion" -> {
+                            ConversionOneBox(conversionText = instantAnswer.title)
                         }
-                    }
-                }
-            }
-            if (settingsState.searchApps && filteredApps.isNotEmpty()) {
-                item(key = "apps_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                item(key = "apps_row") {
-                    LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                        if (uiState.query.isEmpty()) {
-                            item(key = "search_settings_shortcut") {
-                                SearchSettingsItem {
-                                    val intent = Intent(context, SettingsActivity::class.java)
-                                    val options = android.app.ActivityOptions.makeCustomAnimation(
-                                        context,
-                                        R.anim.slide_in_right,
-                                        R.anim.slide_out_left
-                                    )
-                                    launchSafeIntent(context, intent, options.toBundle())
+                        "dictionary" -> {
+                            DictionaryOneBox(
+                                word = instantAnswer.title,
+                                providerName = searchProviderName,
+                                onClick = { launchWebSearch("define ${instantAnswer.title}") }
+                            )
+                        }
+                        "url" -> {
+                            UrlNavigationOneBox(
+                                url = instantAnswer.title,
+                                onClick = {
+                                    hasStartedTyping = false
+                                    val targetUrl = if (instantAnswer.title.startsWith("http://") || instantAnswer.title.startsWith("https://")) {
+                                        instantAnswer.title
+                                    } else "https://${instantAnswer.title}"
+                                    launchSafeIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
                                 }
-                            }
+                            )
                         }
-                        items(filteredApps, key = { it.packageName }) { app ->
-                            AppGridItem(app) { onLaunchApp(app.packageName) }
+                        "weather", "time" -> {
+                            TimeWeatherOneBox(
+                                title = instantAnswer.title,
+                                subtitle = instantAnswer.subtitle,
+                                iconType = instantAnswer.iconType,
+                                onClick = {
+                                    hasStartedTyping = false
+                                    if (instantAnswer.iconType == "time") {
+                                        launchSafeIntent(context, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
+                                    } else {
+                                        launchWebSearch("weather ${uiState.query}")
+                                    }
+                                }
+                            )
+                        }
+                        else -> {
+                            TimeWeatherOneBox(
+                                title = instantAnswer.title,
+                                subtitle = instantAnswer.subtitle,
+                                iconType = "info",
+                                onClick = { launchWebSearch(uiState.query) }
+                            )
                         }
                     }
                 }
             }
 
-            if (settingsState.shortcutInline && uiState.query.isNotEmpty()) {
-                item(key = "inline_shortcuts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                item(key = "lens_shortcut") {
-                    ShortcutRow(
-                        iconRes = R.drawable.ic_camera,
-                        title = "Search with Google Lens",
-                        onClick = {
-                            val intent = SearchWidgetProvider.getLensSearchIntent(context)
-                            launchSafeIntent(context, intent)
-                        }
-                    )
-                }
-                item(key = "voice_shortcut") {
-                    ShortcutRow(
-                        iconRes = R.drawable.ic_mic,
-                        title = "Search with Voice",
-                        onClick = {
-                            val intent = SearchWidgetProvider.getVoiceSearchIntent(context)
-                            launchSafeIntent(context, intent)
-                        }
-                    )
-                }
-                item(key = "gemini_shortcut") {
-                    ShortcutRow(
-                        iconRes = R.drawable.ic_gemini,
-                        title = "Ask Gemini",
-                        onClick = {
-                            val intent = SearchWidgetProvider.getGeminiSearchIntent(context)
-                            launchSafeIntent(context, intent)
-                        }
-                    )
-                }
-            }
-            
-            if (settingsState.searchContacts && filteredContacts.isNotEmpty()) {
-                item(key = "contacts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                itemsIndexed(filteredContacts, key = { index, contact -> "contact_${contact.lookupUri}_${contact.phoneNumber}_$index" }) { index, contact ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .bouncyClickable {
-                                val intent = if (settingsState.contactDirectCall) {
-                                    Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
-                                } else {
-                                    Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri))
+            for (sec in sortedResultSections) {
+                when (sec) {
+                    "apps" -> {
+                        if (showApps && settingsState.searchApps && filteredApps.isNotEmpty()) {
+                            item(key = "apps_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                            item(key = "apps_row") {
+                                LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                                    if (uiState.query.isEmpty()) {
+                                        item(key = "search_settings_shortcut") {
+                                            SearchSettingsItem {
+                                                val intent = Intent(context, SettingsActivity::class.java)
+                                                val options = android.app.ActivityOptions.makeCustomAnimation(
+                                                    context,
+                                                    R.anim.slide_in_right,
+                                                    R.anim.slide_out_left
+                                                )
+                                                launchSafeIntent(context, intent, options.toBundle())
+                                            }
+                                        }
+                                    }
+                                    items(filteredApps, key = { app -> "app_${app.packageName}" }) { app ->
+                                        AppGridItem(app) { performAppLaunch(app.packageName) }
+                                    }
                                 }
-                                launchSafeIntent(context, intent)
                             }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column {
-                            Text(contact.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
-                            Text(contact.phoneNumber, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
+                    }
+                    "web" -> {
+                        if (showWeb && (settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
+                            if (allDisplaySuggestions.isNotEmpty()) {
+                                items(allDisplaySuggestions, key = { suggestion -> "sugg_$suggestion" }) { suggestion ->
+                                    val isRecent = uiState.recentSearches.any { it.equals(suggestion, ignoreCase = true) }
+                                    val trimmed = uiState.query.trim()
+                                    val annotatedSuggestion = remember(suggestion, trimmed) {
+                                        androidx.compose.ui.text.buildAnnotatedString {
+                                            if (trimmed.isNotEmpty() && suggestion.startsWith(trimmed, ignoreCase = true)) {
+                                                append(suggestion.substring(0, trimmed.length))
+                                                withStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold)) {
+                                                    append(suggestion.substring(trimmed.length))
+                                                }
+                                            } else {
+                                                append(suggestion)
+                                            }
+                                        }
+                                    }
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .animateItem(
+                                                placementSpec = androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
+                                                fadeInSpec = androidx.compose.animation.core.tween(150),
+                                                fadeOutSpec = androidx.compose.animation.core.tween(150)
+                                            )
+                                            .padding(horizontal = 16.dp, vertical = 3.dp)
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(28.dp))
+                                            .clip(RoundedCornerShape(28.dp))
+                                            .expressiveRowClickable {
+                                                viewModel.onQueryChanged(suggestion)
+                                                viewModel.addSearchHistory(suggestion)
+                                                launchWebSearch(suggestion)
+                                            }
+                                            .padding(
+                                                start = if (isRecent) 16.dp else 20.dp,
+                                                end = 8.dp,
+                                                top = 10.dp,
+                                                bottom = 10.dp
+                                            ),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (isRecent) {
+                                            Icon(
+                                                imageVector = Icons.Default.History,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(14.dp))
+                                        }
+                                        Text(
+                                            text = annotatedSuggestion,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 16.sp,
+                                            fontFamily = GoogleSansFlex,
+                                            modifier = Modifier.weight(1f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (isRecent) {
+                                            IconButton(
+                                                onClick = { viewModel.removeSearchHistory(suggestion) },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Remove",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                hasStartedTyping = true
+                                                textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
+                                                    text = suggestion,
+                                                    selection = androidx.compose.ui.text.TextRange(suggestion.length)
+                                                )
+                                                viewModel.onQueryChanged(suggestion)
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.NorthWest,
+                                                contentDescription = "Insert query",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    "contacts" -> {
+                        if (showPeople && settingsState.searchContacts && filteredContacts.isNotEmpty()) {
+                            item(key = "contacts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                            items(filteredContacts, key = { contact -> "contact_${contact.lookupUri.ifBlank { contact.phoneNumber }}" }) { contact ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .expressiveRowClickable {
+                                            hasStartedTyping = false
+                                            val intent = if (settingsState.contactDirectCall) {
+                                                Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
+                                            } else {
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri))
+                                            }
+                                            launchSafeIntent(context, intent)
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape), contentAlignment = Alignment.Center) {
+                                        Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column {
+                                        Text(contact.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
+                                        Text(contact.phoneNumber, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    "files" -> {
+                        if (showFiles && settingsState.searchFiles && filteredFiles.isNotEmpty()) {
+                            item(key = "files_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                            items(filteredFiles, key = { file -> "file_${file.uri}" }) { file ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .expressiveRowClickable {
+                                            hasStartedTyping = false
+                                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                setDataAndType(Uri.parse(file.uri), file.mimeType)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            launchSafeIntent(context, intent)
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                                        Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(file.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(file.mimeType, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            if (settingsState.searchFiles && filteredFiles.isNotEmpty()) {
-                item(key = "files_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                itemsIndexed(filteredFiles, key = { index, file -> "file_${file.uri}_$index" }) { index, file ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .bouncyClickable {
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(Uri.parse(file.uri), file.mimeType)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                launchSafeIntent(context, intent)
-                            }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(file.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(file.mimeType, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
+            if (!isBottomResults) {
+                renderInlineShortcuts()
             }
         }
     }
 
-    val imeState = WindowInsets.ime
-    val density = LocalDensity.current
-    val imeBottom = if (isKeyboardDisabled) 0 else imeState.getBottom(density)
-    val animatedImeBottom by animateFloatAsState(
-        targetValue = imeBottom.toFloat(),
-        animationSpec = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessLow),
-        label = "imeBounce"
-    )
     val maxDragDistance = with(density) { 400.dp.toPx() } // Approx swipe distance
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(bottom = (animatedImeBottom / density.density).coerceAtLeast(0f).dp)
+            .navigationBarsPadding()
+            .then(if (!isKeyboardDisabled) Modifier.imePadding() else Modifier)
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
@@ -1668,7 +2110,6 @@ fun SearchOverlayScreen(
                                 viewModel.onQueryChanged("")
                                 val act = context.findActivity()
                                 finishWithoutTransition(act)
-                                act?.finish()
                             }
                         }
                     },
@@ -1693,25 +2134,6 @@ fun SearchOverlayScreen(
                     }
                 )
             }
-            .pointerInput(Unit) {
-                var totalHorizontalDrag = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { totalHorizontalDrag = 0f },
-                    onDragEnd = {
-                        if (kotlin.math.abs(totalHorizontalDrag) > 50f) {
-                            if (!showTutorial) {
-                                goToHomeScreen()
-                            }
-                        }
-                        totalHorizontalDrag = 0f
-                    },
-                    onDragCancel = { totalHorizontalDrag = 0f },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        totalHorizontalDrag += dragAmount
-                    }
-                )
-            }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -1720,24 +2142,31 @@ fun SearchOverlayScreen(
             },
         contentAlignment = Alignment.BottomCenter
     ) {
-        if (settingsState.showWallpaper) {
-            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = (settingsState.backgroundTransparency / 100f) * 0.7f * morphProgress)))
-        } else {
-            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f * morphProgress)))
-        }
+        val scrimColor = if (settingsState.showWallpaper) MaterialTheme.colorScheme.scrim else MaterialTheme.colorScheme.background
+        val scrimAlphaFactor = if (settingsState.showWallpaper) ((settingsState.backgroundTransparency / 100f) * 0.7f).coerceIn(0f, 1f) else 1.0f
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                    drawRect(color = scrimColor, alpha = if (settingsState.showWallpaper) scrimAlphaFactor * p else p)
+                }
+        )
 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-            if (prefs.getBoolean("matrix_animation_enabled", true)) {
-                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = morphProgress }) {
-                    AnimatedMatrixBackground()
+            if (settingsState.matrixAnimationEnabled) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = overlayProgressAnim.value.coerceIn(0f, 1f)
+                        }
+                ) {
+                    AnimatedMatrixBackground(isPaused = uiState.query.isNotBlank())
                 }
             }
             
             val surfaceAlpha = if (settingsState.showWallpaper) ((100 - settingsState.backgroundTransparency) / 100f).coerceIn(0f, 1f) else 1f
-            
-            @android.annotation.SuppressLint("UnusedBoxWithConstraintsScope", "ObsoleteSdkInt")
-            val screenHeight = LocalConfiguration.current.screenHeightDp.dp
-            val screenWidth = LocalConfiguration.current.screenWidthDp.dp
             
             val targetHeight = screenHeight - 32.dp
             val initialHeight = 56.dp
@@ -1745,35 +2174,30 @@ fun SearchOverlayScreen(
             val targetWidth = screenWidth - 32.dp
             val initialWidth = screenWidth - 64.dp
 
-            val searchBarAlpha = morphProgress
-            val quickAppPanelAlpha = (morphProgress - 0.1f).coerceIn(0f, 0.9f) / 0.9f
-            val searchResultsAlpha = (morphProgress - 0.2f).coerceIn(0f, 0.8f) / 0.8f
-
-            val searchBarOffset = (1f - searchBarAlpha) * 40f
-            val quickAppPanelOffset = (1f - quickAppPanelAlpha) * 40f
-            val searchResultsOffset = (1f - searchResultsAlpha) * 40f
-
             Box(
                 modifier = Modifier
                     .width(targetWidth)
                     .height(targetHeight)
                     .padding(bottom = 16.dp)
                     .graphicsLayer {
-                        val progress = morphProgress.coerceIn(0.001f, 1f)
-                        val currentW = initialWidth.toPx() + (targetWidth.toPx() - initialWidth.toPx()) * progress
-                        val currentH = initialHeight.toPx() + (targetHeight.toPx() - initialHeight.toPx()) * progress
-                        
-                        scaleX = currentW / targetWidth.toPx()
-                        scaleY = currentH / targetHeight.toPx()
-                        transformOrigin = TransformOrigin(0.5f, 1.0f)
-                        alpha = progress
+                        val progress = overlayProgressAnim.value.coerceIn(0.001f, 1f)
+                        val backProg = predictiveBackProgress.value.coerceIn(0f, 1f)
+                        val predictiveScale = 1f - (backProg * 0.08f)
+
+                        scaleX = predictiveScale
+                        scaleY = predictiveScale
+
+                        translationX = 0f
+
+                        transformOrigin = TransformOrigin(0.5f, 0.5f)
+                        alpha = (progress * (1f - backProg * 0.25f)).coerceIn(0f, 1f)
                     }
                     .clip(RoundedCornerShape(24.dp))
                     .then(
                         if (settingsState.bottomSearch) {
                             Modifier
                                 .background(MaterialTheme.colorScheme.surface.copy(alpha = surfaceAlpha))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = morphProgress), RoundedCornerShape(24.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp))
                         } else {
                             Modifier.background(Color.Transparent)
                         }
@@ -1785,18 +2209,47 @@ fun SearchOverlayScreen(
             ) {
                 
                 Column(
-                    modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+                    modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (!settingsState.bottomSearch) {
-                        Spacer(modifier = Modifier.fillMaxHeight(0.2f))
-                        Box(modifier = Modifier.graphicsLayer { alpha = searchBarAlpha; translationY = searchBarOffset }) { searchBarContent() }
-                        Box(modifier = Modifier.graphicsLayer { alpha = quickAppPanelAlpha; translationY = quickAppPanelOffset }) { quickAppPanelContent() }
-                        Box(modifier = Modifier.weight(1f).graphicsLayer { alpha = searchResultsAlpha; translationY = searchResultsOffset }) { searchResultsContent() }
+                        Spacer(modifier = Modifier.statusBarsPadding())
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(modifier = Modifier.graphicsLayer {
+                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            alpha = p
+                            translationY = (1f - p) * 24f
+                        }) { searchBarContent() }
+                        Box(modifier = Modifier.graphicsLayer {
+                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
+                            alpha = a
+                            translationY = (1f - a) * 24f
+                        }) { quickAppPanelContent() }
+                        Box(modifier = Modifier.weight(1f).graphicsLayer {
+                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
+                            alpha = a
+                            translationY = (1f - a) * 24f
+                        }) { searchResultsContent() }
                     } else {
-                        Box(modifier = Modifier.weight(1f).graphicsLayer { alpha = searchResultsAlpha; translationY = -searchResultsOffset }) { searchResultsContent() }
-                        Box(modifier = Modifier.graphicsLayer { alpha = quickAppPanelAlpha; translationY = -quickAppPanelOffset }) { quickAppPanelContent() }
-                        Box(modifier = Modifier.graphicsLayer { alpha = searchBarAlpha; translationY = -searchBarOffset }) { searchBarContent() }
+                        Box(modifier = Modifier.weight(1f).graphicsLayer {
+                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
+                            alpha = a
+                            translationY = -(1f - a) * 24f
+                        }) { searchResultsContent() }
+                        Box(modifier = Modifier.graphicsLayer {
+                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
+                            alpha = a
+                            translationY = -(1f - a) * 24f
+                        }) { quickAppPanelContent() }
+                        Box(modifier = Modifier.graphicsLayer {
+                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            alpha = p
+                            translationY = -(1f - p) * 24f
+                        }) { searchBarContent() }
                     }
                 }
             }

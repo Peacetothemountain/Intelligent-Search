@@ -4,5 +4,9 @@
     android:hint="Search"
     android:includeInGlobalSearch="true"
     android:searchSettingsDescription="@string/search_settings_desc"
+    android:searchSuggestAuthority="com.pixel.intelligentsearch.globalsearch"
+    android:searchSuggestPath="search"
+    android:searchSuggestSelection=" ?"
+    android:searchSuggestIntentAction="android.intent.action.WEB_SEARCH"
     android:voiceSearchMode="showVoiceSearchButton|launchRecognizer">
 </searchable>

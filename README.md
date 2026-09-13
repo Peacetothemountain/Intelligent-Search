@@ -80,7 +80,7 @@ Want early access to test new release builds of **Intelligent Search** on your d
     <td align="center" width="20%" valign="top">
       <b>⚙️ Settings Overview</b><br/><br/>
       <img src="docs/images/03_settings_overview.png" alt="Settings Overview" width="180" /><br/><br/>
-      <sub><i>Unified Control Center & Assistant Configuration</i></sub>
+      <sub><i>Unified Control Center & System Integration</i></sub>
     </td>
     <td align="center" width="20%" valign="top">
       <b>⚡ Search Behavior</b><br/><br/>
@@ -203,10 +203,10 @@ Intelligent Search is open source software licensed under the **Apache License, 
 
 Android, Google, Google Pixel, Google Play, and the Google Play logo are registered trademarks of **Google LLC**. 
 
-- **Intelligent Search** is an independent software application developed by **NB Designs**.
+- **Intelligent Search** is an independent software application developed by **NG Designs**.
 - This application and repository are not affiliated with, sponsored by, or endorsed by Google LLC.
 - All web search queries and search engine options (Google, DuckDuckGo, Bing, or Custom Search URLs) execute directly via standard web intents to their respective providers.
 
 ---
 
-Copyright (c) 2026 **NB Designs**. All Rights Reserved.
+Copyright (c) 2026 **NG Designs**. All Rights Reserved.

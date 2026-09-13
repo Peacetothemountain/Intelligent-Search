@@ -18,4 +18,6 @@ release.keystore
 .agents/
 .gemini/
 *.log
+*.aab
+*.apk
 

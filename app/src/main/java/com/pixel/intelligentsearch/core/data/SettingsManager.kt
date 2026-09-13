@@ -13,17 +13,18 @@ import javax.inject.Singleton
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "intelligent_search_settings")
 
+@androidx.compose.runtime.Immutable
 data class IntelligentSearchSettings(
     val theme: String = "system",
-    val searchApps: Boolean = false,
+    val searchApps: Boolean = true,
     val searchContacts: Boolean = false,
     val searchFiles: Boolean = false,
-    val searchWeb: Boolean = false,
+    val searchWeb: Boolean = true,
     val searchCalculator: Boolean = true,
     val searchCalendar: Boolean = true,
     val searchShortcuts: Boolean = true,
     val backgroundBlur: Int = 50,
-    val showWallpaper: Boolean = true,
+    val showWallpaper: Boolean = false,
     val backgroundTransparency: Int = 50,
     val pillOpacity: Int = 50,
     val searchEngine: String = "Google",
@@ -61,7 +62,15 @@ data class IntelligentSearchSettings(
     val searchOverlayEnabled: Boolean = true,
     val customIconPills: String = "",
     val neverShowIconPackWarning: Boolean = false,
-    val searchPreviousSearches: Boolean = true
+    val searchPreviousSearches: Boolean = true,
+    val customBangsJson: String = "[]",
+    val searchSectionsConfigJson: String = "",
+    val adaptiveIconShape: String = "SYSTEM_DEFAULT",
+    val dynamicIconMasking: Boolean = true,
+    val diagnosticsOverlayEnabled: Boolean = false,
+    val matrixAnimationEnabled: Boolean = true,
+    val backToSearchOverlay: Boolean = true,
+    val disabledWebShortcuts: Set<String> = emptySet()
 )
 
 @Singleton
@@ -115,6 +124,14 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val SEARCH_OVERLAY_ENABLED = booleanPreferencesKey("search_overlay_enabled")
         val CUSTOM_ICON_PILLS = stringPreferencesKey("custom_icon_pills")
         val NEVER_SHOW_ICON_PACK_WARNING = booleanPreferencesKey("never_show_icon_pack_warning")
+        val CUSTOM_BANGS_JSON = stringPreferencesKey("custom_bangs_json")
+        val SEARCH_SECTIONS_CONFIG_JSON = stringPreferencesKey("search_sections_config_json")
+        val ADAPTIVE_ICON_SHAPE = stringPreferencesKey("adaptive_icon_shape")
+        val DYNAMIC_ICON_MASKING = booleanPreferencesKey("dynamic_icon_masking")
+        val DIAGNOSTICS_OVERLAY_ENABLED = booleanPreferencesKey("diagnostics_overlay_enabled")
+        val MATRIX_ANIMATION_ENABLED = booleanPreferencesKey("matrix_animation_enabled")
+        val BACK_TO_SEARCH_OVERLAY = booleanPreferencesKey("settings_back_to_search_overlay")
+        val DISABLED_WEB_SHORTCUTS = stringSetPreferencesKey("disabled_web_shortcuts")
     }
 
     val settingsFlow: Flow<IntelligentSearchSettings> = context.dataStore.data
@@ -130,10 +147,10 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             val defaultTheme = if (isSystemDark) "Material Dark" else "Material Light"
             IntelligentSearchSettings(
                 theme = preferences[THEME] ?: defaultTheme,
-                searchApps = preferences[SEARCH_APPS] ?: false,
+                searchApps = preferences[SEARCH_APPS] ?: true,
                 searchContacts = preferences[SEARCH_CONTACTS] ?: false,
                 searchFiles = preferences[SEARCH_FILES] ?: false,
-                searchWeb = preferences[SEARCH_WEB] ?: false,
+                searchWeb = preferences[SEARCH_WEB] ?: true,
                 searchCalculator = preferences[SEARCH_CALCULATOR] ?: true,
                 searchCalendar = preferences[SEARCH_CALENDAR] ?: true,
                 searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: true,
@@ -175,7 +192,16 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 activeIconPack = preferences[ACTIVE_ICON_PACK] ?: "system_default",
                 customIconPills = preferences[CUSTOM_ICON_PILLS] ?: "",
                 neverShowIconPackWarning = preferences[NEVER_SHOW_ICON_PACK_WARNING] ?: false,
-                searchPreviousSearches = preferences[SEARCH_PREVIOUS_SEARCHES] ?: true
+                searchPreviousSearches = preferences[SEARCH_PREVIOUS_SEARCHES] ?: true,
+                customBangsJson = preferences[CUSTOM_BANGS_JSON] ?: "[]",
+                searchSectionsConfigJson = preferences[SEARCH_SECTIONS_CONFIG_JSON] ?: "",
+                adaptiveIconShape = preferences[ADAPTIVE_ICON_SHAPE] ?: "SYSTEM_DEFAULT",
+                dynamicIconMasking = preferences[DYNAMIC_ICON_MASKING] ?: true,
+                diagnosticsOverlayEnabled = preferences[DIAGNOSTICS_OVERLAY_ENABLED] ?: false,
+                searchOverlayEnabled = preferences[SEARCH_OVERLAY_ENABLED] ?: true,
+                matrixAnimationEnabled = preferences[MATRIX_ANIMATION_ENABLED] ?: true,
+                backToSearchOverlay = preferences[BACK_TO_SEARCH_OVERLAY] ?: true,
+                disabledWebShortcuts = preferences[DISABLED_WEB_SHORTCUTS] ?: (context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE).getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet())
             )
         }
 
@@ -185,10 +211,10 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val defaultTheme = if (isSystemDark) "Material Dark" else "Material Light"
         return IntelligentSearchSettings(
             theme = prefs.getString("night.mode", defaultTheme) ?: defaultTheme,
-            searchApps = prefs.getBoolean("search.apps", false),
+            searchApps = prefs.getBoolean("search.apps", true),
             searchContacts = prefs.getBoolean("search.contacts", false),
             searchFiles = prefs.getBoolean("search.files", false),
-            searchWeb = prefs.getBoolean("search.web", false),
+            searchWeb = prefs.getBoolean("search.web", true),
             searchCalculator = prefs.getBoolean("search.calculator", true),
             searchCalendar = prefs.getBoolean("search.calendar", true),
             searchShortcuts = prefs.getBoolean("search.shortcuts", true),
@@ -215,7 +241,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             quickSearchMaps = prefs.getBoolean("quick_search_maps", true),
             searchPills = prefs.getString("search_pills", "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files") ?: "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files",
             widgetThemeStyle = prefs.getString("widget.theme.style", "System Default") ?: "System Default",
-            hiddenApps = prefs.getStringSet("hidden_apps", emptySet()) ?: emptySet(),
+            hiddenApps = prefs.getStringSet("hidden_apps", emptySet())?.toSet() ?: emptySet(),
             appQuickLaunch = prefs.getBoolean("app_quick_launch", false),
             contactDirectCall = prefs.getBoolean("contact_direct_call", false),
             shortcutInline = prefs.getBoolean("shortcut.inline", true),
@@ -230,14 +256,38 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             activeIconPack = prefs.getString("active_icon_pack", "system_default") ?: "system_default",
             customIconPills = prefs.getString("custom_icon_pills", "") ?: "",
             neverShowIconPackWarning = prefs.getBoolean("never_show_icon_pack_warning", false),
-            searchPreviousSearches = prefs.getBoolean("search_previous_searches", true)
+            searchPreviousSearches = prefs.getBoolean("search_previous_searches", true),
+            customBangsJson = prefs.getString("custom_bangs_json", "[]") ?: "[]",
+            searchSectionsConfigJson = prefs.getString("search_sections_config_json", "") ?: "",
+            adaptiveIconShape = prefs.getString("adaptive_icon_shape", "SYSTEM_DEFAULT") ?: "SYSTEM_DEFAULT",
+            dynamicIconMasking = prefs.getBoolean("dynamic_icon_masking", true),
+            diagnosticsOverlayEnabled = prefs.getBoolean("diagnostics_overlay_enabled", false),
+            searchOverlayEnabled = prefs.getBoolean("search_overlay_enabled", true),
+            matrixAnimationEnabled = prefs.getBoolean("matrix_animation_enabled", true),
+            backToSearchOverlay = prefs.getBoolean("settings_back_to_search_overlay", true),
+            disabledWebShortcuts = prefs.getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet()
         )
     }
 
     suspend fun <T> updateSetting(key: Preferences.Key<T>, value: T) {
+        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        when (value) {
+            is Boolean -> editor.putBoolean(key.name, value)
+            is Int -> editor.putInt(key.name, value)
+            is Long -> editor.putLong(key.name, value)
+            is Float -> editor.putFloat(key.name, value)
+            is String -> editor.putString(key.name, value)
+            is Set<*> -> {
+                @Suppress("UNCHECKED_CAST")
+                val stringSet = value as? Set<String> ?: emptySet()
+                editor.putStringSet(key.name, HashSet(stringSet))
+            }
+        }
+        editor.apply()
+
         context.dataStore.edit { preferences ->
             preferences[key] = value
         }
     }
 }
-

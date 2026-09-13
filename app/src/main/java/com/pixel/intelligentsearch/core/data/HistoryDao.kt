@@ -16,6 +16,9 @@ interface HistoryDao {
     @Delete
     suspend fun deleteSearch(search: HistoryEntity)
 
+    @Query("DELETE FROM search_history WHERE query = :query")
+    suspend fun deleteByQuery(query: String)
+
     @Query("DELETE FROM search_history")
     suspend fun clearHistory()
 
@@ -24,4 +27,10 @@ interface HistoryDao {
 
     @Query("DELETE FROM search_history WHERE query NOT IN (SELECT query FROM search_history ORDER BY timestamp DESC LIMIT :limit)")
     suspend fun pruneHistory(limit: Int)
+
+    @Transaction
+    suspend fun recordAndPrune(query: String, timestamp: Long, limit: Int = 10) {
+        insertSearch(HistoryEntity(query, timestamp))
+        pruneHistory(limit)
+    }
 }

@@ -30,26 +30,75 @@ object DynamicMeshShader {
         }
     """
 
+    private class MeshState(
+        val shader: RuntimeShader,
+        var lastWidth: Float = -1f,
+        var lastHeight: Float = -1f,
+        var lastColorA: Int = 0,
+        var lastColorB: Int = 0,
+        var lastColorC: Int = 0
+    )
+
+    private val viewStateMap = java.util.WeakHashMap<View, MeshState>()
+
+    private fun setUniformColor(shader: RuntimeShader, name: String, colorInt: Int) {
+        val r = ((colorInt shr 16) and 0xFF) / 255f
+        val g = ((colorInt shr 8) and 0xFF) / 255f
+        val b = (colorInt and 0xFF) / 255f
+        shader.setFloatUniform(name, r, g, b, 1.0f)
+    }
+
     fun applyDynamicMesh(view: View, colorA: Int, colorB: Int, colorC: Int, timeSec: Float = 0f) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             try {
-                val shader = RuntimeShader(AGSL_MESH_GRADIENT_SHADER)
-                shader.setFloatUniform("uResolution", view.width.toFloat().coerceAtLeast(1f), view.height.toFloat().coerceAtLeast(1f))
-                shader.setFloatUniform("uTime", timeSec)
+                var state = viewStateMap[view]
+                val width = view.width.toFloat().coerceAtLeast(1f)
+                val height = view.height.toFloat().coerceAtLeast(1f)
 
-                fun setUniformColor(name: String, colorInt: Int) {
-                    val r = ((colorInt shr 16) and 0xFF) / 255f
-                    val g = ((colorInt shr 8) and 0xFF) / 255f
-                    val b = (colorInt and 0xFF) / 255f
-                    shader.setFloatUniform(name, r, g, b, 1.0f)
+                if (state == null) {
+                    val shader = RuntimeShader(AGSL_MESH_GRADIENT_SHADER)
+                    state = MeshState(shader)
+                    viewStateMap[view] = state
+
+                    shader.setFloatUniform("uResolution", width, height)
+                    shader.setFloatUniform("uTime", timeSec)
+                    setUniformColor(shader, "uColorA", colorA)
+                    setUniformColor(shader, "uColorB", colorB)
+                    setUniformColor(shader, "uColorC", colorC)
+                    state.lastWidth = width
+                    state.lastHeight = height
+                    state.lastColorA = colorA
+                    state.lastColorB = colorB
+                    state.lastColorC = colorC
+
+                    val effect = RenderEffect.createRuntimeShaderEffect(shader, "compositedImage")
+                    view.setRenderEffect(effect)
+                    return
                 }
 
-                setUniformColor("uColorA", colorA)
-                setUniformColor("uColorB", colorB)
-                setUniformColor("uColorC", colorC)
+                val shader = state.shader
+                if (state.lastWidth != width || state.lastHeight != height) {
+                    shader.setFloatUniform("uResolution", width, height)
+                    state.lastWidth = width
+                    state.lastHeight = height
+                }
 
-                val effect = RenderEffect.createRuntimeShaderEffect(shader, "compositedImage")
-                view.setRenderEffect(effect)
+                shader.setFloatUniform("uTime", timeSec)
+
+                if (state.lastColorA != colorA) {
+                    setUniformColor(shader, "uColorA", colorA)
+                    state.lastColorA = colorA
+                }
+                if (state.lastColorB != colorB) {
+                    setUniformColor(shader, "uColorB", colorB)
+                    state.lastColorB = colorB
+                }
+                if (state.lastColorC != colorC) {
+                    setUniformColor(shader, "uColorC", colorC)
+                    state.lastColorC = colorC
+                }
+
+                view.invalidate()
             } catch (e: Exception) {
                 // Ignore compilation fallback
             }

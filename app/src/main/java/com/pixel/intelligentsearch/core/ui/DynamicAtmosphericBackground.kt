@@ -2,7 +2,6 @@ package com.pixel.intelligentsearch.core.ui
 
 import android.graphics.RuntimeShader
 import android.os.Build
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +14,8 @@ import androidx.compose.ui.graphics.ShaderBrush
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pixel.intelligentsearch.core.performance.ADPFThermalManager
 import kotlinx.coroutines.isActive
 import org.intellij.lang.annotations.Language
 
@@ -60,7 +61,7 @@ fun resolveGlobalStardustColor(
 // ==============================================================================
 // 2. FULL-SCREEN OPTIMIZED AGSL GPU SHADER 
 // ==============================================================================
-// The math is 100% identical to your approved design. It simply scales to the display size.
+// AGSL full-screen atmospheric stardust particle shader scaled to viewport dimensions.
 
 @Language("AGSL")
 private const val APP_WIDE_STARDUST_SHADER = """
@@ -96,7 +97,6 @@ private const val APP_WIDE_STARDUST_SHADER = """
         float ambientWave = smoothstep(0.0, 1.0, waveDistance) * waveFlow * breath * 0.25;
 
         // --- STARDUST PARTICLES ---
-        // Density matches original design, scaled by aspect ratio to stay round
         float2 dustUv = uv * float2(resolution.x / resolution.y, 1.0) * 80.0;
         
         dustUv.y -= time * 2.5; 
@@ -130,7 +130,6 @@ private const val APP_WIDE_STARDUST_SHADER = """
         // --- BLENDING ---
         float stardustMask = smoothstep(1.0, 0.0, y * 1.5); 
         
-        // PERFORMANCE BOOST: 16-bit half precision calculation for Android 17 GPU speeds
         half finalAlpha = half(ambientWave + (stardust * stardustMask * 0.8));
         finalAlpha = clamp(finalAlpha, 0.0, 1.0);
         
@@ -143,37 +142,54 @@ private const val APP_WIDE_STARDUST_SHADER = """
 // ==============================================================================
 
 /**
- * A custom modifier that applies the Lifecycle-Aware GPU Shader loop to any container.
- * By extending Modifier directly, it paints the background smoothly
- * without adding heavy recomposition nodes to the UI tree.
+ * Custom modifier applying the Lifecycle-Aware GPU Shader loop to the backdrop container,
+ * dynamically gated by ADPF thermal headroom to prevent GPU overheating.
  */
 @Composable
-private fun Modifier.appWideStardustShader(color: Color): Modifier {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-        return this.background(color.copy(alpha = 0.1f)) // Safe fallback for older API versions
+private fun Modifier.appWideStardustShader(color: Color, isInteracting: Boolean = false): Modifier {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val adpfThermalManager = remember(context) { ADPFThermalManager.getInstance(context) }
+    val throttleLevel by adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
+
+    val shouldThrottleShader = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            throttleLevel >= ADPFThermalManager.ThermalThrottleLevel.MODERATE
+
+    if (shouldThrottleShader) {
+        // Zero-overhead linear gradient fallback when thermally throttled or on legacy Android
+        return this.background(
+            androidx.compose.ui.graphics.Brush.verticalGradient(
+                colors = listOf(
+                    color.copy(alpha = 0.12f),
+                    color.copy(alpha = 0.03f),
+                    androidx.compose.ui.graphics.Color.Transparent
+                )
+            )
+        )
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     val timeState = remember { mutableFloatStateOf(0f) }
     
-    // Lifecycle-aware frame loop: pauses animation when activity is not in foreground
-    LaunchedEffect(lifecycleOwner) {
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            var lastFrame = 0L
-            while (isActive) {
-                withFrameNanos { frameTime ->
-                    if (lastFrame == 0L) lastFrame = frameTime 
-                    timeState.floatValue += (frameTime - lastFrame) / 1_000_000_000f
-                    lastFrame = frameTime
+    // Pause frame animation loop while user is actively typing or scrolling to dedicate 100% GPU fill-rate to 120Hz list rendering
+    LaunchedEffect(lifecycleOwner, throttleLevel, isInteracting) {
+        if (!isInteracting) {
+            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                var lastFrame = 0L
+                while (isActive) {
+                    withFrameNanos { frameTime ->
+                        if (lastFrame == 0L) lastFrame = frameTime 
+                        timeState.floatValue += (frameTime - lastFrame) / 1_000_000_000f
+                        lastFrame = frameTime
+                    }
                 }
             }
         }
     }
+
+    val shader = remember { RuntimeShader(APP_WIDE_STARDUST_SHADER) }
+    val shaderBrush = remember(shader) { ShaderBrush(shader) }
     
     return this.drawWithCache {
-        val shader = RuntimeShader(APP_WIDE_STARDUST_SHADER)
-        val shaderBrush = ShaderBrush(shader)
-        
         onDrawBehind {
             val w = if (size.width > 0) size.width else 1f
             val h = if (size.height > 0) size.height else 1f
@@ -192,11 +208,12 @@ private fun Modifier.appWideStardustShader(color: Color): Modifier {
 // ==============================================================================
 
 @Composable
-fun GeminiAppBackgroundContainer(
+fun DynamicAtmosphericBackgroundContainer(
     appDesign: AppDesignTheme,
     appTheme: AppColorTheme,
     customColor: GlobalCustomColor?,
     modifier: Modifier = Modifier,
+    isInteracting: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val activeColor = resolveGlobalStardustColor(appDesign, appTheme, customColor)
@@ -205,10 +222,8 @@ fun GeminiAppBackgroundContainer(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .appWideStardustShader(activeColor)
+            .appWideStardustShader(activeColor, isInteracting = isInteracting)
     ) {
         content()
     }
 }
-
-

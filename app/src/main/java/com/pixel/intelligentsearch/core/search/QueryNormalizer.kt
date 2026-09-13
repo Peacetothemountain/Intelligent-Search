@@ -30,12 +30,30 @@ object QueryNormalizer {
     }
 
     fun extractInitials(input: String?): String {
+        if (input.isNullOrBlank()) return ""
         val tokens = tokenize(input)
-        if (tokens.size <= 1) return ""
-        val sb = StringBuilder(tokens.size)
-        for (token in tokens) {
-            sb.append(token[0])
+        if (tokens.size > 1) {
+            val sb = StringBuilder(tokens.size)
+            for (token in tokens) {
+                sb.append(token[0])
+            }
+            return sb.toString()
         }
-        return sb.toString()
+        // Support CamelCase / PascalCase words (e.g. YouTube -> "yt", WhatsApp -> "wa", SoundCloud -> "sc")
+        val capitals = input.filter { it.isUpperCase() }.lowercase()
+        if (capitals.length in 2..5) {
+            return capitals
+        }
+        return ""
+    }
+
+    fun containsAllTokens(target: String?, query: String?): Boolean {
+        if (target.isNullOrBlank() || query.isNullOrBlank()) return false
+        val targetTokens = tokenize(target)
+        val queryTokens = tokenize(query)
+        if (queryTokens.isEmpty()) return false
+        return queryTokens.all { qToken ->
+            targetTokens.any { tToken -> tToken.startsWith(qToken) || tToken.contains(qToken) }
+        }
     }
 }

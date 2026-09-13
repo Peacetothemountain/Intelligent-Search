@@ -1987,7 +1987,14 @@ fun SearchOverlayScreen(
                                             }
                                         }
                                         IconButton(
-                                            onClick = { viewModel.onQueryChanged(suggestion) },
+                                            onClick = {
+                                                hasStartedTyping = true
+                                                textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
+                                                    text = suggestion,
+                                                    selection = androidx.compose.ui.text.TextRange(suggestion.length)
+                                                )
+                                                viewModel.onQueryChanged(suggestion)
+                                            },
                                             modifier = Modifier.size(32.dp)
                                         ) {
                                             Icon(

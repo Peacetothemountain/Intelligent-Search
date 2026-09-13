@@ -21,7 +21,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class SystemActionRouter @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val systemToggleManager: SystemToggleManager
 ) {
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
@@ -73,23 +73,23 @@ class SystemActionRouter @Inject constructor(
      * Matches a query string against known system toggles, settings, and volume slider actions.
      */
     companion object {
-        private val KEYWORDS_MEDIA_VOLUME = setOf("volume", "media volume", "music volume", "sound slider", "audio")
-        private val KEYWORDS_RING_VOLUME = setOf("ring volume", "ringtone volume", "call volume", "ring")
-        private val KEYWORDS_ALARM_VOLUME = setOf("alarm volume", "alarm sound")
-        private val KEYWORDS_TORCH = setOf("flashlight", "torch", "flash light", "light", "flash")
-        private val KEYWORDS_BLUETOOTH = setOf("bluetooth", "bt", "blue tooth")
-        private val KEYWORDS_WIFI = setOf("wifi", "wi-fi", "internet", "wireless", "wlan")
-        private val KEYWORDS_HOTSPOT = setOf("hotspot", "tethering", "portable hotspot", "wifi hotspot", "personal hotspot")
-        private val KEYWORDS_BATTERY = setOf("battery saver", "power saver", "low power mode", "battery", "saver")
-        private val KEYWORDS_DND = setOf("dnd", "do not disturb", "silence", "mute phone", "priority only")
-        private val KEYWORDS_AIRPLANE = setOf("airplane", "airplane mode", "aeroplane mode", "flight mode")
-        private val KEYWORDS_ROTATE = setOf("auto rotate", "autorotate", "rotation", "screen rotation", "rotate")
-        private val KEYWORDS_DARK_MODE = setOf("dark mode", "dark theme", "night mode", "light mode", "theme")
-        private val KEYWORDS_NFC = setOf("nfc", "contactless", "google pay")
-        private val KEYWORDS_LOCATION = setOf("location", "gps", "locate")
-        private val KEYWORDS_CAST = setOf("cast", "screen cast", "screen mirroring", "chromecast")
-        private val KEYWORDS_BRIGHTNESS = setOf("brightness", "auto brightness", "screen brightness")
-        private val KEYWORDS_PRIVACY = setOf("privacy", "camera access", "mic access", "sensor privacy")
+        internal val KEYWORDS_MEDIA_VOLUME = setOf("volume", "media volume", "music volume", "sound slider", "audio")
+        internal val KEYWORDS_RING_VOLUME = setOf("ring volume", "ringtone volume", "call volume", "ring")
+        internal val KEYWORDS_ALARM_VOLUME = setOf("alarm volume", "alarm sound")
+        internal val KEYWORDS_TORCH = setOf("flashlight", "torch", "flash light", "light", "flash")
+        internal val KEYWORDS_BLUETOOTH = setOf("bluetooth", "bt", "blue tooth")
+        internal val KEYWORDS_WIFI = setOf("wifi", "wi-fi", "internet", "wireless", "wlan")
+        internal val KEYWORDS_HOTSPOT = setOf("hotspot", "tethering", "portable hotspot", "wifi hotspot", "personal hotspot")
+        internal val KEYWORDS_BATTERY = setOf("battery saver", "power saver", "low power mode", "battery", "saver")
+        internal val KEYWORDS_DND = setOf("dnd", "do not disturb", "silence", "mute phone", "priority only")
+        internal val KEYWORDS_AIRPLANE = setOf("airplane", "airplane mode", "aeroplane mode", "flight mode")
+        internal val KEYWORDS_ROTATE = setOf("auto rotate", "autorotate", "rotation", "screen rotation", "rotate")
+        internal val KEYWORDS_DARK_MODE = setOf("dark mode", "dark theme", "night mode", "light mode", "theme")
+        internal val KEYWORDS_NFC = setOf("nfc", "contactless", "google pay")
+        internal val KEYWORDS_LOCATION = setOf("location", "gps", "locate")
+        internal val KEYWORDS_CAST = setOf("cast", "screen cast", "screen mirroring", "chromecast")
+        internal val KEYWORDS_BRIGHTNESS = setOf("brightness", "auto brightness", "screen brightness")
+        internal val KEYWORDS_PRIVACY = setOf("privacy", "camera access", "mic access", "sensor privacy")
     }
 
     fun matchAction(rawQuery: String): ActionResult? {

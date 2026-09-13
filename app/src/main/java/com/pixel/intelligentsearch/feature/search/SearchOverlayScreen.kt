@@ -1191,6 +1191,8 @@ fun SearchOverlayScreen(
             (matchingRecent + nonRecentWeb).distinct().take(maxCount)
         }
 
+        val isBottomResults = settingsState.bottomSearch && settingsState.bottomSearchResult
+
         LazyColumn(
             state = searchResultsListState,
             modifier = Modifier
@@ -1200,13 +1202,56 @@ fun SearchOverlayScreen(
                 top = 8.dp,
                 bottom = 8.dp
             ),
-            reverseLayout = if (settingsState.bottomSearch) settingsState.bottomSearchResult else false,
-            verticalArrangement = Arrangement.Top
+            reverseLayout = false,
+            verticalArrangement = if (isBottomResults) Arrangement.Bottom else Arrangement.Top
         ) {
             val showApps = true
             val showWeb = true
             val showPeople = true
             val showFiles = true
+
+            val renderInlineShortcuts = {
+                if (settingsState.shortcutInline && uiState.query.isNotEmpty()) {
+                    item(key = "inline_shortcuts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                    item(key = "lens_shortcut") {
+                        ShortcutRow(
+                            iconRes = R.drawable.ic_camera,
+                            title = "Search with Google Lens",
+                            onClick = {
+                                hasStartedTyping = false
+                                val intent = SearchWidgetProvider.getLensSearchIntent(context)
+                                launchSafeIntent(context, intent)
+                            }
+                        )
+                    }
+                    item(key = "voice_shortcut") {
+                        ShortcutRow(
+                            iconRes = R.drawable.ic_mic,
+                            title = "Search with Voice",
+                            onClick = {
+                                hasStartedTyping = false
+                                val intent = SearchWidgetProvider.getVoiceSearchIntent(context)
+                                launchSafeIntent(context, intent)
+                            }
+                        )
+                    }
+                    item(key = "assistant_shortcut") {
+                        ShortcutRow(
+                            iconRes = R.drawable.ic_lens_action,
+                            title = "Digital Assistant",
+                            onClick = {
+                                hasStartedTyping = false
+                                val intent = SearchWidgetProvider.getVoiceActionIntent(context)
+                                launchSafeIntent(context, intent)
+                            }
+                        )
+                    }
+                }
+            }
+
+            if (isBottomResults) {
+                renderInlineShortcuts()
+            }
 
             val systemToggle = uiState.systemToggle
             if (systemToggle != null) {
@@ -1874,43 +1919,6 @@ fun SearchOverlayScreen(
                                 }
                             }
                         }
-
-                        if (settingsState.shortcutInline && uiState.query.isNotEmpty()) {
-                            item(key = "inline_shortcuts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                            item(key = "lens_shortcut") {
-                                ShortcutRow(
-                                    iconRes = R.drawable.ic_camera,
-                                    title = "Search with Google Lens",
-                                    onClick = {
-                                        hasStartedTyping = false
-                                        val intent = SearchWidgetProvider.getLensSearchIntent(context)
-                                        launchSafeIntent(context, intent)
-                                    }
-                                )
-                            }
-                            item(key = "voice_shortcut") {
-                                ShortcutRow(
-                                    iconRes = R.drawable.ic_mic,
-                                    title = "Search with Voice",
-                                    onClick = {
-                                        hasStartedTyping = false
-                                        val intent = SearchWidgetProvider.getVoiceSearchIntent(context)
-                                        launchSafeIntent(context, intent)
-                                    }
-                                )
-                            }
-                            item(key = "assistant_shortcut") {
-                                ShortcutRow(
-                                    iconRes = R.drawable.ic_lens_action,
-                                    title = "Digital Assistant",
-                                    onClick = {
-                                        hasStartedTyping = false
-                                        val intent = SearchWidgetProvider.getVoiceActionIntent(context)
-                                        launchSafeIntent(context, intent)
-                                    }
-                                )
-                            }
-                        }
                     }
                     "web" -> {
                         if (showWeb && (settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
@@ -2071,6 +2079,10 @@ fun SearchOverlayScreen(
                         }
                     }
                 }
+            }
+
+            if (!isBottomResults) {
+                renderInlineShortcuts()
             }
         }
     }

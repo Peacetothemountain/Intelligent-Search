@@ -20,6 +20,17 @@ object BackupCryptoEngine {
 
     private val secureRandom = SecureRandom()
 
+    private val PORTABLE_DEFAULT_SALT = byteArrayOf(
+        0x50.toByte(), 0x69.toByte(), 0x78.toByte(), 0x65.toByte(),
+        0x6C.toByte(), 0x49.toByte(), 0x6E.toByte(), 0x74.toByte(),
+        0x65.toByte(), 0x6C.toByte(), 0x6C.toByte(), 0x69.toByte(),
+        0x67.toByte(), 0x65.toByte(), 0x6E.toByte(), 0x74.toByte()
+    )
+
+    fun getPortableDefaultKey(): SecretKey {
+        return deriveKeyFromPassphrase("PORTABLE_BACKUP_INTELLIGENT_SEARCH_V2".toCharArray(), PORTABLE_DEFAULT_SALT)
+    }
+
     fun deriveKeyFromPassphrase(passphrase: CharArray, salt: ByteArray): SecretKey {
         val spec = PBEKeySpec(passphrase, salt, PBKDF2_ITERATIONS, PBKDF2_KEY_LENGTH_BITS)
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")

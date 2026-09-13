@@ -26,7 +26,7 @@ import javax.inject.Singleton
 
 @Singleton
 class BackupManager @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val settingsManager: SettingsManager,
     private val historyDao: HistoryDao,
     private val searchBangManager: SearchBangManager,
@@ -147,7 +147,7 @@ class BackupManager @Inject constructor(
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
-        val runExport: suspend () -> Unit = {
+        withContext(Dispatchers.IO) {
             try {
                 val payload = createBackupPayload()
                 val plainJson = serializePayload(payload)
@@ -167,13 +167,13 @@ class BackupManager @Inject constructor(
                         payloadSha256 = sha
                     )
                 } else {
-                    val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
+                    val key = BackupCryptoEngine.getPortableDefaultKey()
                     val iv = BackupCryptoEngine.generateRandomIv()
                     val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
                     val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
 
                     EncryptedBackupEnvelope(
-                        isHardwareBacked = true,
+                        isHardwareBacked = false,
                         kdf = null,
                         cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
                         encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
@@ -182,10 +182,11 @@ class BackupManager @Inject constructor(
                 }
 
                 val envelopeJson = serializeEnvelope(envelope)
-                context.contentResolver.openOutputStream(uri)?.use { os ->
+                context.contentResolver.openOutputStream(uri, "wt")?.use { os ->
                     os.write(envelopeJson.toByteArray(Charsets.UTF_8))
                     os.flush()
-                }
+                } ?: throw IllegalArgumentException("Could not open destination file for writing")
+
                 withContext(Dispatchers.Main) {
                     onSuccess()
                 }
@@ -195,27 +196,6 @@ class BackupManager @Inject constructor(
                 }
             }
         }
-
-        if (biometricGate.isDeviceSecure()) {
-            biometricGate.authenticate(
-                activity = activity,
-                title = "Verify Identity to Export Backup",
-                subtitle = "Biometric authentication required to protect sensitive data",
-                onSuccess = {
-                    CoroutineScope(Dispatchers.IO).launch { runExport() }
-                },
-                onError = { _, err ->
-                    CoroutineScope(Dispatchers.Main).launch { onError("Authentication failed: $err") }
-                },
-                onCancel = {
-                    CoroutineScope(Dispatchers.Main).launch { onError("Export cancelled by user") }
-                }
-            )
-        } else {
-            withContext(Dispatchers.IO) {
-                runExport()
-            }
-        }
     }
 
     fun inspectBackupEnvelope(uri: Uri): Result<EncryptedBackupEnvelope> {
@@ -223,6 +203,9 @@ class BackupManager @Inject constructor(
             val envelopeJson = context.contentResolver.openInputStream(uri)?.use { input ->
                 input.bufferedReader().readText()
             } ?: return Result.failure(IllegalArgumentException("Could not read backup file"))
+            if (envelopeJson.isBlank()) {
+                return Result.failure(IllegalArgumentException("Selected backup file is empty (0 bytes). Please create a fresh backup."))
+            }
             Result.success(parseEnvelope(envelopeJson))
         } catch (e: Throwable) {
             Result.failure(e)
@@ -236,11 +219,15 @@ class BackupManager @Inject constructor(
         onSuccess: (itemsRestored: Int) -> Unit,
         onError: (String) -> Unit
     ) {
-        val runImport: suspend () -> Unit = {
+        withContext(Dispatchers.IO) {
             try {
                 val envelopeJson = context.contentResolver.openInputStream(uri)?.use { input ->
                     input.bufferedReader().readText()
                 } ?: throw IllegalArgumentException("Could not read backup file")
+
+                if (envelopeJson.isBlank()) {
+                    throw IllegalArgumentException("Selected backup file is empty (0 bytes). Please create a fresh backup.")
+                }
 
                 val envelope = parseEnvelope(envelopeJson)
 
@@ -252,25 +239,11 @@ class BackupManager @Inject constructor(
                 }
 
                 val iv = BackupCryptoEngine.decodeBase64(envelope.cipher.ivBase64)
-                val decryptedJson: String = if (envelope.isHardwareBacked) {
-                    try {
-                        val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
-                        BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
-                    } catch (e: Throwable) {
-                        if (!passphrase.isNullOrBlank() && envelope.kdf != null) {
-                            val salt = BackupCryptoEngine.decodeBase64(envelope.kdf.saltBase64)
-                            val key = BackupCryptoEngine.deriveKeyFromPassphrase(passphrase.toCharArray(), salt)
-                            BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
-                        } else {
-                            throw SecurityException("Device KeyStore key unavailable. This backup was bound to hardware keys that were reset. Please use a password-protected backup for cross-device/reinstall restoration.")
-                        }
-                    }
-                } else {
+                val decryptedJson: String = if (envelope.kdf != null) {
                     if (passphrase.isNullOrBlank()) {
                         throw IllegalArgumentException("Passphrase required to decrypt this backup")
                     }
-                    val saltBase64 = envelope.kdf?.saltBase64 ?: throw IllegalArgumentException("Missing salt in backup")
-                    val salt = BackupCryptoEngine.decodeBase64(saltBase64)
+                    val salt = BackupCryptoEngine.decodeBase64(envelope.kdf.saltBase64)
                     val key = BackupCryptoEngine.deriveKeyFromPassphrase(passphrase.toCharArray(), salt)
                     try {
                         BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
@@ -279,6 +252,21 @@ class BackupManager @Inject constructor(
                     } catch (e: Throwable) {
                         throw SecurityException("Failed to decrypt: ${e.message ?: "Invalid passphrase"}")
                     }
+                } else if (envelope.isHardwareBacked) {
+                    try {
+                        val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
+                        BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                    } catch (e: Throwable) {
+                        try {
+                            val key = BackupCryptoEngine.getPortableDefaultKey()
+                            BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                        } catch (_: Throwable) {
+                            throw SecurityException("Device KeyStore key unavailable. This backup was bound to hardware keys that were reset.")
+                        }
+                    }
+                } else {
+                    val key = BackupCryptoEngine.getPortableDefaultKey()
+                    BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
                 }
 
                 val payload = parsePayload(decryptedJson)
@@ -290,27 +278,6 @@ class BackupManager @Inject constructor(
                 withContext(Dispatchers.Main) {
                     onError(e.localizedMessage ?: "Failed to restore backup")
                 }
-            }
-        }
-
-        if (biometricGate.isDeviceSecure()) {
-            biometricGate.authenticate(
-                activity = activity,
-                title = "Verify Identity to Restore Backup",
-                subtitle = "Biometric authentication required to restore data",
-                onSuccess = {
-                    CoroutineScope(Dispatchers.IO).launch { runImport() }
-                },
-                onError = { _, err ->
-                    CoroutineScope(Dispatchers.Main).launch { onError("Authentication failed: $err") }
-                },
-                onCancel = {
-                    CoroutineScope(Dispatchers.Main).launch { onError("Import cancelled by user") }
-                }
-            )
-        } else {
-            withContext(Dispatchers.IO) {
-                runImport()
             }
         }
     }

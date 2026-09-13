@@ -8839,15 +8839,26 @@ fun BackupRestoreScreen(
     ) { uri ->
         if (uri != null && activity != null) {
             val inspectResult = viewModel?.inspectBackupEnvelope(uri)
-            val envelope = inspectResult?.getOrNull()
-            val needsPass = envelope?.let { !it.isHardwareBacked || it.kdf != null } ?: true
-            if (needsPass && passphrase.isBlank()) {
-                pendingRestoreUri = uri
-                dialogPassphrase = ""
-                dialogErrorMessage = null
-                showRestorePassphraseDialog = true
+            if (inspectResult == null || inspectResult.isFailure) {
+                val errorMsg = inspectResult?.exceptionOrNull()?.localizedMessage
+                    ?: "Selected backup file could not be read or is invalid."
+                safeShowToast(errorMsg)
+                return@rememberLauncherForActivityResult
+            }
+
+            val envelope = inspectResult.getOrNull()
+            val needsPass = envelope?.kdf != null
+            if (needsPass) {
+                if (passphrase.isNotBlank()) {
+                    performRestore(uri, passphrase)
+                } else {
+                    pendingRestoreUri = uri
+                    dialogPassphrase = ""
+                    dialogErrorMessage = null
+                    showRestorePassphraseDialog = true
+                }
             } else {
-                performRestore(uri, passphrase.ifBlank { null })
+                performRestore(uri, null)
             }
         }
     }
@@ -8975,7 +8986,7 @@ fun BackupRestoreScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
                 Text(
-                    "Optional Passphrase for Cross-Device Portability. If Left Blank, Backup Is Bound to This Device's Titan KeyStore.",
+                    "Optional passphrase for backup encryption. If left blank, backup restores automatically and portably across app updates and devices.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)

@@ -396,17 +396,21 @@ fun rememberBooleanPreference(
         }
     }
 
+    val currentViewModel by rememberUpdatedState(viewModel)
+    val currentOnChanged by rememberUpdatedState(onChanged)
+
     return remember(key, prefs) {
         object : MutableState<Boolean> {
             override var value: Boolean
                 get() = state.value
                 set(v) {
                     state.value = v
-                    if (datastoreKey != null && viewModel != null) {
-                        viewModel.updateSetting(datastoreKey, v)
+                    val vm = currentViewModel
+                    if (datastoreKey != null && vm != null) {
+                        vm.updateSetting(datastoreKey, v)
                     }
                     prefs.edit().putBoolean(key, v).apply()
-                    onChanged()
+                    currentOnChanged()
                 }
             override operator fun component1() = value
             override operator fun component2(): (Boolean) -> Unit = { value = it }
@@ -642,7 +646,7 @@ fun SettingsScreensHub(
         val currentBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = currentBackStackEntry?.destination?.route
         val hasSubScreensInNavHost = navController.previousBackStackEntry != null
-        val isAtRootMain = (currentRoute == null || currentRoute.contains("Main")) && !hasSubScreensInNavHost
+        val isAtRootMain = (currentRoute == null || currentRoute.contains("main", ignoreCase = true)) && !hasSubScreensInNavHost
 
         val onBack: () -> Unit = {
             if (navController.previousBackStackEntry != null) {
@@ -5259,10 +5263,15 @@ fun SettingsRowToggle(
                     onLongClick = onLongClick,
                     suppressClickHaptic = true,
                     onClick = {
-                    val next = !isChecked
-                    sensoryEngine.toggle(view, next)
-                    if (onClick != null) onClick() else onCheckedChange(next)
-                })
+                        if (onClick != null) {
+                            onClick()
+                        } else {
+                            val next = !isChecked
+                            sensoryEngine.toggle(view, next)
+                            onCheckedChange(next)
+                        }
+                    }
+                )
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -5303,10 +5312,12 @@ fun SettingsRowToggle(
             }
             Switch(
                 checked = isChecked,
-                onCheckedChange = { next ->
-                    sensoryEngine.toggle(view, next)
-                    onCheckedChange(next)
-                },
+                onCheckedChange = if (onClick != null) {
+                    { next ->
+                        sensoryEngine.toggle(view, next)
+                        onCheckedChange(next)
+                    }
+                } else null,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = MaterialTheme.colorScheme.primary,
                     checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,

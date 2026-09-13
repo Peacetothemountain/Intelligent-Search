@@ -663,6 +663,14 @@ fun SearchOverlayScreen(
             }
         }
     }
+
+    LaunchedEffect(showTutorial) {
+        if (showTutorial) {
+            try {
+                keyboardController?.hide()
+            } catch (e: Exception) {}
+        }
+    }
     
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -2167,17 +2175,11 @@ fun SearchOverlayScreen(
             }
             
             val surfaceAlpha = if (settingsState.showWallpaper) ((100 - settingsState.backgroundTransparency) / 100f).coerceIn(0f, 1f) else 1f
-            
-            val targetHeight = screenHeight - 32.dp
-            val initialHeight = 56.dp
-            
-            val targetWidth = screenWidth - 32.dp
-            val initialWidth = screenWidth - 64.dp
 
             Box(
                 modifier = Modifier
-                    .width(targetWidth)
-                    .height(targetHeight)
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
                     .padding(bottom = 16.dp)
                     .graphicsLayer {
                         val progress = overlayProgressAnim.value.coerceIn(0.001f, 1f)

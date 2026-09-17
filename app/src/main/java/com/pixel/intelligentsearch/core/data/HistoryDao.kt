@@ -13,6 +13,9 @@ interface HistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSearch(search: HistoryEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSearches(searches: List<HistoryEntity>)
+
     @Delete
     suspend fun deleteSearch(search: HistoryEntity)
 

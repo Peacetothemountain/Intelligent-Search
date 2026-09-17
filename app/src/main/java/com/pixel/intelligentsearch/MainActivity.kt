@@ -32,6 +32,9 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 open class MainActivity : AppCompatActivity() {
 
+    @javax.inject.Inject
+    lateinit var multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager
+
     private val searchViewModel: SearchViewModel by viewModels()
     private val adpfThermalManager by lazy { com.pixel.intelligentsearch.core.performance.ADPFThermalManager.getInstance(this) }
     private val frameMetricsMonitor by lazy { com.pixel.intelligentsearch.core.performance.FrameMetricsMonitor(adpfThermalManager) }
@@ -86,7 +89,11 @@ open class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        if (resources.configuration.smallestScreenWidthDp < 600) {
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
         } else {
@@ -173,20 +180,10 @@ open class MainActivity : AppCompatActivity() {
                                 onLaunchApp = { packageName ->
                                     searchViewModel.notifyAppLaunch(packageName)
                                     searchViewModel.onQueryChanged("")
-                                    val multiProfileManager = com.pixel.intelligentsearch.core.profile.MultiProfileManager(this@MainActivity)
-                                    val launched = multiProfileManager.launchApp(packageName = packageName)
-                                    if (launched) {
-                                        if (settingsState.appAnimations) {
-                                            finish()
-                                        } else {
-                                            finish()
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                                                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
-                                            } else {
-                                                @Suppress("DEPRECATION")
-                                                overridePendingTransition(0, 0)
-                                            }
-                                        }
+                                    try {
+                                        multiProfileManager.launchApp(packageName = packageName, activity = this@MainActivity)
+                                    } catch (e: Throwable) {
+                                        android.util.Log.e("MainActivity", "Failed to launch app $packageName", e)
                                     }
                                 },
                                 viewModel = searchViewModel,
@@ -259,14 +256,12 @@ open class MainActivity : AppCompatActivity() {
         super.onPause()
         searchViewModel.onQueryChanged("")
         
-        // Force widget update when leaving the home screen app
-        val updateIntent = Intent(this, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
-            action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
-            val ids = android.appwidget.AppWidgetManager.getInstance(this@MainActivity)
-                .getAppWidgetIds(android.content.ComponentName(this@MainActivity, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java))
-            putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+        // Force widget update when leaving the search overlay
+        try {
+            com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(this)
+        } catch (e: Throwable) {
+            android.util.Log.e("MainActivity", "Failed to update widget on pause", e)
         }
-        sendBroadcast(updateIntent)
     }
 
     private fun checkAndForwardIfSearchOverlayDisabled(): Boolean {

@@ -47,12 +47,6 @@ fun Modifier.bouncyClickable(
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnLongClick by rememberUpdatedState(onLongClick)
 
-    androidx.compose.runtime.LaunchedEffect(isPressed) {
-        if (isPressed) {
-            sensoryEngine.tick(view, scale = 0.75f)
-        }
-    }
-
     val clickAction = remember(view, sensoryEngine, suppressClickHaptic, customClickHaptic) {
         {
             if (!suppressClickHaptic) {
@@ -123,12 +117,6 @@ fun Modifier.expressiveRowClickable(
 
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnLongClick by rememberUpdatedState(onLongClick)
-
-    androidx.compose.runtime.LaunchedEffect(isPressed) {
-        if (isPressed) {
-            sensoryEngine.tick(view, scale = 0.40f)
-        }
-    }
 
     val clickAction = remember(view, sensoryEngine) {
         {

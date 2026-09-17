@@ -31,7 +31,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
-class SearchWidgetProvider : AppWidgetProvider() {
+open class SearchWidgetProvider : AppWidgetProvider() {
+
+    open val forcedIsMaterial: Boolean? = null
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
@@ -42,12 +44,12 @@ class SearchWidgetProvider : AppWidgetProvider() {
             "com.pixel.intelligentsearch.ACTION_HIDE_WIDGET",
             "com.pixel.intelligentsearch.ACTION_SHOW_WIDGET" -> {
                 val appWidgetManager = AppWidgetManager.getInstance(context) ?: return
-                val componentName = android.content.ComponentName(context, SearchWidgetProvider::class.java)
+                val componentName = android.content.ComponentName(context, this::class.java)
                 val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName) ?: return
                 val isHidden = intent.action == "com.pixel.intelligentsearch.ACTION_HIDE_WIDGET"
                 val prefs = getSafeSharedPreferences(context)
                 val widgetThemeStyle = prefs.getString("widget.theme.style", "System Default")
-                val isMaterialYou = widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
+                val isMaterialYou = forcedIsMaterial ?: (widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design")
                 val layoutId = if (isMaterialYou) R.layout.widget_search else R.layout.widget_search_colorful
 
                 for (appWidgetId in appWidgetIds) {
@@ -70,7 +72,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val pendingResult = goAsync()
         widgetScope.launch {
             try {
-                updateWidgetsSync(context, appWidgetManager, appWidgetIds)
+                updateWidgetsSync(context, appWidgetManager, appWidgetIds, forcedIsMaterial)
             } catch (e: Throwable) {
                 android.util.Log.e(TAG, "Error updating widgets in onUpdate", e)
             } finally {
@@ -88,7 +90,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
         val pendingResult = goAsync()
         widgetScope.launch {
             try {
-                updateWidgetsSync(context, appWidgetManager, intArrayOf(appWidgetId))
+                updateWidgetsSync(context, appWidgetManager, intArrayOf(appWidgetId), forcedIsMaterial)
             } catch (e: Throwable) {
                 android.util.Log.e(TAG, "Error updating widget options", e)
             } finally {
@@ -163,10 +165,28 @@ class SearchWidgetProvider : AppWidgetProvider() {
             widgetScope.launch {
                 try {
                     val appWidgetManager = AppWidgetManager.getInstance(context) ?: return@launch
-                    val componentName = android.content.ComponentName(context, SearchWidgetProvider::class.java)
-                    val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                    if (appWidgetIds != null && appWidgetIds.isNotEmpty()) {
-                        updateWidgetsSync(context, appWidgetManager, appWidgetIds)
+                    
+                    val providers = listOf(
+                        SearchWidgetProvider::class.java,
+                        SearchWidgetMaterialProvider::class.java,
+                        SearchWidgetSystemProvider::class.java
+                    )
+                    
+                    for (providerClass in providers) {
+                        try {
+                            val componentName = android.content.ComponentName(context, providerClass)
+                            val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+                            if (appWidgetIds != null && appWidgetIds.isNotEmpty()) {
+                                val forcedIsMaterial = when(providerClass) {
+                                    SearchWidgetMaterialProvider::class.java -> true
+                                    SearchWidgetSystemProvider::class.java -> false
+                                    else -> null
+                                }
+                                updateWidgetsSync(context, appWidgetManager, appWidgetIds, forcedIsMaterial)
+                            }
+                        } catch (e: Throwable) {
+                            // Class might not exist yet
+                        }
                     }
                 } catch (e: Throwable) {
                     android.util.Log.e(TAG, "Failed to update all widgets asynchronously", e)
@@ -177,7 +197,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
         fun updateWidgetsSync(
             context: Context,
             appWidgetManager: AppWidgetManager,
-            appWidgetIds: IntArray
+            appWidgetIds: IntArray,
+            forcedIsMaterial: Boolean? = null
         ) {
             val prefs = getSafeSharedPreferences(context)
             val showVoice = prefs.getBoolean("widget_show_voice", true)
@@ -207,7 +228,7 @@ class SearchWidgetProvider : AppWidgetProvider() {
             }
 
             val widgetThemeStyle = prefs.getString("widget.theme.style", "System Default")
-            val isMaterialYou = widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
+            val isMaterialYou = forcedIsMaterial ?: (widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design")
 
             val subthemeStr = prefs.getString("widget_subtheme", "System") ?: "System"
             val customHue = prefs.getInt("widget_custom_hue", 277).toFloat()

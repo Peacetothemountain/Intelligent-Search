@@ -20,7 +20,11 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        if (resources.configuration.smallestScreenWidthDp < 600) {
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             @Suppress("DEPRECATION")
             window.isStatusBarContrastEnforced = false
@@ -105,14 +109,10 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        
-        // Force widget update when leaving settings
-        val updateIntent = android.content.Intent(this, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
-            action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
-            val ids = android.appwidget.AppWidgetManager.getInstance(this@SettingsActivity)
-                .getAppWidgetIds(android.content.ComponentName(this@SettingsActivity, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java))
-            putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+        try {
+            com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(this)
+        } catch (e: Throwable) {
+            android.util.Log.e("SettingsActivity", "Failed to update widgets on pause", e)
         }
-        sendBroadcast(updateIntent)
     }
 }

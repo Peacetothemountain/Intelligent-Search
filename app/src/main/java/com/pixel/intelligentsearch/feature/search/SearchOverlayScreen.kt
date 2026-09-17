@@ -377,15 +377,12 @@ fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: S
 @Suppress("DEPRECATION")
 private fun finishWithoutTransition(activity: android.app.Activity?) {
     if (activity != null && !activity.isFinishing) {
-        val moved = activity.moveTaskToBack(true)
-        if (!moved) {
-            activity.finish()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                activity.overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
-            } else {
-                @Suppress("DEPRECATION")
-                activity.overridePendingTransition(0, 0)
-            }
+        activity.finishAndRemoveTask()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            activity.overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            activity.overridePendingTransition(0, 0)
         }
     }
 }
@@ -559,7 +556,6 @@ fun SearchOverlayScreen(
         keyboardController?.hide()
         viewModel.onQueryChanged("")
         val act = context.findActivity()
-        act?.moveTaskToBack(true)
         try {
             val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_HOME)
@@ -579,9 +575,6 @@ fun SearchOverlayScreen(
         if (parsedBang != null) {
             val bangIntent = bangMgr.dispatchBangSearch(parsedBang)
             launchSafeIntent(context, bangIntent)
-            val act = context.findActivity()
-            finishWithoutTransition(act)
-            act?.finish()
             return@launchWebSearch
         }
 
@@ -685,7 +678,8 @@ fun SearchOverlayScreen(
 
                 val fromBack = activity?.intent?.getBooleanExtra("FROM_BACK_SWIPE", false) == true
                 coroutineScope.launch {
-                    if (!fromBack) {
+                    predictiveBackProgress.snapTo(0f)
+                    if (!fromBack && overlayProgressAnim.value < 0.5f) {
                         overlayProgressAnim.snapTo(0f)
                         overlayProgressAnim.animateTo(
                             targetValue = 1f,
@@ -732,11 +726,19 @@ fun SearchOverlayScreen(
                     sensoryEngine.magneticResistance(view, backEvent.progress)
                 }
             }
-            keyboardController?.hide()
-            hasStartedTyping = false
-            viewModel.onQueryChanged("")
-            sensoryEngine.springReleaseSnap(view)
-            goToHomeScreen()
+            if (uiState.query.isNotEmpty()) {
+                viewModel.onQueryChanged("")
+                textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
+                hasStartedTyping = false
+                predictiveBackProgress.snapTo(0f)
+            } else {
+                keyboardController?.hide()
+                hasStartedTyping = false
+                viewModel.onQueryChanged("")
+                sensoryEngine.springReleaseSnap(view)
+                predictiveBackProgress.snapTo(0f)
+                goToHomeScreen()
+            }
         } catch (_: java.util.concurrent.CancellationException) {
             sensoryEngine.tick(view, scale = 0.5f)
             predictiveBackProgress.animateTo(
@@ -998,15 +1000,15 @@ fun SearchOverlayScreen(
                     IconButton(
                         onClick = { viewModel.onQueryChanged("") },
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(48.dp)
                             .bouncyClickable { viewModel.onQueryChanged("") }
-                            .padding(4.dp)
+                            .padding(12.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Clear",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
@@ -1152,9 +1154,6 @@ fun SearchOverlayScreen(
                                         if (intent != null) {
                                             hasStartedTyping = false
                                             launchSafeIntent(context, intent)
-                                            val act = context.findActivity()
-                                            finishWithoutTransition(act)
-                                            act?.finish()
                                         }
                                     }
                                 }
@@ -1984,13 +1983,13 @@ fun SearchOverlayScreen(
                                         if (isRecent) {
                                             IconButton(
                                                 onClick = { viewModel.removeSearchHistory(suggestion) },
-                                                modifier = Modifier.size(32.dp)
+                                                modifier = Modifier.size(40.dp)
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.Close,
                                                     contentDescription = "Remove",
                                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                                    modifier = Modifier.size(16.dp)
+                                                    modifier = Modifier.size(18.dp)
                                                 )
                                             }
                                         }
@@ -2003,13 +2002,13 @@ fun SearchOverlayScreen(
                                                 )
                                                 viewModel.onQueryChanged(suggestion)
                                             },
-                                            modifier = Modifier.size(32.dp)
+                                            modifier = Modifier.size(40.dp)
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.NorthWest,
                                                 contentDescription = "Insert query",
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(20.dp)
                                             )
                                         }
                                     }
@@ -2092,8 +2091,13 @@ fun SearchOverlayScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .navigationBarsPadding()
-            .then(if (!isKeyboardDisabled) Modifier.imePadding() else Modifier)
+            .windowInsetsPadding(
+                if (!isKeyboardDisabled) {
+                    WindowInsets.ime.union(WindowInsets.navigationBars)
+                } else {
+                    WindowInsets.navigationBars
+                }
+            )
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
@@ -2170,7 +2174,9 @@ fun SearchOverlayScreen(
 
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxHeight()
+                    .widthIn(max = 720.dp)
+                    .fillMaxWidth()
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 16.dp)
                     .graphicsLayer {

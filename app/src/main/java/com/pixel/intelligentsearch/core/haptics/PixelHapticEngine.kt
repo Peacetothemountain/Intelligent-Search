@@ -106,7 +106,18 @@ class PixelHapticEngine(private val context: Context) {
         amplitudeScale: Float = 1.0f,
         velocity: Float = 0f
     ) {
-        performPredictiveBackHaptic(view)
+        if (vibrator != null && vibrator.hasVibrator()) {
+            val waveform = composeWaveform(type, amplitudeScale, velocity)
+            if (waveform != null) {
+                vibrateWithAttributes(waveform)
+                return
+            }
+        }
+        if (view != null) {
+            performViewFallback(view, type)
+        } else {
+            performPredictiveBackHaptic(null)
+        }
     }
 
     private fun vibrateWithAttributes(effect: VibrationEffect) {
@@ -393,11 +404,15 @@ class PixelHapticEngine(private val context: Context) {
     }
 
     private fun performViewFallback(view: View, type: PixelHapticType) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            view.performHapticFeedback(HapticFeedbackConstants.SEGMENT_TICK)
-        } else {
-            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        val feedbackConstant = when (type) {
+            PixelHapticType.CLICK, PixelHapticType.APP_LAUNCH -> HapticFeedbackConstants.KEYBOARD_TAP
+            PixelHapticType.HEAVY_IMPACT, PixelHapticType.DELETE_THUD -> HapticFeedbackConstants.LONG_PRESS
+            PixelHapticType.CONFIRM -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.KEYBOARD_TAP
+            PixelHapticType.REJECT -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.REJECT else HapticFeedbackConstants.LONG_PRESS
+            PixelHapticType.GESTURE_THRESHOLD -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE else HapticFeedbackConstants.CLOCK_TICK
+            else -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK
         }
+        view.performHapticFeedback(feedbackConstant)
     }
 
     /**

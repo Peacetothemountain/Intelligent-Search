@@ -141,6 +141,7 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.semantics.*
 
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -607,39 +608,24 @@ fun SettingsScreensHub(
         }
 
         val handleExitBack: () -> Unit = {
-            val isBackToOverlay = settingsState.backToSearchOverlay
-            if (isBackToOverlay) {
-                try {
-                    val intent = Intent(context, com.pixel.intelligentsearch.MainActivity::class.java).apply {
+            val act = context.findActivity() ?: (context as? Activity)
+            if (act != null) {
+                if (act.isTaskRoot) {
+                    val intent = Intent(context, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java).apply {
                         putExtra("FROM_BACK_SWIPE", true)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     }
                     context.startActivity(intent)
-                    val act = context.findActivity() ?: (context as? Activity)
-                    if (act != null) {
-                        act.finish()
-                    } else {
-                        onBackToLauncher()
-                    }
-                } catch (_: Throwable) {
-                    onBackToLauncher()
+                }
+                act.finish()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    act.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, R.anim.slide_in_left, R.anim.slide_out_right)
+                } else {
+                    @Suppress("DEPRECATION")
+                    act.overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
                 }
             } else {
-                try {
-                    val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                        addCategory(Intent.CATEGORY_HOME)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    context.startActivity(homeIntent)
-                    val act = context.findActivity() ?: (context as? Activity)
-                    if (act != null) {
-                        act.finish()
-                    } else {
-                        onBackToLauncher()
-                    }
-                } catch (_: Throwable) {
-                    onBackToLauncher()
-                }
+                onBackToLauncher()
             }
         }
 
@@ -663,6 +649,7 @@ fun SettingsScreensHub(
                 progressFlow.collect { backEvent ->
                     exitBackProgress.snapTo(backEvent.progress)
                 }
+                exitBackProgress.snapTo(0f)
                 handleExitBack()
             } catch (_: java.util.concurrent.CancellationException) {
                 exitBackProgress.animateTo(0f, spring(dampingRatio = 0.85f, stiffness = 300f))
@@ -793,7 +780,7 @@ fun SettingsScreensHub(
                                 onDisableDebug = {
                                     prefs.edit().putBoolean("debug_unlocked", false).apply()
                                     if (!navController.popBackStack()) {
-                                        navController.navigate("main") {
+                                        navController.navigate(com.pixel.intelligentsearch.core.navigation.Route.Main) {
                                             popUpTo(0)
                                         }
                                     }
@@ -1884,6 +1871,12 @@ fun MainSettingsScreen(
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Text(
+                                        "Check Android Default Apps. Change Search Engine App to: Intelligent Search",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
                                         "If you are a Google Pixel user who uses stock Pixel Launcher and would like to set Intelligent Search as your default Pixel Launcher search bar widget, use the following ADB Command:",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
@@ -2914,13 +2907,19 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var isAuthenticated by remember { mutableStateOf(false) }
 
     val triggerAuth: () -> Unit = {
-        val targetActivity = biometricGate.getActivity()
-        if (targetActivity != null && biometricGate.isBiometricHardwareAvailable()) {
+        val targetActivity = biometricGate.getActivity(context)
+        if (targetActivity != null && (biometricGate.isBiometricHardwareAvailable() || biometricGate.isDeviceSecure())) {
             biometricGate.authenticateForPrivateSearch(
                 activity = targetActivity,
                 onSuccess = { isAuthenticated = true },
-                onError = { isAuthenticated = false }
+                onError = {
+                    isAuthenticated = false
+                    onBack()
+                }
             )
+        } else if (biometricGate.isDeviceSecure()) {
+            isAuthenticated = false
+            onBack()
         } else {
             isAuthenticated = true
         }
@@ -5441,6 +5440,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         "Live" to Icons.Default.AutoAwesome,
         "Translate (text)" to Icons.Default.Translate,
         "Translate (camera)" to Icons.Default.DocumentScanner,
+        "Song Search" to Icons.Default.MusicNote,
         "Weather" to Icons.Default.WbSunny,
         "Sports" to Icons.Default.SportsBasketball,
         "Dictionary" to Icons.AutoMirrored.Filled.MenuBook,
@@ -6983,15 +6983,11 @@ fun ComposeThemedShortcutIcon(
 }
 
 fun updateWidgets(context: Context) {
-    val intent = android.content.Intent(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
-        action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
-        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
-        val ids = appWidgetManager.getAppWidgetIds(
-            android.content.ComponentName(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java)
-        )
-        putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+    try {
+        com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(context)
+    } catch (e: Throwable) {
+        android.util.Log.e("SettingsScreens", "Failed to update widgets", e)
     }
-    context.sendBroadcast(intent)
 }
 
 @Composable
@@ -7107,10 +7103,26 @@ fun Android17Slider(
         }
     }
 
+    val cachedPath = remember { androidx.compose.ui.graphics.Path() }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
+            .semantics(mergeDescendants = true) {
+                progressBarRangeInfo = ProgressBarRangeInfo(
+                    current = value,
+                    range = valueRange,
+                    steps = steps
+                )
+                setProgress { targetValue: Float ->
+                    val snapped = snapValue(((targetValue - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f))
+                    if (snapped != currentValue) {
+                        currentOnValueChange(snapped)
+                        true
+                    } else false
+                }
+            }
             .pointerInput(steps, valueRange) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -7153,8 +7165,8 @@ fun Android17Slider(
             // Draw active track
             if (showTrack) {
                 if (isSquiggly) {
-                    val path = androidx.compose.ui.graphics.Path()
-                    path.moveTo(0f, centerY)
+                    cachedPath.rewind()
+                    cachedPath.moveTo(0f, centerY)
                     var x = 0f
                     val step = 1.5f
                     while (x <= thumbX) {
@@ -7176,13 +7188,13 @@ fun Android17Slider(
                         val wave = Math.sin(x * (2.0 * Math.PI / waveLength) - effectivePhase).toFloat()
                         val y = centerY + wave * baseAmplitude * envelope
 
-                        path.lineTo(x, y)
+                        cachedPath.lineTo(x, y)
                         x += step
                     }
-                    path.lineTo(thumbX, centerY)
+                    cachedPath.lineTo(thumbX, centerY)
                     
                     drawPath(
-                        path = path,
+                        path = cachedPath,
                         color = activeColor,
                         style = androidx.compose.ui.graphics.drawscope.Stroke(
                             width = trackHeight,

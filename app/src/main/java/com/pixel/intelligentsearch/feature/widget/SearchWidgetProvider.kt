@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.feature.widget
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -52,7 +53,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 val widgetThemeStyle = prefs.getString("widget.theme.style", "System Default")
 
                 for (appWidgetId in appWidgetIds) {
-                    val isMaterialYou = forcedIsMaterial ?: (widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design")
+                    val isMaterialYou = resolveIsMaterialYou(appWidgetManager, appWidgetId, forcedIsMaterial, widgetThemeStyle)
                     val layoutId = if (isMaterialYou) R.layout.widget_search else R.layout.widget_search_colorful
                     val views = RemoteViews(context.packageName, layoutId)
                     val visibility = if (isHidden) View.INVISIBLE else View.VISIBLE
@@ -103,6 +104,26 @@ open class SearchWidgetProvider : AppWidgetProvider() {
     companion object {
         private const val TAG = "SearchWidgetProvider"
         private val widgetScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        fun resolveIsMaterialYou(
+            appWidgetManager: AppWidgetManager,
+            appWidgetId: Int,
+            forcedIsMaterial: Boolean?,
+            widgetThemeStyle: String?
+        ): Boolean {
+            if (forcedIsMaterial != null) {
+                return forcedIsMaterial
+            }
+            val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+            val hostCategory = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1) ?: -1
+            val isSearchbox = (hostCategory and AppWidgetProviderInfo.WIDGET_CATEGORY_SEARCHBOX) != 0
+
+            return if (isSearchbox) {
+                widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
+            } else {
+                false
+            }
+        }
 
         // Slot identifiers for bit-shifted unique request codes
         private const val SLOT_PILL = 0
@@ -259,7 +280,12 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
             for (appWidgetId in appWidgetIds) {
                 try {
-                    val isMaterialYou = forcedIsMaterial ?: (widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design")
+                    val isMaterialYou = resolveIsMaterialYou(
+                        appWidgetManager = appWidgetManager,
+                        appWidgetId = appWidgetId,
+                        forcedIsMaterial = forcedIsMaterial,
+                        widgetThemeStyle = widgetThemeStyle
+                    )
 
                     val rimColor = if (isMaterialYou) {
                         when (subthemeStr) {
@@ -281,7 +307,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         when (subthemeStr) {
                             "Light" -> 0xFFF1F3F4.toInt()
                             "Dark" -> 0xFF303134.toInt()
-                            "Custom" -> actualCustomColor
                             else -> if (isDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
                         }
                     }
@@ -291,7 +316,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     val pillAlphaInt = if (isMaterialYou) {
                         if (lockBlack) containerAlphaInt else effectiveColorAlphaInt
                     } else {
-                        if (subthemeStr == "Custom") effectiveColorAlphaInt else containerAlphaInt
+                        containerAlphaInt
                     }
                     val circleAlphaInt = pillAlphaInt
 
@@ -312,12 +337,12 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     )
 
                     val isPillLight = if (!isMaterialYou) {
-                        subthemeStr == "Light" || (subthemeStr == "System" && !isDark) || (subthemeStr == "Custom" && customColorLuminance > 0.5)
+                        subthemeStr == "Light" || (subthemeStr != "Dark" && !isDark)
                     } else {
                         !lockBlack && (customColorLuminance > 0.5)
                     }
 
-                    val effectiveIconTheme = if (subthemeStr == "Custom" || isMaterialYou) {
+                    val effectiveIconTheme = if (isMaterialYou) {
                         materialGIconTheme
                     } else {
                         "System G Icon"
@@ -330,7 +355,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         else -> if (isMaterialYou) R.drawable.ic_g_logo else R.drawable.ic_g_logo_colored
                     }
 
-                    val (themePColor, themeSColor, themeTColor) = if (subthemeStr == "Custom") {
+                    val (themePColor, themeSColor, themeTColor) = if (isMaterialYou && subthemeStr == "Custom") {
                         val cHue = prefs.getInt("widget_custom_hue", 277).toFloat()
                         val cSaturation = prefs.getInt("widget_custom_saturation", 51).toFloat()
                         val isDarkSurface = !isPillLight
@@ -347,7 +372,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         Triple(p, s, t)
                     }
 
-                    val useMaterialYouIcons = isMaterialYou || effectiveIconTheme == "Material G Icon" || isPillLight
+                    val useMaterialYouIcons = isMaterialYou
 
                     val allActiveItems = mutableListOf<Triple<String, Int, Intent>>()
                     for (key in slotOrder) {
@@ -494,10 +519,16 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             views.setInt(targetViewId, "setImageAlpha", 255)
                         }
                         else -> {
-                            views.setImageViewResource(targetViewId, item.second)
-                            if (item.second == R.drawable.ic_mic_original) {
+                            if (item.first == "mic" || item.second == R.drawable.ic_mic_original || item.second == R.drawable.ic_mic) {
+                                val micBitmap = createGoogleMicColoredBitmap(context)
+                                views.setImageViewBitmap(targetViewId, micBitmap)
+                                views.setColorStateList(targetViewId, "setImageTintList", null)
+                            } else if (item.first == "Google Lens" || item.second == R.drawable.ic_camera) {
+                                val lensBitmap = createGoogleLensColoredBitmap(context)
+                                views.setImageViewBitmap(targetViewId, lensBitmap)
                                 views.setColorStateList(targetViewId, "setImageTintList", null)
                             } else {
+                                views.setImageViewResource(targetViewId, item.second)
                                 val sysTint = if (isPillLight) {
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                                         context.getColor(android.R.color.system_accent1_700)
@@ -945,6 +976,85 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             } catch (e: Throwable) {
                 android.util.Log.w(TAG, "Failed to create themed shortcut bitmap", e)
                 null
+            }
+        }
+
+        private fun createGoogleLensColoredBitmap(context: Context): Bitmap {
+            val cacheKey = "lens_colored_google"
+            bitmapCache.get(cacheKey)?.let { return it }
+
+            return try {
+                val density = context.resources.displayMetrics.density
+                val sizePx = (24 * density).toInt().coerceAtLeast(48)
+                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                val scale = sizePx / 100f
+                canvas.scale(scale, scale)
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+
+                // 1. Bottom-right dot (Green)
+                paint.color = 0xFF34A853.toInt()
+                canvas.drawPath(PATH_LENS_1, paint)
+
+                // 2. Center aperture circle (Blue)
+                paint.color = 0xFF4285F4.toInt()
+                canvas.drawPath(PATH_LENS_2, paint)
+
+                // 3. Bottom-left bracket (Yellow)
+                paint.color = 0xFFFBBC05.toInt()
+                canvas.drawPath(PATH_LENS_3, paint)
+
+                // 4. Top-right bracket (Green)
+                paint.color = 0xFF34A853.toInt()
+                canvas.drawPath(PATH_LENS_4, paint)
+
+                // 5. Top-left bracket (Red)
+                paint.color = 0xFFEA4335.toInt()
+                canvas.drawPath(PATH_LENS_5, paint)
+
+                bitmapCache.put(cacheKey, bitmap)
+                bitmap
+            } catch (e: Throwable) {
+                android.util.Log.w(TAG, "Failed to create Google Lens colored bitmap", e)
+                Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            }
+        }
+
+        private fun createGoogleMicColoredBitmap(context: Context): Bitmap {
+            val cacheKey = "mic_colored_google"
+            bitmapCache.get(cacheKey)?.let { return it }
+
+            return try {
+                val density = context.resources.displayMetrics.density
+                val sizePx = (24 * density).toInt().coerceAtLeast(48)
+                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                val scale = sizePx / 24f
+                canvas.scale(scale, scale)
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+
+                // Google Mic official 4 colors
+                // 1. Center microphone body (Blue)
+                paint.color = 0xFF4285F4.toInt()
+                canvas.drawPath(PATH_MIC_1, paint)
+
+                // 2. Base stem (Green)
+                paint.color = 0xFF34A853.toInt()
+                canvas.drawPath(PATH_MIC_2, paint)
+
+                // 3. Left cradle (Yellow)
+                paint.color = 0xFFFBBC05.toInt()
+                canvas.drawPath(PATH_MIC_3, paint)
+
+                // 4. Right / bottom cradle (Red)
+                paint.color = 0xFFEA4335.toInt()
+                canvas.drawPath(PATH_MIC_4, paint)
+
+                bitmapCache.put(cacheKey, bitmap)
+                bitmap
+            } catch (e: Throwable) {
+                android.util.Log.w(TAG, "Failed to create Google Mic colored bitmap", e)
+                Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
             }
         }
 

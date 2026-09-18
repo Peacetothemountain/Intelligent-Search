@@ -483,9 +483,10 @@ fun SearchOverlayScreen(
     val searchResultsListState = rememberLazyListState()
     rememberScrollDetentController(searchResultsListState, sensoryEngine)
 
-    val performAppLaunch: (String) -> Unit = remember(sensoryEngine, view, onLaunchApp) {
+    val performAppLaunch: (String) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController) {
         { packageName ->
             hasStartedTyping = false
+            keyboardController?.hide()
             sensoryEngine.appLaunch(view)
             onLaunchApp(packageName)
         }
@@ -521,7 +522,14 @@ fun SearchOverlayScreen(
         if (isForceTutorial) {
             TutorialManager.resetForForceTutorial(prefs)
         }
-        mutableStateOf(TutorialManager.isTutorialActive(prefs))
+        val active = TutorialManager.isTutorialActive(prefs)
+        val step = TutorialManager.getStep(prefs)
+        if (active && step >= 3) {
+            TutorialManager.completeTutorial(prefs)
+            mutableStateOf(false)
+        } else {
+            mutableStateOf(active)
+        }
     }
     
     var showDebugPill by remember { mutableStateOf(false) }
@@ -576,6 +584,7 @@ fun SearchOverlayScreen(
 
     val launchWebSearch: (String) -> Unit = launchWebSearch@{ searchQuery ->
         hasStartedTyping = false
+        keyboardController?.hide()
         val bangMgr = com.pixel.intelligentsearch.core.bangs.SearchBangManager(context, com.pixel.intelligentsearch.core.data.SettingsManager(context))
         val parsedBang = bangMgr.parseBangQuery(searchQuery)
         if (parsedBang != null) {
@@ -676,7 +685,15 @@ fun SearchOverlayScreen(
                     TutorialManager.resetForForceTutorial(prefs)
                     showTutorial = true
                 } else {
-                    showTutorial = TutorialManager.isTutorialActive(prefs)
+                    val active = TutorialManager.isTutorialActive(prefs)
+                    val step = TutorialManager.getStep(prefs)
+                    if (active && step >= 2) {
+                        TutorialManager.setStep(prefs, 3)
+                        TutorialManager.completeTutorial(prefs)
+                        showTutorial = false
+                    } else {
+                        showTutorial = active
+                    }
                 }
                 
                 transitionState.targetState = true
@@ -692,11 +709,6 @@ fun SearchOverlayScreen(
                     } catch (_: Exception) {}
                 } else if (showTutorial) {
                     keyboardController?.hide()
-                }
-                val currentStep = TutorialManager.getStep(prefs)
-                
-                if (showTutorial && currentStep == 2) {
-                    TutorialManager.setStep(prefs, 3)
                 }
             }
         }
@@ -1017,6 +1029,7 @@ fun SearchOverlayScreen(
                 IconButton(
                     onClick = { 
                         hasStartedTyping = false
+                        keyboardController?.hide()
                         onOpenSettings("main") 
                     },
                     modifier = Modifier
@@ -1349,6 +1362,7 @@ fun SearchOverlayScreen(
                                 }
                                 .bouncyClickable {
                                     hasStartedTyping = false
+                                    keyboardController?.hide()
                                     action.intent?.let { intent ->
                                         launchSafeIntent(context, intent)
                                     }
@@ -1411,6 +1425,7 @@ fun SearchOverlayScreen(
                                     .fillMaxWidth()
                                     .bouncyClickable {
                                         hasStartedTyping = false
+                                        keyboardController?.hide()
                                         val intent = if (settingsState.contactDirectCall) {
                                             Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                         } else {
@@ -1808,6 +1823,8 @@ fun SearchOverlayScreen(
                 items(uiState.shortcuts, key = { shortcut -> "shortcut_${shortcut.packageName}_${shortcut.id}" }) { shortcut ->
                     Row(
                         modifier = Modifier.fillMaxWidth().expressiveRowClickable {
+                            hasStartedTyping = false
+                            keyboardController?.hide()
                             val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? android.content.pm.LauncherApps
                             try {
                                 launcherApps?.startShortcut(shortcut.packageName, shortcut.id, null, null, android.os.Process.myUserHandle())
@@ -2269,7 +2286,10 @@ fun SearchOverlayScreen(
                     1 to TutorialStepInfo("Search Bar", "This is your search bar. Start typing to find apps, contacts, and files instantly. You can also swipe away recent search cards to remove them.", Alignment.Center, showArrow = true, requireButtonPress = true),
                     2 to TutorialStepInfo("Settings", "Tap the settings icon (the ⋮ button) to customize your search experience. Press OK below to open Settings now.", Alignment.Center, showArrow = true, requireButtonPress = true, showCircle = true)
                 ),
-                onComplete = { showTutorial = false },
+                onComplete = {
+                    TutorialManager.completeTutorial(prefs)
+                    showTutorial = false
+                },
                 onStepAdvance = { step ->
                     if (step == 3) onOpenSettings("main")
                 }

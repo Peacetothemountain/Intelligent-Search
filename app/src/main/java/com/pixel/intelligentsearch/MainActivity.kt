@@ -131,13 +131,8 @@ open class MainActivity : AppCompatActivity() {
         }
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
-        val isTutorial = com.pixel.intelligentsearch.feature.settings.TutorialManager.isTutorialActive(prefs)
         window.setSoftInputMode(
-            if (isTutorial) {
-                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-            } else {
-                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-            }
+            android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         )
         super.onCreate(savedInstanceState)
 

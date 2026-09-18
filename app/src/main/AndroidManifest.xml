@@ -144,7 +144,7 @@
         <activity
             android:name="com.pixel.intelligentsearch.feature.widget.WidgetActivity"
             android:theme="@style/Theme.IntelligentSearch.Overlay.Widget"
-            android:windowSoftInputMode="stateAlwaysHidden|adjustResize"
+            android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"

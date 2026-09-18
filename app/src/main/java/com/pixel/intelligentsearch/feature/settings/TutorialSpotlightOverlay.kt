@@ -63,6 +63,7 @@ fun TutorialSpotlightOverlay(
     val stepInfo = stepsInfo[currentStep]
     if (stepInfo == null) {
         LaunchedEffect(currentStep) {
+            TutorialManager.completeTutorial(prefs)
             onComplete()
         }
         return

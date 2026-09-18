@@ -452,7 +452,7 @@ fun SearchOverlayScreen(
         if (uiState.query != textFieldValue.text) {
             textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
                 text = uiState.query,
-                selection = androidx.compose.ui.text.TextRange(uiState.query.length)
+                selection = textFieldValue.selection
             )
         }
     }
@@ -957,7 +957,7 @@ fun SearchOverlayScreen(
                                 } else if (bestMatchText != null && bestMatchText.startsWith(uiState.query, ignoreCase = true)) {
                                     val builder = androidx.compose.ui.text.AnnotatedString.Builder()
                                     builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent))
-                                    builder.append(bestMatchText.substring(0, uiState.query.length))
+                                    builder.append(bestMatchText.substring(0, minOf(uiState.query.length, bestMatchText.length)))
                                     builder.pop()
                                     builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Gray))
                                     builder.append(bestMatchText.substring(uiState.query.length))

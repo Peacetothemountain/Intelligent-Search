@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -75,11 +76,13 @@ fun Modifier.bouncyClickable(
     }
 
     this
+        .minimumInteractiveComponentSize()
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
         }
         .combinedClickable(
+            role = androidx.compose.ui.semantics.Role.Button,
             interactionSource = effectiveInteractionSource,
             indication = null,
             enabled = enabled,
@@ -135,11 +138,13 @@ fun Modifier.expressiveRowClickable(
     }
 
     this
+        .minimumInteractiveComponentSize()
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
         }
         .combinedClickable(
+            role = androidx.compose.ui.semantics.Role.Button,
             interactionSource = effectiveInteractionSource,
             indication = androidx.compose.material3.ripple(),
             enabled = enabled,

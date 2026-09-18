@@ -101,7 +101,7 @@
             android:roundIcon="@mipmap/ic_launcher_round"
             android:theme="@style/Theme.IntelligentSearch.Overlay.Widget"
             android:windowSoftInputMode="stateAlwaysHidden|adjustResize"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:exported="false">
         </activity>
@@ -114,7 +114,7 @@
             android:label="Search"
             android:theme="@style/Theme.IntelligentSearch.Overlay.Launcher"
             android:windowSoftInputMode="stateAlwaysHidden|adjustResize"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
             android:directBootAware="true"
@@ -145,15 +145,15 @@
             android:name="com.pixel.intelligentsearch.feature.widget.WidgetActivity"
             android:theme="@style/Theme.IntelligentSearch.Overlay.Widget"
             android:windowSoftInputMode="stateAlwaysHidden|adjustResize"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
-            android:exported="false" />
+            android:exported="true" />
 
         <activity
             android:name="com.pixel.intelligentsearch.feature.settings.SettingsActivity"
             android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:exported="true">
@@ -184,41 +184,11 @@
             </intent-filter>
         </receiver>
 
+
+
         <receiver
             android:name="com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider"
-            android:label="Intelligent Search"
-            android:directBootAware="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.pixel.intelligentsearch.ACTION_UPDATE_WIDGET" />
-                <action android:name="com.pixel.intelligentsearch.ACTION_HIDE_WIDGET" />
-                <action android:name="com.pixel.intelligentsearch.ACTION_SHOW_WIDGET" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/search_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name="com.pixel.intelligentsearch.feature.widget.SearchWidgetMaterialProvider"
-            android:label="Search (Material You)"
-            android:directBootAware="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.pixel.intelligentsearch.ACTION_UPDATE_WIDGET" />
-                <action android:name="com.pixel.intelligentsearch.ACTION_HIDE_WIDGET" />
-                <action android:name="com.pixel.intelligentsearch.ACTION_SHOW_WIDGET" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/search_widget_material_info" />
-        </receiver>
-
-        <receiver
-            android:name="com.pixel.intelligentsearch.feature.widget.SearchWidgetSystemProvider"
-            android:label="Search (Classic)"
+            android:label="System Design Bar"
             android:directBootAware="true"
             android:exported="true">
             <intent-filter>
@@ -230,6 +200,22 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/search_widget_system_info" />
+        </receiver>
+
+        <receiver
+            android:name="com.pixel.intelligentsearch.feature.widget.SearchWidgetMaterialProvider"
+            android:label="Material Design Bar"
+            android:directBootAware="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.pixel.intelligentsearch.ACTION_UPDATE_WIDGET" />
+                <action android:name="com.pixel.intelligentsearch.ACTION_HIDE_WIDGET" />
+                <action android:name="com.pixel.intelligentsearch.ACTION_SHOW_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/search_widget_material_info" />
         </receiver>
 
         <receiver

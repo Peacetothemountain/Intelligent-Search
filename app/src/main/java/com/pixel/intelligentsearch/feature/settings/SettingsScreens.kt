@@ -3187,7 +3187,7 @@ fun DuckDuckGoOfficialAppIcon(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(androidx.compose.foundation.shape.CircleShape)
-            .background(Color(0xFFDE5833)),
+            .background(MaterialTheme.colorScheme.error),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize().padding(3.dp)) {
@@ -3246,7 +3246,7 @@ fun BingOfficialAppIcon(modifier: Modifier = Modifier) {
             .clip(RoundedCornerShape(6.dp))
             .background(
                 androidx.compose.ui.graphics.Brush.linearGradient(
-                    colors = listOf(Color(0xFF008373), Color(0xFF00A4EF))
+                    colors = listOf(MaterialTheme.colorScheme.primary, Color(0xFF00A4EF))
                 )
             ),
         contentAlignment = Alignment.Center
@@ -8663,7 +8663,7 @@ fun BackupRestoreScreen(
     val performRestore: (Uri, String?) -> Unit = { targetUri, targetPass ->
         if (activity != null) {
             viewModel?.importBackup(
-                activity = activity,
+                
                 uri = targetUri,
                 passphrase = targetPass,
                 onSuccess = { count ->
@@ -8691,7 +8691,7 @@ fun BackupRestoreScreen(
     ) { uri ->
         if (uri != null && activity != null) {
             viewModel?.exportBackup(
-                activity = activity,
+                
                 uri = uri,
                 passphrase = passphrase.ifBlank { null },
                 onSuccess = {

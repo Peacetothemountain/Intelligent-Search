@@ -141,7 +141,7 @@ class BackupManager @Inject constructor(
     }
 
     suspend fun exportToFile(
-        activity: Activity,
+        
         uri: Uri,
         passphrase: String?,
         onSuccess: () -> Unit,
@@ -220,7 +220,7 @@ class BackupManager @Inject constructor(
     }
 
     suspend fun importFromFile(
-        activity: Activity,
+        
         uri: Uri,
         passphrase: String?,
         onSuccess: (itemsRestored: Int) -> Unit,

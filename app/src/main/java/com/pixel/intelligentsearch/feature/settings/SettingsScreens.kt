@@ -5450,33 +5450,238 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         "News" to Icons.AutoMirrored.Filled.Article
     )
 
-    var localShowGIcon by remember { mutableStateOf(prefs.getBoolean("widget_show_g_icon", true)) }
-
     var localThemeStyle by remember { mutableStateOf(prefs.getString("widget.theme.style", "System Default") ?: "System Default") }
-    var localSubtheme by remember { mutableStateOf(prefs.getString("widget_subtheme", "System") ?: "System") }
-    var localMaterialGIconTheme by remember { mutableStateOf(prefs.getString("widget_material_g_icon", "Material G Icon") ?: "Material G Icon") }
-    var localHue by remember { mutableStateOf(prefs.getInt("widget_custom_hue", 277).toFloat()) }
-    var localSaturation by remember { mutableStateOf(prefs.getInt("widget_custom_saturation", 51).toFloat()) }
-    var localLightness by remember { mutableStateOf(prefs.getInt("widget_custom_lightness", 100).toFloat()) }
-    var localColorOpacity by remember { mutableStateOf(prefs.getInt("widget_custom_color_opacity", 100).toFloat()) }
-    var localTransparency by remember { mutableStateOf(prefs.getInt("widget.background.transparency", 28).toFloat()) }
+    val isSystem = localThemeStyle == "System Default"
+
+    // System Design state
+    val sysSaved = prefs.getBoolean("widget_system_design_saved", false)
+    var sysSubtheme by remember {
+        mutableStateOf(prefs.getString("widget_system_subtheme", if (sysSaved) prefs.getString("widget_subtheme", "System") else "System") ?: "System")
+    }
+    var sysMaterialGIconTheme by remember {
+        mutableStateOf(prefs.getString("widget_system_material_g_icon", if (sysSaved) prefs.getString("widget_material_g_icon", "System G Icon") else "System G Icon") ?: "System G Icon")
+    }
+    var sysHue by remember {
+        mutableStateOf(prefs.getInt("widget_system_custom_hue", if (sysSaved) prefs.getInt("widget_custom_hue", 277) else 277).toFloat())
+    }
+    var sysSaturation by remember {
+        mutableStateOf(prefs.getInt("widget_system_custom_saturation", if (sysSaved) prefs.getInt("widget_custom_saturation", 51) else 51).toFloat())
+    }
+    var sysLightness by remember {
+        mutableStateOf(prefs.getInt("widget_system_custom_lightness", if (sysSaved) prefs.getInt("widget_custom_lightness", 100) else 100).toFloat())
+    }
+    var sysColorOpacity by remember {
+        mutableStateOf(prefs.getInt("widget_system_custom_color_opacity", if (sysSaved) prefs.getInt("widget_custom_color_opacity", 100) else 100).toFloat())
+    }
+    var sysTransparency by remember {
+        mutableStateOf(prefs.getInt("widget_system_background_transparency", if (sysSaved) prefs.getInt("widget.background.transparency", 0) else 0).toFloat())
+    }
+    var sysShowGIcon by remember {
+        mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
+    }
+    var sysShowVoice by remember {
+        mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_voice", prefs.getBoolean("widget_show_voice", true)) else true)
+    }
+    val defaultSlotOrder = "shortcut1,mic,shortcut2,shortcut3"
+    val rawSysSc1 = prefs.getString("widget_system_shortcut_1", if (sysSaved) prefs.getString("widget_shortcut_1", "Google Lens") else "Google Lens") ?: "Google Lens"
+    val rawSysSc2 = prefs.getString("widget_system_shortcut_2", if (sysSaved) prefs.getString("widget_shortcut_2", "None") else "None") ?: "None"
+    val rawSysSc3 = prefs.getString("widget_system_shortcut_3", if (sysSaved) prefs.getString("widget_shortcut_3", "None") else "None") ?: "None"
+    var sysShortcut1 by remember { mutableStateOf(if (rawSysSc1 == "Voice Search") "None" else rawSysSc1) }
+    var sysShortcut2 by remember { mutableStateOf(if (rawSysSc2 == "Voice Search") "None" else rawSysSc2) }
+    var sysShortcut3 by remember { mutableStateOf(if (rawSysSc3 == "Voice Search") "None" else rawSysSc3) }
+    var sysSlotOrderStr by remember {
+        mutableStateOf(prefs.getString("widget_system_shortcut_order", if (sysSaved) prefs.getString("widget_shortcut_order", defaultSlotOrder) else defaultSlotOrder) ?: defaultSlotOrder)
+    }
+
+    // Material Design state
+    val matSaved = prefs.getBoolean("widget_material_design_saved", false)
+    var matSubtheme by remember {
+        mutableStateOf(prefs.getString("widget_material_subtheme", if (matSaved) prefs.getString("widget_subtheme", "Material") else "Material") ?: "Material")
+    }
+    var matMaterialGIconTheme by remember {
+        mutableStateOf(prefs.getString("widget_material_material_g_icon", if (matSaved) prefs.getString("widget_material_g_icon", "Material G Icon") else "Material G Icon") ?: "Material G Icon")
+    }
+    var matHue by remember {
+        mutableStateOf(prefs.getInt("widget_material_custom_hue", if (matSaved) prefs.getInt("widget_custom_hue", 277) else 277).toFloat())
+    }
+    var matSaturation by remember {
+        mutableStateOf(prefs.getInt("widget_material_custom_saturation", if (matSaved) prefs.getInt("widget_custom_saturation", 51) else 51).toFloat())
+    }
+    var matLightness by remember {
+        mutableStateOf(prefs.getInt("widget_material_custom_lightness", if (matSaved) prefs.getInt("widget_custom_lightness", 100) else 100).toFloat())
+    }
+    var matColorOpacity by remember {
+        mutableStateOf(prefs.getInt("widget_material_custom_color_opacity", if (matSaved) prefs.getInt("widget_custom_color_opacity", 100) else 100).toFloat())
+    }
+    var matTransparency by remember {
+        mutableStateOf(prefs.getInt("widget_material_background_transparency", if (matSaved) prefs.getInt("widget.background.transparency", 28) else 28).toFloat())
+    }
+    var matLockBlack by remember {
+        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_lock_black", true) else true)
+    }
+    var matActionIcon by remember {
+        mutableStateOf(prefs.getString("widget_material_action_icon", if (matSaved) prefs.getString("widget_action_icon", "Search") else "Search") ?: "Search")
+    }
+    var matShowGIcon by remember {
+        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
+    }
+    var matShowVoice by remember {
+        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_voice", prefs.getBoolean("widget_show_voice", true)) else true)
+    }
+    val rawMatSc1 = prefs.getString("widget_material_shortcut_1", if (matSaved) prefs.getString("widget_shortcut_1", "Google Lens") else "Google Lens") ?: "Google Lens"
+    val rawMatSc2 = prefs.getString("widget_material_shortcut_2", if (matSaved) prefs.getString("widget_shortcut_2", "None") else "None") ?: "None"
+    val rawMatSc3 = prefs.getString("widget_material_shortcut_3", if (matSaved) prefs.getString("widget_shortcut_3", "None") else "None") ?: "None"
+    var matShortcut1 by remember { mutableStateOf(if (rawMatSc1 == "Voice Search") "None" else rawMatSc1) }
+    var matShortcut2 by remember { mutableStateOf(if (rawMatSc2 == "Voice Search") "None" else rawMatSc2) }
+    var matShortcut3 by remember { mutableStateOf(if (rawMatSc3 == "Voice Search") "None" else rawMatSc3) }
+    var matSlotOrderStr by remember {
+        mutableStateOf(prefs.getString("widget_material_shortcut_order", if (matSaved) prefs.getString("widget_shortcut_order", defaultSlotOrder) else defaultSlotOrder) ?: defaultSlotOrder)
+    }
+
+    // Synced properties delegating to active bar
+    var localSubtheme by remember(isSystem) {
+        object : MutableState<String> {
+            override var value: String
+                get() = if (isSystem) sysSubtheme else matSubtheme
+                set(v) { if (isSystem) sysSubtheme = v else matSubtheme = v }
+            override fun component1(): String = value
+            override fun component2(): (String) -> Unit = { value = it }
+        }
+    }
+    var localMaterialGIconTheme by remember(isSystem) {
+        object : MutableState<String> {
+            override var value: String
+                get() = if (isSystem) sysMaterialGIconTheme else matMaterialGIconTheme
+                set(v) { if (isSystem) sysMaterialGIconTheme = v else matMaterialGIconTheme = v }
+            override fun component1(): String = value
+            override fun component2(): (String) -> Unit = { value = it }
+        }
+    }
+    var localHue by remember(isSystem) {
+        object : MutableState<Float> {
+            override var value: Float
+                get() = if (isSystem) sysHue else matHue
+                set(v) { if (isSystem) sysHue = v else matHue = v }
+            override fun component1(): Float = value
+            override fun component2(): (Float) -> Unit = { value = it }
+        }
+    }
+    var localSaturation by remember(isSystem) {
+        object : MutableState<Float> {
+            override var value: Float
+                get() = if (isSystem) sysSaturation else matSaturation
+                set(v) { if (isSystem) sysSaturation = v else matSaturation = v }
+            override fun component1(): Float = value
+            override fun component2(): (Float) -> Unit = { value = it }
+        }
+    }
+    var localLightness by remember(isSystem) {
+        object : MutableState<Float> {
+            override var value: Float
+                get() = if (isSystem) sysLightness else matLightness
+                set(v) { if (isSystem) sysLightness = v else matLightness = v }
+            override fun component1(): Float = value
+            override fun component2(): (Float) -> Unit = { value = it }
+        }
+    }
+    var localColorOpacity by remember(isSystem) {
+        object : MutableState<Float> {
+            override var value: Float
+                get() = if (isSystem) sysColorOpacity else matColorOpacity
+                set(v) { if (isSystem) sysColorOpacity = v else matColorOpacity = v }
+            override fun component1(): Float = value
+            override fun component2(): (Float) -> Unit = { value = it }
+        }
+    }
+    var localTransparency by remember(isSystem) {
+        object : MutableState<Float> {
+            override var value: Float
+                get() = if (isSystem) sysTransparency else matTransparency
+                set(v) { if (isSystem) sysTransparency = v else matTransparency = v }
+            override fun component1(): Float = value
+            override fun component2(): (Float) -> Unit = { value = it }
+        }
+    }
+    var localShowGIcon by remember(isSystem) {
+        object : MutableState<Boolean> {
+            override var value: Boolean
+                get() = if (isSystem) sysShowGIcon else matShowGIcon
+                set(v) { if (isSystem) sysShowGIcon = v else matShowGIcon = v }
+            override fun component1(): Boolean = value
+            override fun component2(): (Boolean) -> Unit = { value = it }
+        }
+    }
+    var localShowVoice by remember(isSystem) {
+        object : MutableState<Boolean> {
+            override var value: Boolean
+                get() = if (isSystem) sysShowVoice else matShowVoice
+                set(v) { if (isSystem) sysShowVoice = v else matShowVoice = v }
+            override fun component1(): Boolean = value
+            override fun component2(): (Boolean) -> Unit = { value = it }
+        }
+    }
+    var localShortcut1 by remember(isSystem) {
+        object : MutableState<String> {
+            override var value: String
+                get() = if (isSystem) sysShortcut1 else matShortcut1
+                set(v) { if (isSystem) sysShortcut1 = v else matShortcut1 = v }
+            override fun component1(): String = value
+            override fun component2(): (String) -> Unit = { value = it }
+        }
+    }
+    var localShortcut2 by remember(isSystem) {
+        object : MutableState<String> {
+            override var value: String
+                get() = if (isSystem) sysShortcut2 else matShortcut2
+                set(v) { if (isSystem) sysShortcut2 = v else matShortcut2 = v }
+            override fun component1(): String = value
+            override fun component2(): (String) -> Unit = { value = it }
+        }
+    }
+    var localShortcut3 by remember(isSystem) {
+        object : MutableState<String> {
+            override var value: String
+                get() = if (isSystem) sysShortcut3 else matShortcut3
+                set(v) { if (isSystem) sysShortcut3 = v else matShortcut3 = v }
+            override fun component1(): String = value
+            override fun component2(): (String) -> Unit = { value = it }
+        }
+    }
+    var localSlotOrderStr by remember(isSystem) {
+        object : MutableState<String> {
+            override var value: String
+                get() = if (isSystem) sysSlotOrderStr else matSlotOrderStr
+                set(v) { if (isSystem) sysSlotOrderStr = v else matSlotOrderStr = v }
+            override fun component1(): String = value
+            override fun component2(): (String) -> Unit = { value = it }
+        }
+    }
+
+    var localLockBlack by remember {
+        object : MutableState<Boolean> {
+            override var value: Boolean
+                get() = matLockBlack
+                set(v) { matLockBlack = v }
+            override fun component1(): Boolean = value
+            override fun component2(): (Boolean) -> Unit = { value = it }
+        }
+    }
+    var localActionIcon by remember {
+        object : MutableState<String> {
+            override var value: String
+                get() = matActionIcon
+                set(v) { matActionIcon = v }
+            override fun component1(): String = value
+            override fun component2(): (String) -> Unit = { value = it }
+        }
+    }
+
     val computedCustomColorInt = remember(localHue, localSaturation, localLightness, localColorOpacity) {
         android.graphics.Color.HSVToColor(
             (localColorOpacity / 100f * 255).toInt().coerceIn(0, 255),
             floatArrayOf(localHue, (localSaturation / 100f).coerceIn(0f, 1f), (localLightness / 100f).coerceIn(0f, 1f))
         )
     }
-    var localLockBlack by remember { mutableStateOf(prefs.getBoolean("widget_material_lock_black", true)) }
-    var localShowVoice by remember { mutableStateOf(prefs.getBoolean("widget_show_voice", true)) }
-    var localActionIcon by remember { mutableStateOf(prefs.getString("widget_action_icon", "Search") ?: "Search") }
-    val rawSc1 = prefs.getString("widget_shortcut_1", prefs.getString("widget_shortcut", "Google Lens")) ?: "Google Lens"
-    val rawSc2 = prefs.getString("widget_shortcut_2", "None") ?: "None"
-    val rawSc3 = prefs.getString("widget_shortcut_3", "None") ?: "None"
-    var localShortcut1 by remember { mutableStateOf(if (rawSc1 == "Voice Search") "None" else rawSc1) }
-    var localShortcut2 by remember { mutableStateOf(if (rawSc2 == "Voice Search") "None" else rawSc2) }
-    var localShortcut3 by remember { mutableStateOf(if (rawSc3 == "Voice Search") "None" else rawSc3) }
-    val defaultSlotOrder = "shortcut1,mic,shortcut2,shortcut3"
-    var localSlotOrderStr by remember { mutableStateOf(prefs.getString("widget_shortcut_order", defaultSlotOrder) ?: defaultSlotOrder) }
     var activeShortcutSlot by remember { mutableIntStateOf(1) }
     var draggingSlotKey by remember { mutableStateOf<String?>(null) }
     val view = androidx.compose.ui.platform.LocalView.current
@@ -5497,50 +5702,135 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 actions = {
                     androidx.compose.material3.TextButton(onClick = {
                         hapticEngine.performPredictiveBackHaptic(view)
-                        localShowGIcon = true
-                        localThemeStyle = "Material Design"
-                        localSubtheme = "System"
-                        localMaterialGIconTheme = "Material G Icon"
-                        localHue = 277f
-                        localSaturation = 51f
-                        localLightness = 100f
-                        localColorOpacity = 100f
-                        localTransparency = 28f
-                        localLockBlack = true
-                        localShowVoice = true
-                        localActionIcon = "Search"
-                        localShortcut1 = "Google Lens"
-                        localShortcut2 = "None"
-                        localShortcut3 = "None"
-                        localSlotOrderStr = defaultSlotOrder
+                        if (isSystem) {
+                            sysSubtheme = "System"
+                            sysMaterialGIconTheme = "System G Icon"
+                            sysHue = 277f
+                            sysSaturation = 51f
+                            sysLightness = 100f
+                            sysColorOpacity = 100f
+                            sysTransparency = 0f
+                            sysShowGIcon = true
+                            sysShowVoice = true
+                            sysShortcut1 = "Google Lens"
+                            sysShortcut2 = "None"
+                            sysShortcut3 = "None"
+                            sysSlotOrderStr = defaultSlotOrder
+                            prefs.edit()
+                                .putBoolean("widget_system_design_saved", false)
+                                .remove("widget_system_subtheme")
+                                .remove("widget_system_material_g_icon")
+                                .remove("widget_system_custom_hue")
+                                .remove("widget_system_custom_saturation")
+                                .remove("widget_system_custom_lightness")
+                                .remove("widget_system_custom_color_opacity")
+                                .remove("widget_system_custom_color_int")
+                                .remove("widget_system_background_transparency")
+                                .remove("widget_system_show_g_icon")
+                                .remove("widget_system_show_voice")
+                                .remove("widget_system_shortcut_1")
+                                .remove("widget_system_shortcut_2")
+                                .remove("widget_system_shortcut_3")
+                                .remove("widget_system_shortcut_order")
+                                .apply()
+                            updateWidgets(context)
+                            android.widget.Toast.makeText(context, "System Design Reset to Default", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            matSubtheme = "Material"
+                            matMaterialGIconTheme = "Material G Icon"
+                            matHue = 277f
+                            matSaturation = 51f
+                            matLightness = 100f
+                            matColorOpacity = 100f
+                            matTransparency = 28f
+                            matLockBlack = true
+                            matActionIcon = "Search"
+                            matShowGIcon = true
+                            matShowVoice = true
+                            matShortcut1 = "Google Lens"
+                            matShortcut2 = "None"
+                            matShortcut3 = "None"
+                            matSlotOrderStr = defaultSlotOrder
+                            prefs.edit()
+                                .putBoolean("widget_material_design_saved", false)
+                                .remove("widget_material_subtheme")
+                                .remove("widget_material_material_g_icon")
+                                .remove("widget_material_custom_hue")
+                                .remove("widget_material_custom_saturation")
+                                .remove("widget_material_custom_lightness")
+                                .remove("widget_material_custom_color_opacity")
+                                .remove("widget_material_custom_color_int")
+                                .remove("widget_material_background_transparency")
+                                .remove("widget_material_lock_black")
+                                .remove("widget_material_action_icon")
+                                .remove("widget_material_show_g_icon")
+                                .remove("widget_material_show_voice")
+                                .remove("widget_material_shortcut_1")
+                                .remove("widget_material_shortcut_2")
+                                .remove("widget_material_shortcut_3")
+                                .remove("widget_material_shortcut_order")
+                                .apply()
+                            updateWidgets(context)
+                            android.widget.Toast.makeText(context, "Material Design Reset to Default", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                     }) {
                         Text("Reset", color = MaterialTheme.colorScheme.onSurface)
                     }
                     androidx.compose.material3.TextButton(onClick = {
                         hapticEngine.performPredictiveBackHaptic(view)
-                        prefs.edit()
-                            .putBoolean("widget_show_g_icon", localShowGIcon)
-                            .putString("widget.theme.style", localThemeStyle)
-                            .putString("widget_subtheme", localSubtheme)
-                            .putString("widget_material_g_icon", localMaterialGIconTheme)
-                            .putInt("widget_custom_hue", localHue.toInt())
-                            .putInt("widget_custom_saturation", localSaturation.toInt())
-                            .putInt("widget_custom_lightness", localLightness.toInt())
-                            .putInt("widget_custom_color_opacity", localColorOpacity.toInt())
-                            .putInt("widget_custom_color_int", computedCustomColorInt)
-                            .putInt("widget.background.transparency", localTransparency.toInt())
-                            .putBoolean("widget_material_lock_black", localLockBlack)
-                            .putBoolean("widget_show_voice", localShowVoice)
-                            .putString("widget_action_icon", localActionIcon)
-                            .putString("widget_shortcut_1", localShortcut1)
-                            .putString("widget_shortcut_2", localShortcut2)
-                            .putString("widget_shortcut_3", localShortcut3)
-                            .putString("widget_shortcut_order", localSlotOrderStr)
-                            .putString("widget_shortcut", localShortcut1)
-                            .putBoolean("widget_design_saved", true)
-                            .apply()
-                        updateWidgets(context)
-                        android.widget.Toast.makeText(context, "Settings Saved", android.widget.Toast.LENGTH_SHORT).show()
+                        if (isSystem) {
+                            val sysColorInt = android.graphics.Color.HSVToColor(
+                                (sysColorOpacity / 100f * 255).toInt().coerceIn(0, 255),
+                                floatArrayOf(sysHue, (sysSaturation / 100f).coerceIn(0f, 1f), (sysLightness / 100f).coerceIn(0f, 1f))
+                            )
+                            prefs.edit()
+                                .putBoolean("widget_system_design_saved", true)
+                                .putString("widget_system_subtheme", sysSubtheme)
+                                .putString("widget_system_material_g_icon", sysMaterialGIconTheme)
+                                .putInt("widget_system_custom_hue", sysHue.toInt())
+                                .putInt("widget_system_custom_saturation", sysSaturation.toInt())
+                                .putInt("widget_system_custom_lightness", sysLightness.toInt())
+                                .putInt("widget_system_custom_color_opacity", sysColorOpacity.toInt())
+                                .putInt("widget_system_custom_color_int", sysColorInt)
+                                .putInt("widget_system_background_transparency", sysTransparency.toInt())
+                                .putBoolean("widget_system_show_g_icon", sysShowGIcon)
+                                .putBoolean("widget_system_show_voice", sysShowVoice)
+                                .putString("widget_system_shortcut_1", sysShortcut1)
+                                .putString("widget_system_shortcut_2", sysShortcut2)
+                                .putString("widget_system_shortcut_3", sysShortcut3)
+                                .putString("widget_system_shortcut_order", sysSlotOrderStr)
+                                .putString("widget.theme.style", "System Default")
+                                .apply()
+                            updateWidgets(context)
+                            android.widget.Toast.makeText(context, "System Design Saved", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            val matColorInt = android.graphics.Color.HSVToColor(
+                                (matColorOpacity / 100f * 255).toInt().coerceIn(0, 255),
+                                floatArrayOf(matHue, (matSaturation / 100f).coerceIn(0f, 1f), (matLightness / 100f).coerceIn(0f, 1f))
+                            )
+                            prefs.edit()
+                                .putBoolean("widget_material_design_saved", true)
+                                .putString("widget_material_subtheme", matSubtheme)
+                                .putString("widget_material_material_g_icon", matMaterialGIconTheme)
+                                .putInt("widget_material_custom_hue", matHue.toInt())
+                                .putInt("widget_material_custom_saturation", matSaturation.toInt())
+                                .putInt("widget_material_custom_lightness", matLightness.toInt())
+                                .putInt("widget_material_custom_color_opacity", matColorOpacity.toInt())
+                                .putInt("widget_material_custom_color_int", matColorInt)
+                                .putInt("widget_material_background_transparency", matTransparency.toInt())
+                                .putBoolean("widget_material_lock_black", matLockBlack)
+                                .putString("widget_material_action_icon", matActionIcon)
+                                .putBoolean("widget_material_show_g_icon", matShowGIcon)
+                                .putBoolean("widget_material_show_voice", matShowVoice)
+                                .putString("widget_material_shortcut_1", matShortcut1)
+                                .putString("widget_material_shortcut_2", matShortcut2)
+                                .putString("widget_material_shortcut_3", matShortcut3)
+                                .putString("widget_material_shortcut_order", matSlotOrderStr)
+                                .putString("widget.theme.style", "Material You (Minimal)")
+                                .apply()
+                            updateWidgets(context)
+                            android.widget.Toast.makeText(context, "Material Design Saved", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                     }) {
                         Text("Save", color = MaterialTheme.colorScheme.onSurface)
                     }
@@ -5839,7 +6129,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
                                 hapticEngine.performPredictiveBackHaptic(view)
                                 localThemeStyle = "System Default"
-                                localSubtheme = "System"
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -5859,7 +6148,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
                                 hapticEngine.performPredictiveBackHaptic(view)
                                 localThemeStyle = "Material You (Minimal)"
-                                localSubtheme = "Material"
                             },
                         contentAlignment = Alignment.Center
                     ) {

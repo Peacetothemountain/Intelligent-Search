@@ -611,11 +611,20 @@ fun SettingsScreensHub(
             val act = context.findActivity() ?: (context as? Activity)
             if (act != null) {
                 if (act.isTaskRoot) {
-                    val intent = Intent(context, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java).apply {
-                        putExtra("FROM_BACK_SWIPE", true)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    val isBackToOverlay = settingsState.backToSearchOverlay
+                    if (isBackToOverlay) {
+                        val intent = Intent(context, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java).apply {
+                            putExtra("FROM_BACK_SWIPE", true)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        }
+                        context.startActivity(intent)
+                    } else {
+                        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                            addCategory(Intent.CATEGORY_HOME)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(homeIntent)
                     }
-                    context.startActivity(intent)
                 }
                 act.finish()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -642,17 +651,14 @@ fun SettingsScreensHub(
             }
         }
 
-        val exitBackProgress = remember { Animatable(0f) }
+        val act = context.findActivity() ?: (context as? Activity)
+        val isRootTask = act?.isTaskRoot == true
 
-        androidx.activity.compose.PredictiveBackHandler(enabled = isAtRootMain) { progressFlow ->
+        androidx.activity.compose.PredictiveBackHandler(enabled = isAtRootMain && isRootTask) { progressFlow ->
             try {
-                progressFlow.collect { backEvent ->
-                    exitBackProgress.snapTo(backEvent.progress)
-                }
-                exitBackProgress.snapTo(0f)
+                progressFlow.collect { _ -> }
                 handleExitBack()
             } catch (_: java.util.concurrent.CancellationException) {
-                exitBackProgress.animateTo(0f, spring(dampingRatio = 0.85f, stiffness = 300f))
             }
         }
 
@@ -678,15 +684,6 @@ fun SettingsScreensHub(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer {
-                    val p = exitBackProgress.value
-                    if (p > 0f) {
-                        scaleX = 1f - (p * 0.08f)
-                        scaleY = 1f - (p * 0.08f)
-                        alpha = (1f - p * 0.25f).coerceIn(0f, 1f)
-                        transformOrigin = TransformOrigin(0.5f, 0.5f)
-                    }
-                }
                 .background(MaterialTheme.colorScheme.background)
         ) {
             var showTutorial by remember { mutableStateOf(TutorialManager.isTutorialActive(prefs)) }
@@ -715,46 +712,26 @@ fun SettingsScreensHub(
                     startDestination = startRoute,
                     enterTransition = {
                         slideInHorizontally(
-                            initialOffsetX = { (it * 0.22f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
-                        ) + fadeIn(
-                            animationSpec = tween(durationMillis = 240, easing = LinearOutSlowInEasing)
-                        ) + scaleIn(
-                            initialScale = 0.94f,
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            initialOffsetX = { it },
+                            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
                         )
                     },
                     exitTransition = {
                         slideOutHorizontally(
-                            targetOffsetX = { -(it * 0.10f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
-                        ) + fadeOut(
-                            animationSpec = tween(durationMillis = 180, easing = FastOutLinearInEasing)
-                        ) + scaleOut(
-                            targetScale = 0.96f,
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            targetOffsetX = { -it / 3 },
+                            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
                         )
                     },
                     popEnterTransition = {
                         slideInHorizontally(
-                            initialOffsetX = { -(it * 0.10f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
-                        ) + fadeIn(
-                            animationSpec = tween(durationMillis = 240, easing = LinearOutSlowInEasing)
-                        ) + scaleIn(
-                            initialScale = 0.96f,
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            initialOffsetX = { -it / 3 },
+                            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
                         )
                     },
                     popExitTransition = {
                         slideOutHorizontally(
-                            targetOffsetX = { (it * 0.22f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
-                        ) + fadeOut(
-                            animationSpec = tween(durationMillis = 180, easing = FastOutLinearInEasing)
-                        ) + scaleOut(
-                            targetScale = 0.94f,
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            targetOffsetX = { it },
+                            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
                         )
                     }
                 ) {
@@ -5844,10 +5821,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .padding(padding)
         ) {
             // Live Preview Card (Pinned at the top for real-time visual feedback)
+            Text(
+                text = if (isSystem) "Preview System search bar widget" else "Preview Material Design search bar widget",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp)
+            )
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
                     .height(150.dp)
                     .clip(RoundedCornerShape(24.dp))
                     .background(MaterialTheme.colorScheme.background),

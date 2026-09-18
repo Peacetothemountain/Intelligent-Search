@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch
+import android.content.Context
 import com.pixel.intelligentsearch.feature.settings.SettingsActivity
 import android.content.Intent
 import android.os.Build
@@ -108,7 +109,11 @@ open class MainActivity : AppCompatActivity() {
             }
         }
 
-        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+        val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val showWallpaper = prefs.getBoolean("search.background.show.wall", false)
+        if (showWallpaper) {
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+        }
         window.setDimAmount(0f)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             @Suppress("DEPRECATION")
@@ -126,6 +131,14 @@ open class MainActivity : AppCompatActivity() {
         }
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
+        val isTutorial = com.pixel.intelligentsearch.feature.settings.TutorialManager.isTutorialActive(prefs)
+        window.setSoftInputMode(
+            if (isTutorial) {
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            } else {
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            }
+        )
         super.onCreate(savedInstanceState)
 
         if (checkAndForwardIfSearchOverlayDisabled()) return
@@ -194,6 +207,10 @@ open class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
     }
 
     private fun handleIntent(intent: Intent?): Boolean {

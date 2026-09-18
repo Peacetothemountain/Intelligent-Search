@@ -136,7 +136,6 @@ fun TutorialSpotlightOverlay(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .imePadding()
             .graphicsLayer { alpha = 0.99f }
             .background(Color.Transparent)
             .onGloballyPositioned { coordinates ->
@@ -300,19 +299,19 @@ fun TutorialSpotlightOverlay(
                         style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                     )
 
-                    if (animationProgress.value > 0.90f) {
-                        val alpha = ((animationProgress.value - 0.90f) * 10f).coerceIn(0f, 1f)
-                        val arrowHeadLen = kotlin.math.min(26f, length * 0.30f)
+                    if (animationProgress.value > 0.85f) {
+                        val alpha = ((animationProgress.value - 0.85f) * 6.6f).coerceIn(0f, 1f)
+                        val arrowHeadLen = 30f
                         val arrowPath = Path().apply {
                             moveTo(endPoint.x, endPoint.y)
                             lineTo(
-                                endPoint.x - arrowHeadLen * cos(angle - Math.PI / 5.5).toFloat(),
-                                endPoint.y - arrowHeadLen * sin(angle - Math.PI / 5.5).toFloat()
+                                endPoint.x - arrowHeadLen * cos(angle - Math.PI / 6).toFloat(),
+                                endPoint.y - arrowHeadLen * sin(angle - Math.PI / 6).toFloat()
                             )
                             moveTo(endPoint.x, endPoint.y)
                             lineTo(
-                                endPoint.x - arrowHeadLen * cos(angle + Math.PI / 5.5).toFloat(),
-                                endPoint.y - arrowHeadLen * sin(angle + Math.PI / 5.5).toFloat()
+                                endPoint.x - arrowHeadLen * cos(angle + Math.PI / 6).toFloat(),
+                                endPoint.y - arrowHeadLen * sin(angle + Math.PI / 6).toFloat()
                             )
                         }
                         drawPath(

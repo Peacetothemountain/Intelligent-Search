@@ -100,7 +100,7 @@
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:theme="@style/Theme.IntelligentSearch.Overlay.Widget"
-            android:windowSoftInputMode="stateAlwaysHidden|adjustResize"
+            android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:exported="false">
@@ -113,7 +113,7 @@
             android:roundIcon="@mipmap/ic_launcher_round"
             android:label="Search"
             android:theme="@style/Theme.IntelligentSearch.Overlay.Launcher"
-            android:windowSoftInputMode="stateAlwaysHidden|adjustResize"
+            android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
@@ -188,7 +188,7 @@
 
         <receiver
             android:name="com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider"
-            android:label="System Design Bar"
+            android:label="Widget selection preview System search bar"
             android:directBootAware="true"
             android:exported="true">
             <intent-filter>
@@ -204,7 +204,7 @@
 
         <receiver
             android:name="com.pixel.intelligentsearch.feature.widget.SearchWidgetMaterialProvider"
-            android:label="Material Design Bar"
+            android:label="Widget selection preview Material Design search bar"
             android:directBootAware="true"
             android:exported="true">
             <intent-filter>

@@ -470,13 +470,16 @@ fun SearchOverlayScreen(
     val screenHeight = configuration.screenHeightDp.dp
 
     val coroutineScope = rememberCoroutineScope()
-    // Animatable for the overlay expansion progress: 0f = collapsed pill, 1f = fully expanded
-    val overlayProgressAnim = remember { Animatable(if (isFromBackSwipe) 1f else 0f) }
+    // Animatable for the overlay expansion progress: starts fully expanded (1f) so returning from apps is instant and never transparent
+    val overlayProgressAnim = remember { Animatable(1f) }
     val predictiveBackProgress = remember { Animatable(0f) }
     var predictiveBackEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
 
     val sensoryEngine = rememberTactileSonicEngine()
     val view = androidx.compose.ui.platform.LocalView.current
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val searchResultsListState = rememberLazyListState()
     rememberScrollDetentController(searchResultsListState, sensoryEngine)
 
@@ -496,17 +499,7 @@ fun SearchOverlayScreen(
 
     LaunchedEffect(isOpening) {
         if (isOpening) {
-            if (!isFromBackSwipe) {
-                overlayProgressAnim.animateTo(
-                    targetValue = 1f,
-                    animationSpec = spring(
-                        dampingRatio = 0.84f,
-                        stiffness = 380f
-                    )
-                )
-            } else {
-                overlayProgressAnim.snapTo(1f)
-            }
+            overlayProgressAnim.snapTo(1f)
         } else {
             sensoryEngine.overlayDismiss(view)
             val currentVel = overlayProgressAnim.velocity
@@ -522,10 +515,6 @@ fun SearchOverlayScreen(
             finishWithoutTransition(act)
         }
     }
-
-    val focusRequester = remember { FocusRequester() }
-    
-
     
     val isForceTutorial = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
     var showTutorial by remember {
@@ -536,26 +525,43 @@ fun SearchOverlayScreen(
     }
     
     var showDebugPill by remember { mutableStateOf(false) }
-    val keyboardController = LocalSoftwareKeyboardController.current
     val hapticContext = LocalContext.current
+
+    var isKeyboardDismissedByUser by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(showTutorial) {
+        if (showTutorial) {
+            keyboardController?.hide()
+        }
+    }
 
     val closeOverlay = {
         hasStartedTyping = false
+        focusManager.clearFocus(force = true)
         keyboardController?.hide()
+        val act = context.findActivity()
+        if (act != null) {
+            androidx.core.view.WindowCompat.getInsetsController(act.window, act.window.decorView)
+                .hide(androidx.core.view.WindowInsetsCompat.Type.ime())
+        }
         viewModel.onQueryChanged("")
         if (transitionState.targetState) {
             transitionState.targetState = false
         } else {
-            val act = context.findActivity()
             finishWithoutTransition(act)
         }
     }
 
     val goToHomeScreen: () -> Unit = {
         hasStartedTyping = false
+        focusManager.clearFocus(force = true)
         keyboardController?.hide()
-        viewModel.onQueryChanged("")
         val act = context.findActivity()
+        if (act != null) {
+            androidx.core.view.WindowCompat.getInsetsController(act.window, act.window.decorView)
+                .hide(androidx.core.view.WindowInsetsCompat.Type.ime())
+        }
+        viewModel.onQueryChanged("")
         try {
             val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_HOME)
@@ -646,25 +652,25 @@ fun SearchOverlayScreen(
         }
     }
 
-    LaunchedEffect(transitionState.targetState) {
-        if (transitionState.targetState) {
+    LaunchedEffect(transitionState.targetState, showTutorial) {
+        if (transitionState.targetState && !isKeyboardDisabled && !showTutorial) {
             try {
-                delay(60)
                 focusRequester.requestFocus()
                 keyboardController?.show()
             } catch (e: Exception) {}
         }
     }
     
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
                 hasStartedTyping = false
-                keyboardController?.hide()
                 viewModel.onQueryChanged("")
+                textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 hasStartedTyping = false
+                isKeyboardDismissedByUser = false
                 val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
                 if (forceTut) {
                     TutorialManager.resetForForceTutorial(prefs)
@@ -674,32 +680,19 @@ fun SearchOverlayScreen(
                 }
                 
                 transitionState.targetState = true
-                viewModel.loadInitialData()
-
-                val fromBack = activity?.intent?.getBooleanExtra("FROM_BACK_SWIPE", false) == true
                 coroutineScope.launch {
                     predictiveBackProgress.snapTo(0f)
-                    if (!fromBack && overlayProgressAnim.value < 0.5f) {
-                        overlayProgressAnim.snapTo(0f)
-                        overlayProgressAnim.animateTo(
-                            targetValue = 1f,
-                            animationSpec = spring(
-                                dampingRatio = 0.84f,
-                                stiffness = 380f
-                            )
-                        )
-                    } else {
-                        overlayProgressAnim.snapTo(1f)
-                    }
+                    overlayProgressAnim.snapTo(1f)
                 }
 
-                try {
-                    coroutineScope.launch {
-                        delay(100)
+                if (!showTutorial && !isKeyboardDisabled) {
+                    try {
                         focusRequester.requestFocus()
                         keyboardController?.show()
-                    }
-                } catch (e: Exception) {}
+                    } catch (_: Exception) {}
+                } else if (showTutorial) {
+                    keyboardController?.hide()
+                }
                 val currentStep = TutorialManager.getStep(prefs)
                 
                 if (showTutorial && currentStep == 2) {
@@ -873,6 +866,14 @@ fun SearchOverlayScreen(
                         ),
                         RoundedCornerShape(percent = 50)
                     )
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        try {
+                            focusRequester.requestFocus()
+                        } catch (_: Exception) {}
+                    }
                     .padding(horizontal = 24.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -2091,13 +2092,6 @@ fun SearchOverlayScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .windowInsetsPadding(
-                if (!isKeyboardDisabled) {
-                    WindowInsets.ime.union(WindowInsets.navigationBars)
-                } else {
-                    WindowInsets.navigationBars
-                }
-            )
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
@@ -2131,6 +2125,7 @@ fun SearchOverlayScreen(
                                 val newProgress = (overlayProgressAnim.value - deltaProgress).coerceIn(0f, 1f)
                                 overlayProgressAnim.snapTo(newProgress)
                                 if (newProgress < 0.95f) {
+                                    isKeyboardDismissedByUser = true
                                     keyboardController?.hide()
                                 }
                             }
@@ -2157,7 +2152,18 @@ fun SearchOverlayScreen(
                 }
         )
 
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(
+                    if (!isKeyboardDisabled) {
+                        WindowInsets.ime.union(WindowInsets.navigationBars)
+                    } else {
+                        WindowInsets.navigationBars
+                    }
+                ),
+            contentAlignment = Alignment.BottomCenter
+        ) {
             if (settingsState.matrixAnimationEnabled) {
                 Box(
                     modifier = Modifier
@@ -2253,6 +2259,9 @@ fun SearchOverlayScreen(
                     }
                 }
             }
+        }
+
+        if (showTutorial) {
             TutorialSpotlightOverlay(
                 prefs = prefs,
                 stepsInfo = mapOf(
@@ -2265,9 +2274,9 @@ fun SearchOverlayScreen(
                     if (step == 3) onOpenSettings("main")
                 }
             )
-            } // Close the Box
         }
     }
+}
 
 private val fileThumbnailCache = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(128)
 

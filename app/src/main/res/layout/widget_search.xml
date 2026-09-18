@@ -11,40 +11,34 @@
     android:layout_height="match_parent"
     android:padding="0dp">
 
-    <!-- Outer 72dp container centered vertically to match preview (56dp pill + 8dp top/bottom rim padding) -->
-    <FrameLayout
+    <!-- Outer rim capsule (accent-tinted border, 40dp corner radius) -->
+    <ImageView
+        android:id="@+id/widget_outer_background"
         android:layout_width="match_parent"
-        android:layout_height="72dp"
-        android:layout_gravity="center">
+        android:layout_height="match_parent"
+        android:src="@drawable/bg_outer_capsule"
+        android:scaleType="fitXY" />
 
-        <!-- Outer rim capsule (accent-tinted border, 40dp corner radius) -->
-        <ImageView
-            android:id="@+id/widget_outer_background"
-            android:layout_width="match_parent"
+    <!-- Inner content row (insets to expose accent rim all around) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:baselineAligned="false"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp"
+        android:paddingTop="5dp"
+        android:paddingBottom="5dp">
+
+        <!-- Search pill (matches 1:1 with preview) -->
+        <FrameLayout
+            android:id="@+id/widget_pill_container"
+            android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:src="@drawable/bg_outer_capsule"
-            android:scaleType="fitXY" />
-
-        <!-- Inner content row (8dp padding matching preview) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:baselineAligned="false"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp">
-
-            <!-- Search pill (56dp height, 28dp corner radius) -->
-            <FrameLayout
-                android:id="@+id/widget_pill_container"
-                android:layout_width="0dp"
-                android:layout_height="56dp"
-                android:layout_weight="1"
-                android:clickable="true"
-                android:focusable="true">
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true">
 
                 <!-- Pill dark background -->
                 <ImageView
@@ -145,12 +139,13 @@
                 </LinearLayout>
             </FrameLayout>
 
-            <!-- Circle action button (56dp x 56dp, 8dp marginStart) -->
+            <!-- Circle action button (52dp x 52dp, 6dp marginStart) -->
             <FrameLayout
                 android:id="@+id/widget_sound_search"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
-                android:layout_marginStart="8dp"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="6dp"
                 android:clickable="true"
                 android:focusable="true">
 
@@ -163,8 +158,8 @@
 
                 <ImageView
                     android:id="@+id/widget_sound_icon"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
                     android:layout_gravity="center"
                     android:src="@drawable/ic_search_lens_expressive"
                     android:scaleType="fitCenter"
@@ -173,6 +168,4 @@
             </FrameLayout>
 
         </LinearLayout>
-    </FrameLayout>
-
 </FrameLayout>

@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
 @AndroidEntryPoint
 open class SearchWidgetProvider : AppWidgetProvider() {
 
-    open val forcedIsMaterial: Boolean? = false
+    open val forcedIsMaterial: Boolean? = null
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
@@ -52,8 +52,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 val widgetThemeStyle = prefs.getString("widget.theme.style", "System Default")
 
                 for (appWidgetId in appWidgetIds) {
-                    val isHotseat = isPixelLauncherHotseat(context, appWidgetManager, appWidgetId)
-                    val isMaterialYou = if (isHotseat) false else (forcedIsMaterial ?: (widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"))
+                    val isMaterialYou = forcedIsMaterial ?: (widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design")
                     val layoutId = if (isMaterialYou) R.layout.widget_search else R.layout.widget_search_colorful
                     val views = RemoteViews(context.packageName, layoutId)
                     val visibility = if (isHidden) View.INVISIBLE else View.VISIBLE
@@ -163,25 +162,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             return targetContext.getSharedPreferences(name, Context.MODE_PRIVATE)
         }
 
-        fun isPixelLauncherHotseat(
-            context: Context,
-            appWidgetManager: AppWidgetManager,
-            appWidgetId: Int
-        ): Boolean {
-            if (appWidgetId == 33) return true
-            return try {
-                val options = appWidgetManager.getAppWidgetOptions(appWidgetId) ?: Bundle.EMPTY
-                val hostCategory = options.getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1)
-                if (hostCategory == 4) return true // AppWidgetProviderInfo.WIDGET_CATEGORY_SEARCHBOX
-                val maxHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
-                val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
-                if (maxHeight in 1..65 && minWidth >= 180) return true
-                false
-            } catch (e: Throwable) {
-                false
-            }
-        }
-
         fun updateAllWidgets(context: Context, pendingResult: android.content.BroadcastReceiver.PendingResult? = null) {
             widgetScope.launch {
                 try {
@@ -199,8 +179,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             if (appWidgetIds != null && appWidgetIds.isNotEmpty()) {
                                 val forcedIsMaterial = when(providerClass) {
                                     SearchWidgetMaterialProvider::class.java -> true
-                                    SearchWidgetProvider::class.java -> false
-                                    else -> false
+                                    else -> null
                                 }
                                 updateWidgetsSync(context, appWidgetManager, appWidgetIds, forcedIsMaterial)
                             }
@@ -280,12 +259,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
             for (appWidgetId in appWidgetIds) {
                 try {
-                    val isHotseat = isPixelLauncherHotseat(context, appWidgetManager, appWidgetId)
-                    val isMaterialYou = if (isHotseat) {
-                        false
-                    } else {
-                        forcedIsMaterial ?: (widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design")
-                    }
+                    val isMaterialYou = forcedIsMaterial ?: (widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design")
 
                     val rimColor = if (isMaterialYou) {
                         when (subthemeStr) {

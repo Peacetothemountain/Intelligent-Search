@@ -18,7 +18,8 @@ android {
         versionCode = 99
         versionName = "9.04"
         ndk {
-            abiFilters.addAll(listOf("arm64-v8a", "x86_64"))
+            // CRITICAL: Must support arm64-v8a, armeabi-v7a, x86_64, and x86 to retain Google Play compatibility for 2,159+ devices.
+            abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86"))
         }
     }
 

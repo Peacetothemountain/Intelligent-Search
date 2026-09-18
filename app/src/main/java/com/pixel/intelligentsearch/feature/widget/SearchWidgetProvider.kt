@@ -51,9 +51,10 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 val isHidden = intent.action == "com.pixel.intelligentsearch.ACTION_HIDE_WIDGET"
                 val prefs = getSafeSharedPreferences(context)
                 val widgetThemeStyle = prefs.getString("widget.theme.style", "System Default")
+                val hasSaved = hasSavedDesign(prefs)
 
                 for (appWidgetId in appWidgetIds) {
-                    val isMaterialYou = resolveIsMaterialYou(appWidgetManager, appWidgetId, forcedIsMaterial, widgetThemeStyle)
+                    val isMaterialYou = resolveIsMaterialYou(appWidgetManager, appWidgetId, forcedIsMaterial, widgetThemeStyle, hasSaved)
                     val layoutId = if (isMaterialYou) R.layout.widget_search else R.layout.widget_search_colorful
                     val views = RemoteViews(context.packageName, layoutId)
                     val visibility = if (isHidden) View.INVISIBLE else View.VISIBLE
@@ -105,24 +106,30 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         private const val TAG = "SearchWidgetProvider"
         private val widgetScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+        fun hasSavedDesign(prefs: SharedPreferences): Boolean {
+            return prefs.getBoolean("widget_design_saved", false) ||
+                prefs.contains("widget_custom_hue") ||
+                prefs.contains("widget_custom_color_int") ||
+                (prefs.getString("widget_subtheme", null) != null && prefs.getString("widget_subtheme", null) != "System") ||
+                (prefs.getString("widget.theme.style", null) != null && prefs.getString("widget.theme.style", null) != "System Default")
+        }
+
         fun resolveIsMaterialYou(
             appWidgetManager: AppWidgetManager,
             appWidgetId: Int,
             forcedIsMaterial: Boolean?,
-            widgetThemeStyle: String?
+            widgetThemeStyle: String?,
+            hasSavedDesign: Boolean = false
         ): Boolean {
-            if (forcedIsMaterial != null) {
-                return forcedIsMaterial
-            }
             val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
             val hostCategory = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1) ?: -1
             val isSearchbox = (hostCategory and AppWidgetProviderInfo.WIDGET_CATEGORY_SEARCHBOX) != 0
 
-            return if (isSearchbox) {
-                widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
-            } else {
-                false
+            if (isSearchbox || hasSavedDesign) {
+                return widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
             }
+
+            return forcedIsMaterial ?: (widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design")
         }
 
         // Slot identifiers for bit-shifted unique request codes
@@ -278,13 +285,16 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val slotOrderStr = prefs.getString("widget_shortcut_order", "shortcut1,mic,shortcut2,shortcut3") ?: "shortcut1,mic,shortcut2,shortcut3"
             val slotOrder = slotOrderStr.split(",").filter { it.isNotBlank() }
 
+            val hasSaved = hasSavedDesign(prefs)
+
             for (appWidgetId in appWidgetIds) {
                 try {
                     val isMaterialYou = resolveIsMaterialYou(
                         appWidgetManager = appWidgetManager,
                         appWidgetId = appWidgetId,
                         forcedIsMaterial = forcedIsMaterial,
-                        widgetThemeStyle = widgetThemeStyle
+                        widgetThemeStyle = widgetThemeStyle,
+                        hasSavedDesign = hasSaved
                     )
 
                     val rimColor = if (isMaterialYou) {
@@ -307,6 +317,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         when (subthemeStr) {
                             "Light" -> 0xFFF1F3F4.toInt()
                             "Dark" -> 0xFF303134.toInt()
+                            "Custom" -> actualCustomColor
                             else -> if (isDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
                         }
                     }
@@ -316,7 +327,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     val pillAlphaInt = if (isMaterialYou) {
                         if (lockBlack) containerAlphaInt else effectiveColorAlphaInt
                     } else {
-                        containerAlphaInt
+                        if (subthemeStr == "Custom") effectiveColorAlphaInt else containerAlphaInt
                     }
                     val circleAlphaInt = pillAlphaInt
 
@@ -337,15 +348,15 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     )
 
                     val isPillLight = if (!isMaterialYou) {
-                        subthemeStr == "Light" || (subthemeStr != "Dark" && !isDark)
+                        subthemeStr == "Light" || (subthemeStr == "System" && !isDark) || (subthemeStr == "Custom" && customColorLuminance > 0.5)
                     } else {
                         !lockBlack && (customColorLuminance > 0.5)
                     }
 
-                    val effectiveIconTheme = if (isMaterialYou) {
+                    val effectiveIconTheme = if (subthemeStr == "Custom" || isMaterialYou) {
                         materialGIconTheme
                     } else {
-                        "System G Icon"
+                        prefs.getString("widget_material_g_icon", "System G Icon") ?: "System G Icon"
                     }
 
                     val gIconRes = when (effectiveIconTheme) {
@@ -355,7 +366,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         else -> if (isMaterialYou) R.drawable.ic_g_logo else R.drawable.ic_g_logo_colored
                     }
 
-                    val (themePColor, themeSColor, themeTColor) = if (isMaterialYou && subthemeStr == "Custom") {
+                    val (themePColor, themeSColor, themeTColor) = if (subthemeStr == "Custom") {
                         val cHue = prefs.getInt("widget_custom_hue", 277).toFloat()
                         val cSaturation = prefs.getInt("widget_custom_saturation", 51).toFloat()
                         val isDarkSurface = !isPillLight
@@ -372,7 +383,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         Triple(p, s, t)
                     }
 
-                    val useMaterialYouIcons = isMaterialYou
+                    val useMaterialYouIcons = isMaterialYou || effectiveIconTheme == "Material G Icon" || isPillLight || subthemeStr == "Custom"
 
                     val allActiveItems = mutableListOf<Triple<String, Int, Intent>>()
                     for (key in slotOrder) {
@@ -519,11 +530,12 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             views.setInt(targetViewId, "setImageAlpha", 255)
                         }
                         else -> {
-                            if (item.first == "mic" || item.second == R.drawable.ic_mic_original || item.second == R.drawable.ic_mic) {
+                            val subthemeStr = prefs.getString("widget_subtheme", "System") ?: "System"
+                            if (subthemeStr != "Custom" && (item.first == "mic" || item.second == R.drawable.ic_mic_original || item.second == R.drawable.ic_mic)) {
                                 val micBitmap = createGoogleMicColoredBitmap(context)
                                 views.setImageViewBitmap(targetViewId, micBitmap)
                                 views.setColorStateList(targetViewId, "setImageTintList", null)
-                            } else if (item.first == "Google Lens" || item.second == R.drawable.ic_camera) {
+                            } else if (subthemeStr != "Custom" && (item.first == "Google Lens" || item.second == R.drawable.ic_camera)) {
                                 val lensBitmap = createGoogleLensColoredBitmap(context)
                                 views.setImageViewBitmap(targetViewId, lensBitmap)
                                 views.setColorStateList(targetViewId, "setImageTintList", null)

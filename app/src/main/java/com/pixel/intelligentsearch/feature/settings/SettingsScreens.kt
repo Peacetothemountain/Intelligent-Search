@@ -5537,6 +5537,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .putString("widget_shortcut_3", localShortcut3)
                             .putString("widget_shortcut_order", localSlotOrderStr)
                             .putString("widget_shortcut", localShortcut1)
+                            .putBoolean("widget_design_saved", true)
                             .apply()
                         updateWidgets(context)
                         android.widget.Toast.makeText(context, "Settings Saved", android.widget.Toast.LENGTH_SHORT).show()

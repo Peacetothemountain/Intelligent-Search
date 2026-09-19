@@ -228,13 +228,6 @@ open class MainActivity : AppCompatActivity() {
                                     } catch (e: Throwable) {
                                         android.util.Log.e("MainActivity", "Failed to launch app $packageName", e)
                                     }
-                                    finishAndRemoveTask()
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                                        overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
-                                    } else {
-                                        @Suppress("DEPRECATION")
-                                        overridePendingTransition(0, 0)
-                                    }
                                 },
                                 viewModel = searchViewModel,
                                 settingsViewModel = settingsViewModel,

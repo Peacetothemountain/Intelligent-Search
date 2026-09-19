@@ -594,7 +594,6 @@ fun SearchOverlayScreen(
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }
             launchSafeIntent(context, bangIntent)
-            finishWithoutTransition(context.findActivity())
             return@launchWebSearch
         }
 
@@ -679,7 +678,6 @@ fun SearchOverlayScreen(
             viewModel.addSearchHistory(searchQuery)
             viewModel.onQueryChanged("")
             launchSafeIntent(context, intent)
-            finishWithoutTransition(context.findActivity())
         } catch (e: Exception) {
             val fallbackIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                 putExtra(SearchManager.QUERY, searchQuery)
@@ -689,7 +687,6 @@ fun SearchOverlayScreen(
             try { 
                 viewModel.onQueryChanged("")
                 launchSafeIntent(context, fallbackIntent) 
-                finishWithoutTransition(context.findActivity())
             } catch (ex: Exception) {}
         }
     }
@@ -976,7 +973,6 @@ fun SearchOverlayScreen(
                                         is ContactItem -> {
                                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri))
                                             launchSafeIntent(context, intent)
-                                            finishWithoutTransition(context.findActivity())
                                         }
                                         is AppItem -> {
                                             performAppLaunch(bestMatch.packageName)
@@ -993,7 +989,6 @@ fun SearchOverlayScreen(
                                                 intent.setPackage(null)
                                                 launchSafeIntent(context, intent)
                                             }
-                                            finishWithoutTransition(context.findActivity())
                                         }
                                     }
                                 } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
@@ -1227,7 +1222,6 @@ fun SearchOverlayScreen(
                                         if (intent != null) {
                                             hasStartedTyping = false
                                             launchSafeIntent(context, intent)
-                                            finishWithoutTransition(context.findActivity())
                                         }
                                     }
                                 }
@@ -1294,7 +1288,6 @@ fun SearchOverlayScreen(
                                 hasStartedTyping = false
                                 val intent = SearchWidgetProvider.getLensSearchIntent(context)
                                 launchSafeIntent(context, intent)
-                                finishWithoutTransition(context.findActivity())
                             }
                         )
                     }
@@ -1306,7 +1299,6 @@ fun SearchOverlayScreen(
                                 hasStartedTyping = false
                                 val intent = SearchWidgetProvider.getVoiceSearchIntent(context)
                                 launchSafeIntent(context, intent)
-                                finishWithoutTransition(context.findActivity())
                             }
                         )
                     }
@@ -1318,7 +1310,6 @@ fun SearchOverlayScreen(
                                 hasStartedTyping = false
                                 val intent = SearchWidgetProvider.getVoiceActionIntent(context)
                                 launchSafeIntent(context, intent)
-                                finishWithoutTransition(context.findActivity())
                             }
                         )
                     }
@@ -1429,7 +1420,6 @@ fun SearchOverlayScreen(
                                     keyboardController?.hide()
                                     action.intent?.let { intent ->
                                         launchSafeIntent(context, intent)
-                                        finishWithoutTransition(context.findActivity())
                                     }
                                 }
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -1566,7 +1556,6 @@ fun SearchOverlayScreen(
                                                             intent.setPackage(null)
                                                             launchSafeIntent(context, intent)
                                                         }
-                                                        finishWithoutTransition(context.findActivity())
                                                     },
                                                     label = { Text(action.title, color = MaterialTheme.colorScheme.onPrimaryContainer, fontFamily = GoogleSansFlex) },
                                                     colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.primaryContainer, labelColor = MaterialTheme.colorScheme.onPrimaryContainer),
@@ -1596,7 +1585,6 @@ fun SearchOverlayScreen(
                                             intent.setPackage(null)
                                             launchSafeIntent(context, intent)
                                         }
-                                        finishWithoutTransition(context.findActivity())
                                     }
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -1920,7 +1908,6 @@ fun SearchOverlayScreen(
                             try {
                                 val calcIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR)
                                 launchSafeIntent(context, calcIntent)
-                                finishWithoutTransition(context.findActivity())
                             } catch (_: Exception) {}
                         }
                     )
@@ -1953,7 +1940,6 @@ fun SearchOverlayScreen(
                                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                                     }
                                     launchSafeIntent(context, urlIntent)
-                                    finishWithoutTransition(context.findActivity())
                                 }
                             )
                         }
@@ -1966,7 +1952,6 @@ fun SearchOverlayScreen(
                                     hasStartedTyping = false
                                     if (instantAnswer.iconType == "time") {
                                         launchSafeIntent(context, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
-                                        finishWithoutTransition(context.findActivity())
                                     } else {
                                         launchWebSearch("weather ${uiState.query}")
                                     }
@@ -1995,13 +1980,7 @@ fun SearchOverlayScreen(
                                     if (uiState.query.isEmpty()) {
                                         item(key = "search_settings_shortcut") {
                                             SearchSettingsItem {
-                                                val intent = Intent(context, SettingsActivity::class.java)
-                                                val options = android.app.ActivityOptions.makeCustomAnimation(
-                                                    context,
-                                                    R.anim.slide_in_right,
-                                                    R.anim.slide_out_left
-                                                )
-                                                launchSafeIntent(context, intent, options.toBundle())
+                                                onOpenSettings("main")
                                             }
                                         }
                                     }
@@ -2124,7 +2103,6 @@ fun SearchOverlayScreen(
                                                 Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri))
                                             }
                                             launchSafeIntent(context, intent)
-                                            finishWithoutTransition(context.findActivity())
                                         }
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -2155,7 +2133,6 @@ fun SearchOverlayScreen(
                                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             }
                                             launchSafeIntent(context, intent)
-                                            finishWithoutTransition(context.findActivity())
                                         }
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically

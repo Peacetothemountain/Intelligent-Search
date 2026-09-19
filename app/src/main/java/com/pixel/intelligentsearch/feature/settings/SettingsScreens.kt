@@ -6021,7 +6021,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
                             .then(
-                                Modifier.background(rimBrush, RoundedCornerShape(40.dp))
+                                Modifier.background(rimBrush, RoundedCornerShape(if (previewIsMaterialYou) 32.dp else 28.dp))
                             )
                             .padding(if (previewIsMaterialYou) 8.dp else 0.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -6029,9 +6029,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         Row(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(56.dp)
+                                .height(if (previewIsMaterialYou) 48.dp else 56.dp)
                                 .then(
-                                    Modifier.background(previewPillColorAlpha, RoundedCornerShape(28.dp))
+                                    Modifier.background(previewPillColorAlpha, RoundedCornerShape(if (previewIsMaterialYou) 24.dp else 28.dp))
                                 )
                                 .padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -6113,7 +6113,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             Spacer(Modifier.width(8.dp))
                             Box(
                                 modifier = Modifier
-                                    .size(56.dp)
+                                    .size(48.dp)
                                     .background(previewPillColorAlpha, androidx.compose.foundation.shape.CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {

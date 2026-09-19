@@ -11,13 +11,13 @@
     android:layout_height="match_parent"
     android:padding="0dp">
 
-    <!-- Centered capsule container matching 1:1 preview (72dp total height: 56dp pill + 8dp top/bottom outer shell rim) -->
+    <!-- Centered capsule container matching 1:1 preview (64dp total height: 48dp pill + 8dp top/bottom outer shell rim) -->
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="72dp"
+        android:layout_height="64dp"
         android:layout_gravity="center">
 
-        <!-- Outer rim capsule (accent-tinted border, 40dp corner radius) -->
+        <!-- Outer rim capsule (accent-tinted border, 32dp corner radius) -->
         <ImageView
             android:id="@+id/widget_outer_background"
             android:layout_width="match_parent"
@@ -37,11 +37,11 @@
             android:paddingTop="8dp"
             android:paddingBottom="8dp">
 
-            <!-- Search pill (56dp height matching preview) -->
+            <!-- Search pill (48dp height matching preview) -->
             <FrameLayout
                 android:id="@+id/widget_pill_container"
                 android:layout_width="0dp"
-                android:layout_height="56dp"
+                android:layout_height="48dp"
                 android:layout_weight="1"
                 android:layout_gravity="center_vertical"
                 android:clickable="true"
@@ -52,7 +52,7 @@
                     android:id="@+id/widget_pill_background"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:src="@drawable/bg_search_pill"
+                    android:src="@drawable/bg_search_pill_material"
                     android:scaleType="fitXY" />
 
                 <!-- Pill content -->
@@ -146,11 +146,11 @@
                 </LinearLayout>
             </FrameLayout>
 
-            <!-- Circle action button (56dp x 56dp matching 56dp pill height and 8dp gap in preview) -->
+            <!-- Circle action button (48dp x 48dp matching 48dp pill height and 8dp gap in preview) -->
             <FrameLayout
                 android:id="@+id/widget_sound_search"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:layout_gravity="center_vertical"
                 android:layout_marginStart="8dp"
                 android:clickable="true"

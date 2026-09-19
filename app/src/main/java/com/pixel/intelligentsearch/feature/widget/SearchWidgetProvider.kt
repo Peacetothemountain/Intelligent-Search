@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 @AndroidEntryPoint
 open class SearchWidgetProvider : AppWidgetProvider() {
 
-    open val forcedIsMaterial: Boolean? = false
+    open val forcedIsMaterial: Boolean? = null
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
@@ -123,6 +123,14 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             forcedIsMaterial: Boolean?,
             widgetThemeStyle: String?
         ): Boolean {
+            if (widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design") {
+                return true
+            }
+            if (widgetThemeStyle == "System Default" || widgetThemeStyle == "System") {
+                if (forcedIsMaterial == true) return true
+                return false
+            }
+
             val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
             val hostCategory = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1) ?: -1
             val isSearchbox = (hostCategory and AppWidgetProviderInfo.WIDGET_CATEGORY_SEARCHBOX) != 0
@@ -135,7 +143,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 return forcedIsMaterial
             }
 
-            return widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
+            return false
         }
 
         // Slot identifiers for bit-shifted unique request codes
@@ -213,7 +221,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             if (appWidgetIds != null && appWidgetIds.isNotEmpty()) {
                                 val forcedIsMaterial = when(providerClass) {
                                     SearchWidgetMaterialProvider::class.java -> true
-                                    else -> false
+                                    else -> null
                                 }
                                 updateWidgetsSync(context, appWidgetManager, appWidgetIds, forcedIsMaterial)
                             }
@@ -262,6 +270,14 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         forcedIsMaterial = forcedIsMaterial,
                         widgetThemeStyle = widgetThemeStyle
                     )
+
+                    val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+                    val minW = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH) ?: -1
+                    val minH = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT) ?: -1
+                    val maxW = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH) ?: -1
+                    val maxH = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT) ?: -1
+                    val hostCat = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1) ?: -1
+                    android.util.Log.d(TAG, "Updating widget $appWidgetId: minW=$minW, minH=$minH, maxW=$maxW, maxH=$maxH, isMaterialYou=$isMaterialYou")
 
                     if (!isMaterialYou) {
                         // SYSTEM DESIGN BAR: always layout widget_search_colorful, no outer rim, no action button
@@ -615,19 +631,18 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                                 themeTColor = themeTColor,
                                 effectiveIconTheme = effectiveIconTheme,
                                 actionIconStr = actionIconStr,
-                                activeItems = if (isCompact) allActiveItems.take(1) else allActiveItems,
+                                activeItems = allActiveItems,
                                 isPillLight = isPillLight,
                                 customSubtheme = (subthemeStr == "Custom")
                             )
                         }
 
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            val compactViews = buildViews(true)
                             val standardViews = buildViews(false)
                             val responsiveViews = RemoteViews(
                                 mapOf(
-                                    SizeF(0f, 0f) to compactViews,
-                                    SizeF(180f, 48f) to compactViews,
+                                    SizeF(0f, 0f) to standardViews,
+                                    SizeF(180f, 48f) to standardViews,
                                     SizeF(250f, 48f) to standardViews
                                 )
                             )
@@ -798,7 +813,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_action_search, actionPI)
 
             // Circle button handling
-            if (!isMaterialYou || actionIconStr == "None" || isCompact) {
+            if (!isMaterialYou || actionIconStr == "None") {
                 views.setViewVisibility(R.id.widget_sound_search, View.GONE)
             } else {
                 views.setViewVisibility(R.id.widget_sound_search, View.VISIBLE)

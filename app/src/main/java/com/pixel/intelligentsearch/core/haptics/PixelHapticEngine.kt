@@ -106,18 +106,7 @@ class PixelHapticEngine(private val context: Context) {
         amplitudeScale: Float = 1.0f,
         velocity: Float = 0f
     ) {
-        if (vibrator != null && vibrator.hasVibrator()) {
-            val waveform = composeWaveform(type, amplitudeScale, velocity)
-            if (waveform != null) {
-                vibrateWithAttributes(waveform)
-                return
-            }
-        }
-        if (view != null) {
-            performViewFallback(view, type)
-        } else {
-            performPredictiveBackHaptic(null)
-        }
+        performPredictiveBackHaptic(view)
     }
 
     private fun vibrateWithAttributes(effect: VibrationEffect) {
@@ -419,7 +408,29 @@ class PixelHapticEngine(private val context: Context) {
      * Subtle predictive-back level micro-haptic tick used consistently throughout the application.
      */
     fun performPredictiveBackHaptic(view: View? = null) {
+        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("vibration_enabled", true)) {
+            return
+        }
+
         var vibrated = false
+        if (view != null) {
+            try {
+                vibrated = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    view.performHapticFeedback(
+                        HapticFeedbackConstants.SEGMENT_TICK,
+                        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                    )
+                } else {
+                    view.performHapticFeedback(
+                        HapticFeedbackConstants.CLOCK_TICK,
+                        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                    )
+                }
+                if (vibrated) return
+            } catch (_: Exception) {}
+        }
+
         if (vibrator != null && vibrator.hasVibrator()) {
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
@@ -428,26 +439,13 @@ class PixelHapticEngine(private val context: Context) {
                     val composition = VibrationEffect.startComposition()
                     composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.85f)
                     vibrateWithAttributes(composition.compose())
-                    vibrated = true
                 } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
                     val composition = VibrationEffect.startComposition()
                     composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.40f)
                     vibrateWithAttributes(composition.compose())
-                    vibrated = true
                 } else {
                     val effect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
                     vibrateWithAttributes(effect)
-                    vibrated = true
-                }
-            } catch (_: Exception) {}
-        }
-
-        if (!vibrated && view != null) {
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    view.performHapticFeedback(HapticFeedbackConstants.SEGMENT_TICK)
-                } else {
-                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                 }
             } catch (_: Exception) {}
         }

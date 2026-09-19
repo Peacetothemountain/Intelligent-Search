@@ -70,7 +70,8 @@ data class IntelligentSearchSettings(
     val diagnosticsOverlayEnabled: Boolean = false,
     val matrixAnimationEnabled: Boolean = true,
     val backToSearchOverlay: Boolean = true,
-    val disabledWebShortcuts: Set<String> = emptySet()
+    val disabledWebShortcuts: Set<String> = emptySet(),
+    val vibrationEnabled: Boolean = true
 )
 
 @Singleton
@@ -132,6 +133,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val MATRIX_ANIMATION_ENABLED = booleanPreferencesKey("matrix_animation_enabled")
         val BACK_TO_SEARCH_OVERLAY = booleanPreferencesKey("settings_back_to_search_overlay")
         val DISABLED_WEB_SHORTCUTS = stringSetPreferencesKey("disabled_web_shortcuts")
+        val VIBRATION = booleanPreferencesKey("vibration_enabled")
     }
 
     val settingsFlow: Flow<IntelligentSearchSettings> = context.dataStore.data
@@ -201,7 +203,8 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 searchOverlayEnabled = preferences[SEARCH_OVERLAY_ENABLED] ?: true,
                 matrixAnimationEnabled = preferences[MATRIX_ANIMATION_ENABLED] ?: true,
                 backToSearchOverlay = preferences[BACK_TO_SEARCH_OVERLAY] ?: true,
-                disabledWebShortcuts = preferences[DISABLED_WEB_SHORTCUTS] ?: (context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE).getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet())
+                disabledWebShortcuts = preferences[DISABLED_WEB_SHORTCUTS] ?: (context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE).getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet()),
+                vibrationEnabled = preferences[VIBRATION] ?: true
             )
         }
 
@@ -265,7 +268,8 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             searchOverlayEnabled = prefs.getBoolean("search_overlay_enabled", true),
             matrixAnimationEnabled = prefs.getBoolean("matrix_animation_enabled", true),
             backToSearchOverlay = prefs.getBoolean("settings_back_to_search_overlay", true),
-            disabledWebShortcuts = prefs.getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet()
+            disabledWebShortcuts = prefs.getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet(),
+            vibrationEnabled = prefs.getBoolean("vibration_enabled", true)
         )
     }
 

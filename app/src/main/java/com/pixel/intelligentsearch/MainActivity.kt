@@ -109,16 +109,20 @@ open class MainActivity : AppCompatActivity() {
             }
         }
 
-        val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-        val showWallpaper = prefs.getBoolean("search.background.show.wall", false)
-        if (showWallpaper) {
-            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
-        }
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         window.setDimAmount(0f)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             @Suppress("DEPRECATION")
             window.isStatusBarContrastEnforced = false
             window.isNavigationBarContrastEnforced = false
+        }
+
+        val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val initialShowWallpaper = prefs.getBoolean("search.background.show.wall", false)
+        if (initialShowWallpaper) {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+        } else {
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
         }
 
         enableEdgeToEdge(
@@ -131,8 +135,13 @@ open class MainActivity : AppCompatActivity() {
         }
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
+        val isTutorial = com.pixel.intelligentsearch.feature.settings.TutorialManager.isTutorialActive(prefs)
         window.setSoftInputMode(
-            android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            if (isTutorial) {
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            } else {
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            }
         )
         super.onCreate(savedInstanceState)
 
@@ -156,6 +165,11 @@ open class MainActivity : AppCompatActivity() {
                 ) {
                     val throttleLevel by adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
                     DisposableEffect(settingsState.backgroundBlur, settingsState.showWallpaper, throttleLevel) {
+                        if (settingsState.showWallpaper) {
+                            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+                        } else {
+                            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+                        }
                         val recommendedBlur = adpfThermalManager.getRecommendedBlurRadius(settingsState.backgroundBlur.toFloat()).toInt()
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                             if (settingsState.showWallpaper && recommendedBlur > 0) {

@@ -668,12 +668,6 @@ fun SearchOverlayScreen(
         if (windowInfo.isWindowFocused && transitionState.targetState && !isKeyboardDisabled && !showTutorial && !isKeyboardDismissedByUser) {
             try {
                 focusRequester.requestFocus()
-                keyboardController?.show()
-                val act = context.findActivity()
-                if (act != null) {
-                    androidx.core.view.WindowCompat.getInsetsController(act.window, act.window.decorView)
-                        .show(androidx.core.view.WindowInsetsCompat.Type.ime())
-                }
             } catch (_: Exception) {}
         }
     }
@@ -712,15 +706,9 @@ fun SearchOverlayScreen(
 
                 if (showTutorial) {
                     keyboardController?.hide()
-                } else if (!isKeyboardDisabled && !isKeyboardDismissedByUser && view.hasWindowFocus()) {
+                } else if (!isKeyboardDisabled && !isKeyboardDismissedByUser) {
                     try {
                         focusRequester.requestFocus()
-                        keyboardController?.show()
-                        val act = context.findActivity()
-                        if (act != null) {
-                            androidx.core.view.WindowCompat.getInsetsController(act.window, act.window.decorView)
-                                .show(androidx.core.view.WindowInsetsCompat.Type.ime())
-                        }
                     } catch (_: Exception) {}
                 }
             }

@@ -336,6 +336,7 @@ fun rememberBooleanPreference(
         "search_overlay_enabled" -> SettingsManager.SEARCH_OVERLAY_ENABLED
         "matrix_animation_enabled" -> SettingsManager.MATRIX_ANIMATION_ENABLED
         "settings_back_to_search_overlay" -> SettingsManager.BACK_TO_SEARCH_OVERLAY
+        "vibration_enabled" -> SettingsManager.VIBRATION
         else -> null
     }
 
@@ -373,6 +374,7 @@ fun rememberBooleanPreference(
         "search_overlay_enabled" -> settingsState?.searchOverlayEnabled ?: prefs.getBoolean(key, defaultValue)
         "matrix_animation_enabled" -> settingsState?.matrixAnimationEnabled ?: prefs.getBoolean(key, defaultValue)
         "settings_back_to_search_overlay" -> settingsState?.backToSearchOverlay ?: prefs.getBoolean(key, defaultValue)
+        "vibration_enabled" -> settingsState?.vibrationEnabled ?: prefs.getBoolean(key, defaultValue)
         else -> prefs.getBoolean(key, defaultValue)
     }
 
@@ -651,14 +653,17 @@ fun SettingsScreensHub(
             }
         }
 
-        val act = context.findActivity() ?: (context as? Activity)
-        val isRootTask = act?.isTaskRoot == true
+        val exitBackProgress = remember { Animatable(0f) }
 
-        androidx.activity.compose.PredictiveBackHandler(enabled = isAtRootMain && isRootTask) { progressFlow ->
+        androidx.activity.compose.PredictiveBackHandler(enabled = isAtRootMain) { progressFlow ->
             try {
-                progressFlow.collect { _ -> }
+                progressFlow.collect { backEvent ->
+                    exitBackProgress.snapTo(backEvent.progress)
+                }
+                exitBackProgress.snapTo(0f)
                 handleExitBack()
             } catch (_: java.util.concurrent.CancellationException) {
+                exitBackProgress.animateTo(0f, spring(dampingRatio = 0.85f, stiffness = 300f))
             }
         }
 
@@ -684,6 +689,15 @@ fun SettingsScreensHub(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer {
+                    val p = exitBackProgress.value
+                    if (p > 0f) {
+                        scaleX = 1f - (p * 0.08f)
+                        scaleY = 1f - (p * 0.08f)
+                        alpha = (1f - p * 0.25f).coerceIn(0f, 1f)
+                        transformOrigin = TransformOrigin(0.5f, 0.5f)
+                    }
+                }
                 .background(MaterialTheme.colorScheme.background)
         ) {
             var showTutorial by remember { mutableStateOf(TutorialManager.isTutorialActive(prefs)) }
@@ -712,26 +726,46 @@ fun SettingsScreensHub(
                     startDestination = startRoute,
                     enterTransition = {
                         slideInHorizontally(
-                            initialOffsetX = { it },
-                            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                            initialOffsetX = { (it * 0.22f).toInt() },
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                        ) + fadeIn(
+                            animationSpec = tween(durationMillis = 240, easing = LinearOutSlowInEasing)
+                        ) + scaleIn(
+                            initialScale = 0.94f,
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
                         )
                     },
                     exitTransition = {
                         slideOutHorizontally(
-                            targetOffsetX = { -it / 3 },
-                            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                            targetOffsetX = { -(it * 0.10f).toInt() },
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                        ) + fadeOut(
+                            animationSpec = tween(durationMillis = 180, easing = FastOutLinearInEasing)
+                        ) + scaleOut(
+                            targetScale = 0.96f,
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
                         )
                     },
                     popEnterTransition = {
                         slideInHorizontally(
-                            initialOffsetX = { -it / 3 },
-                            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                            initialOffsetX = { -(it * 0.10f).toInt() },
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                        ) + fadeIn(
+                            animationSpec = tween(durationMillis = 240, easing = LinearOutSlowInEasing)
+                        ) + scaleIn(
+                            initialScale = 0.96f,
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
                         )
                     },
                     popExitTransition = {
                         slideOutHorizontally(
-                            targetOffsetX = { it },
-                            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                            targetOffsetX = { (it * 0.22f).toInt() },
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                        ) + fadeOut(
+                            animationSpec = tween(durationMillis = 180, easing = FastOutLinearInEasing)
+                        ) + scaleOut(
+                            targetScale = 0.94f,
+                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
                         )
                     }
                 ) {
@@ -4894,6 +4928,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
+    val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
         Scaffold(
@@ -4991,6 +5026,19 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         } else {
                             smartClipboard = false
                         }
+                    },
+                    showDivider = true
+                )
+
+                var vibrationEnabled by rememberBooleanPreference(prefs, "vibration_enabled", true)
+                SettingsRowToggle(
+                    title = "Vibration",
+                    subtitle = "Haptic Vibration Across the Entire App.",
+                    icon = Icons.Outlined.Vibration,
+                    isChecked = vibrationEnabled,
+                    onCheckedChange = { 
+                        vibrationEnabled = it 
+                        com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).isHapticEnabled = it
                     },
                     showDivider = false
                 )

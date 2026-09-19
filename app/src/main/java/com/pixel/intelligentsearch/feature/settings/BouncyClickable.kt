@@ -64,11 +64,7 @@ fun Modifier.bouncyClickable(
     val longClickAction: (() -> Unit)? = remember(view, sensoryEngine, onLongClick != null) {
         if (onLongClick != null) {
             {
-                sensoryEngine.hapticEngine.performHaptic(view, PixelHapticType.HEAVY_IMPACT)
-                sensoryEngine.sonicEngine.playSonic(
-                    com.pixel.intelligentsearch.core.haptics.SonicMicroFeedbackEngine.SonicType.DELETE_THUD,
-                    volumeScale = 0.85f
-                )
+                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                 currentOnLongClick?.invoke()
                 Unit
             }
@@ -131,7 +127,7 @@ fun Modifier.expressiveRowClickable(
     val longClickAction: (() -> Unit)? = remember(view, sensoryEngine, onLongClick != null) {
         if (onLongClick != null) {
             {
-                sensoryEngine.hapticEngine.performHaptic(view, PixelHapticType.HEAVY_IMPACT)
+                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                 currentOnLongClick?.invoke()
             }
         } else null

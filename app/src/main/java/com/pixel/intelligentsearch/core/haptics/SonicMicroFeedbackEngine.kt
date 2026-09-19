@@ -54,7 +54,7 @@ class SonicMicroFeedbackEngine private constructor(private val context: Context)
     private val trackIndices = ConcurrentHashMap<SonicType, AtomicInteger>()
 
     @Volatile
-    var isEnabled: Boolean = true
+    var isEnabled: Boolean = false
 
     init {
         precomputeAndWarmBuffers()

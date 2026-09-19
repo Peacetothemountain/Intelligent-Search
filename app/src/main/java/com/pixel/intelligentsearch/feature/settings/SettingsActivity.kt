@@ -59,6 +59,7 @@ class SettingsActivity : AppCompatActivity() {
         setResult(RESULT_OK, resultValue)
 
         val screen = intent.getStringExtra("extra_screen") ?: "main"
+        val fromSearchOverlay = intent.getBooleanExtra("FROM_SEARCH_OVERLAY", false)
 
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
@@ -94,6 +95,7 @@ class SettingsActivity : AppCompatActivity() {
                         ) {
                             SettingsScreensHub(
                                 initialScreen = screen,
+                                fromSearchOverlay = fromSearchOverlay,
                                 prefs = prefs,
                                 onBackToLauncher = {
                                     finish()

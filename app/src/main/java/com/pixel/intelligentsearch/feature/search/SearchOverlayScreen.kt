@@ -90,7 +90,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
-import com.pixel.intelligentsearch.feature.settings.SettingsActivity
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import androidx.compose.runtime.saveable.rememberSaveable

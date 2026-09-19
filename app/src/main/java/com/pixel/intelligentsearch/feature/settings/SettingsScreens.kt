@@ -563,6 +563,7 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 @Composable
 fun SettingsScreensHub(
     initialScreen: String,
+    fromSearchOverlay: Boolean = false,
     prefs: SharedPreferences,
     onBackToLauncher: () -> Unit,
     context: Context
@@ -577,31 +578,33 @@ fun SettingsScreensHub(
         val navController = androidx.navigation.compose.rememberNavController()
         
         val exoPlayer = androidx.compose.runtime.remember {
-            val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.bugdroid_video)
-            val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
-            val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
-            androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
-                setMediaSource(mediaSource)
-                repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
-                volume = 0f
-                prepare()
-                playWhenReady = true
-            }
+            runCatching {
+                val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.bugdroid_video)
+                val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
+                val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
+                androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+                    setMediaSource(mediaSource)
+                    repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+                    volume = 0f
+                    prepare()
+                    playWhenReady = true
+                }
+            }.getOrNull()
         }
 
         val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-        androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        androidx.compose.runtime.DisposableEffect(lifecycleOwner, exoPlayer) {
             val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
                 if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                    exoPlayer.play()
+                    exoPlayer?.play()
                 } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                    exoPlayer.pause()
+                    exoPlayer?.pause()
                 }
             }
             lifecycleOwner.lifecycle.addObserver(observer)
             onDispose {
                 lifecycleOwner.lifecycle.removeObserver(observer)
-                exoPlayer.release()
+                exoPlayer?.release()
             }
         }
 
@@ -613,7 +616,7 @@ fun SettingsScreensHub(
             val act = context.findActivity() ?: (context as? Activity)
             if (act != null) {
                 if (act.isTaskRoot) {
-                    val isBackToOverlay = settingsState.backToSearchOverlay
+                    val isBackToOverlay = fromSearchOverlay || settingsState.backToSearchOverlay
                     if (isBackToOverlay) {
                         val intent = Intent(context, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java).apply {
                             putExtra("FROM_BACK_SWIPE", true)
@@ -1797,7 +1800,7 @@ fun MainSettingsScreen(
     onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit,
     onBack: () -> Unit,
     context: Context,
-    exoPlayer: androidx.media3.exoplayer.ExoPlayer,
+    exoPlayer: androidx.media3.exoplayer.ExoPlayer? = null,
     showTutorial: Boolean = false
 ) {
     var showInfoDialog by remember { mutableStateOf(false) }
@@ -2274,7 +2277,7 @@ fun MainSettingsScreen(
                                 ) {
                                     val surface = android.view.Surface(surfaceTexture)
                                     currentSurface = surface
-                                    exoPlayer.setVideoSurface(surface)
+                                    exoPlayer?.setVideoSurface(surface)
                                     adjustAspectRatio(this@apply)
                                 }
 
@@ -2290,7 +2293,7 @@ fun MainSettingsScreen(
                                     surfaceTexture: android.graphics.SurfaceTexture
                                 ): Boolean {
                                     currentSurface?.let {
-                                        exoPlayer.clearVideoSurface(it)
+                                        exoPlayer?.clearVideoSurface(it)
                                         it.release()
                                     }
                                     currentSurface = null
@@ -8926,31 +8929,33 @@ fun BackupRestoreScreen(
     val hapticEngine = remember { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
 
     val backupExoPlayer = remember(context) {
-        val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.gemini_generated_video_2209818f)
-        val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
-        val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
-        androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
-            setMediaSource(mediaSource)
-            repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
-            volume = 0f
-            prepare()
-            playWhenReady = true
-        }
+        runCatching {
+            val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.gemini_generated_video_2209818f)
+            val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
+            val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
+            androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+                setMediaSource(mediaSource)
+                repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+                volume = 0f
+                prepare()
+                playWhenReady = true
+            }
+        }.getOrNull()
     }
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, backupExoPlayer) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                backupExoPlayer.play()
+                backupExoPlayer?.play()
             } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                backupExoPlayer.pause()
+                backupExoPlayer?.pause()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            backupExoPlayer.release()
+            backupExoPlayer?.release()
         }
     }
 
@@ -9481,7 +9486,7 @@ fun BackupRestoreScreen(
                                 ) {
                                     val surface = android.view.Surface(surfaceTexture)
                                     currentSurface = surface
-                                    backupExoPlayer.setVideoSurface(surface)
+                                    backupExoPlayer?.setVideoSurface(surface)
                                     adjustAspectRatio(this@apply)
                                 }
 
@@ -9497,7 +9502,7 @@ fun BackupRestoreScreen(
                                     surfaceTexture: android.graphics.SurfaceTexture
                                 ): Boolean {
                                     currentSurface?.let {
-                                        backupExoPlayer.clearVideoSurface(it)
+                                        backupExoPlayer?.clearVideoSurface(it)
                                         it.release()
                                     }
                                     currentSurface = null

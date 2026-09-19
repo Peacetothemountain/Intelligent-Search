@@ -212,13 +212,14 @@ open class MainActivity : AppCompatActivity() {
                                 onOpenSettings = { route ->
                                     val intent = Intent(this@MainActivity, SettingsActivity::class.java).apply {
                                         putExtra("extra_screen", route)
+                                        putExtra("FROM_SEARCH_OVERLAY", true)
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                     }
-                                    val options = android.app.ActivityOptions.makeCustomAnimation(
-                                        this@MainActivity,
-                                        R.anim.slide_in_right,
-                                        R.anim.slide_out_left
-                                    )
-                                    startActivity(intent, options.toBundle())
+                                    try {
+                                        startActivity(intent)
+                                    } catch (e: Throwable) {
+                                        android.util.Log.e("MainActivity", "Failed to open settings", e)
+                                    }
                                 },
                                 onLaunchApp = { packageName ->
                                     searchViewModel.notifyAppLaunch(packageName)

@@ -132,7 +132,7 @@ open class MainActivity : AppCompatActivity() {
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         window.setSoftInputMode(
-            android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         )
         super.onCreate(savedInstanceState)
 

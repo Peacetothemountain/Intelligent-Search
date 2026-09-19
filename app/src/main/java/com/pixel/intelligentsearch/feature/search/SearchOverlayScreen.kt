@@ -483,9 +483,10 @@ fun SearchOverlayScreen(
     val searchResultsListState = rememberLazyListState()
     rememberScrollDetentController(searchResultsListState, sensoryEngine)
 
-    val performAppLaunch: (String) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController) {
+    val performAppLaunch: (String) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController, focusManager) {
         { packageName ->
             hasStartedTyping = false
+            focusManager.clearFocus(force = true)
             keyboardController?.hide()
             sensoryEngine.appLaunch(view)
             onLaunchApp(packageName)
@@ -584,6 +585,7 @@ fun SearchOverlayScreen(
 
     val launchWebSearch: (String) -> Unit = launchWebSearch@{ searchQuery ->
         hasStartedTyping = false
+        focusManager.clearFocus(force = true)
         keyboardController?.hide()
         val bangMgr = com.pixel.intelligentsearch.core.bangs.SearchBangManager(context, com.pixel.intelligentsearch.core.data.SettingsManager(context))
         val parsedBang = bangMgr.parseBangQuery(searchQuery)
@@ -661,12 +663,18 @@ fun SearchOverlayScreen(
         }
     }
 
-    LaunchedEffect(transitionState.targetState, showTutorial) {
-        if (transitionState.targetState && !isKeyboardDisabled && !showTutorial) {
+    val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
+    LaunchedEffect(windowInfo.isWindowFocused, transitionState.targetState, showTutorial, isKeyboardDisabled, isKeyboardDismissedByUser) {
+        if (windowInfo.isWindowFocused && transitionState.targetState && !isKeyboardDisabled && !showTutorial && !isKeyboardDismissedByUser) {
             try {
                 focusRequester.requestFocus()
                 keyboardController?.show()
-            } catch (e: Exception) {}
+                val act = context.findActivity()
+                if (act != null) {
+                    androidx.core.view.WindowCompat.getInsetsController(act.window, act.window.decorView)
+                        .show(androidx.core.view.WindowInsetsCompat.Type.ime())
+                }
+            } catch (_: Exception) {}
         }
     }
     
@@ -702,13 +710,18 @@ fun SearchOverlayScreen(
                     overlayProgressAnim.snapTo(1f)
                 }
 
-                if (!showTutorial && !isKeyboardDisabled) {
+                if (showTutorial) {
+                    keyboardController?.hide()
+                } else if (!isKeyboardDisabled && !isKeyboardDismissedByUser && view.hasWindowFocus()) {
                     try {
                         focusRequester.requestFocus()
                         keyboardController?.show()
+                        val act = context.findActivity()
+                        if (act != null) {
+                            androidx.core.view.WindowCompat.getInsetsController(act.window, act.window.decorView)
+                                .show(androidx.core.view.WindowInsetsCompat.Type.ime())
+                        }
                     } catch (_: Exception) {}
-                } else if (showTutorial) {
-                    keyboardController?.hide()
                 }
             }
         }
@@ -883,7 +896,14 @@ fun SearchOverlayScreen(
                         indication = null
                     ) {
                         try {
+                            isKeyboardDismissedByUser = false
                             focusRequester.requestFocus()
+                            keyboardController?.show()
+                            val act = context.findActivity()
+                            if (act != null) {
+                                androidx.core.view.WindowCompat.getInsetsController(act.window, act.window.decorView)
+                                    .show(androidx.core.view.WindowInsetsCompat.Type.ime())
+                            }
                         } catch (_: Exception) {}
                     }
                     .padding(horizontal = 24.dp, vertical = 12.dp),
@@ -1029,6 +1049,7 @@ fun SearchOverlayScreen(
                 IconButton(
                     onClick = { 
                         hasStartedTyping = false
+                        focusManager.clearFocus(force = true)
                         keyboardController?.hide()
                         onOpenSettings("main") 
                     },
@@ -1362,6 +1383,7 @@ fun SearchOverlayScreen(
                                 }
                                 .bouncyClickable {
                                     hasStartedTyping = false
+                                    focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
                                     action.intent?.let { intent ->
                                         launchSafeIntent(context, intent)
@@ -1425,6 +1447,7 @@ fun SearchOverlayScreen(
                                     .fillMaxWidth()
                                     .bouncyClickable {
                                         hasStartedTyping = false
+                                        focusManager.clearFocus(force = true)
                                         keyboardController?.hide()
                                         val intent = if (settingsState.contactDirectCall) {
                                             Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
@@ -1824,6 +1847,7 @@ fun SearchOverlayScreen(
                     Row(
                         modifier = Modifier.fillMaxWidth().expressiveRowClickable {
                             hasStartedTyping = false
+                            focusManager.clearFocus(force = true)
                             keyboardController?.hide()
                             val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? android.content.pm.LauncherApps
                             try {
@@ -2143,6 +2167,7 @@ fun SearchOverlayScreen(
                                 overlayProgressAnim.snapTo(newProgress)
                                 if (newProgress < 0.95f) {
                                     isKeyboardDismissedByUser = true
+                                    focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
                                 }
                             }

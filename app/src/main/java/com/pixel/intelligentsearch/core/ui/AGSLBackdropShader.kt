@@ -73,14 +73,23 @@ object AGSLBackdropShader {
                 }
 
                 val shader = state.shader
+                var needsNewEffect = false
                 if (state.lastWidth != width || state.lastHeight != height) {
                     shader.setFloatUniform("uResolution", width, height)
                     state.lastWidth = width
                     state.lastHeight = height
+                    needsNewEffect = true
                 }
                 if (state.lastMonetColor != monetColorInt) {
                     setUniformTint(shader, monetColorInt)
                     state.lastMonetColor = monetColorInt
+                    needsNewEffect = true
+                }
+                if (needsNewEffect) {
+                    val blurEffect = RenderEffect.createBlurEffect(blurRadius, blurRadius, Shader.TileMode.CLAMP)
+                    val agslEffect = RenderEffect.createRuntimeShaderEffect(shader, "compositedImage")
+                    val chainEffect = RenderEffect.createChainEffect(agslEffect, blurEffect)
+                    view.setRenderEffect(chainEffect)
                 }
                 view.invalidate()
             } catch (e: Exception) {

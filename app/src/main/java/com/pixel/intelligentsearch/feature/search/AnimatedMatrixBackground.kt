@@ -92,7 +92,7 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
 
         val spacing = (if (isDark) 55f else lightSpacingPx) * spacingMultiplier
         val sparkleSize = if (isDark) 4.5f else lightSparkleSizePx
-        val baseColor = if (isDark) Color(0x60A09EB0) else Color(0xFF000000)
+        val baseColor = if (isDark) Color(0x80A09EB0) else Color(0xFF000000)
         val baseColorArgb = baseColor.toArgb()
 
         val cols = (width / spacing).toInt() + 1

@@ -40,7 +40,33 @@ data class AppItem(
     val isPrivateProfile: Boolean = false,
     val isQuietMode: Boolean = false,
     val activityName: String? = null
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is AppItem) return false
+        if (packageName != other.packageName) return false
+        if (activityName != other.activityName) return false
+        if (userHandle != other.userHandle) return false
+        if (profileType != other.profileType) return false
+        if (isPrivateProfile != other.isPrivateProfile) return false
+        if (isQuietMode != other.isQuietMode) return false
+        if (name != other.name) return false
+        if (actions != other.actions) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = packageName.hashCode()
+        result = 31 * result + (activityName?.hashCode() ?: 0)
+        result = 31 * result + (userHandle?.hashCode() ?: 0)
+        result = 31 * result + profileType.hashCode()
+        result = 31 * result + isPrivateProfile.hashCode()
+        result = 31 * result + isQuietMode.hashCode()
+        result = 31 * result + name.hashCode()
+        result = 31 * result + actions.hashCode()
+        return result
+    }
+}
 
 @Immutable
 data class CalendarEvent(

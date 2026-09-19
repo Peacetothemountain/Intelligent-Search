@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -47,12 +48,6 @@ fun Modifier.bouncyClickable(
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnLongClick by rememberUpdatedState(onLongClick)
 
-    androidx.compose.runtime.LaunchedEffect(isPressed) {
-        if (isPressed) {
-            sensoryEngine.tick(view, scale = 0.75f)
-        }
-    }
-
     val clickAction = remember(view, sensoryEngine, suppressClickHaptic, customClickHaptic) {
         {
             if (!suppressClickHaptic) {
@@ -69,11 +64,7 @@ fun Modifier.bouncyClickable(
     val longClickAction: (() -> Unit)? = remember(view, sensoryEngine, onLongClick != null) {
         if (onLongClick != null) {
             {
-                sensoryEngine.hapticEngine.performHaptic(view, PixelHapticType.HEAVY_IMPACT)
-                sensoryEngine.sonicEngine.playSonic(
-                    com.pixel.intelligentsearch.core.haptics.SonicMicroFeedbackEngine.SonicType.DELETE_THUD,
-                    volumeScale = 0.85f
-                )
+                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                 currentOnLongClick?.invoke()
                 Unit
             }
@@ -81,11 +72,13 @@ fun Modifier.bouncyClickable(
     }
 
     this
+        .minimumInteractiveComponentSize()
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
         }
         .combinedClickable(
+            role = androidx.compose.ui.semantics.Role.Button,
             interactionSource = effectiveInteractionSource,
             indication = null,
             enabled = enabled,
@@ -124,12 +117,6 @@ fun Modifier.expressiveRowClickable(
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnLongClick by rememberUpdatedState(onLongClick)
 
-    androidx.compose.runtime.LaunchedEffect(isPressed) {
-        if (isPressed) {
-            sensoryEngine.tick(view, scale = 0.40f)
-        }
-    }
-
     val clickAction = remember(view, sensoryEngine) {
         {
             sensoryEngine.click(view)
@@ -140,18 +127,20 @@ fun Modifier.expressiveRowClickable(
     val longClickAction: (() -> Unit)? = remember(view, sensoryEngine, onLongClick != null) {
         if (onLongClick != null) {
             {
-                sensoryEngine.hapticEngine.performHaptic(view, PixelHapticType.HEAVY_IMPACT)
+                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                 currentOnLongClick?.invoke()
             }
         } else null
     }
 
     this
+        .minimumInteractiveComponentSize()
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
         }
         .combinedClickable(
+            role = androidx.compose.ui.semantics.Role.Button,
             interactionSource = effectiveInteractionSource,
             indication = androidx.compose.material3.ripple(),
             enabled = enabled,

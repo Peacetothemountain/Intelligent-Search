@@ -25,7 +25,7 @@ class RadixTreeIndex<T> {
     private class RadixNode<T>(
         var edge: String,
         val children: MutableList<RadixNode<T>> = mutableListOf(),
-        val values: MutableList<T> = mutableListOf()
+        val values: LinkedHashSet<T> = LinkedHashSet()
     ) {
         val isTerminal: Boolean
             get() = values.isNotEmpty()
@@ -94,7 +94,7 @@ class RadixTreeIndex<T> {
                     val splitChild = RadixNode<T>(
                         edge = existingEdgeSuffix,
                         children = ArrayList(child.children),
-                        values = ArrayList(child.values)
+                        values = LinkedHashSet(child.values)
                     )
 
                     // Retarget child edge to the common prefix
@@ -139,9 +139,9 @@ class RadixTreeIndex<T> {
                     // Prefix might match child edge prefix
                     if (child.edge.startsWith(remainingPrefix)) {
                         // Found root of matching subtree
-                        val results = mutableListOf<T>()
+                        val results = LinkedHashSet<T>()
                         collectAllDescendants(child, results, limit)
-                        return@read results
+                        return@read results.toList()
                     } else {
                         return@read emptyList()
                     }
@@ -157,9 +157,9 @@ class RadixTreeIndex<T> {
             }
 
             // Exactly reached a node
-            val results = mutableListOf<T>()
+            val results = LinkedHashSet<T>()
             collectAllDescendants(currentNode, results, limit)
-            results
+            results.toList()
         }
     }
 
@@ -261,10 +261,12 @@ class RadixTreeIndex<T> {
         currentKeyPath.setLength(pathLengthBefore)
     }
 
-    private fun collectAllDescendants(node: RadixNode<T>, results: MutableList<T>, limit: Int) {
+    private fun collectAllDescendants(node: RadixNode<T>, results: LinkedHashSet<T>, limit: Int) {
         if (results.size >= limit) return
-        results.addAll(node.values)
-        if (results.size >= limit) return
+        for (v in node.values) {
+            results.add(v)
+            if (results.size >= limit) return
+        }
 
         for (child in node.children) {
             collectAllDescendants(child, results, limit)

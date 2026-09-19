@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.core.bangs
 
 import android.content.Context
+import kotlinx.coroutines.sync.withLock
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -155,6 +156,7 @@ class SearchBangManager @Inject constructor(
 
     @Volatile
     private var cachedSyncBangs: List<SearchBang>? = null
+    private val mutex = kotlinx.coroutines.sync.Mutex()
 
     fun getAllBangsSync(): List<SearchBang> {
         val cached = cachedSyncBangs
@@ -293,7 +295,7 @@ class SearchBangManager @Inject constructor(
     private fun getPrefs() = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
 
     suspend fun saveCustomBang(bang: SearchBang) {
-        cachedSyncBangs = null
+        mutex.withLock { cachedSyncBangs = null }
         val prefs = getPrefs()
         val currentJson = prefs.getString("custom_bangs_json", null)
             ?: settingsManager.getInitialSettings().customBangsJson
@@ -306,7 +308,7 @@ class SearchBangManager @Inject constructor(
     }
 
     suspend fun deleteCustomBang(prefix: String) {
-        cachedSyncBangs = null
+        mutex.withLock { cachedSyncBangs = null }
         val normPrefix = prefix.lowercase().trim()
         val prefs = getPrefs()
         val currentJson = prefs.getString("custom_bangs_json", null)
@@ -319,7 +321,7 @@ class SearchBangManager @Inject constructor(
     }
 
     suspend fun disableBuiltInBang(prefix: String) {
-        cachedSyncBangs = null
+        mutex.withLock { cachedSyncBangs = null }
         val normPrefix = prefix.lowercase().trim()
         val prefs = getPrefs()
         val currentDisabled = (prefs.getStringSet("disabled_web_shortcuts", null)?.toSet()
@@ -330,7 +332,7 @@ class SearchBangManager @Inject constructor(
     }
 
     suspend fun enableBuiltInBang(prefix: String) {
-        cachedSyncBangs = null
+        mutex.withLock { cachedSyncBangs = null }
         val normPrefix = prefix.lowercase().trim()
         val prefs = getPrefs()
         val currentDisabled = (prefs.getStringSet("disabled_web_shortcuts", null)?.toSet()

@@ -11,6 +11,8 @@ import android.graphics.Rect
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.Process
 import android.os.UserHandle
 import android.os.UserManager
@@ -93,7 +95,7 @@ class MultiProfileManager @Inject constructor(
 
     init {
         try {
-            launcherApps?.registerCallback(launcherCallback)
+            launcherApps?.registerCallback(launcherCallback, Handler(Looper.getMainLooper()))
         } catch (e: Exception) {
             Log.w(TAG, "Failed to register LauncherApps callback", e)
         }
@@ -274,9 +276,12 @@ class MultiProfileManager @Inject constructor(
             Log.e(TAG, "Failed to request quiet mode disabled", e)
             // Fallback: Launch a component from that profile to prompt system keyguard/biometric gate
             try {
-                val activities = launcherApps?.getActivityList(null, userHandle)
-                if (!activities.isNullOrEmpty()) {
-                    launcherApps?.startMainActivity(activities.first().componentName, userHandle, null, null)
+                val apps = launcherApps
+                if (apps != null) {
+                    val activities = apps.getActivityList(null, userHandle)
+                    if (!activities.isNullOrEmpty()) {
+                        apps.startMainActivity(activities.first().componentName, userHandle, null, null)
+                    }
                 }
             } catch (_: Exception) {}
         }
@@ -287,7 +292,8 @@ class MultiProfileManager @Inject constructor(
         userHandle: UserHandle? = null,
         activityName: String? = null,
         sourceBounds: Rect? = null,
-        opts: Bundle? = null
+        opts: Bundle? = null,
+        activity: Activity? = null
     ): Boolean {
         val targetUser = userHandle ?: Process.myUserHandle()
         val isCurrentUser = targetUser == Process.myUserHandle()
@@ -304,18 +310,28 @@ class MultiProfileManager @Inject constructor(
                 return true
             } catch (e: Exception) {
                 Log.w(TAG, "LauncherApps failed to start activity for $packageName on $targetUser", e)
+                return false
             }
         }
 
-        // Fallback to standard package manager
+        if (!isCurrentUser) {
+            // Never leak cross-profile launches to the personal profile
+            return false
+        }
+
+        // Fallback to standard package manager for personal profile
         val pm = context.packageManager
         val launchIntent = pm.getLaunchIntentForPackage(packageName)?.apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             sourceBounds?.let { bounds -> this.sourceBounds = bounds }
         }
         if (launchIntent != null) {
             try {
-                context.startActivity(launchIntent, opts)
+                if (activity != null) {
+                    activity.startActivity(launchIntent, opts)
+                } else {
+                    context.startActivity(launchIntent, opts)
+                }
                 return true
             } catch (e: Exception) {
                 Log.w(TAG, "Standard launch intent failed for $packageName", e)
@@ -339,10 +355,14 @@ class MultiProfileManager @Inject constructor(
                 val explicitIntent = Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_LAUNCHER)
                     component = ComponentName(packageName, targetClass)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     sourceBounds?.let { bounds -> this.sourceBounds = bounds }
                 }
-                context.startActivity(explicitIntent, opts)
+                if (activity != null) {
+                    activity.startActivity(explicitIntent, opts)
+                } else {
+                    context.startActivity(explicitIntent, opts)
+                }
                 return true
             }
         } catch (e: Exception) {

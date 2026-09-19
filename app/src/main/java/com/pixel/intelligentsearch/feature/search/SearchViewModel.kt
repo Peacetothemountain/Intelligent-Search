@@ -95,6 +95,7 @@ class SearchViewModel @Inject constructor(
     private val pixelEcosystemSync = com.pixel.intelligentsearch.core.ecosystem.PixelEcosystemSync(context)
     private val nexusLauncherBridge = com.pixel.intelligentsearch.core.data.NexusLauncherBridge(context)
     private val systemToggleManager = com.pixel.intelligentsearch.core.system.SystemToggleManager(context)
+    private val customPrefs by lazy { context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE) }
 
     init {
         adpfThermalManager.applyTopAppThreadPriority()
@@ -246,9 +247,6 @@ class SearchViewModel @Inject constructor(
         _uiState.update { it.copy(query = newQuery) }
         pixelEcosystemSync.broadcastSearchStateToWearOS(newQuery)
         
-        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-        val mockZeroState = prefs.getBoolean("debug.mock_zero_state", false)
-        
         if (newQuery.isBlank()) {
             _remoteSearchQueryFlow.value = ""
             _idleIndexFlow.value = ""
@@ -316,7 +314,7 @@ class SearchViewModel @Inject constructor(
     }
 
     private fun executeLocalSearch(newQuery: String) {
-        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val prefs = customPrefs
         val mockLargeDataset = prefs.getBoolean("debug.mock_large_dataset", false)
         val verboseLogging = prefs.getBoolean("debug.verbose_logging", false)
         val forceSearchError = prefs.getBoolean("debug.force_search_error", false)
@@ -429,8 +427,7 @@ class SearchViewModel @Inject constructor(
                 }
             } else emptyList()
 
-            val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-            val suggestionsEnabled = prefs.getBoolean("search.web.suggestions", true)
+            val suggestionsEnabled = customPrefs.getBoolean("search.web.suggestions", true)
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
                 WebSearchProvider.getCachedSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(5))
@@ -463,8 +460,12 @@ class SearchViewModel @Inject constructor(
 
             val elapsed = System.currentTimeMillis() - startTime
 
+            currentCoroutineContext().ensureActive()
+            if (_uiState.value.query != newQuery) return@launch
+
             // TIER 1 UPDATE: Instant local results (<3ms) + Instant cached suggestions
             _uiState.update { current ->
+                if (current.query != newQuery) return@update current
                 current.copy(
                     filteredApps = resolvedApps,
                     contacts = localContacts,
@@ -488,8 +489,7 @@ class SearchViewModel @Inject constructor(
 
     private fun fetchRemoteWebSuggestions(query: String) {
         if (query.isBlank()) return
-        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-        val suggestionsEnabled = prefs.getBoolean("search.web.suggestions", true)
+        val suggestionsEnabled = customPrefs.getBoolean("search.web.suggestions", true)
         if (!suggestionsEnabled) return
 
         val settings = settingsState.value

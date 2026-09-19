@@ -55,13 +55,27 @@ class SystemActionRouter @Inject constructor(
     }
 
     private fun getStreamState(stream: Int, name: String, icon: String): VolumeSliderState {
-        val current = audioManager?.getStreamVolume(stream) ?: 0
-        val max = audioManager?.getStreamMaxVolume(stream) ?: 100
+        val current = try {
+            audioManager?.getStreamVolume(stream) ?: 0
+        } catch (_: Throwable) {
+            0
+        }
+        val max = try {
+            audioManager?.getStreamMaxVolume(stream) ?: 100
+        } catch (_: Throwable) {
+            100
+        }
         return VolumeSliderState(stream, name, current, max, icon)
     }
 
     fun setStreamVolume(streamType: Int, level: Int) {
-        audioManager?.setStreamVolume(streamType, level, 0)
+        try {
+            audioManager?.setStreamVolume(streamType, level, 0)
+        } catch (e: SecurityException) {
+            android.util.Log.w("SystemActionRouter", "SecurityException setting volume (DND / policy restriction)", e)
+        } catch (e: Throwable) {
+            android.util.Log.w("SystemActionRouter", "Failed to set volume", e)
+        }
         when (streamType) {
             AudioManager.STREAM_MUSIC -> _mediaVolumeState.value = getStreamState(streamType, "Media Volume", "volume_media")
             AudioManager.STREAM_RING -> _ringVolumeState.value = getStreamState(streamType, "Ringtone Volume", "volume_ring")
@@ -98,8 +112,8 @@ class SystemActionRouter @Inject constructor(
 
         // 1. Volume Sliders matching
         if (q in KEYWORDS_MEDIA_VOLUME) {
-            val current = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0
-            val max = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
+            val current = try { audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0 } catch (_: Throwable) { 0 }
+            val max = try { audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15 } catch (_: Throwable) { 15 }
             return ActionResult.VolumeSlider(
                 streamType = AudioManager.STREAM_MUSIC,
                 title = "Media Volume",
@@ -110,8 +124,8 @@ class SystemActionRouter @Inject constructor(
         }
 
         if (q in KEYWORDS_RING_VOLUME) {
-            val current = audioManager?.getStreamVolume(AudioManager.STREAM_RING) ?: 0
-            val max = audioManager?.getStreamMaxVolume(AudioManager.STREAM_RING) ?: 7
+            val current = try { audioManager?.getStreamVolume(AudioManager.STREAM_RING) ?: 0 } catch (_: Throwable) { 0 }
+            val max = try { audioManager?.getStreamMaxVolume(AudioManager.STREAM_RING) ?: 7 } catch (_: Throwable) { 7 }
             return ActionResult.VolumeSlider(
                 streamType = AudioManager.STREAM_RING,
                 title = "Ringtone Volume",
@@ -122,8 +136,8 @@ class SystemActionRouter @Inject constructor(
         }
 
         if (q in KEYWORDS_ALARM_VOLUME) {
-            val current = audioManager?.getStreamVolume(AudioManager.STREAM_ALARM) ?: 0
-            val max = audioManager?.getStreamMaxVolume(AudioManager.STREAM_ALARM) ?: 7
+            val current = try { audioManager?.getStreamVolume(AudioManager.STREAM_ALARM) ?: 0 } catch (_: Throwable) { 0 }
+            val max = try { audioManager?.getStreamMaxVolume(AudioManager.STREAM_ALARM) ?: 7 } catch (_: Throwable) { 7 }
             return ActionResult.VolumeSlider(
                 streamType = AudioManager.STREAM_ALARM,
                 title = "Alarm Volume",

@@ -10,9 +10,4 @@ import dagger.hilt.android.AndroidEntryPoint
  * Bypasses system splash latency on direct search overlay launches via overlay-specific theme.
  */
 @AndroidEntryPoint
-class WidgetActivity : MainActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-        super.onCreate(savedInstanceState)
-    }
-}
+class WidgetActivity : MainActivity()

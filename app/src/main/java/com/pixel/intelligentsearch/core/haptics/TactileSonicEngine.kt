@@ -30,11 +30,16 @@ class TactileSonicEngine private constructor(private val context: Context) {
     val hapticEngine = PixelHapticEngine.get(context)
     val sonicEngine = SonicMicroFeedbackEngine.get(context)
 
-    @Volatile
-    var isHapticEnabled: Boolean = true
+    private val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+
+    var isHapticEnabled: Boolean
+        get() = prefs.getBoolean("vibration_enabled", true)
+        set(value) {
+            prefs.edit().putBoolean("vibration_enabled", value).apply()
+        }
 
     @Volatile
-    var isSonicEnabled: Boolean = true
+    var isSonicEnabled: Boolean = false
 
     // High-frequency debouncing timestamps
     private var lastScrollDetentTimestamp: Long = 0L
@@ -45,10 +50,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun click(view: View? = null, scale: Float = 1.0f) {
         if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.CLICK, amplitudeScale = scale)
-        }
-        if (isSonicEnabled) {
-            sonicEngine.playSonic(SonicMicroFeedbackEngine.SonicType.CLICK, volumeScale = scale)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
 
@@ -57,10 +59,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun tick(view: View? = null, scale: Float = 1.0f) {
         if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.TICK, amplitudeScale = scale)
-        }
-        if (isSonicEnabled) {
-            sonicEngine.playSonic(SonicMicroFeedbackEngine.SonicType.TICK, volumeScale = scale * 0.8f)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
 
@@ -73,15 +72,8 @@ class TactileSonicEngine private constructor(private val context: Context) {
         if (now - lastScrollDetentTimestamp < 38L) return
         lastScrollDetentTimestamp = now
 
-        val velAbs = kotlin.math.abs(velocity)
-        val normalizedVel = (velAbs / 3500f).coerceIn(0f, 1f)
-        val scale = 0.35f + 0.45f * normalizedVel
-
         if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.SCROLL_DETENT, amplitudeScale = scale, velocity = velocity)
-        }
-        if (isSonicEnabled) {
-            sonicEngine.playSonic(SonicMicroFeedbackEngine.SonicType.TICK, volumeScale = scale * 0.6f)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
 
@@ -92,29 +84,21 @@ class TactileSonicEngine private constructor(private val context: Context) {
     fun magneticResistance(view: View? = null, progress: Float) {
         val now = SystemClock.uptimeMillis()
         val p = progress.coerceIn(0f, 1f)
-        // Adaptive refractory interval: closer to threshold -> more frequent ticks
         val minInterval = (65L - (p * 35L).toLong()).coerceAtLeast(30L)
         if (now - lastMagneticResistanceTimestamp < minInterval) return
         lastMagneticResistanceTimestamp = now
 
-        val scale = (0.25f + 0.55f * p * p)
         if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.MAGNETIC_RESISTANCE, amplitudeScale = scale)
-        }
-        if (isSonicEnabled) {
-            sonicEngine.playSonic(SonicMicroFeedbackEngine.SonicType.TICK, volumeScale = scale * 0.5f)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
 
     /**
-     * Explosive tactile snap when crossing the magnetic dismiss barrier.
+     * Tactile snap when crossing the magnetic dismiss barrier.
      */
     fun magneticThresholdSnap(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.GESTURE_THRESHOLD, amplitudeScale = 1.0f)
-        }
-        if (isSonicEnabled) {
-            sonicEngine.playSonic(SonicMicroFeedbackEngine.SonicType.MAGNETIC_PING, volumeScale = 0.85f)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
 
@@ -123,37 +107,25 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun springReleaseSnap(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.SPRING_RELEASE, amplitudeScale = 0.95f)
-        }
-        if (isSonicEnabled) {
-            sonicEngine.playSonic(SonicMicroFeedbackEngine.SonicType.DELETE_THUD, volumeScale = 0.70f)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
 
     /**
-     * Impactful app launch transient (sharp acceleration into crisp physical launch).
+     * App launch tactile tick.
      */
     fun appLaunch(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.APP_LAUNCH, amplitudeScale = 1.0f)
-        }
-        if (isSonicEnabled) {
-            sonicEngine.playSonic(SonicMicroFeedbackEngine.SonicType.APP_LAUNCH, volumeScale = 0.90f)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
 
     /**
-     * Mechanical toggle switch snap (rising click for ON, falling detent for OFF).
+     * Toggle switch snap.
      */
     fun toggle(view: View? = null, isChecked: Boolean) {
-        val hapticType = if (isChecked) PixelHapticType.TOGGLE_ON else PixelHapticType.TOGGLE_OFF
-        val sonicType = if (isChecked) SonicMicroFeedbackEngine.SonicType.TOGGLE_ON else SonicMicroFeedbackEngine.SonicType.TOGGLE_OFF
-
         if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, hapticType, amplitudeScale = 1.0f)
-        }
-        if (isSonicEnabled) {
-            sonicEngine.playSonic(sonicType, volumeScale = 0.85f)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
 
@@ -162,52 +134,43 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun mathCalculation(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.MATH_CALCULATION, amplitudeScale = 0.75f)
-        }
-        if (isSonicEnabled) {
-            sonicEngine.playSonic(SonicMicroFeedbackEngine.SonicType.MATH_TICK, volumeScale = 0.70f)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
 
     /**
-     * Security unlock biometric heartbeat (bi-phasic myocardial pulse).
+     * Security unlock biometric heartbeat.
      */
     fun securityHeartbeat(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.SECURITY_HEARTBEAT, amplitudeScale = 1.0f)
-        }
-        if (isSonicEnabled) {
-            sonicEngine.playSonic(SonicMicroFeedbackEngine.SonicType.SECURITY_HEARTBEAT, volumeScale = 0.85f)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
 
     /**
-     * Heavy delete / clear confirmation thud.
+     * Delete / clear confirmation tick.
      */
     fun deleteThud(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.DELETE_THUD, amplitudeScale = 1.0f)
-        }
-        if (isSonicEnabled) {
-            sonicEngine.playSonic(SonicMicroFeedbackEngine.SonicType.DELETE_THUD, volumeScale = 0.95f)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
 
     /**
-     * Overlay expansion tactile swell.
+     * Overlay expansion tactile tick.
      */
     fun overlayOpen(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.OVERLAY_OPEN, amplitudeScale = 0.85f)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
 
     /**
-     * Overlay collapse settling thud.
+     * Overlay collapse settling tick.
      */
     fun overlayDismiss(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.OVERLAY_DISMISS, amplitudeScale = 0.85f)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
 
@@ -216,10 +179,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun reorderSwap(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.REORDER_SWAP, amplitudeScale = 0.85f)
-        }
-        if (isSonicEnabled) {
-            sonicEngine.playSonic(SonicMicroFeedbackEngine.SonicType.TICK, volumeScale = 0.75f)
+            hapticEngine.performPredictiveBackHaptic(view)
         }
     }
 }

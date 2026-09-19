@@ -194,6 +194,7 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                 <action android:name="com.pixel.intelligentsearch.ACTION_UPDATE_WIDGET" />
                 <action android:name="com.pixel.intelligentsearch.ACTION_HIDE_WIDGET" />
                 <action android:name="com.pixel.intelligentsearch.ACTION_SHOW_WIDGET" />
@@ -210,6 +211,7 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                 <action android:name="com.pixel.intelligentsearch.ACTION_UPDATE_WIDGET" />
                 <action android:name="com.pixel.intelligentsearch.ACTION_HIDE_WIDGET" />
                 <action android:name="com.pixel.intelligentsearch.ACTION_SHOW_WIDGET" />

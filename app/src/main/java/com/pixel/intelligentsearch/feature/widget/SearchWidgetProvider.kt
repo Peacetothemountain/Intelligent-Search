@@ -39,6 +39,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         when (intent.action) {
+            Intent.ACTION_MY_PACKAGE_REPLACED,
             "com.pixel.intelligentsearch.ACTION_UPDATE_WIDGET" -> {
                 val pendingResult = goAsync()
                 updateAllWidgets(context, pendingResult)

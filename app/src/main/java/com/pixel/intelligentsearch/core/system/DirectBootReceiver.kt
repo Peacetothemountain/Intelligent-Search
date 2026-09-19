@@ -30,6 +30,7 @@ class DirectBootReceiver : BroadcastReceiver() {
                 Log.i(TAG, "Device unlocked / Boot completed. Invalidating caches and refreshing.")
                 directBootManager.onUserUnlocked()
                 SystemDataProvider.invalidateAppsCache()
+                com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(context)
             }
         }
     }

@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch
+import android.content.Context
 import com.pixel.intelligentsearch.feature.settings.SettingsActivity
 import android.content.Intent
 import android.os.Build
@@ -31,6 +32,9 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 open class MainActivity : AppCompatActivity() {
+
+    @javax.inject.Inject
+    lateinit var multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager
 
     private val searchViewModel: SearchViewModel by viewModels()
     private val adpfThermalManager by lazy { com.pixel.intelligentsearch.core.performance.ADPFThermalManager.getInstance(this) }
@@ -86,7 +90,11 @@ open class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        if (resources.configuration.smallestScreenWidthDp < 600) {
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
         } else {
@@ -109,6 +117,21 @@ open class MainActivity : AppCompatActivity() {
             window.isNavigationBarContrastEnforced = false
         }
 
+        val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val initialShowWallpaper = prefs.getBoolean("search.background.show.wall", prefs.getBoolean("show.wallpaper", true))
+        val initialBlur = prefs.getInt("search.background.blur", prefs.getInt("background.blur", 50))
+        if (initialShowWallpaper) {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && initialBlur > 0) {
+                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+            }
+        } else {
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+            }
+        }
+
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
@@ -119,7 +142,25 @@ open class MainActivity : AppCompatActivity() {
         }
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
+        val isTutorial = com.pixel.intelligentsearch.feature.settings.TutorialManager.isTutorialActive(prefs)
+        window.setSoftInputMode(
+            if (isTutorial) {
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            } else {
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            }
+        )
         super.onCreate(savedInstanceState)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            runCatching {
+                if (initialShowWallpaper && initialBlur > 0) {
+                    window.setBackgroundBlurRadius(initialBlur)
+                } else {
+                    window.setBackgroundBlurRadius(0)
+                }
+            }
+        }
 
         if (checkAndForwardIfSearchOverlayDisabled()) return
         if (handleIntent(intent)) return
@@ -141,14 +182,23 @@ open class MainActivity : AppCompatActivity() {
                 ) {
                     val throttleLevel by adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
                     DisposableEffect(settingsState.backgroundBlur, settingsState.showWallpaper, throttleLevel) {
-                        val recommendedBlur = adpfThermalManager.getRecommendedBlurRadius(settingsState.backgroundBlur.toFloat()).toInt()
+                        val isWall = settingsState.showWallpaper
+                        if (isWall) {
+                            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+                        } else {
+                            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+                        }
+                        val blurRadius = settingsState.backgroundBlur
+                        val recommendedBlur = adpfThermalManager.getRecommendedBlurRadius(blurRadius.toFloat()).toInt()
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            if (settingsState.showWallpaper && recommendedBlur > 0) {
-                                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                                window.setBackgroundBlurRadius(recommendedBlur)
-                            } else {
-                                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                                window.setBackgroundBlurRadius(0)
+                            runCatching {
+                                if (isWall && recommendedBlur > 0) {
+                                    window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                                    window.setBackgroundBlurRadius(recommendedBlur)
+                                } else {
+                                    window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                                    window.setBackgroundBlurRadius(0)
+                                }
                             }
                         }
                         onDispose {}
@@ -162,34 +212,26 @@ open class MainActivity : AppCompatActivity() {
                                 onOpenSettings = { route ->
                                     val intent = Intent(this@MainActivity, SettingsActivity::class.java).apply {
                                         putExtra("extra_screen", route)
+                                        putExtra("FROM_SEARCH_OVERLAY", true)
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                     }
-                                    val options = android.app.ActivityOptions.makeCustomAnimation(
-                                        this@MainActivity,
-                                        R.anim.slide_in_right,
-                                        R.anim.slide_out_left
-                                    )
-                                    startActivity(intent, options.toBundle())
+                                    try {
+                                        startActivity(intent)
+                                    } catch (e: Throwable) {
+                                        android.util.Log.e("MainActivity", "Failed to open settings", e)
+                                    }
                                 },
                                 onLaunchApp = { packageName ->
                                     searchViewModel.notifyAppLaunch(packageName)
                                     searchViewModel.onQueryChanged("")
-                                    val multiProfileManager = com.pixel.intelligentsearch.core.profile.MultiProfileManager(this@MainActivity)
-                                    val launched = multiProfileManager.launchApp(packageName = packageName)
-                                    if (launched) {
-                                        if (settingsState.appAnimations) {
-                                            finish()
-                                        } else {
-                                            finish()
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                                                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
-                                            } else {
-                                                @Suppress("DEPRECATION")
-                                                overridePendingTransition(0, 0)
-                                            }
-                                        }
+                                    try {
+                                        multiProfileManager.launchApp(packageName = packageName, activity = this@MainActivity)
+                                    } catch (e: Throwable) {
+                                        android.util.Log.e("MainActivity", "Failed to launch app $packageName", e)
                                     }
                                 },
                                 viewModel = searchViewModel,
+                                settingsViewModel = settingsViewModel,
                                 isKeyboardDisabled = false
                             )
                         }
@@ -197,6 +239,10 @@ open class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
     }
 
     private fun handleIntent(intent: Intent?): Boolean {
@@ -259,14 +305,12 @@ open class MainActivity : AppCompatActivity() {
         super.onPause()
         searchViewModel.onQueryChanged("")
         
-        // Force widget update when leaving the home screen app
-        val updateIntent = Intent(this, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
-            action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
-            val ids = android.appwidget.AppWidgetManager.getInstance(this@MainActivity)
-                .getAppWidgetIds(android.content.ComponentName(this@MainActivity, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java))
-            putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+        // Force widget update when leaving the search overlay
+        try {
+            com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(this)
+        } catch (e: Throwable) {
+            android.util.Log.e("MainActivity", "Failed to update widget on pause", e)
         }
-        sendBroadcast(updateIntent)
     }
 
     private fun checkAndForwardIfSearchOverlayDisabled(): Boolean {
@@ -317,6 +361,14 @@ open class MainActivity : AppCompatActivity() {
                 @Suppress("DEPRECATION")
                 overridePendingTransition(0, 0)
             }
+        }
+    }
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (newConfig.smallestScreenWidthDp < 600) {
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 }

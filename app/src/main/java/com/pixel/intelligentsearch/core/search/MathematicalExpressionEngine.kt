@@ -48,7 +48,7 @@ object MathematicalExpressionEngine {
     private val REGEX_MULTIPLICATION_X = Regex("(?<=[0-9)])\\s*[xX]\\s*(?=[0-9(])")
     private val REGEX_ALLOWED_CHARS = Regex("^[0-9a-zA-Z.+\\-*/%^!()_,]+$")
     private val REGEX_BASE_CONVERSION = Regex("^([0-9a-fA-FxXbBoO]+)\\s+(?:to|in)\\s+(hex|dec|bin|oct)$", RegexOption.IGNORE_CASE)
-    private val REGEX_BITWISE = Regex("^([0-9a-fA-FxXbB]+)\\s+(AND|OR|XOR|SHL|SHR|<<|>>|&|\\||\\^)\\s+([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
+    private val REGEX_BITWISE = Regex("^([0-9a-fA-FxXbB]+)\\s+(AND|OR|XOR|SHL|SHR|<<|>>|&|\\|)\\s+([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
     private val REGEX_UNIT_CONVERSION = Regex("^([0-9.]+)\\s*([a-zA-Z/_]+)\\s*(?:to|in)\\s*([a-zA-Z/_]+)$", RegexOption.IGNORE_CASE)
 
     private fun evaluateScientific(input: String): MathEvaluationResult.Computation? {
@@ -94,6 +94,7 @@ object MathematicalExpressionEngine {
     private class ExpressionParser(private val str: String) {
         private var pos = -1
         private var ch = 0
+        private var depth = 0
 
         private fun nextChar() {
             ch = if (++pos < str.length) str[pos].code else -1
@@ -117,13 +118,18 @@ object MathematicalExpressionEngine {
 
         // Expression = Term (+ or - Term)*
         private fun parseExpression(): Double {
-            var x = parseTerm()
-            while (true) {
-                when {
-                    eat('+'.code) -> x += parseTerm()
-                    eat('-'.code) -> x -= parseTerm()
-                    else -> return x
+            if (++depth > 40) throw IllegalArgumentException("Expression recursion limit exceeded")
+            try {
+                var x = parseTerm()
+                while (true) {
+                    when {
+                        eat('+'.code) -> x += parseTerm()
+                        eat('-'.code) -> x -= parseTerm()
+                        else -> return x
+                    }
                 }
+            } finally {
+                depth--
             }
         }
 
@@ -332,7 +338,7 @@ object MathematicalExpressionEngine {
 
     private val digitalUnits = mapOf(
         "b" to 1.0 / 8.0, "bit" to 1.0 / 8.0, "bits" to 1.0 / 8.0,
-        "byte" to 1.0, "bytes" to 1.0, "b" to 1.0,
+        "byte" to 1.0, "bytes" to 1.0,
         "kb" to 1000.0, "kilobyte" to 1000.0, "kilobytes" to 1000.0,
         "mb" to 1e6, "megabyte" to 1e6, "megabytes" to 1e6,
         "gb" to 1e9, "gigabyte" to 1e9, "gigabytes" to 1e9,
@@ -380,7 +386,16 @@ object MathematicalExpressionEngine {
     )
 
     private fun evaluateUnitConversion(query: String): MathEvaluationResult.UnitConversion? {
-        val match = REGEX_UNIT_CONVERSION.find(query.trim()) ?: return null
+        val normalizedQuery = query.trim()
+            .replace("$", " usd ")
+            .replace("€", " eur ")
+            .replace("£", " gbp ")
+            .replace("¥", " jpy ")
+            .replace("₹", " inr ")
+            .replace("\\s+".toRegex(), " ")
+            .trim()
+
+        val match = REGEX_UNIT_CONVERSION.find(normalizedQuery) ?: return null
 
         val value = match.groupValues[1].toDoubleOrNull() ?: return null
         val fromUnit = match.groupValues[2].lowercase()

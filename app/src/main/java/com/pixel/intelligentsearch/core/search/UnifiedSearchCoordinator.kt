@@ -303,7 +303,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 domainWeightMultiplier = 1.0f
             )
             Pair(item.payload as AppItem, score.totalScore)
-        }.sortedByDescending { it.second }
+        }.filter { it.second > 0f }
+        .sortedByDescending { it.second }
         .map { it.first }
         .take(8)
 
@@ -480,6 +481,11 @@ class UnifiedSearchCoordinator @Inject constructor(
             for (token in tokens) {
                 candidates.addAll(radixTree.searchPrefix(token, limit = 40))
             }
+            // Conjunctive filter: ensure matched candidates contain all query tokens
+            candidates.retainAll { item ->
+                QueryNormalizer.containsAllTokens(item.title, query) ||
+                (item.subtitle != null && QueryNormalizer.containsAllTokens(item.subtitle, query))
+            }
         }
 
         // 5. Phonetic Candidate Retrieval via Double Metaphone (< 0.2ms)
@@ -489,6 +495,12 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
         if (queryMetaphone.alternate.isNotEmpty()) {
             phoneticIndex[queryMetaphone.alternate]?.let { candidates.addAll(it) }
+        }
+
+        // Phone number search normalization for contact lookups
+        val queryDigits = query.filter { it.isDigit() }
+        if (queryDigits.length >= 3) {
+            candidates.addAll(radixTree.searchPrefix(queryDigits, limit = 20))
         }
 
         // 6. Typo-Tolerant Fuzzy Search if Candidate Pool is Small (< 1.5ms)
@@ -522,7 +534,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 precomputedQueryMetaphone = queryMetaphone
             )
             RankedSearchResult(item, scoreBreakdown)
-        }.sortedByDescending { it.scoreBreakdown.totalScore }
+        }.filter { it.scoreBreakdown.totalScore > 0f }
+        .sortedByDescending { it.scoreBreakdown.totalScore }
 
         // 8. Domain Separation & Output Filtering
         val matchedApps = mutableListOf<AppItem>()

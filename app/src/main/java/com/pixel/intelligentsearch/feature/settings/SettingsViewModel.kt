@@ -124,7 +124,7 @@ class SettingsViewModel @Inject constructor(
 
     // --- Backup & Restore Operations ---
     fun exportBackup(
-        activity: Activity,
+        
         uri: Uri,
         passphrase: String?,
         onSuccess: () -> Unit,
@@ -132,7 +132,7 @@ class SettingsViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             backupManager.exportToFile(
-                activity = activity,
+                
                 uri = uri,
                 passphrase = passphrase,
                 onSuccess = onSuccess,
@@ -142,7 +142,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun importBackup(
-        activity: Activity,
+        
         uri: Uri,
         passphrase: String?,
         onSuccess: (Int) -> Unit,
@@ -150,7 +150,7 @@ class SettingsViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             backupManager.importFromFile(
-                activity = activity,
+                
                 uri = uri,
                 passphrase = passphrase,
                 onSuccess = onSuccess,

@@ -141,6 +141,7 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.semantics.*
 
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -335,6 +336,7 @@ fun rememberBooleanPreference(
         "search_overlay_enabled" -> SettingsManager.SEARCH_OVERLAY_ENABLED
         "matrix_animation_enabled" -> SettingsManager.MATRIX_ANIMATION_ENABLED
         "settings_back_to_search_overlay" -> SettingsManager.BACK_TO_SEARCH_OVERLAY
+        "vibration_enabled" -> SettingsManager.VIBRATION
         else -> null
     }
 
@@ -372,6 +374,7 @@ fun rememberBooleanPreference(
         "search_overlay_enabled" -> settingsState?.searchOverlayEnabled ?: prefs.getBoolean(key, defaultValue)
         "matrix_animation_enabled" -> settingsState?.matrixAnimationEnabled ?: prefs.getBoolean(key, defaultValue)
         "settings_back_to_search_overlay" -> settingsState?.backToSearchOverlay ?: prefs.getBoolean(key, defaultValue)
+        "vibration_enabled" -> settingsState?.vibrationEnabled ?: prefs.getBoolean(key, defaultValue)
         else -> prefs.getBoolean(key, defaultValue)
     }
 
@@ -396,17 +399,21 @@ fun rememberBooleanPreference(
         }
     }
 
+    val currentViewModel by rememberUpdatedState(viewModel)
+    val currentOnChanged by rememberUpdatedState(onChanged)
+
     return remember(key, prefs) {
         object : MutableState<Boolean> {
             override var value: Boolean
                 get() = state.value
                 set(v) {
                     state.value = v
-                    if (datastoreKey != null && viewModel != null) {
-                        viewModel.updateSetting(datastoreKey, v)
+                    val vm = currentViewModel
+                    if (datastoreKey != null && vm != null) {
+                        vm.updateSetting(datastoreKey, v)
                     }
                     prefs.edit().putBoolean(key, v).apply()
-                    onChanged()
+                    currentOnChanged()
                 }
             override operator fun component1() = value
             override operator fun component2(): (Boolean) -> Unit = { value = it }
@@ -556,6 +563,7 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 @Composable
 fun SettingsScreensHub(
     initialScreen: String,
+    fromSearchOverlay: Boolean = false,
     prefs: SharedPreferences,
     onBackToLauncher: () -> Unit,
     context: Context
@@ -570,31 +578,33 @@ fun SettingsScreensHub(
         val navController = androidx.navigation.compose.rememberNavController()
         
         val exoPlayer = androidx.compose.runtime.remember {
-            val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.bugdroid_video)
-            val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
-            val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
-            androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
-                setMediaSource(mediaSource)
-                repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
-                volume = 0f
-                prepare()
-                playWhenReady = true
-            }
+            runCatching {
+                val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.bugdroid_video)
+                val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
+                val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
+                androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+                    setMediaSource(mediaSource)
+                    repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+                    volume = 0f
+                    prepare()
+                    playWhenReady = true
+                }
+            }.getOrNull()
         }
 
         val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-        androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        androidx.compose.runtime.DisposableEffect(lifecycleOwner, exoPlayer) {
             val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
                 if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                    exoPlayer.play()
+                    exoPlayer?.play()
                 } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                    exoPlayer.pause()
+                    exoPlayer?.pause()
                 }
             }
             lifecycleOwner.lifecycle.addObserver(observer)
             onDispose {
                 lifecycleOwner.lifecycle.removeObserver(observer)
-                exoPlayer.release()
+                exoPlayer?.release()
             }
         }
 
@@ -603,46 +613,40 @@ fun SettingsScreensHub(
         }
 
         val handleExitBack: () -> Unit = {
-            val isBackToOverlay = settingsState.backToSearchOverlay
-            if (isBackToOverlay) {
-                try {
-                    val intent = Intent(context, com.pixel.intelligentsearch.MainActivity::class.java).apply {
-                        putExtra("FROM_BACK_SWIPE", true)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                    }
-                    context.startActivity(intent)
-                    val act = context.findActivity() ?: (context as? Activity)
-                    if (act != null) {
-                        act.finish()
+            val act = context.findActivity() ?: (context as? Activity)
+            if (act != null) {
+                if (act.isTaskRoot) {
+                    val isBackToOverlay = fromSearchOverlay || settingsState.backToSearchOverlay
+                    if (isBackToOverlay) {
+                        val intent = Intent(context, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java).apply {
+                            putExtra("FROM_BACK_SWIPE", true)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        }
+                        context.startActivity(intent)
                     } else {
-                        onBackToLauncher()
+                        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                            addCategory(Intent.CATEGORY_HOME)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(homeIntent)
                     }
-                } catch (_: Throwable) {
-                    onBackToLauncher()
+                }
+                act.finish()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    act.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, R.anim.slide_in_left, R.anim.slide_out_right)
+                } else {
+                    @Suppress("DEPRECATION")
+                    act.overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
                 }
             } else {
-                try {
-                    val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                        addCategory(Intent.CATEGORY_HOME)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    context.startActivity(homeIntent)
-                    val act = context.findActivity() ?: (context as? Activity)
-                    if (act != null) {
-                        act.finish()
-                    } else {
-                        onBackToLauncher()
-                    }
-                } catch (_: Throwable) {
-                    onBackToLauncher()
-                }
+                onBackToLauncher()
             }
         }
 
         val currentBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = currentBackStackEntry?.destination?.route
         val hasSubScreensInNavHost = navController.previousBackStackEntry != null
-        val isAtRootMain = (currentRoute == null || currentRoute.contains("Main")) && !hasSubScreensInNavHost
+        val isAtRootMain = (currentRoute == null || currentRoute.contains("main", ignoreCase = true)) && !hasSubScreensInNavHost
 
         val onBack: () -> Unit = {
             if (navController.previousBackStackEntry != null) {
@@ -659,6 +663,7 @@ fun SettingsScreensHub(
                 progressFlow.collect { backEvent ->
                     exitBackProgress.snapTo(backEvent.progress)
                 }
+                exitBackProgress.snapTo(0f)
                 handleExitBack()
             } catch (_: java.util.concurrent.CancellationException) {
                 exitBackProgress.animateTo(0f, spring(dampingRatio = 0.85f, stiffness = 300f))
@@ -789,7 +794,7 @@ fun SettingsScreensHub(
                                 onDisableDebug = {
                                     prefs.edit().putBoolean("debug_unlocked", false).apply()
                                     if (!navController.popBackStack()) {
-                                        navController.navigate("main") {
+                                        navController.navigate(com.pixel.intelligentsearch.core.navigation.Route.Main) {
                                             popUpTo(0)
                                         }
                                     }
@@ -1795,7 +1800,7 @@ fun MainSettingsScreen(
     onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit,
     onBack: () -> Unit,
     context: Context,
-    exoPlayer: androidx.media3.exoplayer.ExoPlayer,
+    exoPlayer: androidx.media3.exoplayer.ExoPlayer? = null,
     showTutorial: Boolean = false
 ) {
     var showInfoDialog by remember { mutableStateOf(false) }
@@ -1879,6 +1884,12 @@ fun MainSettingsScreen(
                                         .verticalScroll(rememberScrollState()),
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
+                                    Text(
+                                        "Check Android Default Apps. Change Search Engine App to: Intelligent Search",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
                                     Text(
                                         "If you are a Google Pixel user who uses stock Pixel Launcher and would like to set Intelligent Search as your default Pixel Launcher search bar widget, use the following ADB Command:",
                                         style = MaterialTheme.typography.bodyMedium,
@@ -2266,7 +2277,7 @@ fun MainSettingsScreen(
                                 ) {
                                     val surface = android.view.Surface(surfaceTexture)
                                     currentSurface = surface
-                                    exoPlayer.setVideoSurface(surface)
+                                    exoPlayer?.setVideoSurface(surface)
                                     adjustAspectRatio(this@apply)
                                 }
 
@@ -2282,7 +2293,7 @@ fun MainSettingsScreen(
                                     surfaceTexture: android.graphics.SurfaceTexture
                                 ): Boolean {
                                     currentSurface?.let {
-                                        exoPlayer.clearVideoSurface(it)
+                                        exoPlayer?.clearVideoSurface(it)
                                         it.release()
                                     }
                                     currentSurface = null
@@ -2446,7 +2457,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                             showDivider = true
                         )
 
-                        var showWall by rememberBooleanPreference(prefs, "search.background.show.wall", false) { updateWidgets(context) }
+                        var showWall by rememberBooleanPreference(prefs, "search.background.show.wall", true) { updateWidgets(context) }
                         SettingsRowToggle(
                             title = "Show Wallpaper",
                             subtitle = "Show User's Wallpaper on Search Overlay Page.",
@@ -2910,13 +2921,19 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var isAuthenticated by remember { mutableStateOf(false) }
 
     val triggerAuth: () -> Unit = {
-        val targetActivity = biometricGate.getActivity()
-        if (targetActivity != null && biometricGate.isBiometricHardwareAvailable()) {
+        val targetActivity = biometricGate.getActivity(context)
+        if (targetActivity != null && (biometricGate.isBiometricHardwareAvailable() || biometricGate.isDeviceSecure())) {
             biometricGate.authenticateForPrivateSearch(
                 activity = targetActivity,
                 onSuccess = { isAuthenticated = true },
-                onError = { isAuthenticated = false }
+                onError = {
+                    isAuthenticated = false
+                    onBack()
+                }
             )
+        } else if (biometricGate.isDeviceSecure()) {
+            isAuthenticated = false
+            onBack()
         } else {
             isAuthenticated = true
         }
@@ -3184,7 +3201,7 @@ fun DuckDuckGoOfficialAppIcon(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(androidx.compose.foundation.shape.CircleShape)
-            .background(Color(0xFFDE5833)),
+            .background(MaterialTheme.colorScheme.error),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize().padding(3.dp)) {
@@ -3243,7 +3260,7 @@ fun BingOfficialAppIcon(modifier: Modifier = Modifier) {
             .clip(RoundedCornerShape(6.dp))
             .background(
                 androidx.compose.ui.graphics.Brush.linearGradient(
-                    colors = listOf(Color(0xFF008373), Color(0xFF00A4EF))
+                    colors = listOf(MaterialTheme.colorScheme.primary, Color(0xFF00A4EF))
                 )
             ),
         contentAlignment = Alignment.Center
@@ -4914,6 +4931,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
+    val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
         Scaffold(
@@ -5011,6 +5029,19 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         } else {
                             smartClipboard = false
                         }
+                    },
+                    showDivider = true
+                )
+
+                var vibrationEnabled by rememberBooleanPreference(prefs, "vibration_enabled", true)
+                SettingsRowToggle(
+                    title = "Vibration",
+                    subtitle = "Haptic Vibration Across the Entire App.",
+                    icon = Icons.Outlined.Vibration,
+                    isChecked = vibrationEnabled,
+                    onCheckedChange = { 
+                        vibrationEnabled = it 
+                        com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).isHapticEnabled = it
                     },
                     showDivider = false
                 )
@@ -5259,10 +5290,15 @@ fun SettingsRowToggle(
                     onLongClick = onLongClick,
                     suppressClickHaptic = true,
                     onClick = {
-                    val next = !isChecked
-                    sensoryEngine.toggle(view, next)
-                    if (onClick != null) onClick() else onCheckedChange(next)
-                })
+                        if (onClick != null) {
+                            onClick()
+                        } else {
+                            val next = !isChecked
+                            sensoryEngine.toggle(view, next)
+                            onCheckedChange(next)
+                        }
+                    }
+                )
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -5303,10 +5339,12 @@ fun SettingsRowToggle(
             }
             Switch(
                 checked = isChecked,
-                onCheckedChange = { next ->
-                    sensoryEngine.toggle(view, next)
-                    onCheckedChange(next)
-                },
+                onCheckedChange = if (onClick != null) {
+                    { next ->
+                        sensoryEngine.toggle(view, next)
+                        onCheckedChange(next)
+                    }
+                } else null,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = MaterialTheme.colorScheme.primary,
                     checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
@@ -5430,6 +5468,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         "Live" to Icons.Default.AutoAwesome,
         "Translate (text)" to Icons.Default.Translate,
         "Translate (camera)" to Icons.Default.DocumentScanner,
+        "Song Search" to Icons.Default.MusicNote,
         "Weather" to Icons.Default.WbSunny,
         "Sports" to Icons.Default.SportsBasketball,
         "Dictionary" to Icons.AutoMirrored.Filled.MenuBook,
@@ -5439,33 +5478,238 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         "News" to Icons.AutoMirrored.Filled.Article
     )
 
-    var localShowGIcon by remember { mutableStateOf(prefs.getBoolean("widget_show_g_icon", true)) }
-
     var localThemeStyle by remember { mutableStateOf(prefs.getString("widget.theme.style", "System Default") ?: "System Default") }
-    var localSubtheme by remember { mutableStateOf(prefs.getString("widget_subtheme", "System") ?: "System") }
-    var localMaterialGIconTheme by remember { mutableStateOf(prefs.getString("widget_material_g_icon", "Material G Icon") ?: "Material G Icon") }
-    var localHue by remember { mutableStateOf(prefs.getInt("widget_custom_hue", 277).toFloat()) }
-    var localSaturation by remember { mutableStateOf(prefs.getInt("widget_custom_saturation", 51).toFloat()) }
-    var localLightness by remember { mutableStateOf(prefs.getInt("widget_custom_lightness", 100).toFloat()) }
-    var localColorOpacity by remember { mutableStateOf(prefs.getInt("widget_custom_color_opacity", 100).toFloat()) }
-    var localTransparency by remember { mutableStateOf(prefs.getInt("widget.background.transparency", 28).toFloat()) }
+    val isSystem = localThemeStyle == "System Default"
+
+    // System Design state
+    val sysSaved = prefs.getBoolean("widget_system_design_saved", false)
+    var sysSubtheme by remember {
+        mutableStateOf(prefs.getString("widget_system_subtheme", if (sysSaved) prefs.getString("widget_subtheme", "System") else "System") ?: "System")
+    }
+    var sysMaterialGIconTheme by remember {
+        mutableStateOf(prefs.getString("widget_system_material_g_icon", if (sysSaved) prefs.getString("widget_material_g_icon", "System G Icon") else "System G Icon") ?: "System G Icon")
+    }
+    var sysHue by remember {
+        mutableStateOf(prefs.getInt("widget_system_custom_hue", if (sysSaved) prefs.getInt("widget_custom_hue", 277) else 277).toFloat())
+    }
+    var sysSaturation by remember {
+        mutableStateOf(prefs.getInt("widget_system_custom_saturation", if (sysSaved) prefs.getInt("widget_custom_saturation", 51) else 51).toFloat())
+    }
+    var sysLightness by remember {
+        mutableStateOf(prefs.getInt("widget_system_custom_lightness", if (sysSaved) prefs.getInt("widget_custom_lightness", 100) else 100).toFloat())
+    }
+    var sysColorOpacity by remember {
+        mutableStateOf(prefs.getInt("widget_system_custom_color_opacity", if (sysSaved) prefs.getInt("widget_custom_color_opacity", 100) else 100).toFloat())
+    }
+    var sysTransparency by remember {
+        mutableStateOf(prefs.getInt("widget_system_background_transparency", if (sysSaved) prefs.getInt("widget.background.transparency", 0) else 0).toFloat())
+    }
+    var sysShowGIcon by remember {
+        mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
+    }
+    var sysShowVoice by remember {
+        mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_voice", prefs.getBoolean("widget_show_voice", true)) else true)
+    }
+    val defaultSlotOrder = "shortcut1,mic,shortcut2,shortcut3"
+    val rawSysSc1 = prefs.getString("widget_system_shortcut_1", if (sysSaved) prefs.getString("widget_shortcut_1", "Google Lens") else "Google Lens") ?: "Google Lens"
+    val rawSysSc2 = prefs.getString("widget_system_shortcut_2", if (sysSaved) prefs.getString("widget_shortcut_2", "None") else "None") ?: "None"
+    val rawSysSc3 = prefs.getString("widget_system_shortcut_3", if (sysSaved) prefs.getString("widget_shortcut_3", "None") else "None") ?: "None"
+    var sysShortcut1 by remember { mutableStateOf(if (rawSysSc1 == "Voice Search") "None" else rawSysSc1) }
+    var sysShortcut2 by remember { mutableStateOf(if (rawSysSc2 == "Voice Search") "None" else rawSysSc2) }
+    var sysShortcut3 by remember { mutableStateOf(if (rawSysSc3 == "Voice Search") "None" else rawSysSc3) }
+    var sysSlotOrderStr by remember {
+        mutableStateOf(prefs.getString("widget_system_shortcut_order", if (sysSaved) prefs.getString("widget_shortcut_order", defaultSlotOrder) else defaultSlotOrder) ?: defaultSlotOrder)
+    }
+
+    // Material Design state
+    val matSaved = prefs.getBoolean("widget_material_design_saved", false)
+    var matSubtheme by remember {
+        mutableStateOf(prefs.getString("widget_material_subtheme", if (matSaved) prefs.getString("widget_subtheme", "Material") else "Material") ?: "Material")
+    }
+    var matMaterialGIconTheme by remember {
+        mutableStateOf(prefs.getString("widget_material_material_g_icon", if (matSaved) prefs.getString("widget_material_g_icon", "Material G Icon") else "Material G Icon") ?: "Material G Icon")
+    }
+    var matHue by remember {
+        mutableStateOf(prefs.getInt("widget_material_custom_hue", if (matSaved) prefs.getInt("widget_custom_hue", 277) else 277).toFloat())
+    }
+    var matSaturation by remember {
+        mutableStateOf(prefs.getInt("widget_material_custom_saturation", if (matSaved) prefs.getInt("widget_custom_saturation", 51) else 51).toFloat())
+    }
+    var matLightness by remember {
+        mutableStateOf(prefs.getInt("widget_material_custom_lightness", if (matSaved) prefs.getInt("widget_custom_lightness", 100) else 100).toFloat())
+    }
+    var matColorOpacity by remember {
+        mutableStateOf(prefs.getInt("widget_material_custom_color_opacity", if (matSaved) prefs.getInt("widget_custom_color_opacity", 100) else 100).toFloat())
+    }
+    var matTransparency by remember {
+        mutableStateOf(prefs.getInt("widget_material_background_transparency", if (matSaved) prefs.getInt("widget.background.transparency", 28) else 28).toFloat())
+    }
+    var matLockBlack by remember {
+        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_lock_black", true) else true)
+    }
+    var matActionIcon by remember {
+        mutableStateOf(prefs.getString("widget_material_action_icon", if (matSaved) prefs.getString("widget_action_icon", "Search") else "Search") ?: "Search")
+    }
+    var matShowGIcon by remember {
+        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
+    }
+    var matShowVoice by remember {
+        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_voice", prefs.getBoolean("widget_show_voice", true)) else true)
+    }
+    val rawMatSc1 = prefs.getString("widget_material_shortcut_1", if (matSaved) prefs.getString("widget_shortcut_1", "Google Lens") else "Google Lens") ?: "Google Lens"
+    val rawMatSc2 = prefs.getString("widget_material_shortcut_2", if (matSaved) prefs.getString("widget_shortcut_2", "None") else "None") ?: "None"
+    val rawMatSc3 = prefs.getString("widget_material_shortcut_3", if (matSaved) prefs.getString("widget_shortcut_3", "None") else "None") ?: "None"
+    var matShortcut1 by remember { mutableStateOf(if (rawMatSc1 == "Voice Search") "None" else rawMatSc1) }
+    var matShortcut2 by remember { mutableStateOf(if (rawMatSc2 == "Voice Search") "None" else rawMatSc2) }
+    var matShortcut3 by remember { mutableStateOf(if (rawMatSc3 == "Voice Search") "None" else rawMatSc3) }
+    var matSlotOrderStr by remember {
+        mutableStateOf(prefs.getString("widget_material_shortcut_order", if (matSaved) prefs.getString("widget_shortcut_order", defaultSlotOrder) else defaultSlotOrder) ?: defaultSlotOrder)
+    }
+
+    // Synced properties delegating to active bar
+    var localSubtheme by remember(isSystem) {
+        object : MutableState<String> {
+            override var value: String
+                get() = if (isSystem) sysSubtheme else matSubtheme
+                set(v) { if (isSystem) sysSubtheme = v else matSubtheme = v }
+            override fun component1(): String = value
+            override fun component2(): (String) -> Unit = { value = it }
+        }
+    }
+    var localMaterialGIconTheme by remember(isSystem) {
+        object : MutableState<String> {
+            override var value: String
+                get() = if (isSystem) sysMaterialGIconTheme else matMaterialGIconTheme
+                set(v) { if (isSystem) sysMaterialGIconTheme = v else matMaterialGIconTheme = v }
+            override fun component1(): String = value
+            override fun component2(): (String) -> Unit = { value = it }
+        }
+    }
+    var localHue by remember(isSystem) {
+        object : MutableState<Float> {
+            override var value: Float
+                get() = if (isSystem) sysHue else matHue
+                set(v) { if (isSystem) sysHue = v else matHue = v }
+            override fun component1(): Float = value
+            override fun component2(): (Float) -> Unit = { value = it }
+        }
+    }
+    var localSaturation by remember(isSystem) {
+        object : MutableState<Float> {
+            override var value: Float
+                get() = if (isSystem) sysSaturation else matSaturation
+                set(v) { if (isSystem) sysSaturation = v else matSaturation = v }
+            override fun component1(): Float = value
+            override fun component2(): (Float) -> Unit = { value = it }
+        }
+    }
+    var localLightness by remember(isSystem) {
+        object : MutableState<Float> {
+            override var value: Float
+                get() = if (isSystem) sysLightness else matLightness
+                set(v) { if (isSystem) sysLightness = v else matLightness = v }
+            override fun component1(): Float = value
+            override fun component2(): (Float) -> Unit = { value = it }
+        }
+    }
+    var localColorOpacity by remember(isSystem) {
+        object : MutableState<Float> {
+            override var value: Float
+                get() = if (isSystem) sysColorOpacity else matColorOpacity
+                set(v) { if (isSystem) sysColorOpacity = v else matColorOpacity = v }
+            override fun component1(): Float = value
+            override fun component2(): (Float) -> Unit = { value = it }
+        }
+    }
+    var localTransparency by remember(isSystem) {
+        object : MutableState<Float> {
+            override var value: Float
+                get() = if (isSystem) sysTransparency else matTransparency
+                set(v) { if (isSystem) sysTransparency = v else matTransparency = v }
+            override fun component1(): Float = value
+            override fun component2(): (Float) -> Unit = { value = it }
+        }
+    }
+    var localShowGIcon by remember(isSystem) {
+        object : MutableState<Boolean> {
+            override var value: Boolean
+                get() = if (isSystem) sysShowGIcon else matShowGIcon
+                set(v) { if (isSystem) sysShowGIcon = v else matShowGIcon = v }
+            override fun component1(): Boolean = value
+            override fun component2(): (Boolean) -> Unit = { value = it }
+        }
+    }
+    var localShowVoice by remember(isSystem) {
+        object : MutableState<Boolean> {
+            override var value: Boolean
+                get() = if (isSystem) sysShowVoice else matShowVoice
+                set(v) { if (isSystem) sysShowVoice = v else matShowVoice = v }
+            override fun component1(): Boolean = value
+            override fun component2(): (Boolean) -> Unit = { value = it }
+        }
+    }
+    var localShortcut1 by remember(isSystem) {
+        object : MutableState<String> {
+            override var value: String
+                get() = if (isSystem) sysShortcut1 else matShortcut1
+                set(v) { if (isSystem) sysShortcut1 = v else matShortcut1 = v }
+            override fun component1(): String = value
+            override fun component2(): (String) -> Unit = { value = it }
+        }
+    }
+    var localShortcut2 by remember(isSystem) {
+        object : MutableState<String> {
+            override var value: String
+                get() = if (isSystem) sysShortcut2 else matShortcut2
+                set(v) { if (isSystem) sysShortcut2 = v else matShortcut2 = v }
+            override fun component1(): String = value
+            override fun component2(): (String) -> Unit = { value = it }
+        }
+    }
+    var localShortcut3 by remember(isSystem) {
+        object : MutableState<String> {
+            override var value: String
+                get() = if (isSystem) sysShortcut3 else matShortcut3
+                set(v) { if (isSystem) sysShortcut3 = v else matShortcut3 = v }
+            override fun component1(): String = value
+            override fun component2(): (String) -> Unit = { value = it }
+        }
+    }
+    var localSlotOrderStr by remember(isSystem) {
+        object : MutableState<String> {
+            override var value: String
+                get() = if (isSystem) sysSlotOrderStr else matSlotOrderStr
+                set(v) { if (isSystem) sysSlotOrderStr = v else matSlotOrderStr = v }
+            override fun component1(): String = value
+            override fun component2(): (String) -> Unit = { value = it }
+        }
+    }
+
+    var localLockBlack by remember {
+        object : MutableState<Boolean> {
+            override var value: Boolean
+                get() = matLockBlack
+                set(v) { matLockBlack = v }
+            override fun component1(): Boolean = value
+            override fun component2(): (Boolean) -> Unit = { value = it }
+        }
+    }
+    var localActionIcon by remember {
+        object : MutableState<String> {
+            override var value: String
+                get() = matActionIcon
+                set(v) { matActionIcon = v }
+            override fun component1(): String = value
+            override fun component2(): (String) -> Unit = { value = it }
+        }
+    }
+
     val computedCustomColorInt = remember(localHue, localSaturation, localLightness, localColorOpacity) {
         android.graphics.Color.HSVToColor(
             (localColorOpacity / 100f * 255).toInt().coerceIn(0, 255),
             floatArrayOf(localHue, (localSaturation / 100f).coerceIn(0f, 1f), (localLightness / 100f).coerceIn(0f, 1f))
         )
     }
-    var localLockBlack by remember { mutableStateOf(prefs.getBoolean("widget_material_lock_black", true)) }
-    var localShowVoice by remember { mutableStateOf(prefs.getBoolean("widget_show_voice", true)) }
-    var localActionIcon by remember { mutableStateOf(prefs.getString("widget_action_icon", "Search") ?: "Search") }
-    val rawSc1 = prefs.getString("widget_shortcut_1", prefs.getString("widget_shortcut", "Google Lens")) ?: "Google Lens"
-    val rawSc2 = prefs.getString("widget_shortcut_2", "None") ?: "None"
-    val rawSc3 = prefs.getString("widget_shortcut_3", "None") ?: "None"
-    var localShortcut1 by remember { mutableStateOf(if (rawSc1 == "Voice Search") "None" else rawSc1) }
-    var localShortcut2 by remember { mutableStateOf(if (rawSc2 == "Voice Search") "None" else rawSc2) }
-    var localShortcut3 by remember { mutableStateOf(if (rawSc3 == "Voice Search") "None" else rawSc3) }
-    val defaultSlotOrder = "shortcut1,mic,shortcut2,shortcut3"
-    var localSlotOrderStr by remember { mutableStateOf(prefs.getString("widget_shortcut_order", defaultSlotOrder) ?: defaultSlotOrder) }
     var activeShortcutSlot by remember { mutableIntStateOf(1) }
     var draggingSlotKey by remember { mutableStateOf<String?>(null) }
     val view = androidx.compose.ui.platform.LocalView.current
@@ -5486,49 +5730,135 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 actions = {
                     androidx.compose.material3.TextButton(onClick = {
                         hapticEngine.performPredictiveBackHaptic(view)
-                        localShowGIcon = true
-                        localThemeStyle = "Material Design"
-                        localSubtheme = "System"
-                        localMaterialGIconTheme = "Material G Icon"
-                        localHue = 277f
-                        localSaturation = 51f
-                        localLightness = 100f
-                        localColorOpacity = 100f
-                        localTransparency = 28f
-                        localLockBlack = true
-                        localShowVoice = true
-                        localActionIcon = "Search"
-                        localShortcut1 = "Google Lens"
-                        localShortcut2 = "None"
-                        localShortcut3 = "None"
-                        localSlotOrderStr = defaultSlotOrder
+                        if (isSystem) {
+                            sysSubtheme = "System"
+                            sysMaterialGIconTheme = "System G Icon"
+                            sysHue = 277f
+                            sysSaturation = 51f
+                            sysLightness = 100f
+                            sysColorOpacity = 100f
+                            sysTransparency = 0f
+                            sysShowGIcon = true
+                            sysShowVoice = true
+                            sysShortcut1 = "Google Lens"
+                            sysShortcut2 = "None"
+                            sysShortcut3 = "None"
+                            sysSlotOrderStr = defaultSlotOrder
+                            prefs.edit()
+                                .putBoolean("widget_system_design_saved", false)
+                                .remove("widget_system_subtheme")
+                                .remove("widget_system_material_g_icon")
+                                .remove("widget_system_custom_hue")
+                                .remove("widget_system_custom_saturation")
+                                .remove("widget_system_custom_lightness")
+                                .remove("widget_system_custom_color_opacity")
+                                .remove("widget_system_custom_color_int")
+                                .remove("widget_system_background_transparency")
+                                .remove("widget_system_show_g_icon")
+                                .remove("widget_system_show_voice")
+                                .remove("widget_system_shortcut_1")
+                                .remove("widget_system_shortcut_2")
+                                .remove("widget_system_shortcut_3")
+                                .remove("widget_system_shortcut_order")
+                                .apply()
+                            updateWidgets(context)
+                            android.widget.Toast.makeText(context, "System Design Reset to Default", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            matSubtheme = "Material"
+                            matMaterialGIconTheme = "Material G Icon"
+                            matHue = 277f
+                            matSaturation = 51f
+                            matLightness = 100f
+                            matColorOpacity = 100f
+                            matTransparency = 28f
+                            matLockBlack = true
+                            matActionIcon = "Search"
+                            matShowGIcon = true
+                            matShowVoice = true
+                            matShortcut1 = "Google Lens"
+                            matShortcut2 = "None"
+                            matShortcut3 = "None"
+                            matSlotOrderStr = defaultSlotOrder
+                            prefs.edit()
+                                .putBoolean("widget_material_design_saved", false)
+                                .remove("widget_material_subtheme")
+                                .remove("widget_material_material_g_icon")
+                                .remove("widget_material_custom_hue")
+                                .remove("widget_material_custom_saturation")
+                                .remove("widget_material_custom_lightness")
+                                .remove("widget_material_custom_color_opacity")
+                                .remove("widget_material_custom_color_int")
+                                .remove("widget_material_background_transparency")
+                                .remove("widget_material_lock_black")
+                                .remove("widget_material_action_icon")
+                                .remove("widget_material_show_g_icon")
+                                .remove("widget_material_show_voice")
+                                .remove("widget_material_shortcut_1")
+                                .remove("widget_material_shortcut_2")
+                                .remove("widget_material_shortcut_3")
+                                .remove("widget_material_shortcut_order")
+                                .apply()
+                            updateWidgets(context)
+                            android.widget.Toast.makeText(context, "Material Design Reset to Default", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                     }) {
                         Text("Reset", color = MaterialTheme.colorScheme.onSurface)
                     }
                     androidx.compose.material3.TextButton(onClick = {
                         hapticEngine.performPredictiveBackHaptic(view)
-                        prefs.edit()
-                            .putBoolean("widget_show_g_icon", localShowGIcon)
-                            .putString("widget.theme.style", localThemeStyle)
-                            .putString("widget_subtheme", localSubtheme)
-                            .putString("widget_material_g_icon", localMaterialGIconTheme)
-                            .putInt("widget_custom_hue", localHue.toInt())
-                            .putInt("widget_custom_saturation", localSaturation.toInt())
-                            .putInt("widget_custom_lightness", localLightness.toInt())
-                            .putInt("widget_custom_color_opacity", localColorOpacity.toInt())
-                            .putInt("widget_custom_color_int", computedCustomColorInt)
-                            .putInt("widget.background.transparency", localTransparency.toInt())
-                            .putBoolean("widget_material_lock_black", localLockBlack)
-                            .putBoolean("widget_show_voice", localShowVoice)
-                            .putString("widget_action_icon", localActionIcon)
-                            .putString("widget_shortcut_1", localShortcut1)
-                            .putString("widget_shortcut_2", localShortcut2)
-                            .putString("widget_shortcut_3", localShortcut3)
-                            .putString("widget_shortcut_order", localSlotOrderStr)
-                            .putString("widget_shortcut", localShortcut1)
-                            .apply()
-                        updateWidgets(context)
-                        android.widget.Toast.makeText(context, "Settings Saved", android.widget.Toast.LENGTH_SHORT).show()
+                        if (isSystem) {
+                            val sysColorInt = android.graphics.Color.HSVToColor(
+                                (sysColorOpacity / 100f * 255).toInt().coerceIn(0, 255),
+                                floatArrayOf(sysHue, (sysSaturation / 100f).coerceIn(0f, 1f), (sysLightness / 100f).coerceIn(0f, 1f))
+                            )
+                            prefs.edit()
+                                .putBoolean("widget_system_design_saved", true)
+                                .putString("widget_system_subtheme", sysSubtheme)
+                                .putString("widget_system_material_g_icon", sysMaterialGIconTheme)
+                                .putInt("widget_system_custom_hue", sysHue.toInt())
+                                .putInt("widget_system_custom_saturation", sysSaturation.toInt())
+                                .putInt("widget_system_custom_lightness", sysLightness.toInt())
+                                .putInt("widget_system_custom_color_opacity", sysColorOpacity.toInt())
+                                .putInt("widget_system_custom_color_int", sysColorInt)
+                                .putInt("widget_system_background_transparency", sysTransparency.toInt())
+                                .putBoolean("widget_system_show_g_icon", sysShowGIcon)
+                                .putBoolean("widget_system_show_voice", sysShowVoice)
+                                .putString("widget_system_shortcut_1", sysShortcut1)
+                                .putString("widget_system_shortcut_2", sysShortcut2)
+                                .putString("widget_system_shortcut_3", sysShortcut3)
+                                .putString("widget_system_shortcut_order", sysSlotOrderStr)
+                                .putString("widget.theme.style", "System Default")
+                                .apply()
+                            updateWidgets(context)
+                            android.widget.Toast.makeText(context, "System Design Saved", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            val matColorInt = android.graphics.Color.HSVToColor(
+                                (matColorOpacity / 100f * 255).toInt().coerceIn(0, 255),
+                                floatArrayOf(matHue, (matSaturation / 100f).coerceIn(0f, 1f), (matLightness / 100f).coerceIn(0f, 1f))
+                            )
+                            prefs.edit()
+                                .putBoolean("widget_material_design_saved", true)
+                                .putString("widget_material_subtheme", matSubtheme)
+                                .putString("widget_material_material_g_icon", matMaterialGIconTheme)
+                                .putInt("widget_material_custom_hue", matHue.toInt())
+                                .putInt("widget_material_custom_saturation", matSaturation.toInt())
+                                .putInt("widget_material_custom_lightness", matLightness.toInt())
+                                .putInt("widget_material_custom_color_opacity", matColorOpacity.toInt())
+                                .putInt("widget_material_custom_color_int", matColorInt)
+                                .putInt("widget_material_background_transparency", matTransparency.toInt())
+                                .putBoolean("widget_material_lock_black", matLockBlack)
+                                .putString("widget_material_action_icon", matActionIcon)
+                                .putBoolean("widget_material_show_g_icon", matShowGIcon)
+                                .putBoolean("widget_material_show_voice", matShowVoice)
+                                .putString("widget_material_shortcut_1", matShortcut1)
+                                .putString("widget_material_shortcut_2", matShortcut2)
+                                .putString("widget_material_shortcut_3", matShortcut3)
+                                .putString("widget_material_shortcut_order", matSlotOrderStr)
+                                .putString("widget.theme.style", "Material You (Minimal)")
+                                .apply()
+                            updateWidgets(context)
+                            android.widget.Toast.makeText(context, "Material Design Saved", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                     }) {
                         Text("Save", color = MaterialTheme.colorScheme.onSurface)
                     }
@@ -5542,10 +5872,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .padding(padding)
         ) {
             // Live Preview Card (Pinned at the top for real-time visual feedback)
+            Text(
+                text = if (isSystem) "Preview System search bar widget" else "Preview Material Design search bar widget",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp)
+            )
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
                     .height(150.dp)
                     .clip(RoundedCornerShape(24.dp))
                     .background(MaterialTheme.colorScheme.background),
@@ -5687,7 +6024,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
                             .then(
-                                Modifier.background(rimBrush, RoundedCornerShape(40.dp))
+                                Modifier.background(rimBrush, RoundedCornerShape(if (previewIsMaterialYou) 32.dp else 28.dp))
                             )
                             .padding(if (previewIsMaterialYou) 8.dp else 0.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -5695,9 +6032,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         Row(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(56.dp)
+                                .height(if (previewIsMaterialYou) 48.dp else 56.dp)
                                 .then(
-                                    Modifier.background(previewPillColorAlpha, RoundedCornerShape(28.dp))
+                                    Modifier.background(previewPillColorAlpha, RoundedCornerShape(if (previewIsMaterialYou) 24.dp else 28.dp))
                                 )
                                 .padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -5779,7 +6116,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             Spacer(Modifier.width(8.dp))
                             Box(
                                 modifier = Modifier
-                                    .size(56.dp)
+                                    .size(48.dp)
                                     .background(previewPillColorAlpha, androidx.compose.foundation.shape.CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -5827,7 +6164,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
                                 hapticEngine.performPredictiveBackHaptic(view)
                                 localThemeStyle = "System Default"
-                                localSubtheme = "System"
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -5847,7 +6183,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
                                 hapticEngine.performPredictiveBackHaptic(view)
                                 localThemeStyle = "Material You (Minimal)"
-                                localSubtheme = "Material"
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -6972,15 +7307,11 @@ fun ComposeThemedShortcutIcon(
 }
 
 fun updateWidgets(context: Context) {
-    val intent = android.content.Intent(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
-        action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
-        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
-        val ids = appWidgetManager.getAppWidgetIds(
-            android.content.ComponentName(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java)
-        )
-        putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+    try {
+        com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(context)
+    } catch (e: Throwable) {
+        android.util.Log.e("SettingsScreens", "Failed to update widgets", e)
     }
-    context.sendBroadcast(intent)
 }
 
 @Composable
@@ -7096,10 +7427,26 @@ fun Android17Slider(
         }
     }
 
+    val cachedPath = remember { androidx.compose.ui.graphics.Path() }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
+            .semantics(mergeDescendants = true) {
+                progressBarRangeInfo = ProgressBarRangeInfo(
+                    current = value,
+                    range = valueRange,
+                    steps = steps
+                )
+                setProgress { targetValue: Float ->
+                    val snapped = snapValue(((targetValue - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f))
+                    if (snapped != currentValue) {
+                        currentOnValueChange(snapped)
+                        true
+                    } else false
+                }
+            }
             .pointerInput(steps, valueRange) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -7142,8 +7489,8 @@ fun Android17Slider(
             // Draw active track
             if (showTrack) {
                 if (isSquiggly) {
-                    val path = androidx.compose.ui.graphics.Path()
-                    path.moveTo(0f, centerY)
+                    cachedPath.rewind()
+                    cachedPath.moveTo(0f, centerY)
                     var x = 0f
                     val step = 1.5f
                     while (x <= thumbX) {
@@ -7165,13 +7512,13 @@ fun Android17Slider(
                         val wave = Math.sin(x * (2.0 * Math.PI / waveLength) - effectivePhase).toFloat()
                         val y = centerY + wave * baseAmplitude * envelope
 
-                        path.lineTo(x, y)
+                        cachedPath.lineTo(x, y)
                         x += step
                     }
-                    path.lineTo(thumbX, centerY)
+                    cachedPath.lineTo(thumbX, centerY)
                     
                     drawPath(
-                        path = path,
+                        path = cachedPath,
                         color = activeColor,
                         style = androidx.compose.ui.graphics.drawscope.Stroke(
                             width = trackHeight,
@@ -8582,31 +8929,33 @@ fun BackupRestoreScreen(
     val hapticEngine = remember { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
 
     val backupExoPlayer = remember(context) {
-        val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.gemini_generated_video_2209818f)
-        val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
-        val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
-        androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
-            setMediaSource(mediaSource)
-            repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
-            volume = 0f
-            prepare()
-            playWhenReady = true
-        }
+        runCatching {
+            val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.gemini_generated_video_2209818f)
+            val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
+            val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
+            androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+                setMediaSource(mediaSource)
+                repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+                volume = 0f
+                prepare()
+                playWhenReady = true
+            }
+        }.getOrNull()
     }
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, backupExoPlayer) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                backupExoPlayer.play()
+                backupExoPlayer?.play()
             } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                backupExoPlayer.pause()
+                backupExoPlayer?.pause()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            backupExoPlayer.release()
+            backupExoPlayer?.release()
         }
     }
 
@@ -8640,7 +8989,7 @@ fun BackupRestoreScreen(
     val performRestore: (Uri, String?) -> Unit = { targetUri, targetPass ->
         if (activity != null) {
             viewModel?.importBackup(
-                activity = activity,
+                
                 uri = targetUri,
                 passphrase = targetPass,
                 onSuccess = { count ->
@@ -8668,7 +9017,7 @@ fun BackupRestoreScreen(
     ) { uri ->
         if (uri != null && activity != null) {
             viewModel?.exportBackup(
-                activity = activity,
+                
                 uri = uri,
                 passphrase = passphrase.ifBlank { null },
                 onSuccess = {
@@ -9137,7 +9486,7 @@ fun BackupRestoreScreen(
                                 ) {
                                     val surface = android.view.Surface(surfaceTexture)
                                     currentSurface = surface
-                                    backupExoPlayer.setVideoSurface(surface)
+                                    backupExoPlayer?.setVideoSurface(surface)
                                     adjustAspectRatio(this@apply)
                                 }
 
@@ -9153,7 +9502,7 @@ fun BackupRestoreScreen(
                                     surfaceTexture: android.graphics.SurfaceTexture
                                 ): Boolean {
                                     currentSurface?.let {
-                                        backupExoPlayer.clearVideoSurface(it)
+                                        backupExoPlayer?.clearVideoSurface(it)
                                         it.release()
                                     }
                                     currentSurface = null

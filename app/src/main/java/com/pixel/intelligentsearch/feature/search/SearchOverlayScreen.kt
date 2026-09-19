@@ -2171,14 +2171,18 @@ fun SearchOverlayScreen(
             },
         contentAlignment = Alignment.BottomCenter
     ) {
-        val scrimColor = if (settingsState.showWallpaper) MaterialTheme.colorScheme.scrim else MaterialTheme.colorScheme.background
-        val scrimAlphaFactor = if (settingsState.showWallpaper) ((settingsState.backgroundTransparency / 100f) * 0.7f).coerceIn(0f, 1f) else 1.0f
+        val isShowWallpaper = remember(settingsState.showWallpaper) {
+            settingsState.showWallpaper || prefs.getBoolean("search.background.show.wall", prefs.getBoolean("show.wallpaper", true))
+        }
+        val isTransparency = if (settingsState.backgroundTransparency > 0) settingsState.backgroundTransparency else prefs.getInt("search.background.transparency", prefs.getInt("background.transparency", 50))
+        val scrimColor = if (isShowWallpaper) MaterialTheme.colorScheme.scrim else MaterialTheme.colorScheme.background
+        val scrimAlphaFactor = if (isShowWallpaper) ((isTransparency / 100f) * 0.7f).coerceIn(0f, 1f) else 1.0f
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .drawBehind {
                     val p = overlayProgressAnim.value.coerceIn(0f, 1f)
-                    drawRect(color = scrimColor, alpha = if (settingsState.showWallpaper) scrimAlphaFactor * p else p)
+                    drawRect(color = scrimColor, alpha = if (isShowWallpaper) scrimAlphaFactor * p else p)
                 }
         )
 
@@ -2206,7 +2210,7 @@ fun SearchOverlayScreen(
                 }
             }
             
-            val surfaceAlpha = if (settingsState.showWallpaper) ((100 - settingsState.backgroundTransparency) / 100f).coerceIn(0f, 1f) else 1f
+            val surfaceAlpha = if (isShowWallpaper) ((100 - isTransparency) / 100f).coerceIn(0f, 1f) else 1f
 
             Box(
                 modifier = Modifier

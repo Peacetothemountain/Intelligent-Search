@@ -11,10 +11,10 @@
     android:layout_height="match_parent"
     android:padding="0dp">
 
-    <!-- Centered capsule container with standard 56dp search bar height -->
+    <!-- Centered capsule container matching 1:1 preview (72dp total height: 56dp pill + 8dp top/bottom outer shell rim) -->
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="72dp"
         android:layout_gravity="center">
 
         <!-- Outer rim capsule (accent-tinted border, 40dp corner radius) -->
@@ -25,24 +25,25 @@
             android:src="@drawable/bg_outer_capsule"
             android:scaleType="fitXY" />
 
-        <!-- Inner content row (insets to expose accent rim all around) -->
+        <!-- Inner content row (insets 8dp to expose accent rim all around matching preview) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:baselineAligned="false"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp"
-            android:paddingTop="3dp"
-            android:paddingBottom="3dp">
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
 
-            <!-- Search pill (matches 1:1 with preview) -->
+            <!-- Search pill (56dp height matching preview) -->
             <FrameLayout
                 android:id="@+id/widget_pill_container"
                 android:layout_width="0dp"
-                android:layout_height="match_parent"
+                android:layout_height="56dp"
                 android:layout_weight="1"
+                android:layout_gravity="center_vertical"
                 android:clickable="true"
                 android:focusable="true">
 
@@ -61,8 +62,8 @@
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
                     android:baselineAligned="false"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="14dp">
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp">
 
                     <!-- Google G logo (24dp) -->
                     <ImageView
@@ -91,24 +92,24 @@
                         android:clickable="true"
                         android:focusable="true" />
 
-                    <!-- Shortcut 1 (Lens Search, 24dp, 14dp spacing) -->
+                    <!-- Shortcut 1 (Lens Search, 24dp, 16dp spacing) -->
                     <ImageView
                         android:id="@+id/widget_lens_search"
                         android:layout_width="24dp"
                         android:layout_height="24dp"
-                        android:layout_marginStart="14dp"
+                        android:layout_marginStart="16dp"
                         android:src="@drawable/ic_camera"
                         android:scaleType="fitCenter"
                         android:contentDescription="Shortcut 1"
                         android:clickable="true"
                         android:focusable="true" />
 
-                    <!-- Shortcut 2 (24dp, 14dp spacing) -->
+                    <!-- Shortcut 2 (24dp, 16dp spacing) -->
                     <ImageView
                         android:id="@+id/widget_shortcut_2"
                         android:layout_width="24dp"
                         android:layout_height="24dp"
-                        android:layout_marginStart="14dp"
+                        android:layout_marginStart="16dp"
                         android:src="@drawable/ic_camera"
                         android:scaleType="fitCenter"
                         android:visibility="gone"
@@ -116,12 +117,12 @@
                         android:clickable="true"
                         android:focusable="true" />
 
-                    <!-- Shortcut 3 (24dp, 14dp spacing) -->
+                    <!-- Shortcut 3 (24dp, 16dp spacing) -->
                     <ImageView
                         android:id="@+id/widget_shortcut_3"
                         android:layout_width="24dp"
                         android:layout_height="24dp"
-                        android:layout_marginStart="14dp"
+                        android:layout_marginStart="16dp"
                         android:src="@drawable/ic_camera"
                         android:scaleType="fitCenter"
                         android:visibility="gone"
@@ -129,12 +130,12 @@
                         android:clickable="true"
                         android:focusable="true" />
 
-                    <!-- Action Search (24dp, 14dp spacing) -->
+                    <!-- Action Search (24dp, 16dp spacing) -->
                     <ImageView
                         android:id="@+id/widget_action_search"
                         android:layout_width="24dp"
                         android:layout_height="24dp"
-                        android:layout_marginStart="14dp"
+                        android:layout_marginStart="16dp"
                         android:src="@drawable/ic_lens_action"
                         android:scaleType="fitCenter"
                         android:visibility="gone"
@@ -145,13 +146,13 @@
                 </LinearLayout>
             </FrameLayout>
 
-            <!-- Circle action button (50dp x 50dp matching 50dp pill height) -->
+            <!-- Circle action button (56dp x 56dp matching 56dp pill height and 8dp gap in preview) -->
             <FrameLayout
                 android:id="@+id/widget_sound_search"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
                 android:layout_gravity="center_vertical"
-                android:layout_marginStart="4dp"
+                android:layout_marginStart="8dp"
                 android:clickable="true"
                 android:focusable="true">
 
@@ -164,8 +165,8 @@
 
                 <ImageView
                     android:id="@+id/widget_sound_icon"
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
                     android:layout_gravity="center"
                     android:src="@drawable/ic_search_lens_expressive"
                     android:scaleType="fitCenter"

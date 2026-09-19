@@ -2454,7 +2454,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                             showDivider = true
                         )
 
-                        var showWall by rememberBooleanPreference(prefs, "search.background.show.wall", false) { updateWidgets(context) }
+                        var showWall by rememberBooleanPreference(prefs, "search.background.show.wall", true) { updateWidgets(context) }
                         SettingsRowToggle(
                             title = "Show Wallpaper",
                             subtitle = "Show User's Wallpaper on Search Overlay Page.",

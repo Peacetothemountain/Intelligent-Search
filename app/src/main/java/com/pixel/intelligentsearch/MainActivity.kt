@@ -118,11 +118,18 @@ open class MainActivity : AppCompatActivity() {
         }
 
         val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-        val initialShowWallpaper = prefs.getBoolean("search.background.show.wall", false)
+        val initialShowWallpaper = prefs.getBoolean("search.background.show.wall", prefs.getBoolean("show.wallpaper", true))
+        val initialBlur = prefs.getInt("search.background.blur", prefs.getInt("background.blur", 50))
         if (initialShowWallpaper) {
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && initialBlur > 0) {
+                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+            }
         } else {
             window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+            }
         }
 
         enableEdgeToEdge(
@@ -145,6 +152,16 @@ open class MainActivity : AppCompatActivity() {
         )
         super.onCreate(savedInstanceState)
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            runCatching {
+                if (initialShowWallpaper && initialBlur > 0) {
+                    window.setBackgroundBlurRadius(initialBlur)
+                } else {
+                    window.setBackgroundBlurRadius(0)
+                }
+            }
+        }
+
         if (checkAndForwardIfSearchOverlayDisabled()) return
         if (handleIntent(intent)) return
         
@@ -165,19 +182,23 @@ open class MainActivity : AppCompatActivity() {
                 ) {
                     val throttleLevel by adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
                     DisposableEffect(settingsState.backgroundBlur, settingsState.showWallpaper, throttleLevel) {
-                        if (settingsState.showWallpaper) {
+                        val isWall = settingsState.showWallpaper
+                        if (isWall) {
                             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
                         } else {
                             window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
                         }
-                        val recommendedBlur = adpfThermalManager.getRecommendedBlurRadius(settingsState.backgroundBlur.toFloat()).toInt()
+                        val blurRadius = settingsState.backgroundBlur
+                        val recommendedBlur = adpfThermalManager.getRecommendedBlurRadius(blurRadius.toFloat()).toInt()
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            if (settingsState.showWallpaper && recommendedBlur > 0) {
-                                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                                window.setBackgroundBlurRadius(recommendedBlur)
-                            } else {
-                                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                                window.setBackgroundBlurRadius(0)
+                            runCatching {
+                                if (isWall && recommendedBlur > 0) {
+                                    window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                                    window.setBackgroundBlurRadius(recommendedBlur)
+                                } else {
+                                    window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                                    window.setBackgroundBlurRadius(0)
+                                }
                             }
                         }
                         onDispose {}
@@ -209,6 +230,7 @@ open class MainActivity : AppCompatActivity() {
                                     }
                                 },
                                 viewModel = searchViewModel,
+                                settingsViewModel = settingsViewModel,
                                 isKeyboardDisabled = false
                             )
                         }

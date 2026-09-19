@@ -393,18 +393,44 @@ class PixelHapticEngine(private val context: Context) {
     }
 
     private fun performViewFallback(view: View, type: PixelHapticType) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            view.performHapticFeedback(HapticFeedbackConstants.SEGMENT_TICK)
-        } else {
-            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        val feedbackConstant = when (type) {
+            PixelHapticType.CLICK, PixelHapticType.APP_LAUNCH -> HapticFeedbackConstants.KEYBOARD_TAP
+            PixelHapticType.HEAVY_IMPACT, PixelHapticType.DELETE_THUD -> HapticFeedbackConstants.LONG_PRESS
+            PixelHapticType.CONFIRM -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.KEYBOARD_TAP
+            PixelHapticType.REJECT -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.REJECT else HapticFeedbackConstants.LONG_PRESS
+            PixelHapticType.GESTURE_THRESHOLD -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE else HapticFeedbackConstants.CLOCK_TICK
+            else -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK
         }
+        view.performHapticFeedback(feedbackConstant)
     }
 
     /**
      * Subtle predictive-back level micro-haptic tick used consistently throughout the application.
      */
     fun performPredictiveBackHaptic(view: View? = null) {
+        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("vibration_enabled", true)) {
+            return
+        }
+
         var vibrated = false
+        if (view != null) {
+            try {
+                vibrated = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    view.performHapticFeedback(
+                        HapticFeedbackConstants.SEGMENT_TICK,
+                        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                    )
+                } else {
+                    view.performHapticFeedback(
+                        HapticFeedbackConstants.CLOCK_TICK,
+                        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                    )
+                }
+                if (vibrated) return
+            } catch (_: Exception) {}
+        }
+
         if (vibrator != null && vibrator.hasVibrator()) {
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
@@ -413,26 +439,13 @@ class PixelHapticEngine(private val context: Context) {
                     val composition = VibrationEffect.startComposition()
                     composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.85f)
                     vibrateWithAttributes(composition.compose())
-                    vibrated = true
                 } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
                     val composition = VibrationEffect.startComposition()
                     composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.40f)
                     vibrateWithAttributes(composition.compose())
-                    vibrated = true
                 } else {
                     val effect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
                     vibrateWithAttributes(effect)
-                    vibrated = true
-                }
-            } catch (_: Exception) {}
-        }
-
-        if (!vibrated && view != null) {
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    view.performHapticFeedback(HapticFeedbackConstants.SEGMENT_TICK)
-                } else {
-                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                 }
             } catch (_: Exception) {}
         }

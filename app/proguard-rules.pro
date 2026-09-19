@@ -38,6 +38,12 @@
 
 # Jetpack Compose Navigation & Destinations
 -keepnames class androidx.navigation.compose.** { *; }
+-keep class com.pixel.intelligentsearch.core.navigation.** { *; }
+-keepnames class com.pixel.intelligentsearch.core.navigation.** { *; }
+-keepclassmembers class com.pixel.intelligentsearch.core.navigation.** { *; }
+-keepclasseswithmembers class com.pixel.intelligentsearch.core.navigation.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
 
 # Room Database
 -keep class * extends androidx.room.RoomDatabase

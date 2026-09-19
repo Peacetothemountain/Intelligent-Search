@@ -39,15 +39,15 @@ class BiometricSearchGate @Inject constructor(
 
     private val sessionLock = SecuritySessionLock.instance
 
-    fun getActivity(): Activity? {
-        var currentContext = context
+    fun getActivity(providedContext: Context? = null): Activity? {
+        var currentContext = providedContext ?: context
         while (currentContext is ContextWrapper) {
             if (currentContext is Activity) {
                 return currentContext
             }
             currentContext = currentContext.baseContext
         }
-        return null
+        return currentContext as? Activity
     }
 
     fun isBiometricHardwareAvailable(): Boolean {

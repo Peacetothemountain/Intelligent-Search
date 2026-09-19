@@ -24,7 +24,7 @@ data class IntelligentSearchSettings(
     val searchCalendar: Boolean = true,
     val searchShortcuts: Boolean = true,
     val backgroundBlur: Int = 50,
-    val showWallpaper: Boolean = false,
+    val showWallpaper: Boolean = true,
     val backgroundTransparency: Int = 50,
     val pillOpacity: Int = 50,
     val searchEngine: String = "Google",
@@ -70,7 +70,8 @@ data class IntelligentSearchSettings(
     val diagnosticsOverlayEnabled: Boolean = false,
     val matrixAnimationEnabled: Boolean = true,
     val backToSearchOverlay: Boolean = true,
-    val disabledWebShortcuts: Set<String> = emptySet()
+    val disabledWebShortcuts: Set<String> = emptySet(),
+    val vibrationEnabled: Boolean = true
 )
 
 @Singleton
@@ -132,6 +133,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val MATRIX_ANIMATION_ENABLED = booleanPreferencesKey("matrix_animation_enabled")
         val BACK_TO_SEARCH_OVERLAY = booleanPreferencesKey("settings_back_to_search_overlay")
         val DISABLED_WEB_SHORTCUTS = stringSetPreferencesKey("disabled_web_shortcuts")
+        val VIBRATION = booleanPreferencesKey("vibration_enabled")
     }
 
     val settingsFlow: Flow<IntelligentSearchSettings> = context.dataStore.data
@@ -155,7 +157,7 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 searchCalendar = preferences[SEARCH_CALENDAR] ?: true,
                 searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: true,
                 backgroundBlur = preferences[BACKGROUND_BLUR] ?: 50,
-                showWallpaper = preferences[SHOW_WALLPAPER] ?: false,
+                showWallpaper = preferences[SHOW_WALLPAPER] ?: context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE).let { it.getBoolean("search.background.show.wall", it.getBoolean("show.wallpaper", true)) },
                 backgroundTransparency = preferences[BACKGROUND_TRANSPARENCY] ?: 50,
                 pillOpacity = preferences[PILL_OPACITY] ?: 50,
                 searchEngine = preferences[SEARCH_ENGINE] ?: "Google",
@@ -201,7 +203,8 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 searchOverlayEnabled = preferences[SEARCH_OVERLAY_ENABLED] ?: true,
                 matrixAnimationEnabled = preferences[MATRIX_ANIMATION_ENABLED] ?: true,
                 backToSearchOverlay = preferences[BACK_TO_SEARCH_OVERLAY] ?: true,
-                disabledWebShortcuts = preferences[DISABLED_WEB_SHORTCUTS] ?: (context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE).getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet())
+                disabledWebShortcuts = preferences[DISABLED_WEB_SHORTCUTS] ?: (context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE).getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet()),
+                vibrationEnabled = preferences[VIBRATION] ?: true
             )
         }
 
@@ -218,10 +221,10 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             searchCalculator = prefs.getBoolean("search.calculator", true),
             searchCalendar = prefs.getBoolean("search.calendar", true),
             searchShortcuts = prefs.getBoolean("search.shortcuts", true),
-            backgroundBlur = prefs.getInt("search.background.blur", 50),
-            showWallpaper = prefs.getBoolean("search.background.show.wall", false),
-            backgroundTransparency = prefs.getInt("search.background.transparency", 50),
-            pillOpacity = prefs.getInt("search.pill.opacity", 50),
+            backgroundBlur = prefs.getInt("search.background.blur", prefs.getInt("background.blur", 50)),
+            showWallpaper = prefs.getBoolean("search.background.show.wall", prefs.getBoolean("show.wallpaper", true)),
+            backgroundTransparency = prefs.getInt("search.background.transparency", prefs.getInt("background.transparency", 50)),
+            pillOpacity = prefs.getInt("search.pill.opacity", prefs.getInt("pill.opacity", 50)),
             searchEngine = prefs.getString("search.engine", "Google") ?: "Google",
             customSearchEngineUrl = prefs.getString("custom_search_engine_url", "") ?: "",
             filesHiddenFiles = prefs.getBoolean("search.files.hidden.files", false),
@@ -265,7 +268,8 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             searchOverlayEnabled = prefs.getBoolean("search_overlay_enabled", true),
             matrixAnimationEnabled = prefs.getBoolean("matrix_animation_enabled", true),
             backToSearchOverlay = prefs.getBoolean("settings_back_to_search_overlay", true),
-            disabledWebShortcuts = prefs.getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet()
+            disabledWebShortcuts = prefs.getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet(),
+            vibrationEnabled = prefs.getBoolean("vibration_enabled", true)
         )
     }
 

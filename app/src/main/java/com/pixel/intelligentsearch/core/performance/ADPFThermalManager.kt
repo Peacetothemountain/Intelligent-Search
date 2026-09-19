@@ -1,6 +1,9 @@
 package com.pixel.intelligentsearch.core.performance
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
@@ -82,6 +85,14 @@ class ADPFThermalManager(private val context: Context) {
                 Log.w(TAG, "Failed to register OnThermalStatusChangedListener: ${e.message}")
             }
         }
+        try {
+            val filter = IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
+            context.registerReceiver(object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    applyThermalMitigations(_thermalThrottleLevel.value)
+                }
+            }, filter)
+        } catch (_: Throwable) {}
         // Kick off periodic headroom query on the monitor thread
         scheduleHeadroomPoll()
     }
@@ -278,8 +289,13 @@ class ADPFThermalManager(private val context: Context) {
     }
 
     private fun applyThermalMitigations(level: ThermalThrottleLevel) {
-        Log.i(TAG, "Thermal mitigation transition: $level (headroom=${_thermalHeadroom.value})")
-        when (level) {
+        val effectiveLevel = if (powerManager?.isPowerSaveMode == true && level < ThermalThrottleLevel.SEVERE) {
+            ThermalThrottleLevel.SEVERE
+        } else {
+            level
+        }
+        Log.i(TAG, "Thermal mitigation transition: $effectiveLevel (effective, requested=$level, headroom=${_thermalHeadroom.value})")
+        when (effectiveLevel) {
             ThermalThrottleLevel.NORMAL -> {
                 setPreferPowerEfficiency(false)
                 updateTargetFps(120)

@@ -362,7 +362,7 @@ fun TimeWeatherOneBox(
 ) {
     val isWeather = iconType == "weather"
     val icon = if (isWeather) Icons.Default.WbSunny else Icons.Default.AccessTime
-    val tintColor = if (isWeather) Color(0xFFF9AB00) else Color(0xFF4285F4)
+    val tintColor = if (isWeather) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
     val bgColor = if (isWeather) Color(0xFFFFF8E1) else Color(0xFFE8F0FE)
 
     Surface(

@@ -141,7 +141,7 @@ class BackupManager @Inject constructor(
     }
 
     suspend fun exportToFile(
-        activity: Activity,
+        
         uri: Uri,
         passphrase: String?,
         onSuccess: () -> Unit,
@@ -189,7 +189,7 @@ class BackupManager @Inject constructor(
                 }
 
                 val envelopeJson = serializeEnvelope(envelope)
-                context.contentResolver.openOutputStream(uri, "wt")?.use { os ->
+                context.contentResolver.openOutputStream(uri, "w")?.use { os ->
                     os.write(envelopeJson.toByteArray(Charsets.UTF_8))
                     os.flush()
                 } ?: throw IllegalArgumentException("Could not open destination file for writing")
@@ -220,7 +220,7 @@ class BackupManager @Inject constructor(
     }
 
     suspend fun importFromFile(
-        activity: Activity,
+        
         uri: Uri,
         passphrase: String?,
         onSuccess: (itemsRestored: Int) -> Unit,
@@ -259,21 +259,23 @@ class BackupManager @Inject constructor(
                     } catch (e: Throwable) {
                         throw SecurityException("Failed to decrypt: ${e.message ?: "Invalid passphrase"}")
                     }
-                } else if (envelope.isHardwareBacked) {
+                } else {
+                    // Try portable default key first (standard for all portable non-passphrase backups)
                     try {
-                        val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
+                        val key = BackupCryptoEngine.getPortableDefaultKey()
                         BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
                     } catch (e: Throwable) {
-                        try {
-                            val key = BackupCryptoEngine.getPortableDefaultKey()
-                            BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
-                        } catch (_: Throwable) {
-                            throw SecurityException("Device KeyStore key unavailable. This backup was bound to hardware keys that were reset.")
+                        if (envelope.isHardwareBacked) {
+                            try {
+                                val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
+                                BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                            } catch (_: Throwable) {
+                                throw SecurityException("Device KeyStore key unavailable. This backup was bound to hardware keys that were reset.")
+                            }
+                        } else {
+                            throw SecurityException("Failed to decrypt backup. The file may be corrupt or encrypted with an incompatible key.")
                         }
                     }
-                } else {
-                    val key = BackupCryptoEngine.getPortableDefaultKey()
-                    BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
                 }
 
                 val payload = parsePayload(decryptedJson)
@@ -547,10 +549,12 @@ class BackupManager @Inject constructor(
 
         // 4. Restore Search History
         if (payload.searchHistory.isNotEmpty()) {
-            payload.searchHistory.forEach { q ->
-                historyDao.insertSearch(HistoryEntity(query = q, timestamp = System.currentTimeMillis()))
-                restoredCount++
+            val now = System.currentTimeMillis()
+            val entities = payload.searchHistory.mapIndexed { idx, q ->
+                HistoryEntity(query = q, timestamp = now - idx * 1000L)
             }
+            historyDao.insertSearches(entities)
+            restoredCount += entities.size
         }
 
         // 5. Update Home Screen Widgets immediately

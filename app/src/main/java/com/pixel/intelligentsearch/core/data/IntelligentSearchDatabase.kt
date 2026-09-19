@@ -28,7 +28,7 @@ abstract class IntelligentSearchDatabase : RoomDatabase() {
                     "intelligent_search_database"
                 )
                     .addMigrations(MIGRATION_1_2)
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    
                     .build()
                 INSTANCE = instance
                 instance

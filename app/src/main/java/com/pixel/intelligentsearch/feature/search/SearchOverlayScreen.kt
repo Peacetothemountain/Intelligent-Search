@@ -90,7 +90,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
-import com.pixel.intelligentsearch.feature.settings.SettingsActivity
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -377,22 +376,19 @@ fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: S
 @Suppress("DEPRECATION")
 private fun finishWithoutTransition(activity: android.app.Activity?) {
     if (activity != null && !activity.isFinishing) {
-        val moved = activity.moveTaskToBack(true)
-        if (!moved) {
-            activity.finish()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                activity.overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
-            } else {
-                @Suppress("DEPRECATION")
-                activity.overridePendingTransition(0, 0)
-            }
+        activity.finishAndRemoveTask()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            activity.overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            activity.overridePendingTransition(0, 0)
         }
     }
 }
 
 private fun launchSafeIntent(context: Context, intent: Intent, options: android.os.Bundle? = null) {
     try {
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (options != null) {
             context.startActivity(intent, options)
         } else {
@@ -400,7 +396,7 @@ private fun launchSafeIntent(context: Context, intent: Intent, options: android.
         }
     } catch (e: Exception) {
         try {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.findActivity()?.startActivity(intent, options)
         } catch (e2: Exception) {
             e2.printStackTrace()
@@ -455,7 +451,7 @@ fun SearchOverlayScreen(
         if (uiState.query != textFieldValue.text) {
             textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
                 text = uiState.query,
-                selection = androidx.compose.ui.text.TextRange(uiState.query.length)
+                selection = textFieldValue.selection
             )
         }
     }
@@ -473,19 +469,24 @@ fun SearchOverlayScreen(
     val screenHeight = configuration.screenHeightDp.dp
 
     val coroutineScope = rememberCoroutineScope()
-    // Animatable for the overlay expansion progress: 0f = collapsed pill, 1f = fully expanded
-    val overlayProgressAnim = remember { Animatable(if (isFromBackSwipe) 1f else 0f) }
+    // Animatable for the overlay expansion progress: starts fully expanded (1f) so returning from apps is instant and never transparent
+    val overlayProgressAnim = remember { Animatable(1f) }
     val predictiveBackProgress = remember { Animatable(0f) }
     var predictiveBackEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
 
     val sensoryEngine = rememberTactileSonicEngine()
     val view = androidx.compose.ui.platform.LocalView.current
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val searchResultsListState = rememberLazyListState()
     rememberScrollDetentController(searchResultsListState, sensoryEngine)
 
-    val performAppLaunch: (String) -> Unit = remember(sensoryEngine, view, onLaunchApp) {
+    val performAppLaunch: (String) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController, focusManager) {
         { packageName ->
             hasStartedTyping = false
+            focusManager.clearFocus(force = true)
+            keyboardController?.hide()
             sensoryEngine.appLaunch(view)
             onLaunchApp(packageName)
         }
@@ -499,17 +500,7 @@ fun SearchOverlayScreen(
 
     LaunchedEffect(isOpening) {
         if (isOpening) {
-            if (!isFromBackSwipe) {
-                overlayProgressAnim.animateTo(
-                    targetValue = 1f,
-                    animationSpec = spring(
-                        dampingRatio = 0.84f,
-                        stiffness = 380f
-                    )
-                )
-            } else {
-                overlayProgressAnim.snapTo(1f)
-            }
+            overlayProgressAnim.snapTo(1f)
         } else {
             sensoryEngine.overlayDismiss(view)
             val currentVel = overlayProgressAnim.velocity
@@ -525,41 +516,60 @@ fun SearchOverlayScreen(
             finishWithoutTransition(act)
         }
     }
-
-    val focusRequester = remember { FocusRequester() }
-    
-
     
     val isForceTutorial = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
     var showTutorial by remember {
         if (isForceTutorial) {
             TutorialManager.resetForForceTutorial(prefs)
         }
-        mutableStateOf(TutorialManager.isTutorialActive(prefs))
+        val active = TutorialManager.isTutorialActive(prefs)
+        val step = TutorialManager.getStep(prefs)
+        if (active && step >= 3) {
+            TutorialManager.completeTutorial(prefs)
+            mutableStateOf(false)
+        } else {
+            mutableStateOf(active)
+        }
     }
     
     var showDebugPill by remember { mutableStateOf(false) }
-    val keyboardController = LocalSoftwareKeyboardController.current
     val hapticContext = LocalContext.current
+
+    var isKeyboardDismissedByUser by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(showTutorial) {
+        if (showTutorial) {
+            keyboardController?.hide()
+        }
+    }
 
     val closeOverlay = {
         hasStartedTyping = false
+        focusManager.clearFocus(force = true)
         keyboardController?.hide()
+        val act = context.findActivity()
+        if (act != null) {
+            androidx.core.view.WindowCompat.getInsetsController(act.window, act.window.decorView)
+                .hide(androidx.core.view.WindowInsetsCompat.Type.ime())
+        }
         viewModel.onQueryChanged("")
         if (transitionState.targetState) {
             transitionState.targetState = false
         } else {
-            val act = context.findActivity()
             finishWithoutTransition(act)
         }
     }
 
     val goToHomeScreen: () -> Unit = {
         hasStartedTyping = false
+        focusManager.clearFocus(force = true)
         keyboardController?.hide()
-        viewModel.onQueryChanged("")
         val act = context.findActivity()
-        act?.moveTaskToBack(true)
+        if (act != null) {
+            androidx.core.view.WindowCompat.getInsetsController(act.window, act.window.decorView)
+                .hide(androidx.core.view.WindowInsetsCompat.Type.ime())
+        }
+        viewModel.onQueryChanged("")
         try {
             val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_HOME)
@@ -574,14 +584,15 @@ fun SearchOverlayScreen(
 
     val launchWebSearch: (String) -> Unit = launchWebSearch@{ searchQuery ->
         hasStartedTyping = false
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
         val bangMgr = com.pixel.intelligentsearch.core.bangs.SearchBangManager(context, com.pixel.intelligentsearch.core.data.SettingsManager(context))
         val parsedBang = bangMgr.parseBangQuery(searchQuery)
         if (parsedBang != null) {
-            val bangIntent = bangMgr.dispatchBangSearch(parsedBang)
+            val bangIntent = bangMgr.dispatchBangSearch(parsedBang).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            }
             launchSafeIntent(context, bangIntent)
-            val act = context.findActivity()
-            finishWithoutTransition(act)
-            act?.finish()
             return@launchWebSearch
         }
 
@@ -602,39 +613,63 @@ fun SearchOverlayScreen(
                     } else {
                         "https://$rawUrl"
                     }
-                    Intent(Intent.ACTION_VIEW, Uri.parse(fullUrl))
+                    Intent(Intent.ACTION_VIEW, Uri.parse(fullUrl)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    }
                 } else {
-                    Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra(SearchManager.QUERY, searchQuery) }
+                    Intent(Intent.ACTION_WEB_SEARCH).apply {
+                        putExtra(SearchManager.QUERY, searchQuery)
+                        putExtra("query", searchQuery)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    }
                 }
             }
             "DuckDuckGo" -> {
-                val ddgIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://duckduckgo.com/?q=$encodedQuery"))
+                val ddgIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://duckduckgo.com/?q=$encodedQuery")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
                 val pm = context.packageManager
                 if (pm.resolveActivity(ddgIntent, 0) != null) {
                     ddgIntent
                 } else {
-                    Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra(SearchManager.QUERY, searchQuery) }
+                    Intent(Intent.ACTION_WEB_SEARCH).apply {
+                        putExtra(SearchManager.QUERY, searchQuery)
+                        putExtra("query", searchQuery)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    }
                 }
             }
             "Bing" -> {
-                val bingIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.bing.com/search?q=$encodedQuery"))
+                val bingIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.bing.com/search?q=$encodedQuery")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
                 val pm = context.packageManager
                 if (pm.resolveActivity(bingIntent, 0) != null) {
                     bingIntent
                 } else {
-                    Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra(SearchManager.QUERY, searchQuery) }
+                    Intent(Intent.ACTION_WEB_SEARCH).apply {
+                        putExtra(SearchManager.QUERY, searchQuery)
+                        putExtra("query", searchQuery)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    }
                 }
             }
             else -> {
                 val googleIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                     setPackage("com.google.android.googlequicksearchbox")
                     putExtra(SearchManager.QUERY, searchQuery)
+                    putExtra("query", searchQuery)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 }
                 val pm = context.packageManager
                 if (pm.resolveActivity(googleIntent, 0) != null) {
                     googleIntent
                 } else {
-                    Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra(SearchManager.QUERY, searchQuery) }
+                    Intent(Intent.ACTION_WEB_SEARCH).apply {
+                        putExtra(SearchManager.QUERY, searchQuery)
+                        putExtra("query", searchQuery)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    }
                 }
             }
         }
@@ -645,6 +680,8 @@ fun SearchOverlayScreen(
         } catch (e: Exception) {
             val fallbackIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                 putExtra(SearchManager.QUERY, searchQuery)
+                putExtra("query", searchQuery)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }
             try { 
                 viewModel.onQueryChanged("")
@@ -653,63 +690,53 @@ fun SearchOverlayScreen(
         }
     }
 
-    LaunchedEffect(transitionState.targetState) {
-        if (transitionState.targetState) {
-            if (!showTutorial) {
-                try {
-                    focusRequester.requestFocus()
-                    keyboardController?.show()
-                } catch (e: Exception) {}
-            }
+    val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
+    LaunchedEffect(windowInfo.isWindowFocused, transitionState.targetState, showTutorial, isKeyboardDisabled, isKeyboardDismissedByUser) {
+        if (windowInfo.isWindowFocused && transitionState.targetState && !isKeyboardDisabled && !showTutorial && !isKeyboardDismissedByUser) {
+            try {
+                focusRequester.requestFocus()
+            } catch (_: Exception) {}
         }
     }
     
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
                 hasStartedTyping = false
-                keyboardController?.hide()
                 viewModel.onQueryChanged("")
+                textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 hasStartedTyping = false
+                isKeyboardDismissedByUser = false
                 val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
                 if (forceTut) {
                     TutorialManager.resetForForceTutorial(prefs)
                     showTutorial = true
                 } else {
-                    showTutorial = TutorialManager.isTutorialActive(prefs)
+                    val active = TutorialManager.isTutorialActive(prefs)
+                    val step = TutorialManager.getStep(prefs)
+                    if (active && step >= 2) {
+                        TutorialManager.setStep(prefs, 3)
+                        TutorialManager.completeTutorial(prefs)
+                        showTutorial = false
+                    } else {
+                        showTutorial = active
+                    }
                 }
                 
                 transitionState.targetState = true
-                viewModel.loadInitialData()
-
-                val fromBack = activity?.intent?.getBooleanExtra("FROM_BACK_SWIPE", false) == true
                 coroutineScope.launch {
-                    if (!fromBack) {
-                        overlayProgressAnim.snapTo(0f)
-                        overlayProgressAnim.animateTo(
-                            targetValue = 1f,
-                            animationSpec = spring(
-                                dampingRatio = 0.84f,
-                                stiffness = 380f
-                            )
-                        )
-                    } else {
-                        overlayProgressAnim.snapTo(1f)
-                    }
+                    predictiveBackProgress.snapTo(0f)
+                    overlayProgressAnim.snapTo(1f)
                 }
 
-                try {
-                    coroutineScope.launch {
+                if (showTutorial) {
+                    keyboardController?.hide()
+                } else if (!isKeyboardDisabled && !isKeyboardDismissedByUser) {
+                    try {
                         focusRequester.requestFocus()
-                        keyboardController?.show()
-                    }
-                } catch (e: Exception) {}
-                val currentStep = TutorialManager.getStep(prefs)
-                
-                if (showTutorial && currentStep == 2) {
-                    TutorialManager.setStep(prefs, 3)
+                    } catch (_: Exception) {}
                 }
             }
         }
@@ -732,11 +759,19 @@ fun SearchOverlayScreen(
                     sensoryEngine.magneticResistance(view, backEvent.progress)
                 }
             }
-            keyboardController?.hide()
-            hasStartedTyping = false
-            viewModel.onQueryChanged("")
-            sensoryEngine.springReleaseSnap(view)
-            goToHomeScreen()
+            if (uiState.query.isNotEmpty()) {
+                viewModel.onQueryChanged("")
+                textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
+                hasStartedTyping = false
+                predictiveBackProgress.snapTo(0f)
+            } else {
+                keyboardController?.hide()
+                hasStartedTyping = false
+                viewModel.onQueryChanged("")
+                sensoryEngine.springReleaseSnap(view)
+                predictiveBackProgress.snapTo(0f)
+                goToHomeScreen()
+            }
         } catch (_: java.util.concurrent.CancellationException) {
             sensoryEngine.tick(view, scale = 0.5f)
             predictiveBackProgress.animateTo(
@@ -871,6 +906,21 @@ fun SearchOverlayScreen(
                         ),
                         RoundedCornerShape(percent = 50)
                     )
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        try {
+                            isKeyboardDismissedByUser = false
+                            focusRequester.requestFocus()
+                            keyboardController?.show()
+                            val act = context.findActivity()
+                            if (act != null) {
+                                androidx.core.view.WindowCompat.getInsetsController(act.window, act.window.decorView)
+                                    .show(androidx.core.view.WindowInsetsCompat.Type.ime())
+                            }
+                        } catch (_: Exception) {}
+                    }
                     .padding(horizontal = 24.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -940,7 +990,6 @@ fun SearchOverlayScreen(
                                             }
                                         }
                                     }
-                                    /* closeOverlay() */
                                 } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
                                     performAppLaunch(visibleApps.first().packageName)
                                 } else {
@@ -955,7 +1004,7 @@ fun SearchOverlayScreen(
                                 } else if (bestMatchText != null && bestMatchText.startsWith(uiState.query, ignoreCase = true)) {
                                     val builder = androidx.compose.ui.text.AnnotatedString.Builder()
                                     builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent))
-                                    builder.append(bestMatchText.substring(0, uiState.query.length))
+                                    builder.append(bestMatchText.substring(0, minOf(uiState.query.length, bestMatchText.length)))
                                     builder.pop()
                                     builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Gray))
                                     builder.append(bestMatchText.substring(uiState.query.length))
@@ -998,15 +1047,15 @@ fun SearchOverlayScreen(
                     IconButton(
                         onClick = { viewModel.onQueryChanged("") },
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(48.dp)
                             .bouncyClickable { viewModel.onQueryChanged("") }
-                            .padding(4.dp)
+                            .padding(12.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Clear",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
@@ -1014,6 +1063,8 @@ fun SearchOverlayScreen(
                 IconButton(
                     onClick = { 
                         hasStartedTyping = false
+                        focusManager.clearFocus(force = true)
+                        keyboardController?.hide()
                         onOpenSettings("main") 
                     },
                     modifier = Modifier
@@ -1117,44 +1168,59 @@ fun SearchOverlayScreen(
                                         val intent = when (packageName) {
                                             "com.android.chrome" -> {
                                                 val url = "https://google.com/search?q=${Uri.encode(searchStr)}"
-                                                Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply { setPackage(packageName) }
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply { 
+                                                    setPackage(packageName)
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                                }
                                             }
                                             "com.google.android.apps.maps" -> {
-                                                Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(searchStr.ifEmpty { "Restaurants" })}")).apply { setPackage(packageName) }
+                                                Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(searchStr.ifEmpty { "Restaurants" })}")).apply { 
+                                                    setPackage(packageName)
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                                }
                                             }
                                             "com.google.android.youtube" -> {
-                                                Intent(Intent.ACTION_SEARCH).apply { setPackage(packageName); putExtra("query", searchStr.ifEmpty { "Music" }) }
+                                                Intent(Intent.ACTION_SEARCH).apply { 
+                                                    setPackage(packageName)
+                                                    putExtra("query", searchStr.ifEmpty { "Music" })
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                                }
                                             }
                                             "com.android.vending" -> {
-                                                Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=${Uri.encode(searchStr)}"))
+                                                Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=${Uri.encode(searchStr)}")).apply {
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                                }
                                             }
                                             "com.google.android.contacts" -> {
-                                                context.packageManager.getLaunchIntentForPackage(packageName) 
-                                                    ?: Intent(Intent.ACTION_PICK).apply { type = android.provider.ContactsContract.Contacts.CONTENT_TYPE }
+                                                (context.packageManager.getLaunchIntentForPackage(packageName) 
+                                                    ?: Intent(Intent.ACTION_PICK).apply { type = android.provider.ContactsContract.Contacts.CONTENT_TYPE })
+                                                    .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) }
                                             }
                                             "com.google.android.apps.nbu.files" -> {
-                                                context.packageManager.getLaunchIntentForPackage(packageName) ?: Intent(Intent.ACTION_GET_CONTENT).apply { type = "*/*" }
+                                                (context.packageManager.getLaunchIntentForPackage(packageName) 
+                                                    ?: Intent(Intent.ACTION_GET_CONTENT).apply { type = "*/*" })
+                                                    .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) }
                                             }
                                             else -> {
                                                  val searchIntent = Intent(Intent.ACTION_SEARCH).apply {
                                                      setPackage(packageName)
                                                      putExtra("query", searchStr)
+                                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                                                  }
                                                  val resolved = context.packageManager.queryIntentActivities(searchIntent, 0)
                                                  val hasExportedSearch = resolved.any { it.activityInfo.exported }
                                                  if (hasExportedSearch) {
                                                      searchIntent
                                                  } else {
-                                                     context.packageManager.getLaunchIntentForPackage(packageName)
+                                                     context.packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                                                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                                     }
                                                  }
                                              }
                                         }
                                         if (intent != null) {
                                             hasStartedTyping = false
                                             launchSafeIntent(context, intent)
-                                            val act = context.findActivity()
-                                            finishWithoutTransition(act)
-                                            act?.finish()
                                         }
                                     }
                                 }
@@ -1349,6 +1415,8 @@ fun SearchOverlayScreen(
                                 }
                                 .bouncyClickable {
                                     hasStartedTyping = false
+                                    focusManager.clearFocus(force = true)
+                                    keyboardController?.hide()
                                     action.intent?.let { intent ->
                                         launchSafeIntent(context, intent)
                                     }
@@ -1411,6 +1479,8 @@ fun SearchOverlayScreen(
                                     .fillMaxWidth()
                                     .bouncyClickable {
                                         hasStartedTyping = false
+                                        focusManager.clearFocus(force = true)
+                                        keyboardController?.hide()
                                         val intent = if (settingsState.contactDirectCall) {
                                             Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                         } else {
@@ -1808,6 +1878,9 @@ fun SearchOverlayScreen(
                 items(uiState.shortcuts, key = { shortcut -> "shortcut_${shortcut.packageName}_${shortcut.id}" }) { shortcut ->
                     Row(
                         modifier = Modifier.fillMaxWidth().expressiveRowClickable {
+                            hasStartedTyping = false
+                            focusManager.clearFocus(force = true)
+                            keyboardController?.hide()
                             val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? android.content.pm.LauncherApps
                             try {
                                 launcherApps?.startShortcut(shortcut.packageName, shortcut.id, null, null, android.os.Process.myUserHandle())
@@ -1862,7 +1935,10 @@ fun SearchOverlayScreen(
                                     val targetUrl = if (instantAnswer.title.startsWith("http://") || instantAnswer.title.startsWith("https://")) {
                                         instantAnswer.title
                                     } else "https://${instantAnswer.title}"
-                                    launchSafeIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
+                                    val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                    }
+                                    launchSafeIntent(context, urlIntent)
                                 }
                             )
                         }
@@ -1903,13 +1979,7 @@ fun SearchOverlayScreen(
                                     if (uiState.query.isEmpty()) {
                                         item(key = "search_settings_shortcut") {
                                             SearchSettingsItem {
-                                                val intent = Intent(context, SettingsActivity::class.java)
-                                                val options = android.app.ActivityOptions.makeCustomAnimation(
-                                                    context,
-                                                    R.anim.slide_in_right,
-                                                    R.anim.slide_out_left
-                                                )
-                                                launchSafeIntent(context, intent, options.toBundle())
+                                                onOpenSettings("main")
                                             }
                                         }
                                     }
@@ -1984,13 +2054,13 @@ fun SearchOverlayScreen(
                                         if (isRecent) {
                                             IconButton(
                                                 onClick = { viewModel.removeSearchHistory(suggestion) },
-                                                modifier = Modifier.size(32.dp)
+                                                modifier = Modifier.size(40.dp)
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.Close,
                                                     contentDescription = "Remove",
                                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                                    modifier = Modifier.size(16.dp)
+                                                    modifier = Modifier.size(18.dp)
                                                 )
                                             }
                                         }
@@ -2003,13 +2073,13 @@ fun SearchOverlayScreen(
                                                 )
                                                 viewModel.onQueryChanged(suggestion)
                                             },
-                                            modifier = Modifier.size(32.dp)
+                                            modifier = Modifier.size(40.dp)
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.NorthWest,
                                                 contentDescription = "Insert query",
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(20.dp)
                                             )
                                         }
                                     }
@@ -2092,8 +2162,6 @@ fun SearchOverlayScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .navigationBarsPadding()
-            .then(if (!isKeyboardDisabled) Modifier.imePadding() else Modifier)
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
@@ -2127,6 +2195,8 @@ fun SearchOverlayScreen(
                                 val newProgress = (overlayProgressAnim.value - deltaProgress).coerceIn(0f, 1f)
                                 overlayProgressAnim.snapTo(newProgress)
                                 if (newProgress < 0.95f) {
+                                    isKeyboardDismissedByUser = true
+                                    focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
                                 }
                             }
@@ -2142,18 +2212,33 @@ fun SearchOverlayScreen(
             },
         contentAlignment = Alignment.BottomCenter
     ) {
-        val scrimColor = if (settingsState.showWallpaper) MaterialTheme.colorScheme.scrim else MaterialTheme.colorScheme.background
-        val scrimAlphaFactor = if (settingsState.showWallpaper) ((settingsState.backgroundTransparency / 100f) * 0.7f).coerceIn(0f, 1f) else 1.0f
+        val isShowWallpaper = remember(settingsState.showWallpaper) {
+            settingsState.showWallpaper || prefs.getBoolean("search.background.show.wall", prefs.getBoolean("show.wallpaper", true))
+        }
+        val isTransparency = if (settingsState.backgroundTransparency > 0) settingsState.backgroundTransparency else prefs.getInt("search.background.transparency", prefs.getInt("background.transparency", 50))
+        val scrimColor = if (isShowWallpaper) MaterialTheme.colorScheme.scrim else MaterialTheme.colorScheme.background
+        val scrimAlphaFactor = if (isShowWallpaper) ((isTransparency / 100f) * 0.7f).coerceIn(0f, 1f) else 1.0f
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .drawBehind {
                     val p = overlayProgressAnim.value.coerceIn(0f, 1f)
-                    drawRect(color = scrimColor, alpha = if (settingsState.showWallpaper) scrimAlphaFactor * p else p)
+                    drawRect(color = scrimColor, alpha = if (isShowWallpaper) scrimAlphaFactor * p else p)
                 }
         )
 
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(
+                    if (!isKeyboardDisabled) {
+                        WindowInsets.ime.union(WindowInsets.navigationBars)
+                    } else {
+                        WindowInsets.navigationBars
+                    }
+                ),
+            contentAlignment = Alignment.BottomCenter
+        ) {
             if (settingsState.matrixAnimationEnabled) {
                 Box(
                     modifier = Modifier
@@ -2166,18 +2251,14 @@ fun SearchOverlayScreen(
                 }
             }
             
-            val surfaceAlpha = if (settingsState.showWallpaper) ((100 - settingsState.backgroundTransparency) / 100f).coerceIn(0f, 1f) else 1f
-            
-            val targetHeight = screenHeight - 32.dp
-            val initialHeight = 56.dp
-            
-            val targetWidth = screenWidth - 32.dp
-            val initialWidth = screenWidth - 64.dp
+            val surfaceAlpha = if (isShowWallpaper) ((100 - isTransparency) / 100f).coerceIn(0f, 1f) else 1f
 
             Box(
                 modifier = Modifier
-                    .width(targetWidth)
-                    .height(targetHeight)
+                    .fillMaxHeight()
+                    .widthIn(max = 720.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
                     .padding(bottom = 16.dp)
                     .graphicsLayer {
                         val progress = overlayProgressAnim.value.coerceIn(0.001f, 1f)
@@ -2253,6 +2334,9 @@ fun SearchOverlayScreen(
                     }
                 }
             }
+        }
+
+        if (showTutorial) {
             TutorialSpotlightOverlay(
                 prefs = prefs,
                 stepsInfo = mapOf(
@@ -2260,14 +2344,17 @@ fun SearchOverlayScreen(
                     1 to TutorialStepInfo("Search Bar", "This is your search bar. Start typing to find apps, contacts, and files instantly. You can also swipe away recent search cards to remove them.", Alignment.Center, showArrow = true, requireButtonPress = true),
                     2 to TutorialStepInfo("Settings", "Tap the settings icon (the ⋮ button) to customize your search experience. Press OK below to open Settings now.", Alignment.Center, showArrow = true, requireButtonPress = true, showCircle = true)
                 ),
-                onComplete = { showTutorial = false },
+                onComplete = {
+                    TutorialManager.completeTutorial(prefs)
+                    showTutorial = false
+                },
                 onStepAdvance = { step ->
                     if (step == 3) onOpenSettings("main")
                 }
             )
-            } // Close the Box
         }
     }
+}
 
 private val fileThumbnailCache = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(128)
 

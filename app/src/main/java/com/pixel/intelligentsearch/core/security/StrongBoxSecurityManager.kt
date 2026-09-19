@@ -103,12 +103,7 @@ class StrongBoxSecurityManager @Inject constructor(
             val entry = keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry
             if (entry != null) {
                 val currentLevel = getHardwareSecurityLevel(entry.secretKey)
-                if (isStrongBoxSupported() && currentLevel != HardwareSecurityLevel.STRONGBOX) {
-                    Log.w(TAG, "Existing key for $alias is $currentLevel but StrongBox is supported. Regenerating in StrongBox KeyMint.")
-                    deleteKey(alias)
-                } else {
-                    return Pair(entry.secretKey, currentLevel)
-                }
+                return Pair(entry.secretKey, currentLevel)
             }
         }
 

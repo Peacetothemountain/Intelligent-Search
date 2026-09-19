@@ -16,7 +16,7 @@ class PinWidgetReceiver : BroadcastReceiver() {
                     context,
                     0,
                     Intent(context, PinWidgetReceiver::class.java),
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
                 )
                 appWidgetManager.requestPinAppWidget(myProvider, null, successIntent)
             }

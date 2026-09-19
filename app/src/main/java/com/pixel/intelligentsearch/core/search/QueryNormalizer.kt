@@ -12,7 +12,7 @@ import java.util.regex.Pattern
  */
 object QueryNormalizer {
     private val DIACRITICS_PATTERN = Pattern.compile("\\p{InCombiningDiacriticalMarks}+")
-    private val PUNCTUATION_PATTERN = Pattern.compile("[^a-z0-9\\s]")
+    private val PUNCTUATION_PATTERN = Pattern.compile("[^\\p{L}\\p{N}\\s]")
     private val WHITESPACE_PATTERN = Pattern.compile("\\s+")
 
     fun normalize(input: String?): String {

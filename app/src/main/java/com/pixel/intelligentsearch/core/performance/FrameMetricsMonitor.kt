@@ -123,6 +123,14 @@ class FrameMetricsMonitor(
                 detach()
                 window.addOnFrameMetricsAvailableListener(frameMetricsListener, metricsHandler)
                 attachedWindow = window
+
+                if (activity is androidx.lifecycle.LifecycleOwner) {
+                    activity.lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
+                        override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) {
+                            detach()
+                        }
+                    })
+                }
             } catch (_: Throwable) {}
         }
     }

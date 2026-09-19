@@ -276,9 +276,12 @@ class MultiProfileManager @Inject constructor(
             Log.e(TAG, "Failed to request quiet mode disabled", e)
             // Fallback: Launch a component from that profile to prompt system keyguard/biometric gate
             try {
-                val activities = launcherApps?.getActivityList(null, userHandle)
-                if (!activities.isNullOrEmpty()) {
-                    launcherApps?.startMainActivity(activities.first().componentName, userHandle, null, null)
+                val apps = launcherApps
+                if (apps != null) {
+                    val activities = apps.getActivityList(null, userHandle)
+                    if (!activities.isNullOrEmpty()) {
+                        apps.startMainActivity(activities.first().componentName, userHandle, null, null)
+                    }
                 }
             } catch (_: Exception) {}
         }
@@ -319,7 +322,7 @@ class MultiProfileManager @Inject constructor(
         // Fallback to standard package manager for personal profile
         val pm = context.packageManager
         val launchIntent = pm.getLaunchIntentForPackage(packageName)?.apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             sourceBounds?.let { bounds -> this.sourceBounds = bounds }
         }
         if (launchIntent != null) {
@@ -352,7 +355,7 @@ class MultiProfileManager @Inject constructor(
                 val explicitIntent = Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_LAUNCHER)
                     component = ComponentName(packageName, targetClass)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     sourceBounds?.let { bounds -> this.sourceBounds = bounds }
                 }
                 if (activity != null) {

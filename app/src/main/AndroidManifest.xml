@@ -103,6 +103,8 @@
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
+            android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
+            android:excludeFromRecents="true"
             android:exported="false">
         </activity>
 
@@ -117,6 +119,7 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
+            android:excludeFromRecents="true"
             android:directBootAware="true"
             android:exported="true">
             <intent-filter>
@@ -148,6 +151,7 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
+            android:excludeFromRecents="true"
             android:exported="true" />
 
         <activity

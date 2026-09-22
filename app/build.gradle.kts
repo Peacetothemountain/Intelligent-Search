@@ -15,7 +15,7 @@ android {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
         targetSdk = 37
-        versionCode = 104
+        versionCode = 105
         versionName = "9.06"
         ndk {
             // CRITICAL: Must support arm64-v8a, armeabi-v7a, x86_64, and x86 to retain Google Play compatibility for 2,159+ devices.
@@ -55,7 +55,7 @@ android {
             val relConfig = signingConfigs.getByName("release")
             signingConfig = if (relConfig.storeFile != null && relConfig.storeFile!!.exists()) relConfig else signingConfigs.getByName("debug")
             ndk {
-                debugSymbolLevel = "SYMBOL_TABLE"
+                debugSymbolLevel = "FULL"
             }
         }
     }

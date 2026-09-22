@@ -781,16 +781,12 @@ fun SearchOverlayScreen(
     
     PredictiveBackHandler(enabled = !showTutorial) { progressFlow ->
         try {
-            var lastEmittedBackProg = 0f
             progressFlow.collect { backEvent ->
                 predictiveBackEdge = backEvent.swipeEdge
                 predictiveBackProgress.snapTo(backEvent.progress)
-                if (backEvent.progress > 0.15f && kotlin.math.abs(backEvent.progress - lastEmittedBackProg) > 0.18f) {
-                    lastEmittedBackProg = backEvent.progress
-                    sensoryEngine.magneticResistance(view, backEvent.progress)
-                }
             }
             if (uiState.query.isNotEmpty()) {
+                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                 viewModel.onQueryChanged("")
                 textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
                 hasStartedTyping = false
@@ -799,12 +795,11 @@ fun SearchOverlayScreen(
                 keyboardController?.hide()
                 hasStartedTyping = false
                 viewModel.onQueryChanged("")
-                sensoryEngine.springReleaseSnap(view)
+                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                 predictiveBackProgress.snapTo(0f)
                 goToHomeScreen()
             }
         } catch (_: java.util.concurrent.CancellationException) {
-            sensoryEngine.tick(view, scale = 0.5f)
             predictiveBackProgress.animateTo(
                 targetValue = 0f,
                 animationSpec = spring(dampingRatio = 0.85f, stiffness = 300f)
@@ -1427,6 +1422,7 @@ fun SearchOverlayScreen(
                                         },
                                         onDragEnd = {
                                             if (kotlin.math.abs(offsetX.value) > 130f) {
+                                                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                                                 dismissDirection = if (offsetX.value >= 0f) 1f else -1f
                                                 dismissed = true
                                             } else {
@@ -1745,6 +1741,7 @@ fun SearchOverlayScreen(
                                     },
                                     onDragEnd = {
                                         if (kotlin.math.abs(offsetX.value) > 120f) {
+                                            sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                                             dismissDirection = if (offsetX.value >= 0f) 1f else -1f
                                             dismissed = true
                                         } else {
@@ -1913,6 +1910,7 @@ fun SearchOverlayScreen(
                                         },
                                         onDragEnd = {
                                             if (kotlin.math.abs(offsetX.value) > 130f) {
+                                                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                                                 dismissDirection = if (offsetX.value >= 0f) 1f else -1f
                                                 dismissed = true
                                             } else {

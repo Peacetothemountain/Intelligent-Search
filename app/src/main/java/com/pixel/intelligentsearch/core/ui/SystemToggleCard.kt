@@ -80,6 +80,7 @@ fun SystemToggleCard(
     val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     val context = LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
 
     Card(
         modifier = modifier
@@ -89,16 +90,17 @@ fun SystemToggleCard(
                 suppressClickHaptic = true,
                 onClick = {
                     if (toggleState.isActionOnly) {
-                        com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click()
+                        com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click(view)
                         toggleState.onOpenSettings()
                     } else {
                         val newState = !isChecked
                         isChecked = newState
-                        com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).toggle(isChecked = newState)
+                        com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).toggle(view, isChecked = newState)
                         toggleState.onToggle(newState)
                     }
                 },
                 onLongClick = {
+                    com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
                     toggleState.onOpenSettings()
                 }
             ),

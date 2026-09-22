@@ -405,7 +405,8 @@ class PixelHapticEngine(private val context: Context) {
     }
 
     /**
-     * Subtle predictive-back level micro-haptic tick used consistently throughout the application.
+     * Android 17 QPR2 Beta 5 Predictive Back gesture vibration.
+     * Standardized across all interactive touch, click, swipe, gesture, and press events.
      */
     fun performPredictiveBackHaptic(view: View? = null) {
         val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
@@ -413,21 +414,12 @@ class PixelHapticEngine(private val context: Context) {
             return
         }
 
-        var vibrated = false
+        val flags = HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
         if (view != null) {
             try {
-                vibrated = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    view.performHapticFeedback(
-                        HapticFeedbackConstants.SEGMENT_TICK,
-                        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
-                    )
-                } else {
-                    view.performHapticFeedback(
-                        HapticFeedbackConstants.CLOCK_TICK,
-                        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
-                    )
+                if (view.performHapticFeedback(HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE, flags)) {
+                    return
                 }
-                if (vibrated) return
             } catch (_: Exception) {}
         }
 
@@ -437,14 +429,14 @@ class PixelHapticEngine(private val context: Context) {
                     isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
                 ) {
                     val composition = VibrationEffect.startComposition()
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.85f)
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 1.0f)
                     vibrateWithAttributes(composition.compose())
                 } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
                     val composition = VibrationEffect.startComposition()
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.40f)
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.60f)
                     vibrateWithAttributes(composition.compose())
                 } else {
-                    val effect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
+                    val effect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
                     vibrateWithAttributes(effect)
                 }
             } catch (_: Exception) {}

@@ -148,6 +148,158 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.compositionLocalOf
 import com.pixel.intelligentsearch.core.data.SettingsManager
 
+@Composable
+private fun IconButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.material3.IconButton(
+        onClick = {
+            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            onClick()
+        },
+        modifier = modifier,
+        enabled = enabled,
+        colors = colors,
+        interactionSource = interactionSource,
+        content = content
+    )
+}
+
+@Composable
+private fun TextButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: androidx.compose.ui.graphics.Shape = ButtonDefaults.textShape,
+    colors: ButtonColors = ButtonDefaults.textButtonColors(),
+    elevation: ButtonElevation? = null,
+    border: androidx.compose.foundation.BorderStroke? = null,
+    contentPadding: PaddingValues = ButtonDefaults.TextButtonContentPadding,
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable RowScope.() -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.material3.TextButton(
+        onClick = {
+            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            onClick()
+        },
+        modifier = modifier,
+        enabled = enabled,
+        shape = shape,
+        colors = colors,
+        elevation = elevation,
+        border = border,
+        contentPadding = contentPadding,
+        interactionSource = interactionSource,
+        content = content
+    )
+}
+
+@Composable
+private fun Button(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: androidx.compose.ui.graphics.Shape = ButtonDefaults.shape,
+    colors: ButtonColors = ButtonDefaults.buttonColors(),
+    elevation: ButtonElevation? = ButtonDefaults.buttonElevation(),
+    border: androidx.compose.foundation.BorderStroke? = null,
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable RowScope.() -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.material3.Button(
+        onClick = {
+            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            onClick()
+        },
+        modifier = modifier,
+        enabled = enabled,
+        shape = shape,
+        colors = colors,
+        elevation = elevation,
+        border = border,
+        contentPadding = contentPadding,
+        interactionSource = interactionSource,
+        content = content
+    )
+}
+
+@Composable
+private fun FilledTonalButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: androidx.compose.ui.graphics.Shape = ButtonDefaults.filledTonalShape,
+    colors: ButtonColors = ButtonDefaults.filledTonalButtonColors(),
+    elevation: ButtonElevation? = ButtonDefaults.filledTonalButtonElevation(),
+    border: androidx.compose.foundation.BorderStroke? = null,
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable RowScope.() -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.material3.FilledTonalButton(
+        onClick = {
+            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            onClick()
+        },
+        modifier = modifier,
+        enabled = enabled,
+        shape = shape,
+        colors = colors,
+        elevation = elevation,
+        border = border,
+        contentPadding = contentPadding,
+        interactionSource = interactionSource,
+        content = content
+    )
+}
+
+@Composable
+private fun OutlinedButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: androidx.compose.ui.graphics.Shape = ButtonDefaults.outlinedShape,
+    colors: ButtonColors = ButtonDefaults.outlinedButtonColors(),
+    elevation: ButtonElevation? = null,
+    border: androidx.compose.foundation.BorderStroke? = ButtonDefaults.outlinedButtonBorder,
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable RowScope.() -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.material3.OutlinedButton(
+        onClick = {
+            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            onClick()
+        },
+        modifier = modifier,
+        enabled = enabled,
+        shape = shape,
+        colors = colors,
+        elevation = elevation,
+        border = border,
+        contentPadding = contentPadding,
+        interactionSource = interactionSource,
+        content = content
+    )
+}
+
 @Language("AGSL")
 private const val GEMINI_CORNER_SWIPE_SHADER = """
     uniform float2 resolution;
@@ -2291,11 +2443,18 @@ fun MainSettingsScreen(
             val coroutineScope = rememberCoroutineScope()
             val secureRepo = remember { com.pixel.intelligentsearch.core.security.SecureSettingsRepository(context) }
             val attestationVerifier = remember { com.pixel.intelligentsearch.core.security.KeyAttestationVerifier(context) }
-            val attestationResult = remember { attestationVerifier.generateAndVerifyAttestation() }
-            val hardwareLevel = remember { secureRepo.getHardwareSecurityLevel() }
-            
+            val hardwareLevel by androidx.compose.runtime.produceState(initialValue = com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX) {
+                value = withContext(Dispatchers.IO) {
+                    secureRepo.getHardwareSecurityLevel()
+                }
+            }
             val hardwareInfo = remember(hardwareLevel) {
                 com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detectSecurityHardware(context, hardwareLevel)
+            }
+            val attestationResult by androidx.compose.runtime.produceState<com.pixel.intelligentsearch.core.security.AttestationResult?>(initialValue = null) {
+                value = withContext(Dispatchers.IO) {
+                    attestationVerifier.generateAndVerifyAttestation()
+                }
             }
             val view = androidx.compose.ui.platform.LocalView.current
 
@@ -2444,13 +2603,17 @@ fun MainSettingsScreen(
                                             )
                                             Spacer(modifier = Modifier.height(4.dp))
                                             Text(
-                                                text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): " + if (attestationResult.isHardwareAttested) "Verified ✓" else "Attested",
+                                                text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): " + when {
+                                                    attestationResult == null -> "Verifying..."
+                                                    attestationResult?.isHardwareAttested == true -> "Verified ✓"
+                                                    else -> "Attested"
+                                                },
                                                 style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (attestationResult.isHardwareAttested) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                                color = if (attestationResult?.isHardwareAttested == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
-                                                text = "Certificate Chain Depth: ${attestationResult.certificateCount} certificates",
+                                                text = "Certificate Chain Depth: ${attestationResult?.certificateCount ?: "..."} certificates",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -3603,7 +3766,7 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(24.dp))
-                    androidx.compose.material3.Button(onClick = triggerAuth) {
+                    Button(onClick = triggerAuth) {
                         Text("Unlock with Biometrics")
                     }
                 }
@@ -6324,7 +6487,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
-                    androidx.compose.material3.TextButton(onClick = {
+                    TextButton(onClick = {
                         hapticEngine.performPredictiveBackHaptic(view)
                         if (isSystem) {
                             sysSubtheme = "System"
@@ -6400,7 +6563,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }) {
                         Text("Reset", color = MaterialTheme.colorScheme.onSurface)
                     }
-                    androidx.compose.material3.TextButton(onClick = {
+                    TextButton(onClick = {
                         hapticEngine.performPredictiveBackHaptic(view)
                         if (isSystem) {
                             val sysColorInt = android.graphics.Color.HSVToColor(
@@ -7696,7 +7859,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         )
                     },
                     confirmButton = {
-                        androidx.compose.material3.TextButton(onClick = {
+                        TextButton(onClick = {
                             try {
                                 val color = android.graphics.Color.parseColor(if (tempHexInput.startsWith("#")) tempHexInput else "#$tempHexInput")
                                 val hsv = FloatArray(3)
@@ -7710,7 +7873,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }) { Text("Save") }
                     },
                     dismissButton = {
-                        androidx.compose.material3.TextButton(onClick = { showHexInput = false }) { Text("Cancel") }
+                        TextButton(onClick = { showHexInput = false }) { Text("Cancel") }
                     }
                 )
             }
@@ -7727,7 +7890,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         )
                     },
                     confirmButton = {
-                        androidx.compose.material3.TextButton(onClick = {
+                        TextButton(onClick = {
                             prefs.edit()
                                 .putString("${showCustomUrlDialogFor}_custom_type", "url")
                                 .putString("${showCustomUrlDialogFor}_custom_value", customInputValue)
@@ -7742,7 +7905,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }) { Text("Save") }
                     },
                     dismissButton = {
-                        androidx.compose.material3.TextButton(onClick = { showCustomUrlDialogFor = null }) { Text("Cancel") }
+                        TextButton(onClick = { showCustomUrlDialogFor = null }) { Text("Cancel") }
                     }
                 )
             }
@@ -7759,7 +7922,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         )
                     },
                     confirmButton = {
-                        androidx.compose.material3.TextButton(onClick = {
+                        TextButton(onClick = {
                             prefs.edit()
                                 .putString("${showCustomAppDialogFor}_custom_type", "app")
                                 .putString("${showCustomAppDialogFor}_custom_value", customInputValue)
@@ -7774,7 +7937,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }) { Text("Save") }
                     },
                     dismissButton = {
-                        androidx.compose.material3.TextButton(onClick = { showCustomAppDialogFor = null }) { Text("Cancel") }
+                        TextButton(onClick = { showCustomAppDialogFor = null }) { Text("Cancel") }
                     }
                 )
             }

@@ -1358,7 +1358,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         if (!topPkgs.contains(pkg)) {
                             topPkgs.add(pkg)
                         }
-                        if (topPkgs.size >= 4) break
+                        if (topPkgs.size >= 3) break
                     }
 
                     val sysLoad = if (totalBytes > 0) (usedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0.4f, 0.95f) else 0.7f
@@ -1423,7 +1423,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         .groupBy { it.name }
                         .map { (name, list) -> ProcessRamEntry(name = name, ramMb = list.maxOf { it.ramMb }) }
                         .sortedByDescending { it.ramMb }
-                        .take(4)
+                        .take(3)
 
                     MemorySnapshot(
                         totalGb = totGb,
@@ -1481,16 +1481,18 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
     ) {
         // --- TOP CARD: Battery Health ---
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(176.dp),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceContainerLow,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1556,7 +1558,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     val tertiaryColor = MaterialTheme.colorScheme.tertiary
                     Box(
                         modifier = Modifier
-                            .size(width = 68.dp, height = 54.dp)
+                            .size(width = 72.dp, height = 62.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                         contentAlignment = Alignment.Center
@@ -1596,7 +1598,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
 
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
                         Text(
                             text = chargingRateStr,
@@ -1738,16 +1740,18 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
 
         // --- BOTTOM CARD: System RAM Usage (Live Graph on Left, RAM Usage Breakdown on Right) ---
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(176.dp),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceContainerLow,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1812,7 +1816,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(122.dp),
+                        .height(86.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1837,7 +1841,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         androidx.compose.foundation.Canvas(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(start = 24.dp, end = 10.dp, top = 14.dp, bottom = 18.dp)
+                                .padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 14.dp)
                         ) {
                             val w = size.width
                             val h = size.height
@@ -1982,7 +1986,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
                                 text = "${ceilingMb}M",
@@ -1998,7 +2002,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
                                 modifier = Modifier
                                     .align(Alignment.BottomStart)
-                                    .padding(bottom = 12.dp)
+                                    .padding(bottom = 10.dp)
                             )
                             Text(
                                 text = "Top Apps by RAM",
@@ -2007,7 +2011,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
-                                    .padding(bottom = 2.dp)
+                                    .padding(bottom = 1.dp)
                             )
                         }
                     }
@@ -2017,11 +2021,12 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight(),
-                        verticalArrangement = Arrangement.SpaceEvenly
+                        verticalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
                             text = "Apps using RAM",
                             style = MaterialTheme.typography.labelSmall,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.secondary
                         )
@@ -2030,6 +2035,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             Text(
                                 text = "Analyzing processes...",
                                 style = MaterialTheme.typography.bodySmall,
+                                fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
@@ -2037,18 +2043,19 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 val appColor = materialAppColors[i % materialAppColors.size]
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(7.dp)
+                                            .size(6.dp)
                                             .clip(androidx.compose.foundation.shape.CircleShape)
                                             .background(appColor)
                                     )
                                     Text(
                                         text = entry.name,
                                         style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         modifier = Modifier.weight(1f),
@@ -2061,6 +2068,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                             "${entry.ramMb.toInt()} MB"
                                         },
                                         style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -2070,18 +2078,19 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(7.dp)
+                                    .size(6.dp)
                                     .clip(androidx.compose.foundation.shape.CircleShape)
                                     .background(MaterialTheme.colorScheme.outlineVariant)
                             )
                             Text(
                                 text = "Free RAM",
                                 style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 modifier = Modifier.weight(1f)
@@ -2089,6 +2098,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             Text(
                                 text = "${availableRamGb} GB",
                                 style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.secondary
                             )
@@ -2294,7 +2304,7 @@ fun MainSettingsScreen(
                         state = pagerState,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(365.dp)
+                            .height(368.dp)
                     ) { page ->
                         when (page) {
                             0 -> {

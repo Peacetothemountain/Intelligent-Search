@@ -2294,7 +2294,7 @@ fun MainSettingsScreen(
                         state = pagerState,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(320.dp)
+                            .height(490.dp)
                     ) { page ->
                         when (page) {
                             0 -> {
@@ -2473,27 +2473,26 @@ fun MainSettingsScreen(
                             }
                         }
                         else -> {
-                            TextButton(onClick = { showInfoDialog = false }) {
-                                Text("Close")
-                            }
-                        }
-                    }
-                },
-                dismissButton = {
-                    when (pagerState.currentPage) {
-                        0 -> {
-                            TextButton(onClick = { showInfoDialog = false }) {
-                                Text("Close")
-                            }
-                        }
-                        1 -> {
                             TextButton(onClick = {
                                 coroutineScope.launch { pagerState.animateScrollToPage(0) }
                             }) {
                                 Text("Developer Note")
                             }
                         }
-                        else -> {
+                    }
+                },
+                dismissButton = when (pagerState.currentPage) {
+                    1 -> {
+                        {
+                            TextButton(onClick = {
+                                coroutineScope.launch { pagerState.animateScrollToPage(0) }
+                            }) {
+                                Text("Developer Note")
+                            }
+                        }
+                    }
+                    2 -> {
+                        {
                             TextButton(onClick = {
                                 coroutineScope.launch { pagerState.animateScrollToPage(1) }
                             }) {
@@ -2501,6 +2500,7 @@ fun MainSettingsScreen(
                             }
                         }
                     }
+                    else -> null
                 }
             )
         }
@@ -4281,36 +4281,15 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             SettingsCard {
-                val context = androidx.compose.ui.platform.LocalContext.current
                 var searchEngine by rememberStringPreference(prefs, "search.engine", "Google")
                 var customEngineName by rememberStringPreference(prefs, "custom_search_engine_name", "Custom")
                 val effectiveSearchEngineName = if (searchEngine == "Custom") customEngineName else searchEngine
-
-                val defaultBrowsers = listOf("Google", "DuckDuckGo", "Bing", "Tor Project")
-                val installedBrowsers = remember(context) {
-                    try {
-                        val browserIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com"))
-                        val resolveInfos = context.packageManager.queryIntentActivities(browserIntent, android.content.pm.PackageManager.MATCH_ALL)
-                        resolveInfos.mapNotNull { it.loadLabel(context.packageManager)?.toString() }
-                            .filterNot { label ->
-                                label.isBlank() ||
-                                label.equals("Intelligent Search", ignoreCase = true) ||
-                                defaultBrowsers.any { it.equals(label, ignoreCase = true) }
-                            }
-                            .distinct()
-                    } catch (_: Exception) {
-                        emptyList()
-                    }
-                }
-                val searchEngineOptions = remember(installedBrowsers) {
-                    (defaultBrowsers + installedBrowsers + listOf("Custom")).distinct()
-                }
 
                 SettingsDropdownRow(
                     title = "Primary Search App",
                     subtitle = effectiveSearchEngineName,
                     icon = Icons.Outlined.Search,
-                    options = searchEngineOptions,
+                    options = listOf("Google", "DuckDuckGo", "Bing", "Tor Project", "Custom"),
                     selectedOption = searchEngine,
                     onOptionSelected = { searchEngine = it },
                     showDivider = searchEngine != "Custom"

@@ -3020,10 +3020,10 @@ fun MainSettingsScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Thank you for using\nIntelligent\u00A0Search.",
-                        fontSize = 17.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = 22.sp
+                        lineHeight = 24.sp
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current

@@ -761,16 +761,7 @@ fun SettingsScreensHub(
         val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
         androidx.compose.runtime.DisposableEffect(lifecycleOwner, exoPlayer) {
             val player = exoPlayer
-            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                    player?.play()
-                } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                    player?.pause()
-                }
-            }
-            lifecycleOwner.lifecycle.addObserver(observer)
             onDispose {
-                lifecycleOwner.lifecycle.removeObserver(observer)
                 player?.release()
             }
         }
@@ -2401,6 +2392,119 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
     }
 }
 
+@Composable
+fun BugdroidPlayer(
+    player: androidx.media3.exoplayer.ExoPlayer?,
+    modifier: Modifier = Modifier,
+    scaleFactor: Float = 1.0f,
+    videoAspect: Float = 16f / 9f
+) {
+    val shaderSrc = """
+        uniform shader content;
+        vec4 main(vec2 coords) {
+            vec4 color = content.eval(coords);
+            float maxVal = max(color.r, max(color.g, color.b));
+            if (maxVal < 0.16) {
+                return vec4(0.0, 0.0, 0.0, 0.0);
+            }
+            if (maxVal < 0.28) {
+                float t = (maxVal - 0.16) / 0.12;
+                return color * t;
+            }
+            return color;
+        }
+    """.trimIndent()
+
+    val cachedVideoRenderEffect = remember(shaderSrc) {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            val shader = android.graphics.RuntimeShader(shaderSrc)
+            val frameworkEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content")
+            frameworkEffect.asComposeRenderEffect()
+        } else null
+    }
+
+    androidx.compose.ui.viewinterop.AndroidView(
+        factory = { ctx ->
+            android.view.TextureView(ctx).apply {
+                isOpaque = false
+                val adjustAspectRatio: (android.view.TextureView) -> Unit = { tv ->
+                    val vw = tv.width
+                    val vh = tv.height
+                    if (vw > 0 && vh > 0) {
+                        val matrix = android.graphics.Matrix()
+                        val viewAspect = vw.toFloat() / vh.toFloat()
+                        var scaleX = 1f
+                        var scaleY = 1f
+                        if (viewAspect > videoAspect) {
+                            scaleY = (vw.toFloat() / videoAspect) / vh.toFloat()
+                        } else {
+                            scaleX = (vh.toFloat() * videoAspect) / vw.toFloat()
+                        }
+                        scaleX *= scaleFactor
+                        scaleY *= scaleFactor
+                        matrix.setScale(scaleX, scaleY, vw / 2f, vh / 2f)
+                        tv.setTransform(matrix)
+                    }
+                }
+
+                var currentSurface: android.view.Surface? = null
+
+                surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
+                    override fun onSurfaceTextureAvailable(
+                        surfaceTexture: android.graphics.SurfaceTexture,
+                        width: Int,
+                        height: Int
+                    ) {
+                        val surface = android.view.Surface(surfaceTexture)
+                        currentSurface = surface
+                        player?.setVideoSurface(surface)
+                        adjustAspectRatio(this@apply)
+                    }
+
+                    override fun onSurfaceTextureSizeChanged(
+                        surfaceTexture: android.graphics.SurfaceTexture,
+                        width: Int,
+                        height: Int
+                    ) {
+                        adjustAspectRatio(this@apply)
+                    }
+
+                    override fun onSurfaceTextureDestroyed(
+                        surfaceTexture: android.graphics.SurfaceTexture
+                    ): Boolean {
+                        currentSurface?.let {
+                            player?.clearVideoSurface(it)
+                            it.release()
+                        }
+                        currentSurface = null
+                        return true
+                    }
+
+                    override fun onSurfaceTextureUpdated(
+                        surfaceTexture: android.graphics.SurfaceTexture
+                    ) {}
+                }
+
+                if (isAvailable && surfaceTexture != null) {
+                    val surface = android.view.Surface(surfaceTexture)
+                    currentSurface = surface
+                    player?.setVideoSurface(surface)
+                    adjustAspectRatio(this@apply)
+                }
+            }
+        },
+        update = { tv ->
+            if (tv.isAvailable && tv.surfaceTexture != null) {
+                val surface = android.view.Surface(tv.surfaceTexture)
+                player?.setVideoSurface(surface)
+            }
+        },
+        modifier = modifier.graphicsLayer {
+            renderEffect = cachedVideoRenderEffect
+        }
+    )
+}
+
 // -----------------------------------------------------------------------------------------
 // MAIN SETTINGS
 // -----------------------------------------------------------------------------------------
@@ -2415,6 +2519,24 @@ fun MainSettingsScreen(
     showTutorial: Boolean = false
 ) {
     var showInfoDialog by remember { mutableStateOf(false) }
+
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, exoPlayer) {
+        val player = exoPlayer
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                player?.play()
+            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                player?.pause()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        player?.play()
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            player?.pause()
+        }
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -2885,131 +3007,23 @@ fun MainSettingsScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val context = androidx.compose.ui.platform.LocalContext.current
-                val shaderSrc = """
-                    uniform shader content;
-                    vec4 main(vec2 coords) {
-                        vec4 color = content.eval(coords);
-                        float maxVal = max(color.r, max(color.g, color.b));
-                        if (maxVal < 0.16) {
-                            return vec4(0.0, 0.0, 0.0, 0.0);
-                        }
-                        if (maxVal < 0.28) {
-                            float t = (maxVal - 0.16) / 0.12;
-                            return color * t;
-                        }
-                        return color;
-                    }
-                """.trimIndent()
-
-                val cachedVideoRenderEffect = remember(shaderSrc) {
-                    if (android.os.Build.VERSION.SDK_INT >= 33) {
-                        val shader = android.graphics.RuntimeShader(shaderSrc)
-                        val frameworkEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content")
-                        frameworkEffect.asComposeRenderEffect()
-                    } else null
-                }
-
-                LaunchedEffect(exoPlayer) {
-                    exoPlayer?.play()
-                }
-
-                androidx.compose.ui.viewinterop.AndroidView(
-                    factory = { ctx ->
-                        android.view.TextureView(ctx).apply {
-                            isOpaque = false
-                            val adjustAspectRatio: (android.view.TextureView) -> Unit = { tv ->
-                                val vw = tv.width
-                                val vh = tv.height
-                                if (vw > 0 && vh > 0) {
-                                    val matrix = android.graphics.Matrix()
-                                    val videoAspect = 1280f / 720f
-                                    val viewAspect = vw.toFloat() / vh.toFloat()
-                                    var scaleX = 1f
-                                    var scaleY = 1f
-                                    if (viewAspect > videoAspect) {
-                                        scaleY = (vw.toFloat() / 1280f * 720f) / vh.toFloat()
-                                    } else {
-                                        scaleX = (vh.toFloat() / 720f * 1280f) / vw.toFloat()
-                                    }
-                                    
-                                    // Scale down / Zoom out (0.70f scale factor) to make the bugdroid wider and show the entire body and hands
-                                    scaleX *= 0.70f
-                                    scaleY *= 0.70f
-                                    
-                                    matrix.setScale(scaleX, scaleY, vw / 2f, vh / 2f)
-                                    tv.setTransform(matrix)
-                                }
-                            }
-
-                            var currentSurface: android.view.Surface? = null
-
-                            surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
-                                override fun onSurfaceTextureAvailable(
-                                    surfaceTexture: android.graphics.SurfaceTexture,
-                                    width: Int,
-                                    height: Int
-                                ) {
-                                    val surface = android.view.Surface(surfaceTexture)
-                                    currentSurface = surface
-                                    exoPlayer?.setVideoSurface(surface)
-                                    adjustAspectRatio(this@apply)
-                                }
-
-                                override fun onSurfaceTextureSizeChanged(
-                                    surfaceTexture: android.graphics.SurfaceTexture,
-                                    width: Int,
-                                    height: Int
-                                ) {
-                                    adjustAspectRatio(this@apply)
-                                }
-
-                                override fun onSurfaceTextureDestroyed(
-                                    surfaceTexture: android.graphics.SurfaceTexture
-                                ): Boolean {
-                                    currentSurface?.let {
-                                        exoPlayer?.clearVideoSurface(it)
-                                        it.release()
-                                    }
-                                    currentSurface = null
-                                    return true
-                                }
-
-                                override fun onSurfaceTextureUpdated(
-                                    surfaceTexture: android.graphics.SurfaceTexture
-                                ) {}
-                            }
-
-                            if (isAvailable && surfaceTexture != null) {
-                                val surface = android.view.Surface(surfaceTexture)
-                                currentSurface = surface
-                                exoPlayer?.setVideoSurface(surface)
-                                adjustAspectRatio(this@apply)
-                            }
-                        }
-                    },
-                    update = { tv ->
-                        if (tv.isAvailable && tv.surfaceTexture != null) {
-                            val surface = android.view.Surface(tv.surfaceTexture)
-                            exoPlayer?.setVideoSurface(surface)
-                        }
-                    },
+                BugdroidPlayer(
+                    player = exoPlayer,
                     modifier = Modifier
                         .height(220.dp)
-                        .width(200.dp) // Wider view container to fit the waving arms
-                        .graphicsLayer {
-                            renderEffect = cachedVideoRenderEffect
-                        }
+                        .width(175.dp),
+                    scaleFactor = 0.70f
                 )
                 
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Thank you for using Intelligent Search.",
-                        fontSize = 18.sp,
+                        text = "Thank you for using\nIntelligent\u00A0Search.",
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        lineHeight = 22.sp
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
@@ -10176,102 +10190,12 @@ fun BackupRestoreScreen(
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                val shaderSrc = """
-                    uniform shader content;
-                    vec4 main(vec2 coords) {
-                        vec4 color = content.eval(coords);
-                        float maxVal = max(color.r, max(color.g, color.b));
-                        if (maxVal < 0.16) {
-                            return vec4(0.0, 0.0, 0.0, 0.0);
-                        }
-                        if (maxVal < 0.28) {
-                            float t = (maxVal - 0.16) / 0.12;
-                            return color * t;
-                        }
-                        return color;
-                    }
-                """.trimIndent()
-
-                val cachedVideoRenderEffect = remember(shaderSrc) {
-                    if (android.os.Build.VERSION.SDK_INT >= 33) {
-                        val shader = android.graphics.RuntimeShader(shaderSrc)
-                        val frameworkEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content")
-                        frameworkEffect.asComposeRenderEffect()
-                    } else null
-                }
-
-                androidx.compose.ui.viewinterop.AndroidView(
-                    factory = { ctx ->
-                        android.view.TextureView(ctx).apply {
-                            val adjustAspectRatio: (android.view.TextureView) -> Unit = { tv ->
-                                val vw = tv.width
-                                val vh = tv.height
-                                if (vw > 0 && vh > 0) {
-                                    val matrix = android.graphics.Matrix()
-                                    val videoAspect = 16f / 9f
-                                    val viewAspect = vw.toFloat() / vh.toFloat()
-                                    var scaleX = 1f
-                                    var scaleY = 1f
-                                    if (viewAspect > videoAspect) {
-                                        scaleY = (vw.toFloat() / (16f / 9f)) / vh.toFloat()
-                                    } else {
-                                        scaleX = (vh.toFloat() * (16f / 9f)) / vw.toFloat()
-                                    }
-
-                                    // Scale factor: 1.05f to make bugdroid significantly larger and prominent in the frame
-                                    scaleX *= 1.05f
-                                    scaleY *= 1.05f
-
-                                    matrix.setScale(scaleX, scaleY, vw / 2f, vh / 2f)
-                                    tv.setTransform(matrix)
-                                }
-                            }
-
-                            var currentSurface: android.view.Surface? = null
-
-                            surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
-                                override fun onSurfaceTextureAvailable(
-                                    surfaceTexture: android.graphics.SurfaceTexture,
-                                    width: Int,
-                                    height: Int
-                                ) {
-                                    val surface = android.view.Surface(surfaceTexture)
-                                    currentSurface = surface
-                                    backupExoPlayer?.setVideoSurface(surface)
-                                    adjustAspectRatio(this@apply)
-                                }
-
-                                override fun onSurfaceTextureSizeChanged(
-                                    surfaceTexture: android.graphics.SurfaceTexture,
-                                    width: Int,
-                                    height: Int
-                                ) {
-                                    adjustAspectRatio(this@apply)
-                                }
-
-                                override fun onSurfaceTextureDestroyed(
-                                    surfaceTexture: android.graphics.SurfaceTexture
-                                ): Boolean {
-                                    currentSurface?.let {
-                                        backupExoPlayer?.clearVideoSurface(it)
-                                        it.release()
-                                    }
-                                    currentSurface = null
-                                    return true
-                                }
-
-                                override fun onSurfaceTextureUpdated(
-                                    surfaceTexture: android.graphics.SurfaceTexture
-                                ) {}
-                            }
-                        }
-                    },
+                BugdroidPlayer(
+                    player = backupExoPlayer,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(340.dp)
-                        .graphicsLayer {
-                            renderEffect = cachedVideoRenderEffect
-                        }
+                        .height(340.dp),
+                    scaleFactor = 1.05f
                 )
             }
         }

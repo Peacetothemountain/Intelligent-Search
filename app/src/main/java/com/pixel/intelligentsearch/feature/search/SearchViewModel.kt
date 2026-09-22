@@ -507,15 +507,17 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    private var lastClearedHistory: List<HistoryEntity> = emptyList()
+
     fun addSearchHistory(query: String) {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return
         _uiState.update { state ->
-            val updated = (listOf(trimmed) + state.recentSearches.filterNot { it.equals(trimmed, ignoreCase = true) }).take(10)
+            val updated = (listOf(trimmed) + state.recentSearches.filterNot { it.equals(trimmed, ignoreCase = true) }).take(25)
             state.copy(recentSearches = updated)
         }
         viewModelScope.launch(Dispatchers.IO) {
-            historyDao.recordAndPrune(trimmed, System.currentTimeMillis(), 10)
+            historyDao.recordAndPrune(trimmed, System.currentTimeMillis(), 25)
         }
     }
 
@@ -531,8 +533,33 @@ class SearchViewModel @Inject constructor(
     }
 
     fun clearSearchHistory() {
+        val currentSearches = _uiState.value.recentSearches
+        _uiState.update { state -> state.copy(recentSearches = emptyList()) }
         viewModelScope.launch(Dispatchers.IO) {
-            historyDao.clearHistory()
+            try {
+                val dbHistory = historyDao.getSearchHistory()
+                lastClearedHistory = if (dbHistory.isNotEmpty()) {
+                    dbHistory
+                } else {
+                    currentSearches.map { HistoryEntity(it, System.currentTimeMillis()) }
+                }
+                historyDao.clearHistory()
+            } catch (_: Exception) {
+                lastClearedHistory = currentSearches.map { HistoryEntity(it, System.currentTimeMillis()) }
+            }
+        }
+    }
+
+    fun undoClearSearchHistory() {
+        val toRestore = lastClearedHistory
+        if (toRestore.isNotEmpty()) {
+            _uiState.update { state -> state.copy(recentSearches = toRestore.map { it.query }) }
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    historyDao.insertSearches(toRestore)
+                    lastClearedHistory = emptyList()
+                } catch (_: Exception) {}
+            }
         }
     }
 

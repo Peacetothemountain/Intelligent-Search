@@ -983,7 +983,14 @@ private data class MemorySnapshot(
     val usedGb: Double,
     val availGb: Double,
     val pct: Int,
-    val processes: List<ProcessRamEntry>
+    val zRamUsedGb: Double,
+    val zRamTotalGb: Double,
+    val cachedGb: Double,
+    val isLowMem: Boolean,
+    val thresholdMb: Int,
+    val memPressure: String,
+    val processes: List<ProcessRamEntry>,
+    val physicalGb: Int = 12
 )
 
 @Composable
@@ -991,7 +998,12 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
     var batteryLevel by remember { mutableIntStateOf(0) }
     var batteryTemp by remember { mutableFloatStateOf(0f) }
     var batteryVolt by remember { mutableFloatStateOf(0f) }
+    var batteryWatts by remember { mutableFloatStateOf(0f) }
     var batteryHealth by remember { mutableStateOf("Good") }
+    var batteryHealthPct by remember { mutableIntStateOf(100) }
+    var batteryCycles by remember { mutableIntStateOf(-1) }
+    var batteryTechnology by remember { mutableStateOf("Li-ion") }
+    var thermalStatus by remember { mutableStateOf("Optimal") }
     var isCharging by remember { mutableStateOf(false) }
     var chargingRateStr by remember { mutableStateOf("Calculating...") }
     var timeEstimateStr by remember { mutableStateOf("Calculating...") }
@@ -1000,6 +1012,13 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
     var usedRamGb by remember { mutableStateOf("0.0") }
     var usedRamPercent by remember { mutableIntStateOf(0) }
     var availableRamGb by remember { mutableStateOf("0.0") }
+    var physicalRamGb by remember { mutableIntStateOf(12) }
+    var zRamUsedGb by remember { mutableStateOf("0.0") }
+    var zRamTotalGb by remember { mutableStateOf("0.0") }
+    var cachedRamGb by remember { mutableStateOf("0.0") }
+    var isLowMemory by remember { mutableStateOf(false) }
+    var memoryPressure by remember { mutableStateOf("Optimal") }
+    var lmkThresholdMb by remember { mutableIntStateOf(0) }
     var topProcesses by remember { mutableStateOf<List<ProcessRamEntry>>(emptyList()) }
 
     val actMgr = remember(context) { context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager }
@@ -1035,12 +1054,84 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     else -> "Normal"
                 }
 
+                // Battery cycle count (Android 14+ / API 34+ property & sysfs fallback)
+                var cycles = -1
+                if (android.os.Build.VERSION.SDK_INT >= 34) {
+                    try {
+                        cycles = batteryStatus?.getIntExtra("android.os.extra.CYCLE_COUNT", -1) ?: -1
+                    } catch (_: Exception) {}
+                    if (cycles <= 0) {
+                        try {
+                            cycles = bm?.getIntProperty(7 /* BATTERY_PROPERTY_CYCLE_COUNT */) ?: -1
+                        } catch (_: Exception) {}
+                    }
+                }
+                if (cycles <= 0) {
+                    val cycleFiles = listOf(
+                        "/sys/class/power_supply/battery/cycle_count",
+                        "/sys/class/power_supply/maxfg/cycle_count",
+                        "/sys/class/power_supply/bms/battery_cycle"
+                    )
+                    for (cf in cycleFiles) {
+                        try {
+                            val f = java.io.File(cf)
+                            if (f.exists() && f.canRead()) {
+                                val parsed = f.readText().trim().toIntOrNull()
+                                if (parsed != null && parsed >= 0) {
+                                    cycles = parsed
+                                    break
+                                }
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+                batteryCycles = cycles
+
+                // Technology / Chemistry
+                batteryTechnology = batteryStatus?.getStringExtra(android.os.BatteryManager.EXTRA_TECHNOLOGY)?.takeIf { it.isNotBlank() } ?: "Li-ion"
+
+                // Thermals
+                thermalStatus = when {
+                    batteryTemp < 20f -> "Cool"
+                    batteryTemp <= 35f -> "Optimal"
+                    batteryTemp <= 41f -> "Warm"
+                    else -> "Overheat"
+                }
+
+                // Health Wear / State of Health (SoH %)
+                var healthPct = -1
+                val chargeFullPaths = listOf(
+                    "/sys/class/power_supply/battery/charge_full" to "/sys/class/power_supply/battery/charge_full_design",
+                    "/sys/class/power_supply/maxfg/charge_full" to "/sys/class/power_supply/maxfg/charge_full_design"
+                )
+                for ((fullPath, designPath) in chargeFullPaths) {
+                    try {
+                        val fFull = java.io.File(fullPath)
+                        val fDesign = java.io.File(designPath)
+                        if (fFull.exists() && fDesign.exists()) {
+                            val fullVal = fFull.readText().trim().toDoubleOrNull() ?: 0.0
+                            val designVal = fDesign.readText().trim().toDoubleOrNull() ?: 0.0
+                            if (fullVal > 1000.0 && designVal > 1000.0) {
+                                healthPct = ((fullVal / designVal) * 100).toInt().coerceIn(30, 100)
+                                break
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+                if (healthPct <= 0 && cycles > 0) {
+                    healthPct = (100 - (cycles * 0.04f)).toInt().coerceIn(50, 100)
+                } else if (healthPct <= 0) {
+                    healthPct = 100
+                }
+                batteryHealthPct = healthPct
+
                 val rawCurrentNow = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: 0
                 val rawCurrentAvg = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) ?: 0
                 val effectiveRaw = if (rawCurrentNow != 0) rawCurrentNow else rawCurrentAvg
                 val absCurrent = kotlin.math.abs(effectiveRaw)
                 val currentMa = if (absCurrent > 10_000) (absCurrent / 1000f) else absCurrent.toFloat()
                 val watts = if (batteryVolt > 0f && currentMa > 0f) (batteryVolt * currentMa) / 1000f else 0f
+                batteryWatts = watts
 
                 val chargeCounter = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) ?: -1
                 val totalCapacityMah = if (batteryLevel > 5 && chargeCounter > 0) {
@@ -1119,17 +1210,37 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     var totalBytes = memInfo.totalMem
                     var availBytes = memInfo.availMem
 
+                    var procTotalKb = -1L
+                    var procAvailKb = -1L
+                    var procBuffersKb = 0L
+                    var procCachedKb = 0L
+                    var procSwapTotalKb = 0L
+                    var procSwapFreeKb = 0L
+
                     try {
                         val reader = java.io.BufferedReader(java.io.FileReader("/proc/meminfo"))
                         var line: String?
-                        var procTotalKb = -1L
-                        var procAvailKb = -1L
                         while (reader.readLine().also { line = it } != null) {
                             val l = line ?: break
-                            if (l.startsWith("MemTotal:")) {
-                                procTotalKb = l.substringAfter("MemTotal:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: -1L
-                            } else if (l.startsWith("MemAvailable:")) {
-                                procAvailKb = l.substringAfter("MemAvailable:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: -1L
+                            when {
+                                l.startsWith("MemTotal:") -> {
+                                    procTotalKb = l.substringAfter("MemTotal:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: -1L
+                                }
+                                l.startsWith("MemAvailable:") -> {
+                                    procAvailKb = l.substringAfter("MemAvailable:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: -1L
+                                }
+                                l.startsWith("Buffers:") -> {
+                                    procBuffersKb = l.substringAfter("Buffers:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
+                                l.startsWith("Cached:") -> {
+                                    procCachedKb = l.substringAfter("Cached:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
+                                l.startsWith("SwapTotal:") -> {
+                                    procSwapTotalKb = l.substringAfter("SwapTotal:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
+                                l.startsWith("SwapFree:") -> {
+                                    procSwapFreeKb = l.substringAfter("SwapFree:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
                             }
                         }
                         reader.close()
@@ -1141,8 +1252,32 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     val calculatedPct = if (totalBytes > 0) ((usedBytes.toDouble() / totalBytes) * 100).toInt().coerceIn(0, 100) else 0
 
                     val totGb = totalBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
+                    val physGb = when {
+                        totGb <= 4.5 -> 4
+                        totGb <= 6.5 -> 6
+                        totGb <= 8.5 -> 8
+                        totGb <= 12.8 -> 12
+                        totGb <= 16.8 -> 16
+                        else -> 24
+                    }
                     val usdGb = usedBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
                     val avlGb = availBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
+
+                    val swapUsedKb = (procSwapTotalKb - procSwapFreeKb).coerceAtLeast(0L)
+                    val zRamUsedGb = swapUsedKb.toDouble() / (1024.0 * 1024.0)
+                    val zRamTotGb = procSwapTotalKb.toDouble() / (1024.0 * 1024.0)
+                    val cacheGb = (procBuffersKb + procCachedKb).toDouble() / (1024.0 * 1024.0)
+
+                    val isLow = memInfo.lowMemory
+                    val threshMb = (memInfo.threshold / (1024L * 1024L)).toInt()
+
+                    val freePct = if (totalBytes > 0) ((availBytes.toDouble() / totalBytes) * 100).toInt() else 30
+                    val pressure = when {
+                        isLow || freePct < 15 -> "Critical"
+                        freePct < 25 -> "High Load"
+                        freePct < 40 -> "Moderate"
+                        else -> "Optimal"
+                    }
 
                     val pm = context.packageManager
                     val now = System.currentTimeMillis()
@@ -1290,13 +1425,33 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         .sortedByDescending { it.ramMb }
                         .take(4)
 
-                    MemorySnapshot(totGb, usdGb, avlGb, calculatedPct, topProcessesList)
+                    MemorySnapshot(
+                        totalGb = totGb,
+                        usedGb = usdGb,
+                        availGb = avlGb,
+                        pct = calculatedPct,
+                        zRamUsedGb = zRamUsedGb,
+                        zRamTotalGb = zRamTotGb,
+                        cachedGb = cacheGb,
+                        isLowMem = isLow,
+                        thresholdMb = threshMb,
+                        memPressure = pressure,
+                        processes = topProcessesList,
+                        physicalGb = physGb
+                    )
                 }
 
                 totalRamGb = String.format(java.util.Locale.US, "%.1f", snapshot.totalGb)
                 usedRamGb = String.format(java.util.Locale.US, "%.1f", snapshot.usedGb)
                 usedRamPercent = snapshot.pct
                 availableRamGb = String.format(java.util.Locale.US, "%.1f", snapshot.availGb)
+                physicalRamGb = snapshot.physicalGb
+                zRamUsedGb = String.format(java.util.Locale.US, "%.1f", snapshot.zRamUsedGb)
+                zRamTotalGb = String.format(java.util.Locale.US, "%.1f", snapshot.zRamTotalGb)
+                cachedRamGb = String.format(java.util.Locale.US, "%.1f", snapshot.cachedGb)
+                isLowMemory = snapshot.isLowMem
+                memoryPressure = snapshot.memPressure
+                lmkThresholdMb = snapshot.thresholdMb
                 topProcesses = snapshot.processes
             } catch (_: Exception) {}
 
@@ -1359,17 +1514,36 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = batteryHealth,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
+                        if (batteryHealthPct > 0) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                            ) {
+                                Text(
+                                    text = "$batteryHealthPct% Health",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = batteryHealth,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
                     }
                 }
 
@@ -1439,11 +1613,124 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             maxLines = 1
                         )
                         Text(
-                            text = "${String.format(java.util.Locale.US, "%.1f", batteryTemp)} °C  •  ${String.format(java.util.Locale.US, "%.2f", batteryVolt)} V",
+                            text = "${String.format(java.util.Locale.US, "%.1f", batteryTemp)} °C / ${String.format(java.util.Locale.US, "%.0f", batteryTemp * 1.8f + 32f)} °F ($thermalStatus)  •  ${String.format(java.util.Locale.US, "%.2f", batteryVolt)} V",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
                         )
+                    }
+                }
+
+                // Diagnostic Metric Chips for Battery
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val chipBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+
+                    // Cycle count chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Cycles",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = if (batteryCycles >= 0) "$batteryCycles" else "N/A",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // Live Power chip (Watts)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Power",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${String.format(java.util.Locale.US, "%.1f", batteryWatts)}W",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // Thermal chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Thermals",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = thermalStatus,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = when (thermalStatus) {
+                                    "Overheat" -> MaterialTheme.colorScheme.error
+                                    "Warm" -> MaterialTheme.colorScheme.tertiary
+                                    else -> MaterialTheme.colorScheme.primary
+                                }
+                            )
+                        }
+                    }
+
+                    // Chemistry chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Type",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = batteryTechnology,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }
@@ -1484,12 +1771,35 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             color = MaterialTheme.colorScheme.secondary
                         )
                     }
-                    Text(
-                        text = "${usedRamGb}G / ${totalRamGb}G (${usedRamPercent}%)",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val pressureColor = when (memoryPressure) {
+                            "Critical" -> MaterialTheme.colorScheme.error
+                            "High Load" -> MaterialTheme.colorScheme.errorContainer
+                            "Moderate" -> MaterialTheme.colorScheme.tertiary
+                            else -> MaterialTheme.colorScheme.secondary
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = pressureColor.copy(alpha = 0.2f)
+                        ) {
+                            Text(
+                                text = memoryPressure,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = pressureColor,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Text(
+                            text = "${usedRamGb}G / ${totalRamGb}G (${physicalRamGb}G LPDDR5X)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
                 }
 
                 val materialAppColors = listOf(
@@ -1785,6 +2095,115 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         }
                     }
                 }
+
+                // Diagnostic Metric Chips for RAM Breakdown
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val chipBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+
+                    // zRAM Swap Chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "zRAM Swap",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${zRamUsedGb}G / ${zRamTotalGb}G",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // Cache & Buffers Chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Cache/Buffers",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${cachedRamGb}G",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // Available RAM Chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Available",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${availableRamGb}G",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // LMK Kill Floor Chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "LMK Kill Floor",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${lmkThresholdMb}MB",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -1837,6 +2256,7 @@ fun MainSettingsScreen(
             val hardwareInfo = remember(hardwareLevel) {
                 com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detectSecurityHardware(context, hardwareLevel)
             }
+            val view = androidx.compose.ui.platform.LocalView.current
 
             AlertDialog(
                 onDismissRequest = { showInfoDialog = false },
@@ -1885,13 +2305,12 @@ fun MainSettingsScreen(
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Text(
-                                        "Check Android Default Apps. Change Search Engine App to: Intelligent Search",
+                                        "As of Android 17 QPR2 user is able to change Default Search Engine App. Please check settings to apply Intelligent Search as the default search engine. This will natively set Intelligent Search as the home search bar widget.",
                                         style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        "If you are a Google Pixel user who uses stock Pixel Launcher and would like to set Intelligent Search as your default Pixel Launcher search bar widget, use the following ADB Command:",
+                                        "If you're running and older version of Android, you will still need to use adb shell settings put secure selected_search_engine com.pixel.intelligentsearch",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
@@ -1909,7 +2328,7 @@ fun MainSettingsScreen(
                                         )
                                     }
                                     Text(
-                                        "*Please be advised: Using adb shell settings put secure selected_search_engine com.pixel.intelligentsearch on Pixel Launcher will cause Sports and Finance options on Google At A Glance to not function.",
+                                        "*Please be advised. Using the default search engine selector within Android 17 QPR2 and newer will not effect At A Glance Sports and Finances options, however using the adb shell cmd will still block Sports and Finance options.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -2007,13 +2426,43 @@ fun MainSettingsScreen(
                 confirmButton = {
                     when (pagerState.currentPage) {
                         0 -> {
-                            TextButton(onClick = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                val clip = android.content.ClipData.newPlainText("ADB Command", "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch")
-                                clipboard?.setPrimaryClip(clip)
-                                Toast.makeText(context, "ADB command copied to clipboard", Toast.LENGTH_SHORT).show()
-                            }) {
-                                Text("Copy Command")
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(onClick = {
+                                    coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                }) {
+                                    Text("Security Info")
+                                }
+                                TextButton(onClick = {
+                                    try {
+                                        val intent = Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {
+                                        try {
+                                            val intent = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                            context.startActivity(intent)
+                                        } catch (_: Exception) {
+                                            Toast.makeText(context, "Unable to open Settings", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }) {
+                                    Text("Default Apps")
+                                }
+                                TextButton(onClick = {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                    val clip = android.content.ClipData.newPlainText("ADB Command", "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch")
+                                    clipboard?.setPrimaryClip(clip)
+                                    com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click(view)
+                                    Toast.makeText(context, "ADB command copied to clipboard", Toast.LENGTH_SHORT).show()
+                                }) {
+                                    Text("Copy Command")
+                                }
                             }
                         }
                         1 -> {
@@ -2033,17 +2482,22 @@ fun MainSettingsScreen(
                 dismissButton = {
                     when (pagerState.currentPage) {
                         0 -> {
+                            TextButton(onClick = { showInfoDialog = false }) {
+                                Text("Close")
+                            }
+                        }
+                        1 -> {
                             TextButton(onClick = {
-                                coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                coroutineScope.launch { pagerState.animateScrollToPage(0) }
                             }) {
-                                Text("Security Info")
+                                Text("Developer Note")
                             }
                         }
                         else -> {
                             TextButton(onClick = {
-                                coroutineScope.launch { pagerState.animateScrollToPage(0) }
+                                coroutineScope.launch { pagerState.animateScrollToPage(1) }
                             }) {
-                                Text("Back to Note")
+                                Text("Security Info")
                             }
                         }
                     }
@@ -2146,6 +2600,7 @@ fun MainSettingsScreen(
                     "Google" -> "View Your Chrome and Google History."
                     "Bing" -> "View Your Bing History."
                     "DuckDuckGo" -> "Open Your DuckDuckGo App History."
+                    "Tor Project", "Tor Browser" -> "Open Tor Browser."
                     else -> "View Your $searchEngine History."
                 }
                 SettingsRow(
@@ -2172,6 +2627,18 @@ fun MainSettingsScreen(
                                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                         }
                                     context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
+                            "Tor Project", "Tor Browser" -> {
+                                try {
+                                    val torIntent = context.packageManager.getLaunchIntentForPackage("org.torproject.torbrowser")
+                                        ?: context.packageManager.getLaunchIntentForPackage("org.torproject.torbrowser_alpha")
+                                        ?: Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.torproject.org")).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                    context.startActivity(torIntent.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
                                 } catch (e: Exception) {
                                     e.printStackTrace()
                                 }
@@ -2409,6 +2876,19 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                             subtitle = activeIconPackLabel,
                             icon = Icons.Outlined.Palette,
                             onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.CustomIcons) },
+                            showDivider = true
+                        )
+
+                        var vibrationEnabled by rememberBooleanPreference(prefs, "vibration_enabled", true)
+                        SettingsRowToggle(
+                            title = "Vibration",
+                            subtitle = "Haptic Vibration Across the Entire App.",
+                            icon = Icons.Outlined.Vibration,
+                            isChecked = vibrationEnabled,
+                            onCheckedChange = { 
+                                vibrationEnabled = it 
+                                com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).isHapticEnabled = it
+                            },
                             showDivider = true
                         )
 
@@ -3286,6 +3766,65 @@ fun BingOfficialAppIcon(modifier: Modifier = Modifier) {
 }
 
 @Composable
+fun TorOfficialAppIcon(modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val torDrawable = remember(context) {
+        runCatching {
+            context.packageManager.getApplicationIcon("org.torproject.torbrowser")
+        }.getOrNull() ?: runCatching {
+            context.packageManager.getApplicationIcon("org.torproject.torbrowser_alpha")
+        }.getOrNull()
+    }
+    if (torDrawable != null) {
+        val bitmap = remember(torDrawable) {
+            runCatching { torDrawable.toBitmap(width = 96, height = 96).asImageBitmap() }.getOrNull()
+        }
+        if (bitmap != null) {
+            Image(bitmap = bitmap, contentDescription = "Tor Project", modifier = modifier.clip(RoundedCornerShape(6.dp)))
+            return
+        }
+    }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xFF7D4698)),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize().padding(3.dp)) {
+            val w = size.width
+            val h = size.height
+            val cx = w * 0.5f
+            val cy = h * 0.55f
+
+            val stemPath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(cx - w * 0.08f, cy - h * 0.35f)
+                cubicTo(cx - w * 0.04f, cy - h * 0.48f, cx + w * 0.04f, cy - h * 0.48f, cx + w * 0.08f, cy - h * 0.35f)
+                close()
+            }
+            drawPath(stemPath, Color(0xFFC594D8))
+
+            drawCircle(
+                color = Color.White.copy(alpha = 0.95f),
+                radius = w * 0.34f,
+                center = androidx.compose.ui.geometry.Offset(cx, cy),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = w * 0.07f)
+            )
+            drawCircle(
+                color = Color.White.copy(alpha = 0.85f),
+                radius = w * 0.22f,
+                center = androidx.compose.ui.geometry.Offset(cx, cy),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = w * 0.06f)
+            )
+            drawCircle(
+                color = Color.White,
+                radius = w * 0.10f,
+                center = androidx.compose.ui.geometry.Offset(cx, cy)
+            )
+        }
+    }
+}
+
+@Composable
 fun CustomSearchAppIcon(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
@@ -3320,6 +3859,9 @@ fun SearchAppColorfulIcon(
         }
         normalized.equals("Bing", ignoreCase = true) -> {
             BingOfficialAppIcon(modifier = modifier)
+        }
+        normalized.contains("Tor", ignoreCase = true) -> {
+            TorOfficialAppIcon(modifier = modifier)
         }
         normalized.equals("Custom", ignoreCase = true) || normalized.isBlank() -> {
             CustomSearchAppIcon(modifier = modifier)
@@ -3739,14 +4281,36 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             SettingsCard {
+                val context = androidx.compose.ui.platform.LocalContext.current
                 var searchEngine by rememberStringPreference(prefs, "search.engine", "Google")
                 var customEngineName by rememberStringPreference(prefs, "custom_search_engine_name", "Custom")
                 val effectiveSearchEngineName = if (searchEngine == "Custom") customEngineName else searchEngine
+
+                val defaultBrowsers = listOf("Google", "DuckDuckGo", "Bing", "Tor Project")
+                val installedBrowsers = remember(context) {
+                    try {
+                        val browserIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com"))
+                        val resolveInfos = context.packageManager.queryIntentActivities(browserIntent, android.content.pm.PackageManager.MATCH_ALL)
+                        resolveInfos.mapNotNull { it.loadLabel(context.packageManager)?.toString() }
+                            .filterNot { label ->
+                                label.isBlank() ||
+                                label.equals("Intelligent Search", ignoreCase = true) ||
+                                defaultBrowsers.any { it.equals(label, ignoreCase = true) }
+                            }
+                            .distinct()
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                }
+                val searchEngineOptions = remember(installedBrowsers) {
+                    (defaultBrowsers + installedBrowsers + listOf("Custom")).distinct()
+                }
+
                 SettingsDropdownRow(
                     title = "Primary Search App",
                     subtitle = effectiveSearchEngineName,
                     icon = Icons.Outlined.Search,
-                    options = listOf("Google", "DuckDuckGo", "Bing", "Custom"),
+                    options = searchEngineOptions,
                     selectedOption = searchEngine,
                     onOptionSelected = { searchEngine = it },
                     showDivider = searchEngine != "Custom"
@@ -5029,19 +5593,6 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         } else {
                             smartClipboard = false
                         }
-                    },
-                    showDivider = true
-                )
-
-                var vibrationEnabled by rememberBooleanPreference(prefs, "vibration_enabled", true)
-                SettingsRowToggle(
-                    title = "Vibration",
-                    subtitle = "Haptic Vibration Across the Entire App.",
-                    icon = Icons.Outlined.Vibration,
-                    isChecked = vibrationEnabled,
-                    onCheckedChange = { 
-                        vibrationEnabled = it 
-                        com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).isHapticEnabled = it
                     },
                     showDivider = false
                 )

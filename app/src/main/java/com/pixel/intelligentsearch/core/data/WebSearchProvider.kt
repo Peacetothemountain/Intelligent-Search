@@ -31,7 +31,7 @@ object WebSearchProvider {
         val suggestions = mutableListOf<String>()
         val encodedQuery = URLEncoder.encode(trimmed, "UTF-8")
         val primaryUrl = when (engine) {
-            "DuckDuckGo" -> "https://duckduckgo.com/ac/?q=$encodedQuery&type=list"
+            "DuckDuckGo", "Tor Project", "Tor Browser" -> "https://duckduckgo.com/ac/?q=$encodedQuery&type=list"
             "Bing" -> "https://api.bing.com/osjson.aspx?query=$encodedQuery"
             else -> "https://suggestqueries.google.com/complete/search?client=chrome&q=$encodedQuery"
         }

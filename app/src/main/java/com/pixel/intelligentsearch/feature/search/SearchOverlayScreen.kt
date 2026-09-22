@@ -58,6 +58,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -498,6 +499,15 @@ fun SearchOverlayScreen(
         }
     }
 
+    val distinctRecents = remember(uiState.recentSearches) { uiState.recentSearches.distinct() }
+    var showHistoryClearedSnackbar by remember { mutableStateOf(false) }
+    LaunchedEffect(showHistoryClearedSnackbar) {
+        if (showHistoryClearedSnackbar) {
+            delay(5000)
+            showHistoryClearedSnackbar = false
+        }
+    }
+
     LaunchedEffect(isOpening) {
         if (isOpening) {
             overlayProgressAnim.snapTo(1f)
@@ -651,6 +661,27 @@ fun SearchOverlayScreen(
                         putExtra(SearchManager.QUERY, searchQuery)
                         putExtra("query", searchQuery)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    }
+                }
+            }
+            "Tor Project", "Tor Browser" -> {
+                val torUrl = "https://duckduckgo.com/?q=$encodedQuery"
+                val pm = context.packageManager
+                val torIntent = Intent(Intent.ACTION_VIEW, Uri.parse(torUrl)).apply {
+                    setPackage("org.torproject.torbrowser")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
+                val torAlphaIntent = Intent(Intent.ACTION_VIEW, Uri.parse(torUrl)).apply {
+                    setPackage("org.torproject.torbrowser_alpha")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
+                if (pm.resolveActivity(torIntent, 0) != null) {
+                    torIntent
+                } else if (pm.resolveActivity(torAlphaIntent, 0) != null) {
+                    torAlphaIntent
+                } else {
+                    Intent(Intent.ACTION_VIEW, Uri.parse(torUrl)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     }
                 }
             }
@@ -1605,23 +1636,65 @@ fun SearchOverlayScreen(
                 }
             }
 
-            if (settingsState.searchPreviousSearches && uiState.query.isEmpty() && uiState.recentSearches.isNotEmpty()) {
-                val isSingleRecent = uiState.recentSearches.size == 1
+            if (settingsState.searchPreviousSearches && uiState.query.isEmpty() && distinctRecents.isNotEmpty()) {
+                val isSingleRecent = distinctRecents.size == 1
                 if (!isSingleRecent) {
                     item(key = "recent_label") {
-                        Text(
-                            text = "Recent",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp,
-                            fontFamily = GoogleSansFlex,
-                            fontWeight = FontWeight.SemiBold,
+                        Row(
                             modifier = Modifier
+                                .fillMaxWidth()
                                 .animateItem()
-                                .padding(horizontal = 24.dp, vertical = 6.dp)
-                        )
+                                .padding(horizontal = 24.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Recent",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 13.sp,
+                                fontFamily = GoogleSansFlex,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            if (distinctRecents.size > 7) {
+                                Surface(
+                                    onClick = {
+                                        sensoryEngine.deleteThud(view)
+                                        viewModel.clearSearchHistory()
+                                        showHistoryClearedSnackbar = true
+                                    },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                    ),
+                                    modifier = Modifier.height(26.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.DeleteSweep,
+                                            contentDescription = "Delete All",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = "Delete All",
+                                            color = MaterialTheme.colorScheme.error,
+                                            fontSize = 11.5.sp,
+                                            fontFamily = GoogleSansFlex,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-                items(uiState.recentSearches.distinct(), key = { query -> "recent_$query" }) { recentQuery ->
+                items(distinctRecents, key = { query -> "recent_$query" }) { recentQuery ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1936,6 +2009,14 @@ fun SearchOverlayScreen(
                                         instantAnswer.title
                                     } else "https://${instantAnswer.title}"
                                     val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
+                                        if (settingsState.searchEngine == "Tor Project" || settingsState.searchEngine == "Tor Browser") {
+                                            val pm = context.packageManager
+                                            if (pm.getLaunchIntentForPackage("org.torproject.torbrowser") != null) {
+                                                setPackage("org.torproject.torbrowser")
+                                            } else if (pm.getLaunchIntentForPackage("org.torproject.torbrowser_alpha") != null) {
+                                                setPackage("org.torproject.torbrowser_alpha")
+                                            }
+                                        }
                                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                                     }
                                     launchSafeIntent(context, urlIntent)
@@ -2331,6 +2412,60 @@ fun SearchOverlayScreen(
                             alpha = p
                             translationY = -(1f - p) * 24f
                         }) { searchBarContent() }
+                    }
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showHistoryClearedSnackbar,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = if (settingsState.bottomSearch) 86.dp else 24.dp, start = 16.dp, end = 16.dp)
+                .imePadding()
+                .zIndex(200f)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp,
+                border = BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Search History Cleared",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    TextButton(
+                        onClick = {
+                            sensoryEngine.click(view)
+                            viewModel.undoClearSearchHistory()
+                            showHistoryClearedSnackbar = false
+                        }
+                    ) {
+                        Text(
+                            text = "Undo",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }

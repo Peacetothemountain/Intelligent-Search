@@ -172,6 +172,7 @@ class GlobalSearchProvider : ContentProvider() {
         val providerName = when (engine) {
             "DuckDuckGo" -> "DuckDuckGo"
             "Bing" -> "Bing"
+            "Tor Project", "Tor Browser" -> "Tor"
             "Custom" -> if (customUrl.isNotBlank()) "Web" else "Web"
             else -> "Google"
         }
@@ -179,7 +180,7 @@ class GlobalSearchProvider : ContentProvider() {
         fun buildWebSearchUrl(q: String): String {
             val encoded = Uri.encode(q)
             return when (engine) {
-                "DuckDuckGo" -> "https://duckduckgo.com/?q=$encoded"
+                "DuckDuckGo", "Tor Project", "Tor Browser" -> "https://duckduckgo.com/?q=$encoded"
                 "Bing" -> "https://www.bing.com/search?q=$encoded"
                 "Custom" -> {
                     if (customUrl.isNotBlank()) {

@@ -743,9 +743,8 @@ fun SettingsScreensHub(
         LocalSettingsState provides settingsState
     ) {
         val navController = androidx.navigation.compose.rememberNavController()
-        var exoPlayer by remember { mutableStateOf<androidx.media3.exoplayer.ExoPlayer?>(null) }
-        LaunchedEffect(context) {
-            val player = runCatching {
+        val exoPlayer = remember(context) {
+            runCatching {
                 val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.bugdroid_video)
                 val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
                 val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
@@ -757,22 +756,22 @@ fun SettingsScreensHub(
                     playWhenReady = true
                 }
             }.getOrNull()
-            exoPlayer = player
         }
 
         val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
         androidx.compose.runtime.DisposableEffect(lifecycleOwner, exoPlayer) {
+            val player = exoPlayer
             val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
                 if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                    exoPlayer?.play()
+                    player?.play()
                 } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                    exoPlayer?.pause()
+                    player?.pause()
                 }
             }
             lifecycleOwner.lifecycle.addObserver(observer)
             onDispose {
                 lifecycleOwner.lifecycle.removeObserver(observer)
-                exoPlayer?.release()
+                player?.release()
             }
         }
 
@@ -2911,33 +2910,14 @@ fun MainSettingsScreen(
                     } else null
                 }
 
-                var isFirstFrameReady by remember { mutableStateOf(false) }
-                DisposableEffect(exoPlayer) {
-                    val player = exoPlayer
-                    if (player != null) {
-                        val listener = object : androidx.media3.common.Player.Listener {
-                            override fun onRenderedFirstFrame() {
-                                isFirstFrameReady = true
-                            }
-                        }
-                        player.addListener(listener)
-                        onDispose {
-                            player.removeListener(listener)
-                        }
-                    } else {
-                        onDispose {}
-                    }
+                LaunchedEffect(exoPlayer) {
+                    exoPlayer?.play()
                 }
-
-                val videoAlpha by androidx.compose.animation.core.animateFloatAsState(
-                    targetValue = if (isFirstFrameReady) 1f else 0f,
-                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 200, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
-                    label = "bugdroid_video_alpha"
-                )
 
                 androidx.compose.ui.viewinterop.AndroidView(
                     factory = { ctx ->
                         android.view.TextureView(ctx).apply {
+                            isOpaque = false
                             val adjustAspectRatio: (android.view.TextureView) -> Unit = { tv ->
                                 val vw = tv.width
                                 val vh = tv.height
@@ -2999,13 +2979,25 @@ fun MainSettingsScreen(
                                     surfaceTexture: android.graphics.SurfaceTexture
                                 ) {}
                             }
+
+                            if (isAvailable && surfaceTexture != null) {
+                                val surface = android.view.Surface(surfaceTexture)
+                                currentSurface = surface
+                                exoPlayer?.setVideoSurface(surface)
+                                adjustAspectRatio(this@apply)
+                            }
+                        }
+                    },
+                    update = { tv ->
+                        if (tv.isAvailable && tv.surfaceTexture != null) {
+                            val surface = android.view.Surface(tv.surfaceTexture)
+                            exoPlayer?.setVideoSurface(surface)
                         }
                     },
                     modifier = Modifier
                         .height(220.dp)
                         .width(200.dp) // Wider view container to fit the waving arms
                         .graphicsLayer {
-                            alpha = videoAlpha
                             renderEffect = cachedVideoRenderEffect
                         }
                 )

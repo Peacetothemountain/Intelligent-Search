@@ -1550,15 +1550,18 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(86.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val primaryColor = MaterialTheme.colorScheme.primary
                     val tertiaryColor = MaterialTheme.colorScheme.tertiary
                     Box(
                         modifier = Modifier
-                            .size(width = 72.dp, height = 62.dp)
+                            .weight(1.2f)
+                            .fillMaxHeight()
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                         contentAlignment = Alignment.Center
@@ -1590,35 +1593,43 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         }
                         Text(
                             text = "$batteryLevel%",
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
                     Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                        modifier = Modifier
+                            .weight(1.1f)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.SpaceEvenly
                     ) {
                         Text(
                             text = chargingRateStr,
                             style = MaterialTheme.typography.bodySmall,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Text(
                             text = timeEstimateStr,
                             style = MaterialTheme.typography.bodySmall,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Text(
                             text = "${String.format(java.util.Locale.US, "%.1f", batteryTemp)} °C / ${String.format(java.util.Locale.US, "%.0f", batteryTemp * 1.8f + 32f)} °F ($thermalStatus)  •  ${String.format(java.util.Locale.US, "%.2f", batteryVolt)} V",
                             style = MaterialTheme.typography.labelSmall,
+                            fontSize = 9.5.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
                 }

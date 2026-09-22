@@ -1477,7 +1477,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // --- TOP CARD: Battery Health ---
         Surface(
@@ -1489,8 +1489,8 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1746,8 +1746,8 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1812,7 +1812,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(136.dp),
+                        .height(122.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -2294,7 +2294,7 @@ fun MainSettingsScreen(
                         state = pagerState,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(490.dp)
+                            .height(365.dp)
                     ) { page ->
                         when (page) {
                             0 -> {

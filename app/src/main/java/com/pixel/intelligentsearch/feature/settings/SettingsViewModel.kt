@@ -40,6 +40,12 @@ class SettingsViewModel @Inject constructor(
             initialValue = settingsManager.getInitialSettings()
         )
 
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsManager.syncSharedPreferencesToDataStore()
+        }
+    }
+
     val bangsFlow: StateFlow<List<SearchBang>> = bangManager.bangsFlow
         .stateIn(
             scope = viewModelScope,

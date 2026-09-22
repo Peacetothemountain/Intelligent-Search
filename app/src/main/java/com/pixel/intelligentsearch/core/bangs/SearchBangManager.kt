@@ -135,12 +135,20 @@ class SearchBangManager @Inject constructor(
         private val PREFIX_BANG_PATTERN = Pattern.compile("^(![a-zA-Z0-9_-]+)\\s*(.*)$")
     }
 
+    @Volatile
+    private var cachedTriggerSymbol: String? = null
+
     fun getTriggerSymbol(): String {
+        val cached = cachedTriggerSymbol
+        if (cached != null) return cached
         val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-        return prefs.getString("web_shortcut_trigger_symbol", "!")?.ifBlank { "!" } ?: "!"
+        val symbol = prefs.getString("web_shortcut_trigger_symbol", "!")?.ifBlank { "!" } ?: "!"
+        cachedTriggerSymbol = symbol
+        return symbol
     }
 
     val bangsFlow: Flow<List<SearchBang>> = settingsManager.settingsFlow.map { settings ->
+        cachedTriggerSymbol = null
         val trigger = getTriggerSymbol()
         val customBangs = parseCustomBangs(settings.customBangsJson)
         val disabled = settings.disabledWebShortcuts
@@ -151,7 +159,9 @@ class SearchBangManager @Inject constructor(
                 bang
             }
         }
-        (builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase() !in disabled } + customBangs).distinctBy { it.displayPrefix }
+        val res = (builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase() !in disabled } + customBangs).distinctBy { it.displayPrefix }
+        cachedSyncBangs = res
+        res
     }
 
     @Volatile

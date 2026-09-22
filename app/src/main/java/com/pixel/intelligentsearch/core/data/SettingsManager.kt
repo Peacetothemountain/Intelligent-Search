@@ -147,64 +147,65 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         .map { preferences ->
             val isSystemDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
             val defaultTheme = if (isSystemDark) "Material Dark" else "Material Light"
+            val sp = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
             IntelligentSearchSettings(
-                theme = preferences[THEME] ?: defaultTheme,
-                searchApps = preferences[SEARCH_APPS] ?: true,
-                searchContacts = preferences[SEARCH_CONTACTS] ?: false,
-                searchFiles = preferences[SEARCH_FILES] ?: false,
-                searchWeb = preferences[SEARCH_WEB] ?: true,
-                searchCalculator = preferences[SEARCH_CALCULATOR] ?: true,
-                searchCalendar = preferences[SEARCH_CALENDAR] ?: true,
-                searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: true,
-                backgroundBlur = preferences[BACKGROUND_BLUR] ?: 50,
-                showWallpaper = preferences[SHOW_WALLPAPER] ?: context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE).let { it.getBoolean("search.background.show.wall", it.getBoolean("show.wallpaper", true)) },
-                backgroundTransparency = preferences[BACKGROUND_TRANSPARENCY] ?: 50,
-                pillOpacity = preferences[PILL_OPACITY] ?: 50,
-                searchEngine = preferences[SEARCH_ENGINE] ?: "Google",
-                customSearchEngineUrl = preferences[CUSTOM_SEARCH_ENGINE_URL] ?: "",
-                filesHiddenFiles = preferences[FILES_HIDDEN_FILES] ?: false,
-                filesThumbnails = preferences[FILES_THUMBNAILS] ?: true,
-                appAnimations = preferences[APP_ANIMATIONS] ?: true,
-                bottomSearch = preferences[BOTTOM_SEARCH] ?: true,
-                bottomSearchResult = preferences[BOTTOM_SEARCH_RESULT] ?: true,
-                tutorialCompleted = preferences[TUTORIAL_COMPLETED] ?: false,
-                forceTutorial = preferences[FORCE_TUTORIAL] ?: false,
-                tutorialStep = preferences[TUTORIAL_STEP] ?: 0,
-                gIconEnabled = preferences[G_ICON_ENABLED] ?: true,
-                widgetShowVoice = preferences[WIDGET_SHOW_VOICE] ?: true,
-                widgetShowGemini = preferences[WIDGET_SHOW_GEMINI] ?: true,
-                quickSearchYoutube = preferences[QUICK_SEARCH_YOUTUBE] ?: true,
-                quickSearchWikipedia = preferences[QUICK_SEARCH_WIKIPEDIA] ?: true,
-                quickSearchPlayStore = preferences[QUICK_SEARCH_PLAY_STORE] ?: true,
-                quickSearchMaps = preferences[QUICK_SEARCH_MAPS] ?: true,
-                searchPills = preferences[SEARCH_PILLS] ?: "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files",
-                widgetThemeStyle = preferences[WIDGET_THEME_STYLE] ?: "System Default",
-                hiddenApps = preferences[HIDDEN_APPS] ?: emptySet(),
-                appQuickLaunch = preferences[APP_QUICK_LAUNCH] ?: false,
-                contactDirectCall = preferences[CONTACT_DIRECT_CALL] ?: false,
-                shortcutInline = preferences[SHORTCUT_INLINE] ?: true,
-                appFuzzySearch = preferences[APP_FUZZY_SEARCH] ?: true,
-                quickSearchHorizontal = preferences[QUICK_SEARCH_HORIZONTAL] ?: false,
-                webResultsCount = preferences[WEB_RESULTS_COUNT] ?: 5,
-                contactResultsCount = preferences[CONTACT_RESULTS_COUNT] ?: 5,
-                fileResultsCount = preferences[FILE_RESULTS_COUNT] ?: 5,
-                shortcutResultsCount = preferences[SHORTCUT_RESULTS_COUNT] ?: 6,
-                contextAwareQuickApps = preferences[CONTEXT_AWARE_QUICK_APPS] ?: false,
-                smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: false,
-                activeIconPack = preferences[ACTIVE_ICON_PACK] ?: "system_default",
-                customIconPills = preferences[CUSTOM_ICON_PILLS] ?: "",
-                neverShowIconPackWarning = preferences[NEVER_SHOW_ICON_PACK_WARNING] ?: false,
-                searchPreviousSearches = preferences[SEARCH_PREVIOUS_SEARCHES] ?: true,
-                customBangsJson = preferences[CUSTOM_BANGS_JSON] ?: "[]",
-                searchSectionsConfigJson = preferences[SEARCH_SECTIONS_CONFIG_JSON] ?: "",
-                adaptiveIconShape = preferences[ADAPTIVE_ICON_SHAPE] ?: "SYSTEM_DEFAULT",
-                dynamicIconMasking = preferences[DYNAMIC_ICON_MASKING] ?: true,
-                diagnosticsOverlayEnabled = preferences[DIAGNOSTICS_OVERLAY_ENABLED] ?: false,
-                searchOverlayEnabled = preferences[SEARCH_OVERLAY_ENABLED] ?: true,
-                matrixAnimationEnabled = preferences[MATRIX_ANIMATION_ENABLED] ?: true,
-                backToSearchOverlay = preferences[BACK_TO_SEARCH_OVERLAY] ?: true,
-                disabledWebShortcuts = preferences[DISABLED_WEB_SHORTCUTS] ?: (context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE).getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet()),
-                vibrationEnabled = preferences[VIBRATION] ?: true
+                theme = preferences[THEME] ?: sp.getString("night.mode", defaultTheme) ?: defaultTheme,
+                searchApps = preferences[SEARCH_APPS] ?: sp.getBoolean("search.apps", true),
+                searchContacts = preferences[SEARCH_CONTACTS] ?: sp.getBoolean("search.contacts", false),
+                searchFiles = preferences[SEARCH_FILES] ?: sp.getBoolean("search.files", false),
+                searchWeb = preferences[SEARCH_WEB] ?: sp.getBoolean("search.web", true),
+                searchCalculator = preferences[SEARCH_CALCULATOR] ?: sp.getBoolean("search.calculator", true),
+                searchCalendar = preferences[SEARCH_CALENDAR] ?: sp.getBoolean("search.calendar", true),
+                searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: sp.getBoolean("search.shortcuts", true),
+                backgroundBlur = preferences[BACKGROUND_BLUR] ?: sp.getInt("search.background.blur", sp.getInt("background.blur", 50)),
+                showWallpaper = preferences[SHOW_WALLPAPER] ?: sp.getBoolean("search.background.show.wall", sp.getBoolean("show.wallpaper", true)),
+                backgroundTransparency = preferences[BACKGROUND_TRANSPARENCY] ?: sp.getInt("search.background.transparency", sp.getInt("background.transparency", 50)),
+                pillOpacity = preferences[PILL_OPACITY] ?: sp.getInt("search.pill.opacity", sp.getInt("pill.opacity", 50)),
+                searchEngine = preferences[SEARCH_ENGINE] ?: sp.getString("search.engine", "Google") ?: "Google",
+                customSearchEngineUrl = preferences[CUSTOM_SEARCH_ENGINE_URL] ?: sp.getString("custom_search_engine_url", "") ?: "",
+                filesHiddenFiles = preferences[FILES_HIDDEN_FILES] ?: sp.getBoolean("search.files.hidden.files", false),
+                filesThumbnails = preferences[FILES_THUMBNAILS] ?: sp.getBoolean("search.files.thumbnails", true),
+                appAnimations = preferences[APP_ANIMATIONS] ?: sp.getBoolean("app_animations", true),
+                bottomSearch = preferences[BOTTOM_SEARCH] ?: sp.getBoolean("settings.bottom.search", true),
+                bottomSearchResult = preferences[BOTTOM_SEARCH_RESULT] ?: sp.getBoolean("settings.bottom.search.result", true),
+                tutorialCompleted = preferences[TUTORIAL_COMPLETED] ?: sp.getBoolean("tutorial_completed", false),
+                forceTutorial = preferences[FORCE_TUTORIAL] ?: sp.getBoolean("force_tutorial", false),
+                tutorialStep = preferences[TUTORIAL_STEP] ?: sp.getInt("tutorial_step", 0),
+                gIconEnabled = preferences[G_ICON_ENABLED] ?: sp.getBoolean("g_icon_enabled", true),
+                widgetShowVoice = preferences[WIDGET_SHOW_VOICE] ?: sp.getBoolean("widget_show_voice", true),
+                widgetShowGemini = preferences[WIDGET_SHOW_GEMINI] ?: sp.getBoolean("widget_show_gemini", true),
+                quickSearchYoutube = preferences[QUICK_SEARCH_YOUTUBE] ?: sp.getBoolean("quick_search_youtube", true),
+                quickSearchWikipedia = preferences[QUICK_SEARCH_WIKIPEDIA] ?: sp.getBoolean("quick_search_wikipedia", true),
+                quickSearchPlayStore = preferences[QUICK_SEARCH_PLAY_STORE] ?: sp.getBoolean("quick_search_play_store", true),
+                quickSearchMaps = preferences[QUICK_SEARCH_MAPS] ?: sp.getBoolean("quick_search_maps", true),
+                searchPills = preferences[SEARCH_PILLS] ?: sp.getString("search_pills", "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files") ?: "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files",
+                widgetThemeStyle = preferences[WIDGET_THEME_STYLE] ?: sp.getString("widget.theme.style", "System Default") ?: "System Default",
+                hiddenApps = preferences[HIDDEN_APPS] ?: (sp.getStringSet("hidden_apps", emptySet())?.toSet() ?: emptySet()),
+                appQuickLaunch = preferences[APP_QUICK_LAUNCH] ?: sp.getBoolean("app_quick_launch", false),
+                contactDirectCall = preferences[CONTACT_DIRECT_CALL] ?: sp.getBoolean("contact_direct_call", false),
+                shortcutInline = preferences[SHORTCUT_INLINE] ?: sp.getBoolean("shortcut.inline", true),
+                appFuzzySearch = preferences[APP_FUZZY_SEARCH] ?: sp.getBoolean("app.fuzzy.search", true),
+                quickSearchHorizontal = preferences[QUICK_SEARCH_HORIZONTAL] ?: sp.getBoolean("quick_search_horizontal", false),
+                webResultsCount = preferences[WEB_RESULTS_COUNT] ?: sp.getInt("web_results_count", 5),
+                contactResultsCount = preferences[CONTACT_RESULTS_COUNT] ?: sp.getInt("contact_results_count", 5),
+                fileResultsCount = preferences[FILE_RESULTS_COUNT] ?: sp.getInt("file_results_count", 5),
+                shortcutResultsCount = preferences[SHORTCUT_RESULTS_COUNT] ?: sp.getInt("shortcut_results_count", 6),
+                contextAwareQuickApps = preferences[CONTEXT_AWARE_QUICK_APPS] ?: sp.getBoolean("context_aware_quick_apps", false),
+                smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: sp.getBoolean("smart_clipboard_suggestions", false),
+                activeIconPack = preferences[ACTIVE_ICON_PACK] ?: sp.getString("active_icon_pack", "system_default") ?: "system_default",
+                customIconPills = preferences[CUSTOM_ICON_PILLS] ?: sp.getString("custom_icon_pills", "") ?: "",
+                neverShowIconPackWarning = preferences[NEVER_SHOW_ICON_PACK_WARNING] ?: sp.getBoolean("never_show_icon_pack_warning", false),
+                searchPreviousSearches = preferences[SEARCH_PREVIOUS_SEARCHES] ?: sp.getBoolean("search_previous_searches", true),
+                customBangsJson = preferences[CUSTOM_BANGS_JSON] ?: sp.getString("custom_bangs_json", "[]") ?: "[]",
+                searchSectionsConfigJson = preferences[SEARCH_SECTIONS_CONFIG_JSON] ?: sp.getString("search_sections_config_json", "") ?: "",
+                adaptiveIconShape = preferences[ADAPTIVE_ICON_SHAPE] ?: sp.getString("adaptive_icon_shape", "SYSTEM_DEFAULT") ?: "SYSTEM_DEFAULT",
+                dynamicIconMasking = preferences[DYNAMIC_ICON_MASKING] ?: sp.getBoolean("dynamic_icon_masking", true),
+                diagnosticsOverlayEnabled = preferences[DIAGNOSTICS_OVERLAY_ENABLED] ?: sp.getBoolean("diagnostics_overlay_enabled", false),
+                searchOverlayEnabled = preferences[SEARCH_OVERLAY_ENABLED] ?: sp.getBoolean("search_overlay_enabled", true),
+                matrixAnimationEnabled = preferences[MATRIX_ANIMATION_ENABLED] ?: sp.getBoolean("matrix_animation_enabled", true),
+                backToSearchOverlay = preferences[BACK_TO_SEARCH_OVERLAY] ?: sp.getBoolean("settings_back_to_search_overlay", true),
+                disabledWebShortcuts = preferences[DISABLED_WEB_SHORTCUTS] ?: (sp.getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet()),
+                vibrationEnabled = preferences[VIBRATION] ?: sp.getBoolean("vibration_enabled", true)
             )
         }
 
@@ -273,19 +274,123 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         )
     }
 
+    suspend fun syncSharedPreferencesToDataStore() {
+        val sp = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        context.dataStore.edit { preferences ->
+            if (!preferences.contains(THEME) && sp.contains("night.mode")) sp.getString("night.mode", null)?.let { preferences[THEME] = it }
+            if (!preferences.contains(SEARCH_APPS) && sp.contains("search.apps")) preferences[SEARCH_APPS] = sp.getBoolean("search.apps", true)
+            if (!preferences.contains(SEARCH_CONTACTS) && sp.contains("search.contacts")) preferences[SEARCH_CONTACTS] = sp.getBoolean("search.contacts", false)
+            if (!preferences.contains(SEARCH_FILES) && sp.contains("search.files")) preferences[SEARCH_FILES] = sp.getBoolean("search.files", false)
+            if (!preferences.contains(SEARCH_WEB) && sp.contains("search.web")) preferences[SEARCH_WEB] = sp.getBoolean("search.web", true)
+            if (!preferences.contains(SEARCH_CALCULATOR) && sp.contains("search.calculator")) preferences[SEARCH_CALCULATOR] = sp.getBoolean("search.calculator", true)
+            if (!preferences.contains(SEARCH_CALENDAR) && sp.contains("search.calendar")) preferences[SEARCH_CALENDAR] = sp.getBoolean("search.calendar", true)
+            if (!preferences.contains(SEARCH_SHORTCUTS) && sp.contains("search.shortcuts")) preferences[SEARCH_SHORTCUTS] = sp.getBoolean("search.shortcuts", true)
+            if (!preferences.contains(BACKGROUND_BLUR) && (sp.contains("search.background.blur") || sp.contains("background.blur"))) preferences[BACKGROUND_BLUR] = sp.getInt("search.background.blur", sp.getInt("background.blur", 50))
+            if (!preferences.contains(SHOW_WALLPAPER) && (sp.contains("search.background.show.wall") || sp.contains("show.wallpaper"))) preferences[SHOW_WALLPAPER] = sp.getBoolean("search.background.show.wall", sp.getBoolean("show.wallpaper", true))
+            if (!preferences.contains(BACKGROUND_TRANSPARENCY) && (sp.contains("search.background.transparency") || sp.contains("background.transparency"))) preferences[BACKGROUND_TRANSPARENCY] = sp.getInt("search.background.transparency", sp.getInt("background.transparency", 50))
+            if (!preferences.contains(PILL_OPACITY) && (sp.contains("search.pill.opacity") || sp.contains("pill.opacity"))) preferences[PILL_OPACITY] = sp.getInt("search.pill.opacity", sp.getInt("pill.opacity", 50))
+            if (!preferences.contains(SEARCH_ENGINE) && sp.contains("search.engine")) sp.getString("search.engine", null)?.let { preferences[SEARCH_ENGINE] = it }
+            if (!preferences.contains(CUSTOM_SEARCH_ENGINE_URL) && sp.contains("custom_search_engine_url")) sp.getString("custom_search_engine_url", null)?.let { preferences[CUSTOM_SEARCH_ENGINE_URL] = it }
+            if (!preferences.contains(FILES_HIDDEN_FILES) && sp.contains("search.files.hidden.files")) preferences[FILES_HIDDEN_FILES] = sp.getBoolean("search.files.hidden.files", false)
+            if (!preferences.contains(FILES_THUMBNAILS) && sp.contains("search.files.thumbnails")) preferences[FILES_THUMBNAILS] = sp.getBoolean("search.files.thumbnails", true)
+            if (!preferences.contains(APP_ANIMATIONS) && sp.contains("app_animations")) preferences[APP_ANIMATIONS] = sp.getBoolean("app_animations", true)
+            if (!preferences.contains(BOTTOM_SEARCH) && sp.contains("settings.bottom.search")) preferences[BOTTOM_SEARCH] = sp.getBoolean("settings.bottom.search", true)
+            if (!preferences.contains(BOTTOM_SEARCH_RESULT) && sp.contains("settings.bottom.search.result")) preferences[BOTTOM_SEARCH_RESULT] = sp.getBoolean("settings.bottom.search.result", true)
+            if (!preferences.contains(TUTORIAL_COMPLETED) && sp.contains("tutorial_completed")) preferences[TUTORIAL_COMPLETED] = sp.getBoolean("tutorial_completed", false)
+            if (!preferences.contains(FORCE_TUTORIAL) && sp.contains("force_tutorial")) preferences[FORCE_TUTORIAL] = sp.getBoolean("force_tutorial", false)
+            if (!preferences.contains(TUTORIAL_STEP) && sp.contains("tutorial_step")) preferences[TUTORIAL_STEP] = sp.getInt("tutorial_step", 0)
+            if (!preferences.contains(G_ICON_ENABLED) && sp.contains("g_icon_enabled")) preferences[G_ICON_ENABLED] = sp.getBoolean("g_icon_enabled", true)
+            if (!preferences.contains(WIDGET_SHOW_VOICE) && sp.contains("widget_show_voice")) preferences[WIDGET_SHOW_VOICE] = sp.getBoolean("widget_show_voice", true)
+            if (!preferences.contains(WIDGET_SHOW_GEMINI) && sp.contains("widget_show_gemini")) preferences[WIDGET_SHOW_GEMINI] = sp.getBoolean("widget_show_gemini", true)
+            if (!preferences.contains(QUICK_SEARCH_YOUTUBE) && sp.contains("quick_search_youtube")) preferences[QUICK_SEARCH_YOUTUBE] = sp.getBoolean("quick_search_youtube", true)
+            if (!preferences.contains(QUICK_SEARCH_WIKIPEDIA) && sp.contains("quick_search_wikipedia")) preferences[QUICK_SEARCH_WIKIPEDIA] = sp.getBoolean("quick_search_wikipedia", true)
+            if (!preferences.contains(QUICK_SEARCH_PLAY_STORE) && sp.contains("quick_search_play_store")) preferences[QUICK_SEARCH_PLAY_STORE] = sp.getBoolean("quick_search_play_store", true)
+            if (!preferences.contains(QUICK_SEARCH_MAPS) && sp.contains("quick_search_maps")) preferences[QUICK_SEARCH_MAPS] = sp.getBoolean("quick_search_maps", true)
+            if (!preferences.contains(SEARCH_PILLS) && sp.contains("search_pills")) sp.getString("search_pills", null)?.let { preferences[SEARCH_PILLS] = it }
+            if (!preferences.contains(WIDGET_THEME_STYLE) && sp.contains("widget.theme.style")) sp.getString("widget.theme.style", null)?.let { preferences[WIDGET_THEME_STYLE] = it }
+            if (!preferences.contains(HIDDEN_APPS) && sp.contains("hidden_apps")) sp.getStringSet("hidden_apps", null)?.let { preferences[HIDDEN_APPS] = it }
+            if (!preferences.contains(APP_QUICK_LAUNCH) && sp.contains("app_quick_launch")) preferences[APP_QUICK_LAUNCH] = sp.getBoolean("app_quick_launch", false)
+            if (!preferences.contains(CONTACT_DIRECT_CALL) && sp.contains("contact_direct_call")) preferences[CONTACT_DIRECT_CALL] = sp.getBoolean("contact_direct_call", false)
+            if (!preferences.contains(SHORTCUT_INLINE) && sp.contains("shortcut.inline")) preferences[SHORTCUT_INLINE] = sp.getBoolean("shortcut.inline", true)
+            if (!preferences.contains(APP_FUZZY_SEARCH) && sp.contains("app.fuzzy.search")) preferences[APP_FUZZY_SEARCH] = sp.getBoolean("app.fuzzy.search", true)
+            if (!preferences.contains(QUICK_SEARCH_HORIZONTAL) && sp.contains("quick_search_horizontal")) preferences[QUICK_SEARCH_HORIZONTAL] = sp.getBoolean("quick_search_horizontal", false)
+            if (!preferences.contains(WEB_RESULTS_COUNT) && sp.contains("web_results_count")) preferences[WEB_RESULTS_COUNT] = sp.getInt("web_results_count", 5)
+            if (!preferences.contains(CONTACT_RESULTS_COUNT) && sp.contains("contact_results_count")) preferences[CONTACT_RESULTS_COUNT] = sp.getInt("contact_results_count", 5)
+            if (!preferences.contains(FILE_RESULTS_COUNT) && sp.contains("file_results_count")) preferences[FILE_RESULTS_COUNT] = sp.getInt("file_results_count", 5)
+            if (!preferences.contains(SHORTCUT_RESULTS_COUNT) && sp.contains("shortcut_results_count")) preferences[SHORTCUT_RESULTS_COUNT] = sp.getInt("shortcut_results_count", 6)
+            if (!preferences.contains(CONTEXT_AWARE_QUICK_APPS) && sp.contains("context_aware_quick_apps")) preferences[CONTEXT_AWARE_QUICK_APPS] = sp.getBoolean("context_aware_quick_apps", false)
+            if (!preferences.contains(SMART_CLIPBOARD_SUGGESTIONS) && sp.contains("smart_clipboard_suggestions")) preferences[SMART_CLIPBOARD_SUGGESTIONS] = sp.getBoolean("smart_clipboard_suggestions", false)
+            if (!preferences.contains(ACTIVE_ICON_PACK) && sp.contains("active_icon_pack")) sp.getString("active_icon_pack", null)?.let { preferences[ACTIVE_ICON_PACK] = it }
+            if (!preferences.contains(CUSTOM_ICON_PILLS) && sp.contains("custom_icon_pills")) sp.getString("custom_icon_pills", null)?.let { preferences[CUSTOM_ICON_PILLS] = it }
+            if (!preferences.contains(NEVER_SHOW_ICON_PACK_WARNING) && sp.contains("never_show_icon_pack_warning")) preferences[NEVER_SHOW_ICON_PACK_WARNING] = sp.getBoolean("never_show_icon_pack_warning", false)
+            if (!preferences.contains(SEARCH_PREVIOUS_SEARCHES) && sp.contains("search_previous_searches")) preferences[SEARCH_PREVIOUS_SEARCHES] = sp.getBoolean("search_previous_searches", true)
+            if (!preferences.contains(CUSTOM_BANGS_JSON) && sp.contains("custom_bangs_json")) sp.getString("custom_bangs_json", null)?.let { preferences[CUSTOM_BANGS_JSON] = it }
+            if (!preferences.contains(SEARCH_SECTIONS_CONFIG_JSON) && sp.contains("search_sections_config_json")) sp.getString("search_sections_config_json", null)?.let { preferences[SEARCH_SECTIONS_CONFIG_JSON] = it }
+            if (!preferences.contains(ADAPTIVE_ICON_SHAPE) && sp.contains("adaptive_icon_shape")) sp.getString("adaptive_icon_shape", null)?.let { preferences[ADAPTIVE_ICON_SHAPE] = it }
+            if (!preferences.contains(DYNAMIC_ICON_MASKING) && sp.contains("dynamic_icon_masking")) preferences[DYNAMIC_ICON_MASKING] = sp.getBoolean("dynamic_icon_masking", true)
+            if (!preferences.contains(DIAGNOSTICS_OVERLAY_ENABLED) && sp.contains("diagnostics_overlay_enabled")) preferences[DIAGNOSTICS_OVERLAY_ENABLED] = sp.getBoolean("diagnostics_overlay_enabled", false)
+            if (!preferences.contains(SEARCH_OVERLAY_ENABLED) && sp.contains("search_overlay_enabled")) preferences[SEARCH_OVERLAY_ENABLED] = sp.getBoolean("search_overlay_enabled", true)
+            if (!preferences.contains(MATRIX_ANIMATION_ENABLED) && sp.contains("matrix_animation_enabled")) preferences[MATRIX_ANIMATION_ENABLED] = sp.getBoolean("matrix_animation_enabled", true)
+            if (!preferences.contains(BACK_TO_SEARCH_OVERLAY) && sp.contains("settings_back_to_search_overlay")) preferences[BACK_TO_SEARCH_OVERLAY] = sp.getBoolean("settings_back_to_search_overlay", true)
+            if (!preferences.contains(DISABLED_WEB_SHORTCUTS) && sp.contains("disabled_web_shortcuts")) sp.getStringSet("disabled_web_shortcuts", null)?.let { preferences[DISABLED_WEB_SHORTCUTS] = it }
+            if (!preferences.contains(VIBRATION) && sp.contains("vibration_enabled")) preferences[VIBRATION] = sp.getBoolean("vibration_enabled", true)
+        }
+    }
+
     suspend fun <T> updateSetting(key: Preferences.Key<T>, value: T) {
         val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
         val editor = prefs.edit()
+        
+        val legacyKey = when (key.name) {
+            "search.apps" -> "search_apps"
+            "search.contacts" -> "search_contacts"
+            "search.files" -> "search_files"
+            "search.web" -> "search_web"
+            "search.calculator" -> "search_calculator"
+            "search.calendar" -> "search_calendar"
+            "search.shortcuts" -> "search_shortcuts"
+            "search.background.show.wall" -> "show_wallpaper"
+            "search.background.blur" -> "background.blur"
+            "search.background.transparency" -> "background.transparency"
+            "search.pill.opacity" -> "pill.opacity"
+            "search.files.hidden.files" -> "search_files_hidden_files"
+            "search.files.thumbnails" -> "search_files_thumbnails"
+            "settings.bottom.search" -> "bottom_search"
+            "settings.bottom.search.result" -> "bottom_search_result"
+            "shortcut.inline" -> "shortcut_inline"
+            "app.fuzzy.search" -> "app_fuzzy_search"
+            "quick_search_horizontal" -> "quick.search.horizontal"
+            "widget.theme.style" -> "widget_theme_style"
+            "night.mode" -> "theme"
+            else -> null
+        }
+
         when (value) {
-            is Boolean -> editor.putBoolean(key.name, value)
-            is Int -> editor.putInt(key.name, value)
-            is Long -> editor.putLong(key.name, value)
-            is Float -> editor.putFloat(key.name, value)
-            is String -> editor.putString(key.name, value)
+            is Boolean -> {
+                editor.putBoolean(key.name, value)
+                if (legacyKey != null) editor.putBoolean(legacyKey, value)
+            }
+            is Int -> {
+                editor.putInt(key.name, value)
+                if (legacyKey != null) editor.putInt(legacyKey, value)
+            }
+            is Long -> {
+                editor.putLong(key.name, value)
+                if (legacyKey != null) editor.putLong(legacyKey, value)
+            }
+            is Float -> {
+                editor.putFloat(key.name, value)
+                if (legacyKey != null) editor.putFloat(legacyKey, value)
+            }
+            is String -> {
+                editor.putString(key.name, value)
+                if (legacyKey != null) editor.putString(legacyKey, value)
+            }
             is Set<*> -> {
                 @Suppress("UNCHECKED_CAST")
                 val stringSet = value as? Set<String> ?: emptySet()
                 editor.putStringSet(key.name, HashSet(stringSet))
+                if (legacyKey != null) editor.putStringSet(legacyKey, HashSet(stringSet))
             }
         }
         editor.apply()

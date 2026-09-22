@@ -340,42 +340,49 @@ fun rememberBooleanPreference(
         else -> null
     }
 
-    val currentValue = when (key) {
-        "search.apps" -> settingsState?.searchApps ?: prefs.getBoolean(key, defaultValue)
-        "search.contacts" -> settingsState?.searchContacts ?: prefs.getBoolean(key, defaultValue)
-        "search.files" -> settingsState?.searchFiles ?: prefs.getBoolean(key, defaultValue)
-        "search.web" -> settingsState?.searchWeb ?: prefs.getBoolean(key, defaultValue)
-        "search.calculator" -> settingsState?.searchCalculator ?: prefs.getBoolean(key, defaultValue)
-        "search.calendar" -> settingsState?.searchCalendar ?: prefs.getBoolean(key, defaultValue)
-        "search.shortcuts" -> settingsState?.searchShortcuts ?: prefs.getBoolean(key, defaultValue)
-        "search.background.show.wall" -> settingsState?.showWallpaper ?: prefs.getBoolean(key, defaultValue)
-        "app_animations" -> settingsState?.appAnimations ?: prefs.getBoolean(key, defaultValue)
-        "settings.bottom.search" -> settingsState?.bottomSearch ?: prefs.getBoolean(key, true)
-        "settings.bottom.search.result" -> settingsState?.bottomSearchResult ?: prefs.getBoolean(key, true)
-        "g_icon_enabled" -> settingsState?.gIconEnabled ?: prefs.getBoolean(key, defaultValue)
-        "widget_show_voice" -> settingsState?.widgetShowVoice ?: prefs.getBoolean(key, defaultValue)
-        "widget_show_gemini" -> settingsState?.widgetShowGemini ?: prefs.getBoolean(key, defaultValue)
-        "quick_search_youtube" -> settingsState?.quickSearchYoutube ?: prefs.getBoolean(key, defaultValue)
-        "quick_search_wikipedia" -> settingsState?.quickSearchWikipedia ?: prefs.getBoolean(key, defaultValue)
-        "quick_search_play_store" -> settingsState?.quickSearchPlayStore ?: prefs.getBoolean(key, defaultValue)
-        "quick_search_maps" -> settingsState?.quickSearchMaps ?: prefs.getBoolean(key, defaultValue)
-        "app_quick_launch" -> settingsState?.appQuickLaunch ?: prefs.getBoolean(key, defaultValue)
-        "contact_direct_call" -> settingsState?.contactDirectCall ?: prefs.getBoolean(key, defaultValue)
-        "shortcut.inline" -> settingsState?.shortcutInline ?: prefs.getBoolean(key, defaultValue)
-        "app.fuzzy.search" -> settingsState?.appFuzzySearch ?: prefs.getBoolean(key, defaultValue)
-        "quick.search.horizontal" -> settingsState?.quickSearchHorizontal ?: prefs.getBoolean(key, defaultValue)
-        "search.files.hidden.files" -> settingsState?.filesHiddenFiles ?: prefs.getBoolean(key, defaultValue)
-        "search.files.thumbnails" -> settingsState?.filesThumbnails ?: prefs.getBoolean(key, defaultValue)
-        "tutorial_completed" -> settingsState?.tutorialCompleted ?: prefs.getBoolean(key, defaultValue)
-        "force_tutorial" -> settingsState?.forceTutorial ?: prefs.getBoolean(key, defaultValue)
-        "context_aware_quick_apps" -> settingsState?.contextAwareQuickApps ?: prefs.getBoolean(key, defaultValue)
-        "smart_clipboard_suggestions" -> settingsState?.smartClipboardSuggestions ?: prefs.getBoolean(key, defaultValue)
-        "search_previous_searches" -> settingsState?.searchPreviousSearches ?: prefs.getBoolean(key, defaultValue)
-        "search_overlay_enabled" -> settingsState?.searchOverlayEnabled ?: prefs.getBoolean(key, defaultValue)
-        "matrix_animation_enabled" -> settingsState?.matrixAnimationEnabled ?: prefs.getBoolean(key, defaultValue)
-        "settings_back_to_search_overlay" -> settingsState?.backToSearchOverlay ?: prefs.getBoolean(key, defaultValue)
-        "vibration_enabled" -> settingsState?.vibrationEnabled ?: prefs.getBoolean(key, defaultValue)
-        else -> prefs.getBoolean(key, defaultValue)
+    val currentValue = if (prefs.contains(key)) {
+        when (key) {
+            "settings.bottom.search", "settings.bottom.search.result" -> prefs.getBoolean(key, true)
+            else -> prefs.getBoolean(key, defaultValue)
+        }
+    } else {
+        when (key) {
+            "search.apps" -> settingsState?.searchApps ?: prefs.getBoolean(key, defaultValue)
+            "search.contacts" -> settingsState?.searchContacts ?: prefs.getBoolean(key, defaultValue)
+            "search.files" -> settingsState?.searchFiles ?: prefs.getBoolean(key, defaultValue)
+            "search.web" -> settingsState?.searchWeb ?: prefs.getBoolean(key, defaultValue)
+            "search.calculator" -> settingsState?.searchCalculator ?: prefs.getBoolean(key, defaultValue)
+            "search.calendar" -> settingsState?.searchCalendar ?: prefs.getBoolean(key, defaultValue)
+            "search.shortcuts" -> settingsState?.searchShortcuts ?: prefs.getBoolean(key, defaultValue)
+            "search.background.show.wall" -> settingsState?.showWallpaper ?: prefs.getBoolean(key, defaultValue)
+            "app_animations" -> settingsState?.appAnimations ?: prefs.getBoolean(key, defaultValue)
+            "settings.bottom.search" -> settingsState?.bottomSearch ?: prefs.getBoolean(key, true)
+            "settings.bottom.search.result" -> settingsState?.bottomSearchResult ?: prefs.getBoolean(key, true)
+            "g_icon_enabled" -> settingsState?.gIconEnabled ?: prefs.getBoolean(key, defaultValue)
+            "widget_show_voice" -> settingsState?.widgetShowVoice ?: prefs.getBoolean(key, defaultValue)
+            "widget_show_gemini" -> settingsState?.widgetShowGemini ?: prefs.getBoolean(key, defaultValue)
+            "quick_search_youtube" -> settingsState?.quickSearchYoutube ?: prefs.getBoolean(key, defaultValue)
+            "quick_search_wikipedia" -> settingsState?.quickSearchWikipedia ?: prefs.getBoolean(key, defaultValue)
+            "quick_search_play_store" -> settingsState?.quickSearchPlayStore ?: prefs.getBoolean(key, defaultValue)
+            "quick_search_maps" -> settingsState?.quickSearchMaps ?: prefs.getBoolean(key, defaultValue)
+            "app_quick_launch" -> settingsState?.appQuickLaunch ?: prefs.getBoolean(key, defaultValue)
+            "contact_direct_call" -> settingsState?.contactDirectCall ?: prefs.getBoolean(key, defaultValue)
+            "shortcut.inline" -> settingsState?.shortcutInline ?: prefs.getBoolean(key, defaultValue)
+            "app.fuzzy.search" -> settingsState?.appFuzzySearch ?: prefs.getBoolean(key, defaultValue)
+            "quick.search.horizontal" -> settingsState?.quickSearchHorizontal ?: prefs.getBoolean(key, defaultValue)
+            "search.files.hidden.files" -> settingsState?.filesHiddenFiles ?: prefs.getBoolean(key, defaultValue)
+            "search.files.thumbnails" -> settingsState?.filesThumbnails ?: prefs.getBoolean(key, defaultValue)
+            "tutorial_completed" -> settingsState?.tutorialCompleted ?: prefs.getBoolean(key, defaultValue)
+            "force_tutorial" -> settingsState?.forceTutorial ?: prefs.getBoolean(key, defaultValue)
+            "context_aware_quick_apps" -> settingsState?.contextAwareQuickApps ?: prefs.getBoolean(key, defaultValue)
+            "smart_clipboard_suggestions" -> settingsState?.smartClipboardSuggestions ?: prefs.getBoolean(key, defaultValue)
+            "search_previous_searches" -> settingsState?.searchPreviousSearches ?: prefs.getBoolean(key, defaultValue)
+            "search_overlay_enabled" -> settingsState?.searchOverlayEnabled ?: prefs.getBoolean(key, defaultValue)
+            "matrix_animation_enabled" -> settingsState?.matrixAnimationEnabled ?: prefs.getBoolean(key, defaultValue)
+            "settings_back_to_search_overlay" -> settingsState?.backToSearchOverlay ?: prefs.getBoolean(key, defaultValue)
+            "vibration_enabled" -> settingsState?.vibrationEnabled ?: prefs.getBoolean(key, defaultValue)
+            else -> prefs.getBoolean(key, defaultValue)
+        }
     }
 
     val state = remember { mutableStateOf(currentValue) }
@@ -440,13 +447,17 @@ fun rememberIntPreference(
         else -> null
     }
 
-    val currentValue = when (key) {
-        "search.background.blur" -> settingsState?.backgroundBlur ?: prefs.getInt(key, defaultValue)
-        "search.background.transparency" -> settingsState?.backgroundTransparency ?: prefs.getInt(key, defaultValue)
-        "search.pill.opacity" -> settingsState?.pillOpacity ?: prefs.getInt(key, defaultValue)
-        "tutorial_step" -> settingsState?.tutorialStep ?: prefs.getInt(key, defaultValue)
-        "shortcut_results_count" -> settingsState?.shortcutResultsCount ?: prefs.getInt(key, defaultValue)
-        else -> prefs.getInt(key, defaultValue)
+    val currentValue = if (prefs.contains(key)) {
+        prefs.getInt(key, defaultValue)
+    } else {
+        when (key) {
+            "search.background.blur" -> settingsState?.backgroundBlur ?: prefs.getInt(key, defaultValue)
+            "search.background.transparency" -> settingsState?.backgroundTransparency ?: prefs.getInt(key, defaultValue)
+            "search.pill.opacity" -> settingsState?.pillOpacity ?: prefs.getInt(key, defaultValue)
+            "tutorial_step" -> settingsState?.tutorialStep ?: prefs.getInt(key, defaultValue)
+            "shortcut_results_count" -> settingsState?.shortcutResultsCount ?: prefs.getInt(key, defaultValue)
+            else -> prefs.getInt(key, defaultValue)
+        }
     }
 
     val state = remember { mutableIntStateOf(currentValue) }
@@ -505,15 +516,19 @@ fun rememberStringPreference(
         else -> null
     }
 
-    val currentValue = when (key) {
-        "night.mode" -> settingsState?.theme ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-        "search.engine" -> settingsState?.searchEngine ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-        "custom_search_engine_url" -> settingsState?.customSearchEngineUrl ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-        "widget.theme.style" -> settingsState?.widgetThemeStyle ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-        "search.pills" -> settingsState?.searchPills ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-        "custom_icon_pills" -> settingsState?.customIconPills ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-        "active_icon_pack" -> settingsState?.activeIconPack ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-        else -> prefs.getString(key, defaultValue) ?: defaultValue
+    val currentValue = if (prefs.contains(key)) {
+        prefs.getString(key, defaultValue) ?: defaultValue
+    } else {
+        when (key) {
+            "night.mode" -> settingsState?.theme ?: (prefs.getString(key, defaultValue) ?: defaultValue)
+            "search.engine" -> settingsState?.searchEngine ?: (prefs.getString(key, defaultValue) ?: defaultValue)
+            "custom_search_engine_url" -> settingsState?.customSearchEngineUrl ?: (prefs.getString(key, defaultValue) ?: defaultValue)
+            "widget.theme.style" -> settingsState?.widgetThemeStyle ?: (prefs.getString(key, defaultValue) ?: defaultValue)
+            "search.pills" -> settingsState?.searchPills ?: (prefs.getString(key, defaultValue) ?: defaultValue)
+            "custom_icon_pills" -> settingsState?.customIconPills ?: (prefs.getString(key, defaultValue) ?: defaultValue)
+            "active_icon_pack" -> settingsState?.activeIconPack ?: (prefs.getString(key, defaultValue) ?: defaultValue)
+            else -> prefs.getString(key, defaultValue) ?: defaultValue
+        }
     }
 
     val state = remember { mutableStateOf(currentValue) }
@@ -576,9 +591,9 @@ fun SettingsScreensHub(
         LocalSettingsState provides settingsState
     ) {
         val navController = androidx.navigation.compose.rememberNavController()
-        
-        val exoPlayer = androidx.compose.runtime.remember {
-            runCatching {
+        var exoPlayer by remember { mutableStateOf<androidx.media3.exoplayer.ExoPlayer?>(null) }
+        LaunchedEffect(context) {
+            val player = runCatching {
                 val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.bugdroid_video)
                 val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
                 val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
@@ -590,6 +605,7 @@ fun SettingsScreensHub(
                     playWhenReady = true
                 }
             }.getOrNull()
+            exoPlayer = player
         }
 
         val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -728,15 +744,19 @@ fun SettingsScreensHub(
                     navController = navController,
                     startDestination = startRoute,
                     enterTransition = {
-                        slideInHorizontally(
-                            initialOffsetX = { (it * 0.22f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
-                        ) + fadeIn(
-                            animationSpec = tween(durationMillis = 240, easing = LinearOutSlowInEasing)
-                        ) + scaleIn(
-                            initialScale = 0.94f,
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
-                        )
+                        if (initialState.destination.route == null) {
+                            androidx.compose.animation.EnterTransition.None
+                        } else {
+                            slideInHorizontally(
+                                initialOffsetX = { (it * 0.22f).toInt() },
+                                animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            ) + fadeIn(
+                                animationSpec = tween(durationMillis = 240, easing = LinearOutSlowInEasing)
+                            ) + scaleIn(
+                                initialScale = 0.94f,
+                                animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            )
+                        }
                     },
                     exitTransition = {
                         slideOutHorizontally(
@@ -2728,6 +2748,30 @@ fun MainSettingsScreen(
                     } else null
                 }
 
+                var isFirstFrameReady by remember { mutableStateOf(false) }
+                DisposableEffect(exoPlayer) {
+                    val player = exoPlayer
+                    if (player != null) {
+                        val listener = object : androidx.media3.common.Player.Listener {
+                            override fun onRenderedFirstFrame() {
+                                isFirstFrameReady = true
+                            }
+                        }
+                        player.addListener(listener)
+                        onDispose {
+                            player.removeListener(listener)
+                        }
+                    } else {
+                        onDispose {}
+                    }
+                }
+
+                val videoAlpha by androidx.compose.animation.core.animateFloatAsState(
+                    targetValue = if (isFirstFrameReady) 1f else 0f,
+                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 200, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
+                    label = "bugdroid_video_alpha"
+                )
+
                 androidx.compose.ui.viewinterop.AndroidView(
                     factory = { ctx ->
                         android.view.TextureView(ctx).apply {
@@ -2798,6 +2842,7 @@ fun MainSettingsScreen(
                         .height(220.dp)
                         .width(200.dp) // Wider view container to fit the waving arms
                         .graphicsLayer {
+                            alpha = videoAlpha
                             renderEffect = cachedVideoRenderEffect
                         }
                 )

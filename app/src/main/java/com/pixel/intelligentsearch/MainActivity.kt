@@ -181,24 +181,30 @@ open class MainActivity : AppCompatActivity() {
                       color = androidx.compose.ui.graphics.Color.Transparent
                 ) {
                     val throttleLevel by adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
+                    var lastAppliedWall by remember { mutableStateOf<Boolean?>(null) }
+                    var lastAppliedBlur by remember { mutableIntStateOf(-1) }
                     DisposableEffect(settingsState.backgroundBlur, settingsState.showWallpaper, throttleLevel) {
                         val isWall = settingsState.showWallpaper
-                        if (isWall) {
-                            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
-                        } else {
-                            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+                        if (lastAppliedWall != isWall) {
+                            if (isWall) {
+                                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+                            } else {
+                                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+                            }
+                            lastAppliedWall = isWall
                         }
                         val blurRadius = settingsState.backgroundBlur
-                        val recommendedBlur = adpfThermalManager.getRecommendedBlurRadius(blurRadius.toFloat()).toInt()
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        val targetBlur = if (isWall) adpfThermalManager.getRecommendedBlurRadius(blurRadius.toFloat()).toInt() else 0
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && targetBlur != lastAppliedBlur) {
                             runCatching {
-                                if (isWall && recommendedBlur > 0) {
+                                if (targetBlur > 0) {
                                     window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                                    window.setBackgroundBlurRadius(recommendedBlur)
+                                    window.setBackgroundBlurRadius(targetBlur)
                                 } else {
                                     window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
                                     window.setBackgroundBlurRadius(0)
                                 }
+                                lastAppliedBlur = targetBlur
                             }
                         }
                         onDispose {}
@@ -213,7 +219,6 @@ open class MainActivity : AppCompatActivity() {
                                     val intent = Intent(this@MainActivity, SettingsActivity::class.java).apply {
                                         putExtra("extra_screen", route)
                                         putExtra("FROM_SEARCH_OVERLAY", true)
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                     }
                                     try {
                                         startActivity(intent)

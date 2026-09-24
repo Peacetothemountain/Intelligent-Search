@@ -196,20 +196,22 @@ class SearchBangManager @Inject constructor(
         if (trimmed.isEmpty()) return null
         val triggerSymbol = getTriggerSymbol()
 
-        // Match against all available bangs
+        // Fast-path: Bangs strictly require the active trigger symbol or universal fallback '!'
+        if (!trimmed.contains(triggerSymbol) && !trimmed.contains("!")) {
+            return null
+        }
+
+        // Match against all available bangs without collection allocation
         for (bang in availableBangs) {
             val bare = bang.prefix.trimStart { !it.isLetterOrDigit() }
-            val candidatePrefixes = mutableSetOf(
-                bang.displayPrefix,
-                bang.prefix.lowercase()
-            )
-            if (bare.isNotBlank()) {
-                candidatePrefixes.add("$triggerSymbol$bare".lowercase())
-                candidatePrefixes.add("!$bare".lowercase())
-            }
+            val p0 = bang.displayPrefix
+            val p1 = bang.prefix.lowercase()
+            val p2 = if (bare.isNotBlank()) "$triggerSymbol$bare".lowercase() else null
+            val p3 = if (bare.isNotBlank()) "!$bare".lowercase() else null
 
-            for (p in candidatePrefixes) {
-                if (p.isBlank()) continue
+            val candidates = arrayOf(p0, p1, p2, p3)
+            for (p in candidates) {
+                if (p.isNullOrBlank()) continue
                 // Prefix check: query starts with "$p " or equals "$p"
                 if (trimmed.equals(p, ignoreCase = true)) {
                     return ParsedBangQuery(

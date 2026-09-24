@@ -6637,13 +6637,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .padding(padding)
         ) {
             // Live Preview Card (Pinned at the top for real-time visual feedback)
-            Text(
-                text = if (isSystem) "Preview System search bar widget" else "Preview Material Design search bar widget",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp)
-            )
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -9977,7 +9970,7 @@ fun BackupRestoreScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
                 Text(
-                    "Optional passphrase for backup encryption. If left blank, backup restores automatically and portably across app updates and devices.",
+                    "Optional Passphrase for Backup Encryption. If Left Blank, Backup Restores Automatically and Portably Across App Updates and Devices.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
@@ -10190,6 +10183,95 @@ fun BackupRestoreScreen(
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
+                val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+                val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "BugdroidFeetShadowTransition")
+                val pulseScale by infiniteTransition.animateFloat(
+                    initialValue = 0.94f,
+                    targetValue = 1.06f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                    ),
+                    label = "shadowPulseScale"
+                )
+                val pulseAlpha by infiniteTransition.animateFloat(
+                    initialValue = 0.85f,
+                    targetValue = 1.0f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                    ),
+                    label = "shadowPulseAlpha"
+                )
+                val swayOffset by infiniteTransition.animateFloat(
+                    initialValue = -1.5f,
+                    targetValue = 1.5f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(2800, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                    ),
+                    label = "shadowSwayOffset"
+                )
+
+                val contactShadowColor = if (isDark) {
+                    androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.70f * pulseAlpha)
+                } else {
+                    androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.38f * pulseAlpha)
+                }
+                val ambientShadowColor = if (isDark) {
+                    androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.32f * pulseAlpha)
+                } else {
+                    androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.16f * pulseAlpha)
+                }
+
+                androidx.compose.foundation.Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(340.dp)
+                ) {
+                    val centerX = size.width / 2f + swayOffset.dp.toPx()
+                    val groundY = 292.dp.toPx()
+
+                    // Ambient ground diffusion shadow
+                    val ambientWidth = 110.dp.toPx() * pulseScale
+                    val ambientHeight = 22.dp.toPx() * pulseScale
+                    drawOval(
+                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(ambientShadowColor, androidx.compose.ui.graphics.Color.Transparent),
+                            center = androidx.compose.ui.geometry.Offset(centerX, groundY),
+                            radius = ambientWidth / 2f
+                        ),
+                        topLeft = androidx.compose.ui.geometry.Offset(centerX - ambientWidth / 2f, groundY - ambientHeight / 2f),
+                        size = androidx.compose.ui.geometry.Size(ambientWidth, ambientHeight)
+                    )
+
+                    // Left foot contact shadow (grounded directly beneath left foot)
+                    val leftFootCenterX = centerX - 28.dp.toPx()
+                    val footWidth = 36.dp.toPx() * pulseScale
+                    val footHeight = 12.dp.toPx() * pulseScale
+                    drawOval(
+                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(contactShadowColor, androidx.compose.ui.graphics.Color.Transparent),
+                            center = androidx.compose.ui.geometry.Offset(leftFootCenterX, groundY),
+                            radius = footWidth / 2f
+                        ),
+                        topLeft = androidx.compose.ui.geometry.Offset(leftFootCenterX - footWidth / 2f, groundY - footHeight / 2f),
+                        size = androidx.compose.ui.geometry.Size(footWidth, footHeight)
+                    )
+
+                    // Right foot contact shadow (grounded directly beneath right foot)
+                    val rightFootCenterX = centerX + 24.dp.toPx()
+                    drawOval(
+                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(contactShadowColor, androidx.compose.ui.graphics.Color.Transparent),
+                            center = androidx.compose.ui.geometry.Offset(rightFootCenterX, groundY),
+                            radius = footWidth / 2f
+                        ),
+                        topLeft = androidx.compose.ui.geometry.Offset(rightFootCenterX - footWidth / 2f, groundY - footHeight / 2f),
+                        size = androidx.compose.ui.geometry.Size(footWidth, footHeight)
+                    )
+                }
+
                 BugdroidPlayer(
                     player = backupExoPlayer,
                     modifier = Modifier

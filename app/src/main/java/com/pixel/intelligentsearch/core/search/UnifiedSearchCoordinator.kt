@@ -36,6 +36,8 @@ class UnifiedSearchCoordinator @Inject constructor(
         val scoreBreakdown: SearchScoringEngine.ScoreBreakdown
     )
 
+    private class ScoredCandidate<T>(val item: T, val score: Float)
+
     data class SearchItem(
         val id: String,
         val title: String,
@@ -294,19 +296,27 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
 
         val now = System.currentTimeMillis()
-        val matchedApps = candidates.map { item ->
+        val queryMetaphone = DoubleMetaphone.encode(query)
+        val scoredApps = ArrayList<ScoredCandidate<AppItem>>(candidates.size)
+        for (item in candidates) {
             val score = SearchScoringEngine.evaluateScore(
                 query = query,
                 targetTitle = item.title,
                 metadata = item.metadata,
                 currentTimeMs = now,
-                domainWeightMultiplier = 1.0f
+                domainWeightMultiplier = 1.0f,
+                precomputedQueryMetaphone = queryMetaphone
             )
-            Pair(item.payload as AppItem, score.totalScore)
-        }.filter { it.second > 0f }
-        .sortedByDescending { it.second }
-        .map { it.first }
-        .take(8)
+            if (score.totalScore > 0f) {
+                scoredApps.add(ScoredCandidate(item.payload as AppItem, score.totalScore))
+            }
+        }
+        scoredApps.sortByDescending { it.score }
+        val takeCount = minOf(8, scoredApps.size)
+        val matchedApps = ArrayList<AppItem>(takeCount)
+        for (i in 0 until takeCount) {
+            matchedApps.add(scoredApps[i].item)
+        }
 
         val elapsedMs = (System.nanoTime() - startTime) / 1_000_000
 
@@ -334,18 +344,28 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
 
         val now = System.currentTimeMillis()
-        return candidates.map { item ->
+        val queryMetaphone = DoubleMetaphone.encode(q)
+        val scoredApps = ArrayList<ScoredCandidate<AppItem>>(candidates.size)
+        for (item in candidates) {
             val score = SearchScoringEngine.evaluateScore(
                 query = q,
                 targetTitle = item.title,
                 metadata = item.metadata,
                 currentTimeMs = now,
-                domainWeightMultiplier = 1.0f
+                domainWeightMultiplier = 1.0f,
+                precomputedQueryMetaphone = queryMetaphone
             )
-            Pair(item.payload as AppItem, score.totalScore)
-        }.sortedByDescending { it.second }
-        .map { it.first }
-        .take(limit)
+            if (score.totalScore > 0f) {
+                scoredApps.add(ScoredCandidate(item.payload as AppItem, score.totalScore))
+            }
+        }
+        scoredApps.sortByDescending { it.score }
+        val takeCount = minOf(limit, scoredApps.size)
+        val resultApps = ArrayList<AppItem>(takeCount)
+        for (i in 0 until takeCount) {
+            resultApps.add(scoredApps[i].item)
+        }
+        return resultApps
     }
 
     /**
@@ -368,7 +388,8 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
 
         val now = System.currentTimeMillis()
-        return candidates.map { item ->
+        val scoredContacts = ArrayList<ScoredCandidate<ContactItem>>(candidates.size)
+        for (item in candidates) {
             val score = SearchScoringEngine.evaluateScore(
                 query = q,
                 targetTitle = item.title,
@@ -377,10 +398,17 @@ class UnifiedSearchCoordinator @Inject constructor(
                 domainWeightMultiplier = 1.0f,
                 precomputedQueryMetaphone = queryMetaphone
             )
-            Pair(item.payload as ContactItem, score.totalScore)
-        }.sortedByDescending { it.second }
-        .map { it.first }
-        .take(limit)
+            if (score.totalScore > 0f) {
+                scoredContacts.add(ScoredCandidate(item.payload as ContactItem, score.totalScore))
+            }
+        }
+        scoredContacts.sortByDescending { it.score }
+        val takeCount = minOf(limit, scoredContacts.size)
+        val resultContacts = ArrayList<ContactItem>(takeCount)
+        for (i in 0 until takeCount) {
+            resultContacts.add(scoredContacts[i].item)
+        }
+        return resultContacts
     }
 
     /**
@@ -398,18 +426,28 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
 
         val now = System.currentTimeMillis()
-        return candidates.map { item ->
+        val queryMetaphone = DoubleMetaphone.encode(q)
+        val scoredShortcuts = ArrayList<ScoredCandidate<AppShortcutItem>>(candidates.size)
+        for (item in candidates) {
             val score = SearchScoringEngine.evaluateScore(
                 query = q,
                 targetTitle = item.title,
                 metadata = item.metadata,
                 currentTimeMs = now,
-                domainWeightMultiplier = 1.0f
+                domainWeightMultiplier = 1.0f,
+                precomputedQueryMetaphone = queryMetaphone
             )
-            Pair(item.payload as AppShortcutItem, score.totalScore)
-        }.sortedByDescending { it.second }
-        .map { it.first }
-        .take(limit)
+            if (score.totalScore > 0f) {
+                scoredShortcuts.add(ScoredCandidate(item.payload as AppShortcutItem, score.totalScore))
+            }
+        }
+        scoredShortcuts.sortByDescending { it.score }
+        val takeCount = minOf(limit, scoredShortcuts.size)
+        val resultShortcuts = ArrayList<AppShortcutItem>(takeCount)
+        for (i in 0 until takeCount) {
+            resultShortcuts.add(scoredShortcuts[i].item)
+        }
+        return resultShortcuts
     }
 
     /**
@@ -427,18 +465,28 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
 
         val now = System.currentTimeMillis()
-        return candidates.map { item ->
+        val queryMetaphone = DoubleMetaphone.encode(q)
+        val scoredFiles = ArrayList<ScoredCandidate<FileItem>>(candidates.size)
+        for (item in candidates) {
             val score = SearchScoringEngine.evaluateScore(
                 query = q,
                 targetTitle = item.title,
                 metadata = item.metadata,
                 currentTimeMs = now,
-                domainWeightMultiplier = 1.0f
+                domainWeightMultiplier = 1.0f,
+                precomputedQueryMetaphone = queryMetaphone
             )
-            Pair(item.payload as FileItem, score.totalScore)
-        }.sortedByDescending { it.second }
-        .map { it.first }
-        .take(limit)
+            if (score.totalScore > 0f) {
+                scoredFiles.add(ScoredCandidate(item.payload as FileItem, score.totalScore))
+            }
+        }
+        scoredFiles.sortByDescending { it.score }
+        val takeCount = minOf(limit, scoredFiles.size)
+        val resultFiles = ArrayList<FileItem>(takeCount)
+        for (i in 0 until takeCount) {
+            resultFiles.add(scoredFiles[i].item)
+        }
+        return resultFiles
     }
 
     suspend fun executeSearch(rawQuery: String): UnifiedSearchResults = withContext(Dispatchers.Default) {
@@ -518,7 +566,8 @@ class UnifiedSearchCoordinator @Inject constructor(
         val contactWeightMul = (prefs.getInt("search_weight_contacts", 50) / 100f).coerceAtLeast(0.01f)
         val fileWeightMul = (prefs.getInt("search_weight_files", 50) / 100f).coerceAtLeast(0.01f)
 
-        val rankedResults = candidates.map { item ->
+        val rankedResults = ArrayList<RankedSearchResult>(candidates.size)
+        for (item in candidates) {
             val domainMul = when (item.domain) {
                 SearchScoringEngine.EntityDomain.APPLICATION, SearchScoringEngine.EntityDomain.APP_SHORTCUT -> appWeightMul
                 SearchScoringEngine.EntityDomain.CONTACT -> contactWeightMul
@@ -533,9 +582,11 @@ class UnifiedSearchCoordinator @Inject constructor(
                 domainWeightMultiplier = domainMul,
                 precomputedQueryMetaphone = queryMetaphone
             )
-            RankedSearchResult(item, scoreBreakdown)
-        }.filter { it.scoreBreakdown.totalScore > 0f }
-        .sortedByDescending { it.scoreBreakdown.totalScore }
+            if (scoreBreakdown.totalScore > 0f) {
+                rankedResults.add(RankedSearchResult(item, scoreBreakdown))
+            }
+        }
+        rankedResults.sortByDescending { it.scoreBreakdown.totalScore }
 
         // 8. Domain Separation & Output Filtering
         val matchedApps = mutableListOf<AppItem>()

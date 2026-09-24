@@ -21,6 +21,8 @@ import com.pixel.intelligentsearch.core.data.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
+private val URL_PATTERN = Regex("""^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(/.*)?$""")
+
 @androidx.compose.runtime.Immutable
 data class DirectAction(
     val title: String,
@@ -315,16 +317,11 @@ class SearchViewModel @Inject constructor(
 
     private fun executeLocalSearch(newQuery: String) {
         val prefs = customPrefs
-        val mockLargeDataset = prefs.getBoolean("debug.mock_large_dataset", false)
         val verboseLogging = prefs.getBoolean("debug.verbose_logging", false)
         val forceSearchError = prefs.getBoolean("debug.force_search_error", false)
 
         searchJob?.cancel()
         searchJob = viewModelScope.launch(Dispatchers.Default) {
-            try {
-                android.os.Process.setThreadPriority(-10)
-            } catch (_: Exception) {}
-
             if (verboseLogging) android.util.Log.d("SearchDebug", "Local query started: $newQuery")
             val startTime = System.currentTimeMillis()
 
@@ -452,7 +449,7 @@ class SearchViewModel @Inject constructor(
                 val word = q.removePrefix("define ").removePrefix("meaning of ").removePrefix("definition of ").trim()
                 val providerName = when (engine) { "DuckDuckGo" -> "DuckDuckGo"; "Bing" -> "Bing"; else -> "Dictionary" }
                 InstantAnswer(word.replaceFirstChar { it.uppercase() }, "$providerName • Tap for full definition", "dictionary")
-            } else if (q.matches(Regex("""^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(/.*)?$""")) || q.startsWith("http://") || q.startsWith("https://")) {
+            } else if (q.matches(URL_PATTERN) || q.startsWith("http://") || q.startsWith("https://")) {
                 InstantAnswer(newQuery.trim(), "Go to Website • Tap to open", "url")
             } else {
                 null

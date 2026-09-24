@@ -220,8 +220,13 @@ open class MainActivity : AppCompatActivity() {
                                         putExtra("extra_screen", route)
                                         putExtra("FROM_SEARCH_OVERLAY", true)
                                     }
+                                    val options = android.app.ActivityOptions.makeCustomAnimation(
+                                        this@MainActivity,
+                                        com.pixel.intelligentsearch.R.anim.slide_in_right,
+                                        com.pixel.intelligentsearch.R.anim.slide_out_left
+                                    )
                                     try {
-                                        startActivity(intent)
+                                        startActivity(intent, options.toBundle())
                                     } catch (e: Throwable) {
                                         android.util.Log.e("MainActivity", "Failed to open settings", e)
                                     }

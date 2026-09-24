@@ -46,6 +46,12 @@ class SettingsActivity : AppCompatActivity() {
                 com.pixel.intelligentsearch.R.anim.slide_in_left,
                 com.pixel.intelligentsearch.R.anim.slide_out_right
             )
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(
+                com.pixel.intelligentsearch.R.anim.slide_in_right,
+                com.pixel.intelligentsearch.R.anim.slide_out_left
+            )
         }
         
         var appWidgetId = android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
@@ -117,6 +123,23 @@ class SettingsActivity : AppCompatActivity() {
             android.util.Log.e("SettingsActivity", "Failed to update widgets on pause", e)
         }
     }
+    override fun finish() {
+        super.finish()
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(
+                OVERRIDE_TRANSITION_CLOSE,
+                com.pixel.intelligentsearch.R.anim.slide_in_left,
+                com.pixel.intelligentsearch.R.anim.slide_out_right
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(
+                com.pixel.intelligentsearch.R.anim.slide_in_left,
+                com.pixel.intelligentsearch.R.anim.slide_out_right
+            )
+        }
+    }
+
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         if (newConfig.smallestScreenWidthDp < 600) {

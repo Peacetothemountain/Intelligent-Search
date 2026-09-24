@@ -16,8 +16,31 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import android.os.SystemClock
 import com.pixel.intelligentsearch.core.haptics.PixelHapticType
 import com.pixel.intelligentsearch.core.haptics.TactileSonicEngine
+
+/**
+ * Global debouncer for settings clicks and navigation events.
+ * Prevents double-taps and touch leakage across screen transitions.
+ */
+object SettingsDebouncer {
+    @Volatile
+    private var lastClickTime = 0L
+
+    fun canClick(cooldownMs: Long = 350L): Boolean {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastClickTime < cooldownMs) {
+            return false
+        }
+        lastClickTime = now
+        return true
+    }
+
+    fun recordClick(timestamp: Long = SystemClock.uptimeMillis()) {
+        lastClickTime = timestamp
+    }
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 fun Modifier.bouncyClickable(
@@ -50,14 +73,16 @@ fun Modifier.bouncyClickable(
 
     val clickAction = remember(view, sensoryEngine, suppressClickHaptic, customClickHaptic) {
         {
-            if (!suppressClickHaptic) {
-                if (customClickHaptic != null) {
-                    sensoryEngine.hapticEngine.performHaptic(view, customClickHaptic)
-                } else {
-                    sensoryEngine.click(view)
+            if (SettingsDebouncer.canClick()) {
+                if (!suppressClickHaptic) {
+                    if (customClickHaptic != null) {
+                        sensoryEngine.hapticEngine.performHaptic(view, customClickHaptic)
+                    } else {
+                        sensoryEngine.click(view)
+                    }
                 }
+                currentOnClick()
             }
-            currentOnClick()
         }
     }
 
@@ -119,8 +144,10 @@ fun Modifier.expressiveRowClickable(
 
     val clickAction = remember(view, sensoryEngine) {
         {
-            sensoryEngine.click(view)
-            currentOnClick()
+            if (SettingsDebouncer.canClick()) {
+                sensoryEngine.click(view)
+                currentOnClick()
+            }
         }
     }
 

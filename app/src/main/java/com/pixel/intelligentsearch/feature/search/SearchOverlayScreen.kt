@@ -4,6 +4,7 @@ import android.app.SearchManager
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
+import com.pixel.intelligentsearch.feature.settings.SettingsDebouncer
 import com.pixel.intelligentsearch.feature.settings.TutorialSpotlightOverlay
 import com.pixel.intelligentsearch.feature.settings.TutorialManager
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
@@ -1088,10 +1089,12 @@ fun SearchOverlayScreen(
 
                 IconButton(
                     onClick = { 
-                        hasStartedTyping = false
-                        focusManager.clearFocus(force = true)
-                        keyboardController?.hide()
-                        onOpenSettings("main") 
+                        if (SettingsDebouncer.canClick()) {
+                            hasStartedTyping = false
+                            focusManager.clearFocus(force = true)
+                            keyboardController?.hide()
+                            onOpenSettings("main") 
+                        }
                     },
                     modifier = Modifier
                         .size(48.dp)
@@ -2058,7 +2061,9 @@ fun SearchOverlayScreen(
                                     if (uiState.query.isEmpty()) {
                                         item(key = "search_settings_shortcut") {
                                             SearchSettingsItem {
-                                                onOpenSettings("main")
+                                                if (SettingsDebouncer.canClick()) {
+                                                    onOpenSettings("main")
+                                                }
                                             }
                                         }
                                     }

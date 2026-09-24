@@ -542,8 +542,8 @@ fun rememberBooleanPreference(
         state.value = currentValue
     }
 
-    androidx.compose.runtime.DisposableEffect(prefs, key) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
+    val listener = remember(prefs, key) {
+        SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
             if (changedKey == key) {
                 val fallback = when (key) {
                     "settings.bottom.search", "settings.bottom.search.result" -> true
@@ -552,6 +552,9 @@ fun rememberBooleanPreference(
                 state.value = sharedPreferences.getBoolean(key, fallback)
             }
         }
+    }
+
+    androidx.compose.runtime.DisposableEffect(prefs, key, listener) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
@@ -572,6 +575,28 @@ fun rememberBooleanPreference(
                         vm.updateSetting(datastoreKey, v)
                     }
                     prefs.edit().putBoolean(key, v).apply()
+                    val legacyKey = when (key) {
+                        "settings.bottom.search" -> "bottom_search"
+                        "settings.bottom.search.result" -> "bottom_search_result"
+                        "search.apps" -> "search_apps"
+                        "search.contacts" -> "search_contacts"
+                        "search.files" -> "search_files"
+                        "search.web" -> "search_web"
+                        "search.calculator" -> "search_calculator"
+                        "search.calendar" -> "search_calendar"
+                        "search.shortcuts" -> "search_shortcuts"
+                        "search.background.show.wall" -> "show_wallpaper"
+                        "app_animations" -> "app_animations"
+                        "shortcut.inline" -> "shortcut_inline"
+                        "app.fuzzy.search" -> "app_fuzzy_search"
+                        "quick.search.horizontal" -> "quick_search_horizontal"
+                        "search.files.hidden.files" -> "search_files_hidden_files"
+                        "search.files.thumbnails" -> "search_files_thumbnails"
+                        else -> null
+                    }
+                    if (legacyKey != null) {
+                        prefs.edit().putBoolean(legacyKey, v).apply()
+                    }
                     currentOnChanged()
                 }
             override operator fun component1() = value
@@ -617,12 +642,15 @@ fun rememberIntPreference(
         state.value = currentValue
     }
 
-    androidx.compose.runtime.DisposableEffect(prefs, key) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
+    val listener = remember(prefs, key) {
+        SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
             if (changedKey == key) {
                 state.value = sharedPreferences.getInt(key, defaultValue)
             }
         }
+    }
+
+    androidx.compose.runtime.DisposableEffect(prefs, key, listener) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
@@ -688,12 +716,15 @@ fun rememberStringPreference(
         state.value = currentValue
     }
 
-    androidx.compose.runtime.DisposableEffect(prefs, key) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
+    val listener = remember(prefs, key) {
+        SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
             if (changedKey == key) {
                 state.value = sharedPreferences.getString(key, defaultValue) ?: defaultValue
             }
         }
+    }
+
+    androidx.compose.runtime.DisposableEffect(prefs, key, listener) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
@@ -767,10 +798,22 @@ fun SettingsScreensHub(
         }
 
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
-            navController.navigate(route)
+            val currentEntry = navController.currentBackStackEntry
+            val isResumed = currentEntry?.lifecycle?.currentState == androidx.lifecycle.Lifecycle.State.RESUMED
+            val currentRoute = currentEntry?.destination?.route
+            val targetRouteName = route::class.qualifiedName ?: route::class.simpleName ?: ""
+
+            if (isResumed && (currentRoute == null || !currentRoute.endsWith(targetRouteName))) {
+                SettingsDebouncer.recordClick()
+                navController.navigate(route) {
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            }
         }
 
         val handleExitBack: () -> Unit = {
+            SettingsDebouncer.recordClick()
             val act = context.findActivity() ?: (context as? Activity)
             if (act != null) {
                 if (act.isTaskRoot) {
@@ -807,10 +850,15 @@ fun SettingsScreensHub(
         val isAtRootMain = (currentRoute == null || currentRoute.contains("main", ignoreCase = true)) && !hasSubScreensInNavHost
 
         val onBack: () -> Unit = {
-            if (navController.previousBackStackEntry != null) {
-                navController.popBackStack()
-            } else {
-                handleExitBack()
+            val currentEntry = navController.currentBackStackEntry
+            val isResumed = currentEntry?.lifecycle?.currentState == androidx.lifecycle.Lifecycle.State.RESUMED
+            if (isResumed) {
+                SettingsDebouncer.recordClick()
+                if (navController.previousBackStackEntry != null) {
+                    navController.popBackStack()
+                } else {
+                    handleExitBack()
+                }
             }
         }
 
@@ -6106,8 +6154,10 @@ fun SettingsRowToggle(
                 checked = isChecked,
                 onCheckedChange = if (onClick != null) {
                     { next ->
-                        sensoryEngine.toggle(view, next)
-                        onCheckedChange(next)
+                        if (SettingsDebouncer.canClick()) {
+                            sensoryEngine.toggle(view, next)
+                            onCheckedChange(next)
+                        }
                     }
                 } else null,
                 colors = SwitchDefaults.colors(

@@ -110,6 +110,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -444,6 +445,54 @@ val LocalSettingsState = compositionLocalOf<com.pixel.intelligentsearch.core.dat
 val LocalAnimationTime = staticCompositionLocalOf<Long> { 0L }
 
 // --- State Helpers ---
+fun getAlternatePreferenceKey(key: String): String? = when (key) {
+    "settings.bottom.search" -> "bottom_search"
+    "bottom_search" -> "settings.bottom.search"
+    "settings.bottom.search.result" -> "bottom_search_result"
+    "bottom_search_result" -> "settings.bottom.search.result"
+    "quick.search.horizontal" -> "quick_search_horizontal"
+    "quick_search_horizontal" -> "quick.search.horizontal"
+    "search.apps" -> "search_apps"
+    "search_apps" -> "search.apps"
+    "search.contacts" -> "search_contacts"
+    "search_contacts" -> "search.contacts"
+    "search.files" -> "search_files"
+    "search_files" -> "search.files"
+    "search.web" -> "search_web"
+    "search_web" -> "search.web"
+    "search.calculator" -> "search_calculator"
+    "search_calculator" -> "search.calculator"
+    "search.calendar" -> "search_calendar"
+    "search_calendar" -> "search.calendar"
+    "search.shortcuts" -> "search_shortcuts"
+    "search_shortcuts" -> "search.shortcuts"
+    "search.background.show.wall" -> "show_wallpaper"
+    "show_wallpaper" -> "search.background.show.wall"
+    "shortcut.inline" -> "shortcut_inline"
+    "shortcut_inline" -> "shortcut.inline"
+    "app.fuzzy.search" -> "app_fuzzy_search"
+    "app_fuzzy_search" -> "app.fuzzy.search"
+    "search.files.hidden.files" -> "search_files_hidden_files"
+    "search_files_hidden_files" -> "search.files.hidden.files"
+    "search.files.thumbnails" -> "search_files_thumbnails"
+    "search_files_thumbnails" -> "search.files.thumbnails"
+    "widget.theme.style" -> "widget_theme_style"
+    "widget_theme_style" -> "widget.theme.style"
+    "night.mode" -> "theme"
+    "theme" -> "night.mode"
+    else -> null
+}
+
+private fun readBooleanPref(prefs: SharedPreferences, key: String, altKey: String?, fallback: Boolean): Boolean {
+    return if (prefs.contains(key)) {
+        prefs.getBoolean(key, fallback)
+    } else if (altKey != null && prefs.contains(altKey)) {
+        prefs.getBoolean(altKey, fallback)
+    } else {
+        fallback
+    }
+}
+
 @Composable
 fun rememberBooleanPreference(
     prefs: SharedPreferences,
@@ -453,6 +502,7 @@ fun rememberBooleanPreference(
 ): MutableState<Boolean> {
     val viewModel = LocalSettingsViewModel.current
     val settingsState = LocalSettingsState.current
+    val altKey = remember(key) { getAlternatePreferenceKey(key) }
     
     val datastoreKey = when (key) {
         "search.apps" -> SettingsManager.SEARCH_APPS
@@ -477,7 +527,7 @@ fun rememberBooleanPreference(
         "contact_direct_call" -> SettingsManager.CONTACT_DIRECT_CALL
         "shortcut.inline" -> SettingsManager.SHORTCUT_INLINE
         "app.fuzzy.search" -> SettingsManager.APP_FUZZY_SEARCH
-        "quick.search.horizontal" -> SettingsManager.QUICK_SEARCH_HORIZONTAL
+        "quick.search.horizontal", "quick_search_horizontal" -> SettingsManager.QUICK_SEARCH_HORIZONTAL
         "search.files.hidden.files" -> SettingsManager.FILES_HIDDEN_FILES
         "search.files.thumbnails" -> SettingsManager.FILES_THUMBNAILS
         "tutorial_completed" -> SettingsManager.TUTORIAL_COMPLETED
@@ -492,64 +542,68 @@ fun rememberBooleanPreference(
         else -> null
     }
 
-    val currentValue = if (prefs.contains(key)) {
-        when (key) {
-            "settings.bottom.search", "settings.bottom.search.result" -> prefs.getBoolean(key, true)
-            else -> prefs.getBoolean(key, defaultValue)
-        }
-    } else {
-        when (key) {
-            "search.apps" -> settingsState?.searchApps ?: prefs.getBoolean(key, defaultValue)
-            "search.contacts" -> settingsState?.searchContacts ?: prefs.getBoolean(key, defaultValue)
-            "search.files" -> settingsState?.searchFiles ?: prefs.getBoolean(key, defaultValue)
-            "search.web" -> settingsState?.searchWeb ?: prefs.getBoolean(key, defaultValue)
-            "search.calculator" -> settingsState?.searchCalculator ?: prefs.getBoolean(key, defaultValue)
-            "search.calendar" -> settingsState?.searchCalendar ?: prefs.getBoolean(key, defaultValue)
-            "search.shortcuts" -> settingsState?.searchShortcuts ?: prefs.getBoolean(key, defaultValue)
-            "search.background.show.wall" -> settingsState?.showWallpaper ?: prefs.getBoolean(key, defaultValue)
-            "app_animations" -> settingsState?.appAnimations ?: prefs.getBoolean(key, defaultValue)
-            "settings.bottom.search" -> settingsState?.bottomSearch ?: prefs.getBoolean(key, true)
-            "settings.bottom.search.result" -> settingsState?.bottomSearchResult ?: prefs.getBoolean(key, true)
-            "g_icon_enabled" -> settingsState?.gIconEnabled ?: prefs.getBoolean(key, defaultValue)
-            "widget_show_voice" -> settingsState?.widgetShowVoice ?: prefs.getBoolean(key, defaultValue)
-            "widget_show_gemini" -> settingsState?.widgetShowGemini ?: prefs.getBoolean(key, defaultValue)
-            "quick_search_youtube" -> settingsState?.quickSearchYoutube ?: prefs.getBoolean(key, defaultValue)
-            "quick_search_wikipedia" -> settingsState?.quickSearchWikipedia ?: prefs.getBoolean(key, defaultValue)
-            "quick_search_play_store" -> settingsState?.quickSearchPlayStore ?: prefs.getBoolean(key, defaultValue)
-            "quick_search_maps" -> settingsState?.quickSearchMaps ?: prefs.getBoolean(key, defaultValue)
-            "app_quick_launch" -> settingsState?.appQuickLaunch ?: prefs.getBoolean(key, defaultValue)
-            "contact_direct_call" -> settingsState?.contactDirectCall ?: prefs.getBoolean(key, defaultValue)
-            "shortcut.inline" -> settingsState?.shortcutInline ?: prefs.getBoolean(key, defaultValue)
-            "app.fuzzy.search" -> settingsState?.appFuzzySearch ?: prefs.getBoolean(key, defaultValue)
-            "quick.search.horizontal" -> settingsState?.quickSearchHorizontal ?: prefs.getBoolean(key, defaultValue)
-            "search.files.hidden.files" -> settingsState?.filesHiddenFiles ?: prefs.getBoolean(key, defaultValue)
-            "search.files.thumbnails" -> settingsState?.filesThumbnails ?: prefs.getBoolean(key, defaultValue)
-            "tutorial_completed" -> settingsState?.tutorialCompleted ?: prefs.getBoolean(key, defaultValue)
-            "force_tutorial" -> settingsState?.forceTutorial ?: prefs.getBoolean(key, defaultValue)
-            "context_aware_quick_apps" -> settingsState?.contextAwareQuickApps ?: prefs.getBoolean(key, defaultValue)
-            "smart_clipboard_suggestions" -> settingsState?.smartClipboardSuggestions ?: prefs.getBoolean(key, defaultValue)
-            "search_previous_searches" -> settingsState?.searchPreviousSearches ?: prefs.getBoolean(key, defaultValue)
-            "search_overlay_enabled" -> settingsState?.searchOverlayEnabled ?: prefs.getBoolean(key, defaultValue)
-            "matrix_animation_enabled" -> settingsState?.matrixAnimationEnabled ?: prefs.getBoolean(key, defaultValue)
-            "settings_back_to_search_overlay" -> settingsState?.backToSearchOverlay ?: prefs.getBoolean(key, defaultValue)
-            "vibration_enabled" -> settingsState?.vibrationEnabled ?: prefs.getBoolean(key, defaultValue)
-            else -> prefs.getBoolean(key, defaultValue)
+    val fallbackValue = when (key) {
+        "settings.bottom.search", "settings.bottom.search.result" -> true
+        else -> defaultValue
+    }
+
+    val initialValue = remember(key, prefs) {
+        if (prefs.contains(key) || (altKey != null && prefs.contains(altKey))) {
+            readBooleanPref(prefs, key, altKey, fallbackValue)
+        } else {
+            val dsVal = when (key) {
+                "search.apps" -> settingsState?.searchApps
+                "search.contacts" -> settingsState?.searchContacts
+                "search.files" -> settingsState?.searchFiles
+                "search.web" -> settingsState?.searchWeb
+                "search.calculator" -> settingsState?.searchCalculator
+                "search.calendar" -> settingsState?.searchCalendar
+                "search.shortcuts" -> settingsState?.searchShortcuts
+                "search.background.show.wall" -> settingsState?.showWallpaper
+                "app_animations" -> settingsState?.appAnimations
+                "settings.bottom.search" -> settingsState?.bottomSearch
+                "settings.bottom.search.result" -> settingsState?.bottomSearchResult
+                "g_icon_enabled" -> settingsState?.gIconEnabled
+                "widget_show_voice" -> settingsState?.widgetShowVoice
+                "widget_show_gemini" -> settingsState?.widgetShowGemini
+                "quick_search_youtube" -> settingsState?.quickSearchYoutube
+                "quick_search_wikipedia" -> settingsState?.quickSearchWikipedia
+                "quick_search_play_store" -> settingsState?.quickSearchPlayStore
+                "quick_search_maps" -> settingsState?.quickSearchMaps
+                "app_quick_launch" -> settingsState?.appQuickLaunch
+                "contact_direct_call" -> settingsState?.contactDirectCall
+                "shortcut.inline" -> settingsState?.shortcutInline
+                "app.fuzzy.search" -> settingsState?.appFuzzySearch
+                "quick.search.horizontal", "quick_search_horizontal" -> settingsState?.quickSearchHorizontal
+                "search.files.hidden.files" -> settingsState?.filesHiddenFiles
+                "search.files.thumbnails" -> settingsState?.filesThumbnails
+                "tutorial_completed" -> settingsState?.tutorialCompleted
+                "force_tutorial" -> settingsState?.forceTutorial
+                "context_aware_quick_apps" -> settingsState?.contextAwareQuickApps
+                "smart_clipboard_suggestions" -> settingsState?.smartClipboardSuggestions
+                "search_previous_searches" -> settingsState?.searchPreviousSearches
+                "search_overlay_enabled" -> settingsState?.searchOverlayEnabled
+                "matrix_animation_enabled" -> settingsState?.matrixAnimationEnabled
+                "settings_back_to_search_overlay" -> settingsState?.backToSearchOverlay
+                "vibration_enabled" -> settingsState?.vibrationEnabled
+                else -> null
+            }
+            val resolved = dsVal ?: fallbackValue
+            prefs.edit().apply {
+                putBoolean(key, resolved)
+                if (altKey != null) putBoolean(altKey, resolved)
+                apply()
+            }
+            resolved
         }
     }
 
-    val state = remember { mutableStateOf(currentValue) }
-    LaunchedEffect(currentValue) {
-        state.value = currentValue
-    }
+    val state = remember { mutableStateOf(initialValue) }
 
-    val listener = remember(prefs, key) {
+    val listener = remember(prefs, key, altKey) {
         SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
-            if (changedKey == key) {
-                val fallback = when (key) {
-                    "settings.bottom.search", "settings.bottom.search.result" -> true
-                    else -> defaultValue
-                }
-                state.value = sharedPreferences.getBoolean(key, fallback)
+            if (changedKey == key || (altKey != null && changedKey == altKey)) {
+                state.value = readBooleanPref(sharedPreferences, key, altKey, fallbackValue)
             }
         }
     }
@@ -569,33 +623,16 @@ fun rememberBooleanPreference(
             override var value: Boolean
                 get() = state.value
                 set(v) {
+                    if (state.value == v) return
                     state.value = v
                     val vm = currentViewModel
                     if (datastoreKey != null && vm != null) {
                         vm.updateSetting(datastoreKey, v)
                     }
-                    prefs.edit().putBoolean(key, v).apply()
-                    val legacyKey = when (key) {
-                        "settings.bottom.search" -> "bottom_search"
-                        "settings.bottom.search.result" -> "bottom_search_result"
-                        "search.apps" -> "search_apps"
-                        "search.contacts" -> "search_contacts"
-                        "search.files" -> "search_files"
-                        "search.web" -> "search_web"
-                        "search.calculator" -> "search_calculator"
-                        "search.calendar" -> "search_calendar"
-                        "search.shortcuts" -> "search_shortcuts"
-                        "search.background.show.wall" -> "show_wallpaper"
-                        "app_animations" -> "app_animations"
-                        "shortcut.inline" -> "shortcut_inline"
-                        "app.fuzzy.search" -> "app_fuzzy_search"
-                        "quick.search.horizontal" -> "quick_search_horizontal"
-                        "search.files.hidden.files" -> "search_files_hidden_files"
-                        "search.files.thumbnails" -> "search_files_thumbnails"
-                        else -> null
-                    }
-                    if (legacyKey != null) {
-                        prefs.edit().putBoolean(legacyKey, v).apply()
+                    prefs.edit().apply {
+                        putBoolean(key, v)
+                        if (altKey != null) putBoolean(altKey, v)
+                        apply()
                     }
                     currentOnChanged()
                 }
@@ -614,6 +651,7 @@ fun rememberIntPreference(
 ): MutableState<Int> {
     val viewModel = LocalSettingsViewModel.current
     val settingsState = LocalSettingsState.current
+    val altKey = remember(key) { getAlternatePreferenceKey(key) }
     
     val datastoreKey = when (key) {
         "search.background.blur" -> SettingsManager.BACKGROUND_BLUR
@@ -624,28 +662,42 @@ fun rememberIntPreference(
         else -> null
     }
 
-    val currentValue = if (prefs.contains(key)) {
-        prefs.getInt(key, defaultValue)
-    } else {
-        when (key) {
-            "search.background.blur" -> settingsState?.backgroundBlur ?: prefs.getInt(key, defaultValue)
-            "search.background.transparency" -> settingsState?.backgroundTransparency ?: prefs.getInt(key, defaultValue)
-            "search.pill.opacity" -> settingsState?.pillOpacity ?: prefs.getInt(key, defaultValue)
-            "tutorial_step" -> settingsState?.tutorialStep ?: prefs.getInt(key, defaultValue)
-            "shortcut_results_count" -> settingsState?.shortcutResultsCount ?: prefs.getInt(key, defaultValue)
-            else -> prefs.getInt(key, defaultValue)
+    val initialValue = remember(key, prefs) {
+        if (prefs.contains(key)) {
+            prefs.getInt(key, defaultValue)
+        } else if (altKey != null && prefs.contains(altKey)) {
+            prefs.getInt(altKey, defaultValue)
+        } else {
+            val dsVal = when (key) {
+                "search.background.blur" -> settingsState?.backgroundBlur
+                "search.background.transparency" -> settingsState?.backgroundTransparency
+                "search.pill.opacity" -> settingsState?.pillOpacity
+                "tutorial_step" -> settingsState?.tutorialStep
+                "shortcut_results_count" -> settingsState?.shortcutResultsCount
+                else -> null
+            }
+            val resolved = dsVal ?: defaultValue
+            prefs.edit().apply {
+                putInt(key, resolved)
+                if (altKey != null) putInt(altKey, resolved)
+                apply()
+            }
+            resolved
         }
     }
 
-    val state = remember { mutableIntStateOf(currentValue) }
-    LaunchedEffect(currentValue) {
-        state.value = currentValue
-    }
+    val state = remember { mutableIntStateOf(initialValue) }
 
-    val listener = remember(prefs, key) {
+    val listener = remember(prefs, key, altKey) {
         SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
-            if (changedKey == key) {
-                state.value = sharedPreferences.getInt(key, defaultValue)
+            if (changedKey == key || (altKey != null && changedKey == altKey)) {
+                state.value = if (sharedPreferences.contains(key)) {
+                    sharedPreferences.getInt(key, defaultValue)
+                } else if (altKey != null && sharedPreferences.contains(altKey)) {
+                    sharedPreferences.getInt(altKey, defaultValue)
+                } else {
+                    defaultValue
+                }
             }
         }
     }
@@ -657,17 +709,26 @@ fun rememberIntPreference(
         }
     }
 
+    val currentViewModel by rememberUpdatedState(viewModel)
+    val currentOnChanged by rememberUpdatedState(onChanged)
+
     return remember(key, prefs) {
         object : MutableState<Int> {
             override var value: Int
                 get() = state.value
                 set(v) {
+                    if (state.value == v) return
                     state.value = v
-                    if (datastoreKey != null && viewModel != null) {
-                        viewModel.updateSetting(datastoreKey, v)
+                    val vm = currentViewModel
+                    if (datastoreKey != null && vm != null) {
+                        vm.updateSetting(datastoreKey, v)
                     }
-                    prefs.edit().putInt(key, v).apply()
-                    onChanged()
+                    prefs.edit().apply {
+                        putInt(key, v)
+                        if (altKey != null) putInt(altKey, v)
+                        apply()
+                    }
+                    currentOnChanged()
                 }
             override operator fun component1() = value
             override operator fun component2(): (Int) -> Unit = { value = it }
@@ -682,8 +743,8 @@ fun rememberStringPreference(
     defaultValue: String
 ): MutableState<String> {
     val viewModel = LocalSettingsViewModel.current
-    val settingsState by (viewModel?.settingsState ?: kotlinx.coroutines.flow.MutableStateFlow(null))
-        .collectAsStateWithLifecycle()
+    val settingsState = LocalSettingsState.current
+    val altKey = remember(key) { getAlternatePreferenceKey(key) }
     
     val datastoreKey = when (key) {
         "night.mode" -> SettingsManager.THEME
@@ -696,30 +757,44 @@ fun rememberStringPreference(
         else -> null
     }
 
-    val currentValue = if (prefs.contains(key)) {
-        prefs.getString(key, defaultValue) ?: defaultValue
-    } else {
-        when (key) {
-            "night.mode" -> settingsState?.theme ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-            "search.engine" -> settingsState?.searchEngine ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-            "custom_search_engine_url" -> settingsState?.customSearchEngineUrl ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-            "widget.theme.style" -> settingsState?.widgetThemeStyle ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-            "search.pills" -> settingsState?.searchPills ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-            "custom_icon_pills" -> settingsState?.customIconPills ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-            "active_icon_pack" -> settingsState?.activeIconPack ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-            else -> prefs.getString(key, defaultValue) ?: defaultValue
+    val initialValue = remember(key, prefs) {
+        if (prefs.contains(key)) {
+            prefs.getString(key, defaultValue) ?: defaultValue
+        } else if (altKey != null && prefs.contains(altKey)) {
+            prefs.getString(altKey, defaultValue) ?: defaultValue
+        } else {
+            val dsVal = when (key) {
+                "night.mode" -> settingsState?.theme
+                "search.engine" -> settingsState?.searchEngine
+                "custom_search_engine_url" -> settingsState?.customSearchEngineUrl
+                "widget.theme.style" -> settingsState?.widgetThemeStyle
+                "search.pills" -> settingsState?.searchPills
+                "custom_icon_pills" -> settingsState?.customIconPills
+                "active_icon_pack" -> settingsState?.activeIconPack
+                else -> null
+            }
+            val resolved = dsVal ?: defaultValue
+            prefs.edit().apply {
+                putString(key, resolved)
+                if (altKey != null) putString(altKey, resolved)
+                apply()
+            }
+            resolved
         }
     }
 
-    val state = remember { mutableStateOf(currentValue) }
-    LaunchedEffect(currentValue) {
-        state.value = currentValue
-    }
+    val state = remember { mutableStateOf(initialValue) }
 
-    val listener = remember(prefs, key) {
+    val listener = remember(prefs, key, altKey) {
         SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
-            if (changedKey == key) {
-                state.value = sharedPreferences.getString(key, defaultValue) ?: defaultValue
+            if (changedKey == key || (altKey != null && changedKey == altKey)) {
+                state.value = if (sharedPreferences.contains(key)) {
+                    sharedPreferences.getString(key, defaultValue) ?: defaultValue
+                } else if (altKey != null && sharedPreferences.contains(altKey)) {
+                    sharedPreferences.getString(altKey, defaultValue) ?: defaultValue
+                } else {
+                    defaultValue
+                }
             }
         }
     }
@@ -731,19 +806,27 @@ fun rememberStringPreference(
         }
     }
 
+    val currentViewModel by rememberUpdatedState(viewModel)
+
     return remember(key, prefs) {
         object : MutableState<String> {
             override var value: String
                 get() = state.value
                 set(v) {
+                    if (state.value == v) return
                     state.value = v
-                    if (datastoreKey != null && viewModel != null) {
-                        viewModel.updateSetting(datastoreKey, v)
+                    val vm = currentViewModel
+                    if (datastoreKey != null && vm != null) {
+                        vm.updateSetting(datastoreKey, v)
                     }
                     if (key == "active_icon_pack") {
                         com.pixel.intelligentsearch.feature.search.clearThemedIconCache()
                     }
-                    prefs.edit().putString(key, v).apply()
+                    prefs.edit().apply {
+                        putString(key, v)
+                        if (altKey != null) putString(altKey, v)
+                        apply()
+                    }
                 }
             override operator fun component1() = value
             override operator fun component2(): (String) -> Unit = { value = it }
@@ -797,14 +880,17 @@ fun SettingsScreensHub(
             }
         }
 
+        var isNavTransitioning by remember { mutableStateOf(false) }
+
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
             val currentEntry = navController.currentBackStackEntry
             val isResumed = currentEntry?.lifecycle?.currentState == androidx.lifecycle.Lifecycle.State.RESUMED
             val currentRoute = currentEntry?.destination?.route
             val targetRouteName = route::class.qualifiedName ?: route::class.simpleName ?: ""
 
-            if (isResumed && (currentRoute == null || !currentRoute.endsWith(targetRouteName))) {
+            if (isResumed && !isNavTransitioning && (currentRoute == null || !currentRoute.endsWith(targetRouteName))) {
                 SettingsDebouncer.recordClick()
+                isNavTransitioning = true
                 navController.navigate(route) {
                     launchSingleTop = true
                     restoreState = true
@@ -849,11 +935,18 @@ fun SettingsScreensHub(
         val hasSubScreensInNavHost = navController.previousBackStackEntry != null
         val isAtRootMain = (currentRoute == null || currentRoute.contains("main", ignoreCase = true)) && !hasSubScreensInNavHost
 
+        LaunchedEffect(currentBackStackEntry) {
+            isNavTransitioning = true
+            kotlinx.coroutines.delay(320L)
+            isNavTransitioning = false
+        }
+
         val onBack: () -> Unit = {
             val currentEntry = navController.currentBackStackEntry
             val isResumed = currentEntry?.lifecycle?.currentState == androidx.lifecycle.Lifecycle.State.RESUMED
-            if (isResumed) {
+            if (isResumed && !isNavTransitioning) {
                 SettingsDebouncer.recordClick()
+                isNavTransitioning = true
                 if (navController.previousBackStackEntry != null) {
                     navController.popBackStack()
                 } else {
@@ -929,7 +1022,22 @@ fun SettingsScreensHub(
                     .fillMaxSize()
                     .then(if (showTutorial) Modifier.blur(24.dp) else Modifier)
             ) {
-                
+                if (isNavTransitioning) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .zIndex(99999f)
+                            .pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                                        event.changes.forEach { it.consume() }
+                                    }
+                                }
+                            }
+                    )
+                }
+
                 NavHost(
                     navController = navController,
                     startDestination = startRoute,
@@ -6106,9 +6214,11 @@ fun SettingsRowToggle(
                         if (onClick != null) {
                             onClick()
                         } else {
-                            val next = !isChecked
-                            sensoryEngine.toggle(view, next)
-                            onCheckedChange(next)
+                            if (SettingsDebouncer.canClick()) {
+                                val next = !isChecked
+                                sensoryEngine.toggle(view, next)
+                                onCheckedChange(next)
+                            }
                         }
                     }
                 )
@@ -6152,14 +6262,12 @@ fun SettingsRowToggle(
             }
             Switch(
                 checked = isChecked,
-                onCheckedChange = if (onClick != null) {
-                    { next ->
-                        if (SettingsDebouncer.canClick()) {
-                            sensoryEngine.toggle(view, next)
-                            onCheckedChange(next)
-                        }
+                onCheckedChange = { next ->
+                    if (SettingsDebouncer.canClick()) {
+                        sensoryEngine.toggle(view, next)
+                        onCheckedChange(next)
                     }
-                } else null,
+                },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = MaterialTheme.colorScheme.primary,
                     checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,

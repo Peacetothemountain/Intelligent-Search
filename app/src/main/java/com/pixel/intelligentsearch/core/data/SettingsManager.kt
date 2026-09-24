@@ -150,24 +150,24 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             val sp = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
             IntelligentSearchSettings(
                 theme = preferences[THEME] ?: sp.getString("night.mode", defaultTheme) ?: defaultTheme,
-                searchApps = preferences[SEARCH_APPS] ?: sp.getBoolean("search.apps", true),
-                searchContacts = preferences[SEARCH_CONTACTS] ?: sp.getBoolean("search.contacts", false),
-                searchFiles = preferences[SEARCH_FILES] ?: sp.getBoolean("search.files", false),
-                searchWeb = preferences[SEARCH_WEB] ?: sp.getBoolean("search.web", true),
-                searchCalculator = preferences[SEARCH_CALCULATOR] ?: sp.getBoolean("search.calculator", true),
-                searchCalendar = preferences[SEARCH_CALENDAR] ?: sp.getBoolean("search.calendar", true),
-                searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: sp.getBoolean("search.shortcuts", true),
+                searchApps = preferences[SEARCH_APPS] ?: (if (sp.contains("search.apps")) sp.getBoolean("search.apps", true) else sp.getBoolean("search_apps", true)),
+                searchContacts = preferences[SEARCH_CONTACTS] ?: (if (sp.contains("search.contacts")) sp.getBoolean("search.contacts", false) else sp.getBoolean("search_contacts", false)),
+                searchFiles = preferences[SEARCH_FILES] ?: (if (sp.contains("search.files")) sp.getBoolean("search.files", false) else sp.getBoolean("search_files", false)),
+                searchWeb = preferences[SEARCH_WEB] ?: (if (sp.contains("search.web")) sp.getBoolean("search.web", true) else sp.getBoolean("search_web", true)),
+                searchCalculator = preferences[SEARCH_CALCULATOR] ?: (if (sp.contains("search.calculator")) sp.getBoolean("search.calculator", true) else sp.getBoolean("search_calculator", true)),
+                searchCalendar = preferences[SEARCH_CALENDAR] ?: (if (sp.contains("search.calendar")) sp.getBoolean("search.calendar", true) else sp.getBoolean("search_calendar", true)),
+                searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: (if (sp.contains("search.shortcuts")) sp.getBoolean("search.shortcuts", true) else sp.getBoolean("search_shortcuts", true)),
                 backgroundBlur = preferences[BACKGROUND_BLUR] ?: sp.getInt("search.background.blur", sp.getInt("background.blur", 50)),
-                showWallpaper = preferences[SHOW_WALLPAPER] ?: sp.getBoolean("search.background.show.wall", sp.getBoolean("show.wallpaper", true)),
+                showWallpaper = preferences[SHOW_WALLPAPER] ?: (if (sp.contains("search.background.show.wall")) sp.getBoolean("search.background.show.wall", true) else sp.getBoolean("show_wallpaper", true)),
                 backgroundTransparency = preferences[BACKGROUND_TRANSPARENCY] ?: sp.getInt("search.background.transparency", sp.getInt("background.transparency", 50)),
                 pillOpacity = preferences[PILL_OPACITY] ?: sp.getInt("search.pill.opacity", sp.getInt("pill.opacity", 50)),
                 searchEngine = preferences[SEARCH_ENGINE] ?: sp.getString("search.engine", "Google") ?: "Google",
                 customSearchEngineUrl = preferences[CUSTOM_SEARCH_ENGINE_URL] ?: sp.getString("custom_search_engine_url", "") ?: "",
-                filesHiddenFiles = preferences[FILES_HIDDEN_FILES] ?: sp.getBoolean("search.files.hidden.files", false),
-                filesThumbnails = preferences[FILES_THUMBNAILS] ?: sp.getBoolean("search.files.thumbnails", true),
+                filesHiddenFiles = preferences[FILES_HIDDEN_FILES] ?: (if (sp.contains("search.files.hidden.files")) sp.getBoolean("search.files.hidden.files", false) else sp.getBoolean("search_files_hidden_files", false)),
+                filesThumbnails = preferences[FILES_THUMBNAILS] ?: (if (sp.contains("search.files.thumbnails")) sp.getBoolean("search.files.thumbnails", true) else sp.getBoolean("search_files_thumbnails", true)),
                 appAnimations = preferences[APP_ANIMATIONS] ?: sp.getBoolean("app_animations", true),
-                bottomSearch = preferences[BOTTOM_SEARCH] ?: sp.getBoolean("settings.bottom.search", true),
-                bottomSearchResult = preferences[BOTTOM_SEARCH_RESULT] ?: sp.getBoolean("settings.bottom.search.result", true),
+                bottomSearch = preferences[BOTTOM_SEARCH] ?: (if (sp.contains("settings.bottom.search")) sp.getBoolean("settings.bottom.search", true) else sp.getBoolean("bottom_search", true)),
+                bottomSearchResult = preferences[BOTTOM_SEARCH_RESULT] ?: (if (sp.contains("settings.bottom.search.result")) sp.getBoolean("settings.bottom.search.result", true) else sp.getBoolean("bottom_search_result", true)),
                 tutorialCompleted = preferences[TUTORIAL_COMPLETED] ?: sp.getBoolean("tutorial_completed", false),
                 forceTutorial = preferences[FORCE_TUTORIAL] ?: sp.getBoolean("force_tutorial", false),
                 tutorialStep = preferences[TUTORIAL_STEP] ?: sp.getInt("tutorial_step", 0),
@@ -179,13 +179,13 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
                 quickSearchPlayStore = preferences[QUICK_SEARCH_PLAY_STORE] ?: sp.getBoolean("quick_search_play_store", true),
                 quickSearchMaps = preferences[QUICK_SEARCH_MAPS] ?: sp.getBoolean("quick_search_maps", true),
                 searchPills = preferences[SEARCH_PILLS] ?: sp.getString("search_pills", "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files") ?: "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files",
-                widgetThemeStyle = preferences[WIDGET_THEME_STYLE] ?: sp.getString("widget.theme.style", "System Default") ?: "System Default",
+                widgetThemeStyle = preferences[WIDGET_THEME_STYLE] ?: (if (sp.contains("widget.theme.style")) sp.getString("widget.theme.style", "System Default") else sp.getString("widget_theme_style", "System Default")) ?: "System Default",
                 hiddenApps = preferences[HIDDEN_APPS] ?: (sp.getStringSet("hidden_apps", emptySet())?.toSet() ?: emptySet()),
                 appQuickLaunch = preferences[APP_QUICK_LAUNCH] ?: sp.getBoolean("app_quick_launch", false),
                 contactDirectCall = preferences[CONTACT_DIRECT_CALL] ?: sp.getBoolean("contact_direct_call", false),
-                shortcutInline = preferences[SHORTCUT_INLINE] ?: sp.getBoolean("shortcut.inline", true),
-                appFuzzySearch = preferences[APP_FUZZY_SEARCH] ?: sp.getBoolean("app.fuzzy.search", true),
-                quickSearchHorizontal = preferences[QUICK_SEARCH_HORIZONTAL] ?: sp.getBoolean("quick_search_horizontal", false),
+                shortcutInline = preferences[SHORTCUT_INLINE] ?: (if (sp.contains("shortcut.inline")) sp.getBoolean("shortcut.inline", true) else sp.getBoolean("shortcut_inline", true)),
+                appFuzzySearch = preferences[APP_FUZZY_SEARCH] ?: (if (sp.contains("app.fuzzy.search")) sp.getBoolean("app.fuzzy.search", true) else sp.getBoolean("app_fuzzy_search", true)),
+                quickSearchHorizontal = preferences[QUICK_SEARCH_HORIZONTAL] ?: (if (sp.contains("quick_search_horizontal")) sp.getBoolean("quick_search_horizontal", false) else sp.getBoolean("quick.search.horizontal", false)),
                 webResultsCount = preferences[WEB_RESULTS_COUNT] ?: sp.getInt("web_results_count", 5),
                 contactResultsCount = preferences[CONTACT_RESULTS_COUNT] ?: sp.getInt("contact_results_count", 5),
                 fileResultsCount = preferences[FILE_RESULTS_COUNT] ?: sp.getInt("file_results_count", 5),
@@ -215,24 +215,24 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val defaultTheme = if (isSystemDark) "Material Dark" else "Material Light"
         return IntelligentSearchSettings(
             theme = prefs.getString("night.mode", defaultTheme) ?: defaultTheme,
-            searchApps = prefs.getBoolean("search.apps", true),
-            searchContacts = prefs.getBoolean("search.contacts", false),
-            searchFiles = prefs.getBoolean("search.files", false),
-            searchWeb = prefs.getBoolean("search.web", true),
-            searchCalculator = prefs.getBoolean("search.calculator", true),
-            searchCalendar = prefs.getBoolean("search.calendar", true),
-            searchShortcuts = prefs.getBoolean("search.shortcuts", true),
+            searchApps = if (prefs.contains("search.apps")) prefs.getBoolean("search.apps", true) else prefs.getBoolean("search_apps", true),
+            searchContacts = if (prefs.contains("search.contacts")) prefs.getBoolean("search.contacts", false) else prefs.getBoolean("search_contacts", false),
+            searchFiles = if (prefs.contains("search.files")) prefs.getBoolean("search.files", false) else prefs.getBoolean("search_files", false),
+            searchWeb = if (prefs.contains("search.web")) prefs.getBoolean("search.web", true) else prefs.getBoolean("search_web", true),
+            searchCalculator = if (prefs.contains("search.calculator")) prefs.getBoolean("search.calculator", true) else prefs.getBoolean("search_calculator", true),
+            searchCalendar = if (prefs.contains("search.calendar")) prefs.getBoolean("search.calendar", true) else prefs.getBoolean("search_calendar", true),
+            searchShortcuts = if (prefs.contains("search.shortcuts")) prefs.getBoolean("search.shortcuts", true) else prefs.getBoolean("search_shortcuts", true),
             backgroundBlur = prefs.getInt("search.background.blur", prefs.getInt("background.blur", 50)),
-            showWallpaper = prefs.getBoolean("search.background.show.wall", prefs.getBoolean("show.wallpaper", true)),
+            showWallpaper = if (prefs.contains("search.background.show.wall")) prefs.getBoolean("search.background.show.wall", true) else prefs.getBoolean("show_wallpaper", true),
             backgroundTransparency = prefs.getInt("search.background.transparency", prefs.getInt("background.transparency", 50)),
             pillOpacity = prefs.getInt("search.pill.opacity", prefs.getInt("pill.opacity", 50)),
             searchEngine = prefs.getString("search.engine", "Google") ?: "Google",
             customSearchEngineUrl = prefs.getString("custom_search_engine_url", "") ?: "",
-            filesHiddenFiles = prefs.getBoolean("search.files.hidden.files", false),
-            filesThumbnails = prefs.getBoolean("search.files.thumbnails", true),
+            filesHiddenFiles = if (prefs.contains("search.files.hidden.files")) prefs.getBoolean("search.files.hidden.files", false) else prefs.getBoolean("search_files_hidden_files", false),
+            filesThumbnails = if (prefs.contains("search.files.thumbnails")) prefs.getBoolean("search.files.thumbnails", true) else prefs.getBoolean("search_files_thumbnails", true),
             appAnimations = prefs.getBoolean("app_animations", true),
-            bottomSearch = prefs.getBoolean("settings.bottom.search", true),
-            bottomSearchResult = prefs.getBoolean("settings.bottom.search.result", true),
+            bottomSearch = if (prefs.contains("settings.bottom.search")) prefs.getBoolean("settings.bottom.search", true) else prefs.getBoolean("bottom_search", true),
+            bottomSearchResult = if (prefs.contains("settings.bottom.search.result")) prefs.getBoolean("settings.bottom.search.result", true) else prefs.getBoolean("bottom_search_result", true),
             tutorialCompleted = prefs.getBoolean("tutorial_completed", false),
             forceTutorial = prefs.getBoolean("force_tutorial", false),
             tutorialStep = prefs.getInt("tutorial_step", 0),
@@ -244,13 +244,13 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             quickSearchPlayStore = prefs.getBoolean("quick_search_play_store", true),
             quickSearchMaps = prefs.getBoolean("quick_search_maps", true),
             searchPills = prefs.getString("search_pills", "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files") ?: "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files",
-            widgetThemeStyle = prefs.getString("widget.theme.style", "System Default") ?: "System Default",
+            widgetThemeStyle = (if (prefs.contains("widget.theme.style")) prefs.getString("widget.theme.style", "System Default") else prefs.getString("widget_theme_style", "System Default")) ?: "System Default",
             hiddenApps = prefs.getStringSet("hidden_apps", emptySet())?.toSet() ?: emptySet(),
             appQuickLaunch = prefs.getBoolean("app_quick_launch", false),
             contactDirectCall = prefs.getBoolean("contact_direct_call", false),
-            shortcutInline = prefs.getBoolean("shortcut.inline", true),
-            appFuzzySearch = prefs.getBoolean("app.fuzzy.search", true),
-            quickSearchHorizontal = prefs.getBoolean("quick_search_horizontal", false),
+            shortcutInline = if (prefs.contains("shortcut.inline")) prefs.getBoolean("shortcut.inline", true) else prefs.getBoolean("shortcut_inline", true),
+            appFuzzySearch = if (prefs.contains("app.fuzzy.search")) prefs.getBoolean("app.fuzzy.search", true) else prefs.getBoolean("app_fuzzy_search", true),
+            quickSearchHorizontal = if (prefs.contains("quick_search_horizontal")) prefs.getBoolean("quick_search_horizontal", false) else prefs.getBoolean("quick.search.horizontal", false),
             webResultsCount = prefs.getInt("web_results_count", 5),
             contactResultsCount = prefs.getInt("contact_results_count", 5),
             fileResultsCount = prefs.getInt("file_results_count", 5),
@@ -278,24 +278,24 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         val sp = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
         context.dataStore.edit { preferences ->
             if (!preferences.contains(THEME) && sp.contains("night.mode")) sp.getString("night.mode", null)?.let { preferences[THEME] = it }
-            if (!preferences.contains(SEARCH_APPS) && sp.contains("search.apps")) preferences[SEARCH_APPS] = sp.getBoolean("search.apps", true)
-            if (!preferences.contains(SEARCH_CONTACTS) && sp.contains("search.contacts")) preferences[SEARCH_CONTACTS] = sp.getBoolean("search.contacts", false)
-            if (!preferences.contains(SEARCH_FILES) && sp.contains("search.files")) preferences[SEARCH_FILES] = sp.getBoolean("search.files", false)
-            if (!preferences.contains(SEARCH_WEB) && sp.contains("search.web")) preferences[SEARCH_WEB] = sp.getBoolean("search.web", true)
-            if (!preferences.contains(SEARCH_CALCULATOR) && sp.contains("search.calculator")) preferences[SEARCH_CALCULATOR] = sp.getBoolean("search.calculator", true)
-            if (!preferences.contains(SEARCH_CALENDAR) && sp.contains("search.calendar")) preferences[SEARCH_CALENDAR] = sp.getBoolean("search.calendar", true)
-            if (!preferences.contains(SEARCH_SHORTCUTS) && sp.contains("search.shortcuts")) preferences[SEARCH_SHORTCUTS] = sp.getBoolean("search.shortcuts", true)
+            if (!preferences.contains(SEARCH_APPS) && (sp.contains("search.apps") || sp.contains("search_apps"))) preferences[SEARCH_APPS] = sp.getBoolean("search.apps", sp.getBoolean("search_apps", true))
+            if (!preferences.contains(SEARCH_CONTACTS) && (sp.contains("search.contacts") || sp.contains("search_contacts"))) preferences[SEARCH_CONTACTS] = sp.getBoolean("search.contacts", sp.getBoolean("search_contacts", false))
+            if (!preferences.contains(SEARCH_FILES) && (sp.contains("search.files") || sp.contains("search_files"))) preferences[SEARCH_FILES] = sp.getBoolean("search.files", sp.getBoolean("search_files", false))
+            if (!preferences.contains(SEARCH_WEB) && (sp.contains("search.web") || sp.contains("search_web"))) preferences[SEARCH_WEB] = sp.getBoolean("search.web", sp.getBoolean("search_web", true))
+            if (!preferences.contains(SEARCH_CALCULATOR) && (sp.contains("search.calculator") || sp.contains("search_calculator"))) preferences[SEARCH_CALCULATOR] = sp.getBoolean("search.calculator", sp.getBoolean("search_calculator", true))
+            if (!preferences.contains(SEARCH_CALENDAR) && (sp.contains("search.calendar") || sp.contains("search_calendar"))) preferences[SEARCH_CALENDAR] = sp.getBoolean("search.calendar", sp.getBoolean("search_calendar", true))
+            if (!preferences.contains(SEARCH_SHORTCUTS) && (sp.contains("search.shortcuts") || sp.contains("search_shortcuts"))) preferences[SEARCH_SHORTCUTS] = sp.getBoolean("search.shortcuts", sp.getBoolean("search_shortcuts", true))
             if (!preferences.contains(BACKGROUND_BLUR) && (sp.contains("search.background.blur") || sp.contains("background.blur"))) preferences[BACKGROUND_BLUR] = sp.getInt("search.background.blur", sp.getInt("background.blur", 50))
             if (!preferences.contains(SHOW_WALLPAPER) && (sp.contains("search.background.show.wall") || sp.contains("show.wallpaper"))) preferences[SHOW_WALLPAPER] = sp.getBoolean("search.background.show.wall", sp.getBoolean("show.wallpaper", true))
             if (!preferences.contains(BACKGROUND_TRANSPARENCY) && (sp.contains("search.background.transparency") || sp.contains("background.transparency"))) preferences[BACKGROUND_TRANSPARENCY] = sp.getInt("search.background.transparency", sp.getInt("background.transparency", 50))
             if (!preferences.contains(PILL_OPACITY) && (sp.contains("search.pill.opacity") || sp.contains("pill.opacity"))) preferences[PILL_OPACITY] = sp.getInt("search.pill.opacity", sp.getInt("pill.opacity", 50))
             if (!preferences.contains(SEARCH_ENGINE) && sp.contains("search.engine")) sp.getString("search.engine", null)?.let { preferences[SEARCH_ENGINE] = it }
             if (!preferences.contains(CUSTOM_SEARCH_ENGINE_URL) && sp.contains("custom_search_engine_url")) sp.getString("custom_search_engine_url", null)?.let { preferences[CUSTOM_SEARCH_ENGINE_URL] = it }
-            if (!preferences.contains(FILES_HIDDEN_FILES) && sp.contains("search.files.hidden.files")) preferences[FILES_HIDDEN_FILES] = sp.getBoolean("search.files.hidden.files", false)
-            if (!preferences.contains(FILES_THUMBNAILS) && sp.contains("search.files.thumbnails")) preferences[FILES_THUMBNAILS] = sp.getBoolean("search.files.thumbnails", true)
+            if (!preferences.contains(FILES_HIDDEN_FILES) && (sp.contains("search.files.hidden.files") || sp.contains("search_files_hidden_files"))) preferences[FILES_HIDDEN_FILES] = sp.getBoolean("search.files.hidden.files", sp.getBoolean("search_files_hidden_files", false))
+            if (!preferences.contains(FILES_THUMBNAILS) && (sp.contains("search.files.thumbnails") || sp.contains("search_files_thumbnails"))) preferences[FILES_THUMBNAILS] = sp.getBoolean("search.files.thumbnails", sp.getBoolean("search_files_thumbnails", true))
             if (!preferences.contains(APP_ANIMATIONS) && sp.contains("app_animations")) preferences[APP_ANIMATIONS] = sp.getBoolean("app_animations", true)
-            if (!preferences.contains(BOTTOM_SEARCH) && sp.contains("settings.bottom.search")) preferences[BOTTOM_SEARCH] = sp.getBoolean("settings.bottom.search", true)
-            if (!preferences.contains(BOTTOM_SEARCH_RESULT) && sp.contains("settings.bottom.search.result")) preferences[BOTTOM_SEARCH_RESULT] = sp.getBoolean("settings.bottom.search.result", true)
+            if (!preferences.contains(BOTTOM_SEARCH) && (sp.contains("settings.bottom.search") || sp.contains("bottom_search"))) preferences[BOTTOM_SEARCH] = sp.getBoolean("settings.bottom.search", sp.getBoolean("bottom_search", true))
+            if (!preferences.contains(BOTTOM_SEARCH_RESULT) && (sp.contains("settings.bottom.search.result") || sp.contains("bottom_search_result"))) preferences[BOTTOM_SEARCH_RESULT] = sp.getBoolean("settings.bottom.search.result", sp.getBoolean("bottom_search_result", true))
             if (!preferences.contains(TUTORIAL_COMPLETED) && sp.contains("tutorial_completed")) preferences[TUTORIAL_COMPLETED] = sp.getBoolean("tutorial_completed", false)
             if (!preferences.contains(FORCE_TUTORIAL) && sp.contains("force_tutorial")) preferences[FORCE_TUTORIAL] = sp.getBoolean("force_tutorial", false)
             if (!preferences.contains(TUTORIAL_STEP) && sp.contains("tutorial_step")) preferences[TUTORIAL_STEP] = sp.getInt("tutorial_step", 0)
@@ -307,13 +307,13 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             if (!preferences.contains(QUICK_SEARCH_PLAY_STORE) && sp.contains("quick_search_play_store")) preferences[QUICK_SEARCH_PLAY_STORE] = sp.getBoolean("quick_search_play_store", true)
             if (!preferences.contains(QUICK_SEARCH_MAPS) && sp.contains("quick_search_maps")) preferences[QUICK_SEARCH_MAPS] = sp.getBoolean("quick_search_maps", true)
             if (!preferences.contains(SEARCH_PILLS) && sp.contains("search_pills")) sp.getString("search_pills", null)?.let { preferences[SEARCH_PILLS] = it }
-            if (!preferences.contains(WIDGET_THEME_STYLE) && sp.contains("widget.theme.style")) sp.getString("widget.theme.style", null)?.let { preferences[WIDGET_THEME_STYLE] = it }
+            if (!preferences.contains(WIDGET_THEME_STYLE) && (sp.contains("widget.theme.style") || sp.contains("widget_theme_style"))) sp.getString("widget.theme.style", sp.getString("widget_theme_style", null))?.let { preferences[WIDGET_THEME_STYLE] = it }
             if (!preferences.contains(HIDDEN_APPS) && sp.contains("hidden_apps")) sp.getStringSet("hidden_apps", null)?.let { preferences[HIDDEN_APPS] = it }
             if (!preferences.contains(APP_QUICK_LAUNCH) && sp.contains("app_quick_launch")) preferences[APP_QUICK_LAUNCH] = sp.getBoolean("app_quick_launch", false)
             if (!preferences.contains(CONTACT_DIRECT_CALL) && sp.contains("contact_direct_call")) preferences[CONTACT_DIRECT_CALL] = sp.getBoolean("contact_direct_call", false)
-            if (!preferences.contains(SHORTCUT_INLINE) && sp.contains("shortcut.inline")) preferences[SHORTCUT_INLINE] = sp.getBoolean("shortcut.inline", true)
-            if (!preferences.contains(APP_FUZZY_SEARCH) && sp.contains("app.fuzzy.search")) preferences[APP_FUZZY_SEARCH] = sp.getBoolean("app.fuzzy.search", true)
-            if (!preferences.contains(QUICK_SEARCH_HORIZONTAL) && sp.contains("quick_search_horizontal")) preferences[QUICK_SEARCH_HORIZONTAL] = sp.getBoolean("quick_search_horizontal", false)
+            if (!preferences.contains(SHORTCUT_INLINE) && (sp.contains("shortcut.inline") || sp.contains("shortcut_inline"))) preferences[SHORTCUT_INLINE] = sp.getBoolean("shortcut.inline", sp.getBoolean("shortcut_inline", true))
+            if (!preferences.contains(APP_FUZZY_SEARCH) && (sp.contains("app.fuzzy.search") || sp.contains("app_fuzzy_search"))) preferences[APP_FUZZY_SEARCH] = sp.getBoolean("app.fuzzy.search", sp.getBoolean("app_fuzzy_search", true))
+            if (!preferences.contains(QUICK_SEARCH_HORIZONTAL) && (sp.contains("quick_search_horizontal") || sp.contains("quick.search.horizontal"))) preferences[QUICK_SEARCH_HORIZONTAL] = sp.getBoolean("quick_search_horizontal", sp.getBoolean("quick.search.horizontal", false))
             if (!preferences.contains(WEB_RESULTS_COUNT) && sp.contains("web_results_count")) preferences[WEB_RESULTS_COUNT] = sp.getInt("web_results_count", 5)
             if (!preferences.contains(CONTACT_RESULTS_COUNT) && sp.contains("contact_results_count")) preferences[CONTACT_RESULTS_COUNT] = sp.getInt("contact_results_count", 5)
             if (!preferences.contains(FILE_RESULTS_COUNT) && sp.contains("file_results_count")) preferences[FILE_RESULTS_COUNT] = sp.getInt("file_results_count", 5)
@@ -343,25 +343,45 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
         
         val legacyKey = when (key.name) {
             "search.apps" -> "search_apps"
+            "search_apps" -> "search.apps"
             "search.contacts" -> "search_contacts"
+            "search_contacts" -> "search.contacts"
             "search.files" -> "search_files"
+            "search_files" -> "search.files"
             "search.web" -> "search_web"
+            "search_web" -> "search.web"
             "search.calculator" -> "search_calculator"
+            "search_calculator" -> "search.calculator"
             "search.calendar" -> "search_calendar"
+            "search_calendar" -> "search.calendar"
             "search.shortcuts" -> "search_shortcuts"
+            "search_shortcuts" -> "search.shortcuts"
             "search.background.show.wall" -> "show_wallpaper"
+            "show_wallpaper" -> "search.background.show.wall"
             "search.background.blur" -> "background.blur"
+            "background.blur" -> "search.background.blur"
             "search.background.transparency" -> "background.transparency"
+            "background.transparency" -> "search.background.transparency"
             "search.pill.opacity" -> "pill.opacity"
+            "pill.opacity" -> "search.pill.opacity"
             "search.files.hidden.files" -> "search_files_hidden_files"
+            "search_files_hidden_files" -> "search.files.hidden.files"
             "search.files.thumbnails" -> "search_files_thumbnails"
+            "search_files_thumbnails" -> "search.files.thumbnails"
             "settings.bottom.search" -> "bottom_search"
+            "bottom_search" -> "settings.bottom.search"
             "settings.bottom.search.result" -> "bottom_search_result"
+            "bottom_search_result" -> "settings.bottom.search.result"
             "shortcut.inline" -> "shortcut_inline"
+            "shortcut_inline" -> "shortcut.inline"
             "app.fuzzy.search" -> "app_fuzzy_search"
+            "app_fuzzy_search" -> "app.fuzzy.search"
             "quick_search_horizontal" -> "quick.search.horizontal"
+            "quick.search.horizontal" -> "quick_search_horizontal"
             "widget.theme.style" -> "widget_theme_style"
+            "widget_theme_style" -> "widget.theme.style"
             "night.mode" -> "theme"
+            "theme" -> "night.mode"
             else -> null
         }
 

@@ -354,7 +354,7 @@ private const val GEMINI_CORNER_SWIPE_SHADER = """
         float pulse = 0.90 + 0.10 * sin(time * 2.4);
         float finalAlpha = intensity * mixedColor.a * pulse;
         
-        return half4(mixedColor.rgb * intensity, finalAlpha);
+        return half4(mixedColor.rgb * finalAlpha, finalAlpha);
     }
 """
 
@@ -6874,46 +6874,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
 
                     val isCustomTheme = localSubtheme == "Custom"
-
-                    val defaultWavePrimary = MaterialTheme.colorScheme.primary
-                    val defaultWaveTertiary = MaterialTheme.colorScheme.tertiary
-                    val defaultWaveSecondary = MaterialTheme.colorScheme.secondary
-                    val defaultWaveAccent = MaterialTheme.colorScheme.primaryContainer
-
-                    val (wavePrimary, waveSecondary, waveTertiary, waveAccent) = remember(
-                        isCustomTheme,
-                        computedCustomColorInt,
-                        defaultWavePrimary,
-                        defaultWaveTertiary,
-                        defaultWaveSecondary,
-                        defaultWaveAccent
-                    ) {
-                        if (isCustomTheme) {
-                            val hsv = FloatArray(3)
-                            android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
-                            val baseHue = hsv[0]
-                            val sat = hsv[1]
-                            val val1 = hsv[2]
-                            val c1 = androidx.compose.ui.graphics.Color(computedCustomColorInt)
-                            val c2 = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf((baseHue + 25f) % 360f, sat, val1)))
-                            val c3 = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf((baseHue + 50f) % 360f, sat, val1)))
-                            val c4 = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf((baseHue - 25f + 360f) % 360f, sat, val1)))
-                            listOf(c1, c2, c3, c4)
-                        } else {
-                            listOf(
-                                defaultWavePrimary,
-                                defaultWaveTertiary,
-                                defaultWaveSecondary,
-                                defaultWaveAccent
-                            )
-                        }
+                    val waveColor = if (isCustomTheme) {
+                        accentColor
+                    } else {
+                        MaterialTheme.colorScheme.primary
                     }
 
                     GeminiCornerSwipeWaveLayer(
-                        colorPrimary = wavePrimary,
-                        colorSecondary = waveSecondary,
-                        colorTertiary = waveTertiary,
-                        colorAccent = waveAccent,
+                        colorPrimary = waveColor,
+                        colorSecondary = waveColor,
+                        colorTertiary = waveColor,
+                        colorAccent = waveColor,
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()

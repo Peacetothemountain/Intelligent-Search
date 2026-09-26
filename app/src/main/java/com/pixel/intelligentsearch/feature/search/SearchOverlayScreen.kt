@@ -748,8 +748,7 @@ fun SearchOverlayScreen(
                 } else {
                     val active = TutorialManager.isTutorialActive(prefs)
                     val step = TutorialManager.getStep(prefs)
-                    if (active && step >= 2) {
-                        TutorialManager.setStep(prefs, 3)
+                    if (active && step >= 3) {
                         TutorialManager.completeTutorial(prefs)
                         showTutorial = false
                     } else {

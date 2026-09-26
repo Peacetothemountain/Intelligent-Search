@@ -152,7 +152,15 @@ fun TutorialSpotlightOverlay(
                             val isInsideCard = cardBounds != Rect.Zero && cardBounds.contains(pos)
                             
                             if (stepInfo.requireButtonPress) {
-                                if (!isInsideCard) {
+                                val isInsideTarget = stepInfo.showCircle && localTargetRect != null && run {
+                                    val targetCenter = localTargetRect.center
+                                    val dx = targetCenter.x - pos.x
+                                    val dy = targetCenter.y - pos.y
+                                    val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+                                    val targetRadius = kotlin.math.max(localTargetRect.width, localTargetRect.height) / 2f + 8.dp.toPx()
+                                    distance <= targetRadius
+                                }
+                                if (!isInsideCard && !isInsideTarget) {
                                     downChange.consume()
                                 }
                             } else {
@@ -338,74 +346,117 @@ fun TutorialSpotlightOverlay(
             MaterialTheme.colorScheme.inverseOnSurface
         }
 
-        val cardModifier = Modifier
-            .align(stepInfo.cardAlignment)
-            .padding(horizontal = 28.dp, vertical = 24.dp)
-
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = cardBgColor),
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-            modifier = cardModifier
-                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(24.dp))
-                .onGloballyPositioned { coordinates ->
-                    cardBounds = Rect(
-                        offset = coordinates.positionInRoot() - overlayRootOffset,
-                        size = Size(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())
-                    )
-                }
+        val (topPadding, bottomPadding) = remember(
+            localTargetRect,
+            stepInfo.showArrow,
+            constraints.maxHeight,
+            statusBarTopPadding
         ) {
-            Column(
-                modifier = Modifier
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 18.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = stepInfo.title,
-                    fontSize = 18.sp,
-                    color = cardTextColor,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = stepInfo.text,
-                    fontSize = 15.sp,
-                    lineHeight = 21.sp,
-                    color = cardTextColor.copy(alpha = 0.9f),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                if (stepInfo.requireButtonPress) {
-                    Button(
-                        onClick = {
-                            if (currentStep < TutorialManager.TOTAL_STEPS - 1) {
-                                val nextStep = currentStep + 1
-                                currentStep = nextStep
-                                onStepAdvance(nextStep)
-                            } else {
-                                TutorialManager.completeTutorial(prefs)
-                                onComplete()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        ),
-                        shape = RoundedCornerShape(percent = 50),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(text = "OK", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    }
+            if (localTargetRect != null && stepInfo.showArrow) {
+                val targetTopDp = with(density) { localTargetRect.top.toDp() }
+                val targetBottomDp = with(density) { localTargetRect.bottom.toDp() }
+                val isBottomTarget = localTargetRect.center.y > (constraints.maxHeight / 2f)
+
+                if (isBottomTarget) {
+                    // Target is in bottom area (e.g. bottom search bar or settings button).
+                    // Center the card within the upper region above the target with guaranteed clearance for squiggles.
+                    val minClearance = 36.dp
+                    val topPad = (statusBarTopPadding + 12.dp).coerceAtLeast(16.dp)
+                    val rawBotPad = (maxHeight - targetTopDp + minClearance).coerceAtLeast(16.dp)
+                    val maxAllowedBotPad = (maxHeight - topPad - 120.dp).coerceAtLeast(16.dp)
+                    val botPad = rawBotPad.coerceAtMost(maxAllowedBotPad)
+                    topPad to botPad
                 } else {
+                    // Target is in top area (e.g. top search bar).
+                    // Center the card within the lower region below the target with guaranteed clearance for squiggles.
+                    val minClearance = 36.dp
+                    val botPad = 24.dp
+                    val rawTopPad = (targetBottomDp + minClearance).coerceAtLeast(statusBarTopPadding + 12.dp)
+                    val maxAllowedTopPad = (maxHeight - botPad - 120.dp).coerceAtLeast(16.dp)
+                    val topPad = rawTopPad.coerceAtMost(maxAllowedTopPad)
+                    topPad to botPad
+                }
+            } else {
+                // Centered in full viewport (e.g. Step 0 "Welcome!", or Settings screens)
+                val topPad = (statusBarTopPadding + 12.dp).coerceAtLeast(16.dp)
+                val botPad = 24.dp
+                topPad to botPad
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = topPadding, bottom = bottomPadding)
+                .padding(horizontal = 24.dp),
+            contentAlignment = stepInfo.cardAlignment
+        ) {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = cardBgColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                modifier = Modifier
+                    .widthIn(max = 520.dp)
+                    .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(24.dp))
+                    .onGloballyPositioned { coordinates ->
+                        cardBounds = Rect(
+                            offset = coordinates.positionInRoot() - overlayRootOffset,
+                            size = Size(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())
+                        )
+                    }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
-                        text = "Tap the highlighted area to continue",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
+                        text = stepInfo.title,
+                        fontSize = 18.sp,
+                        color = cardTextColor,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = stepInfo.text,
+                        fontSize = 15.sp,
+                        lineHeight = 21.sp,
+                        color = cardTextColor.copy(alpha = 0.9f),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    if (stepInfo.requireButtonPress) {
+                        Button(
+                            onClick = {
+                                if (currentStep < TutorialManager.TOTAL_STEPS - 1) {
+                                    val nextStep = currentStep + 1
+                                    currentStep = nextStep
+                                    onStepAdvance(nextStep)
+                                } else {
+                                    TutorialManager.completeTutorial(prefs)
+                                    onComplete()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            shape = RoundedCornerShape(percent = 50),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(text = "OK", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        }
+                    } else {
+                        Text(
+                            text = "Tap the highlighted area to continue",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
         }

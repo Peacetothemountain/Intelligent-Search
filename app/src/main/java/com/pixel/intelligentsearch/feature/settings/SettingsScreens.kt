@@ -9974,6 +9974,12 @@ fun BackupRestoreScreen(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
         if (uri != null && activity != null) {
+            try {
+                activity.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Throwable) {}
             viewModel?.exportBackup(
                 
                 uri = uri,
@@ -9992,6 +9998,12 @@ fun BackupRestoreScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null && activity != null) {
+            try {
+                activity.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Throwable) {}
             val inspectResult = viewModel?.inspectBackupEnvelope(uri)
             if (inspectResult == null || inspectResult.isFailure) {
                 val errorMsg = inspectResult?.exceptionOrNull()?.localizedMessage

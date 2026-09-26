@@ -997,7 +997,9 @@ fun SearchOverlayScreen(
                                 if (bestMatch != null) {
                                     when (bestMatch) {
                                         is ContactItem -> {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri))
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri)).apply {
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
                                             launchSafeIntent(context, intent)
                                         }
                                         is AppItem -> {
@@ -1514,7 +1516,9 @@ fun SearchOverlayScreen(
                                         val intent = if (settingsState.contactDirectCall) {
                                             Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                         } else {
-                                            Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri))
+                                            Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
                                         }
                                         launchSafeIntent(context, intent)
                                     }
@@ -2183,7 +2187,9 @@ fun SearchOverlayScreen(
                                             val intent = if (settingsState.contactDirectCall) {
                                                 Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
                                             } else {
-                                                Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri))
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri)).apply {
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
                                             }
                                             launchSafeIntent(context, intent)
                                         }
@@ -2307,7 +2313,16 @@ fun SearchOverlayScreen(
                 .fillMaxSize()
                 .drawBehind {
                     val p = overlayProgressAnim.value.coerceIn(0f, 1f)
-                    drawRect(color = scrimColor, alpha = if (isShowWallpaper) scrimAlphaFactor * p else p)
+                    val baseAlpha = if (isShowWallpaper) scrimAlphaFactor * p else p
+                    drawRect(
+                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                            colors = listOf(
+                                scrimColor.copy(alpha = (baseAlpha * 1.05f).coerceIn(0f, 1f)),
+                                scrimColor.copy(alpha = baseAlpha),
+                                scrimColor.copy(alpha = (baseAlpha * 0.95f).coerceIn(0f, 1f))
+                            )
+                        )
+                    )
                 }
         )
 

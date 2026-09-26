@@ -41,8 +41,9 @@ fun resolveGlobalStardustColor(
     customSettings: GlobalCustomColor?
 ): Color {
     val materialDynamicColor = MaterialTheme.colorScheme.primary 
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     
-    return remember(design, theme, customSettings, materialDynamicColor) {
+    return remember(design, theme, customSettings, materialDynamicColor, isDark) {
         if (theme == AppColorTheme.CUSTOM && customSettings != null) {
             Color.hsv(
                 hue = customSettings.hue,
@@ -51,7 +52,11 @@ fun resolveGlobalStardustColor(
                 alpha = customSettings.opacity
             )
         } else if (design == AppDesignTheme.SYSTEM) {
-            Color(0xFFE8EAED).copy(alpha = 0.45f) 
+            if (isDark) {
+                Color(0xFFE8EAED).copy(alpha = 0.45f) 
+            } else {
+                materialDynamicColor.copy(alpha = 0.45f)
+            }
         } else {
             materialDynamicColor.copy(alpha = 0.55f)
         }
@@ -87,14 +92,15 @@ private const val APP_WIDE_STARDUST_SHADER = """
         float2 uv = fragCoord / resolution.xy;
         float y = 1.0 - uv.y; 
         
-        // --- AMBIENT WAVE ---
+        // --- AMBIENT WAVE (Multi-octave progressive atmospheric depth) ---
         float edgeCurve = abs(uv.x - 0.5) * 1.2;
         float waveDistance = max(0.0, 1.0 - (y * 2.5) - edgeCurve);
         
-        float waveFlow = noise(uv * 3.0 + float2(time * 0.4, -time * 0.2));
-        float breath = 0.2 + 0.5 * sin(time * 1.5);
+        float waveFlow = noise(uv * 2.8 + float2(time * 0.35, -time * 0.18));
+        float waveSecondary = noise(uv * 5.2 - float2(time * 0.22, time * 0.12));
+        float breath = 0.25 + 0.45 * sin(time * 1.4);
         
-        float ambientWave = smoothstep(0.0, 1.0, waveDistance) * waveFlow * breath * 0.25;
+        float ambientWave = smoothstep(0.0, 1.0, waveDistance) * (waveFlow * 0.7 + waveSecondary * 0.3) * breath * 0.28;
 
         // --- STARDUST PARTICLES ---
         float2 dustUv = uv * float2(resolution.x / resolution.y, 1.0) * 80.0;
@@ -155,12 +161,12 @@ private fun Modifier.appWideStardustShader(color: Color, isInteracting: Boolean 
             throttleLevel >= ADPFThermalManager.ThermalThrottleLevel.MODERATE
 
     if (shouldThrottleShader) {
-        // Zero-overhead linear gradient fallback when thermally throttled or on legacy Android
+        // Zero-overhead progressive vertical gradient fallback when thermally throttled or on legacy Android
         return this.background(
             androidx.compose.ui.graphics.Brush.verticalGradient(
                 colors = listOf(
-                    color.copy(alpha = 0.12f),
-                    color.copy(alpha = 0.03f),
+                    color.copy(alpha = 0.14f),
+                    color.copy(alpha = 0.05f),
                     androidx.compose.ui.graphics.Color.Transparent
                 )
             )

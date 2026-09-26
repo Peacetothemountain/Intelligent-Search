@@ -249,6 +249,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val isDark = when (themeMode) {
                 "Material Dark", "Dark mode", "Dark" -> true
                 "Material Light", "Light mode", "Light" -> false
+                "System", "System App Theme", "System Default", "system" -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
                 else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
             }
 

@@ -74,6 +74,7 @@ class SettingsActivity : AppCompatActivity() {
             val darkTheme = when (themeMode) {
                 "Material Dark", "Dark mode", "Dark" -> true
                 "Material Light", "Light mode", "Light" -> false
+                "System", "System App Theme", "System Default", "system" -> isSystemInDarkTheme()
                 else -> isSystemInDarkTheme()
             }
 
@@ -81,6 +82,7 @@ class SettingsActivity : AppCompatActivity() {
                 "Material Dark", "Material Light" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.MATERIAL
                 "Dark mode", "Dark" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.DARK
                 "Light mode", "Light" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.LIGHT
+                "System", "System App Theme", "System Default", "system" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.SYSTEM
                 else -> com.pixel.intelligentsearch.core.ui.AppColorTheme.SYSTEM
             }
 

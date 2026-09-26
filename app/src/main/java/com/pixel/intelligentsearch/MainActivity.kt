@@ -172,6 +172,7 @@ open class MainActivity : AppCompatActivity() {
             val darkTheme = when (settingsState.theme) {
                 "Material Dark", "Dark mode", "Dark" -> true
                 "Material Light", "Light mode", "Light" -> false
+                "System", "System App Theme", "System Default", "system" -> isSystemInDarkTheme()
                 else -> isSystemInDarkTheme()
             }
             

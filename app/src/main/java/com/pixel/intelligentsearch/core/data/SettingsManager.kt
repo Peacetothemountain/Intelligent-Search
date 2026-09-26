@@ -145,11 +145,9 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
             }
         }
         .map { preferences ->
-            val isSystemDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-            val defaultTheme = if (isSystemDark) "Material Dark" else "Material Light"
             val sp = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
             IntelligentSearchSettings(
-                theme = preferences[THEME] ?: sp.getString("night.mode", defaultTheme) ?: defaultTheme,
+                theme = preferences[THEME] ?: sp.getString("night.mode", "System") ?: "System",
                 searchApps = preferences[SEARCH_APPS] ?: (if (sp.contains("search.apps")) sp.getBoolean("search.apps", true) else sp.getBoolean("search_apps", true)),
                 searchContacts = preferences[SEARCH_CONTACTS] ?: (if (sp.contains("search.contacts")) sp.getBoolean("search.contacts", false) else sp.getBoolean("search_contacts", false)),
                 searchFiles = preferences[SEARCH_FILES] ?: (if (sp.contains("search.files")) sp.getBoolean("search.files", false) else sp.getBoolean("search_files", false)),
@@ -211,10 +209,8 @@ class SettingsManager @Inject constructor(@ApplicationContext private val contex
 
     fun getInitialSettings(): IntelligentSearchSettings {
         val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-        val isSystemDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-        val defaultTheme = if (isSystemDark) "Material Dark" else "Material Light"
         return IntelligentSearchSettings(
-            theme = prefs.getString("night.mode", defaultTheme) ?: defaultTheme,
+            theme = prefs.getString("night.mode", "System") ?: "System",
             searchApps = if (prefs.contains("search.apps")) prefs.getBoolean("search.apps", true) else prefs.getBoolean("search_apps", true),
             searchContacts = if (prefs.contains("search.contacts")) prefs.getBoolean("search.contacts", false) else prefs.getBoolean("search_contacts", false),
             searchFiles = if (prefs.contains("search.files")) prefs.getBoolean("search.files", false) else prefs.getBoolean("search_files", false),

@@ -3159,39 +3159,67 @@ fun MainSettingsScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
             
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                BugdroidPlayer(
-                    player = exoPlayer,
-                    modifier = Modifier
-                        .height(220.dp)
-                        .width(175.dp),
-                    scaleFactor = 0.70f
-                )
-                
-                Spacer(modifier = Modifier.width(12.dp))
-                
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Thank you for using\nIntelligent\u00A0Search.",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = 24.sp
+                val containerWidth = maxWidth
+                val density = LocalDensity.current
+                val fontScale = density.fontScale.coerceIn(0.85f, 1.5f)
+
+                val textTargetWidth = (205.dp * (if (fontScale > 1f) (fontScale * 0.9f) else 1f)).coerceIn(190.dp, 250.dp)
+                val remainingForPlayer = containerWidth - textTargetWidth - 12.dp
+                val playerWidth = remainingForPlayer.coerceIn(95.dp, 165.dp)
+                val playerHeight = playerWidth * (220f / 175f)
+
+                val baseScale = (containerWidth / 390.dp).coerceIn(0.82f, 1.0f) / fontScale.coerceAtLeast(1.0f)
+                val titleFontSize = (18f * baseScale).coerceIn(13.5f, 18f).sp
+                val titleLineHeight = (titleFontSize.value * 1.33f).sp
+                val subtextFontSize = (13.5f * baseScale).coerceIn(10.5f, 14f).sp
+                val subtextLineHeight = (subtextFontSize.value * 1.42f).sp
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BugdroidPlayer(
+                        player = exoPlayer,
+                        modifier = Modifier
+                            .width(playerWidth)
+                            .height(playerHeight),
+                        scaleFactor = 0.70f
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                    Text(
-                        text = "If you need support please email me at:\nsupport.nbdesigns@gmail.com",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 20.sp,
-                        modifier = Modifier.bouncyClickable {
-                            uriHandler.openUri("mailto:support.nbdesigns@gmail.com")
-                        }
-                    )
+                    
+                    Spacer(modifier = Modifier.width(12.dp))
+                    
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Thank you for using\nIntelligent\u00A0Search.",
+                            fontSize = titleFontSize,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            lineHeight = titleLineHeight,
+                            softWrap = false,
+                            maxLines = 2
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                        Text(
+                            text = "If you need support please email me at:\nsupport.nbdesigns@gmail.com",
+                            fontSize = subtextFontSize,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = subtextLineHeight,
+                            softWrap = false,
+                            maxLines = 2,
+                            modifier = Modifier.bouncyClickable {
+                                uriHandler.openUri("mailto:support.nbdesigns@gmail.com")
+                            }
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(32.dp))
@@ -3234,17 +3262,31 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                 ) {
                     SettingsCard {
                         val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
-                        val defaultThemeValue = if (isSystemDark) "Material Dark" else "Material Light"
-                        var rawThemeMode by rememberStringPreference(prefs, "night.mode", defaultThemeValue)
-                        val themeMode = if (rawThemeMode == "System") "Material Dark" else rawThemeMode
+                        var rawThemeMode by rememberStringPreference(prefs, "night.mode", "System")
+                        val themeMode = when (rawThemeMode) {
+                            "System", "System App Theme", "System Default", "system" -> "System"
+                            "Material Dark", "Dark mode", "Dark" -> "Material Dark"
+                            "Material Light", "Light mode", "Light" -> "Material Light"
+                            else -> "System"
+                        }
 
                         SettingsDropdownRow(
                             title = "App Theme",
                             subtitle = themeMode,
                             icon = Icons.Outlined.BrightnessMedium,
-                            options = listOf("Material Dark", "Material Light"),
+                            options = listOf("System", "Material Dark", "Material Light"),
                             selectedOption = themeMode,
-                            onOptionSelected = { rawThemeMode = it },
+                            onOptionSelected = { 
+                                rawThemeMode = it
+                                val intent = android.content.Intent(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
+                                    action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                                    val ids = android.appwidget.AppWidgetManager.getInstance(context).getAppWidgetIds(
+                                        android.content.ComponentName(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java)
+                                    )
+                                    putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+                                }
+                                context.sendBroadcast(intent)
+                            },
                             showDivider = true
                         )
 

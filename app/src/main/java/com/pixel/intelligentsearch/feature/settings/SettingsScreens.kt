@@ -314,10 +314,10 @@ private const val GEMINI_CORNER_SWIPE_SHADER = """
         float2 uv = fragCoord / resolution.xy;
         float y = 1.0 - uv.y; // 0.0 at bottom edge, 1.0 at top
         
-        // Gemini corner swipe light bar ribbons
-        float wave1 = sin(uv.x * 6.28 + time * 2.5) * 0.16;
-        float wave2 = cos(uv.x * 9.42 - time * 1.9) * 0.10;
-        float wave3 = sin((uv.x - 0.5) * 5.0 + time * 1.6) * 0.14;
+        // Multi-frequency harmonic dispersion ribbons
+        float wave1 = sin(uv.x * 6.28 + time * 2.2) * 0.14 + sin(uv.x * 12.56 - time * 1.5) * 0.04;
+        float wave2 = cos(uv.x * 9.42 - time * 1.8) * 0.09 + cos(uv.x * 15.7 + time * 2.1) * 0.03;
+        float wave3 = sin((uv.x - 0.5) * 5.0 + time * 1.5) * 0.12;
         
         // Corner arcs originating from bottom-left (0,0) and bottom-right (1,0)
         float dLeft = length(float2(uv.x * 1.15, y * 1.85));
@@ -351,7 +351,7 @@ private const val GEMINI_CORNER_SWIPE_SHADER = """
             mixedColor = mix(colorAccent, colorPrimary, smoothT);
         }
         
-        float pulse = 0.88 + 0.12 * sin(time * 2.8);
+        float pulse = 0.90 + 0.10 * sin(time * 2.4);
         float finalAlpha = intensity * mixedColor.a * pulse;
         
         return half4(mixedColor.rgb * intensity, finalAlpha);
@@ -2557,17 +2557,14 @@ fun BugdroidPlayer(
 ) {
     val shaderSrc = """
         uniform shader content;
-        vec4 main(vec2 coords) {
-            vec4 color = content.eval(coords);
-            float maxVal = max(color.r, max(color.g, color.b));
-            if (maxVal < 0.16) {
-                return vec4(0.0, 0.0, 0.0, 0.0);
-            }
-            if (maxVal < 0.28) {
-                float t = (maxVal - 0.16) / 0.12;
-                return color * t;
-            }
-            return color;
+        half4 main(float2 coords) {
+            half4 color = content.eval(coords);
+            // Perceptually weighted Rec. 709 luminance (Green dominance: 0.7152)
+            float luma = dot(color.rgb, half3(0.2126, 0.7152, 0.0722));
+            // Smooth cubic Hermite keying with edge antialiasing
+            float alpha = smoothstep(0.14, 0.28, luma);
+            // Premultiplied alpha output preventing dark fringe halos
+            return half4(color.rgb * alpha, alpha);
         }
     """.trimIndent()
 
@@ -6878,13 +6875,45 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                     val isCustomTheme = localSubtheme == "Custom"
 
-                    val waveColor = MaterialTheme.colorScheme.primary
+                    val defaultWavePrimary = MaterialTheme.colorScheme.primary
+                    val defaultWaveTertiary = MaterialTheme.colorScheme.tertiary
+                    val defaultWaveSecondary = MaterialTheme.colorScheme.secondary
+                    val defaultWaveAccent = MaterialTheme.colorScheme.primaryContainer
+
+                    val (wavePrimary, waveSecondary, waveTertiary, waveAccent) = remember(
+                        isCustomTheme,
+                        computedCustomColorInt,
+                        defaultWavePrimary,
+                        defaultWaveTertiary,
+                        defaultWaveSecondary,
+                        defaultWaveAccent
+                    ) {
+                        if (isCustomTheme) {
+                            val hsv = FloatArray(3)
+                            android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
+                            val baseHue = hsv[0]
+                            val sat = hsv[1]
+                            val val1 = hsv[2]
+                            val c1 = androidx.compose.ui.graphics.Color(computedCustomColorInt)
+                            val c2 = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf((baseHue + 25f) % 360f, sat, val1)))
+                            val c3 = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf((baseHue + 50f) % 360f, sat, val1)))
+                            val c4 = androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf((baseHue - 25f + 360f) % 360f, sat, val1)))
+                            listOf(c1, c2, c3, c4)
+                        } else {
+                            listOf(
+                                defaultWavePrimary,
+                                defaultWaveTertiary,
+                                defaultWaveSecondary,
+                                defaultWaveAccent
+                            )
+                        }
+                    }
 
                     GeminiCornerSwipeWaveLayer(
-                        colorPrimary = waveColor,
-                        colorSecondary = waveColor,
-                        colorTertiary = waveColor,
-                        colorAccent = waveColor,
+                        colorPrimary = wavePrimary,
+                        colorSecondary = waveSecondary,
+                        colorTertiary = waveTertiary,
+                        colorAccent = waveAccent,
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()

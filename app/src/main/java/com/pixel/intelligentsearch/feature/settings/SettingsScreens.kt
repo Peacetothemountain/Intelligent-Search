@@ -277,7 +277,7 @@ private fun OutlinedButton(
     shape: androidx.compose.ui.graphics.Shape = ButtonDefaults.outlinedShape,
     colors: ButtonColors = ButtonDefaults.outlinedButtonColors(),
     elevation: ButtonElevation? = null,
-    border: androidx.compose.foundation.BorderStroke? = ButtonDefaults.outlinedButtonBorder,
+    border: androidx.compose.foundation.BorderStroke? = ButtonDefaults.outlinedButtonBorder(enabled),
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     interactionSource: MutableInteractionSource? = null,
     content: @Composable RowScope.() -> Unit
@@ -3179,16 +3179,16 @@ fun MainSettingsScreen(
                 val density = LocalDensity.current
                 val fontScale = density.fontScale.coerceIn(0.85f, 1.5f)
 
-                val textTargetWidth = (220.dp * (if (fontScale > 1f) (fontScale * 0.9f) else 1f)).coerceIn(200.dp, 260.dp)
+                val textTargetWidth = (222.dp * (if (fontScale > 1f) (fontScale * 0.9f) else 1f)).coerceIn(205.dp, 255.dp)
                 val remainingForPlayer = containerWidth - textTargetWidth - 12.dp
-                val playerWidth = remainingForPlayer.coerceIn(100.dp, 175.dp)
-                val playerHeight = playerWidth * (220f / 175f)
+                val playerWidth = remainingForPlayer.coerceIn(95.dp, 160.dp)
+                val playerHeight = playerWidth * (200f / 160f)
 
                 val baseScale = (containerWidth / 390.dp).coerceIn(0.82f, 1.0f) / fontScale.coerceAtLeast(1.0f)
-                val titleFontSize = (20.5f * baseScale).coerceIn(15.5f, 20.5f).sp
-                val titleLineHeight = (titleFontSize.value * 1.30f).sp
-                val subtextFontSize = (14.5f * baseScale).coerceIn(11.5f, 14.5f).sp
-                val subtextLineHeight = (subtextFontSize.value * 1.38f).sp
+                val titleFontSize = (18.8f * baseScale).coerceIn(15.0f, 18.8f).sp
+                val titleLineHeight = (titleFontSize.value * 1.28f).sp
+                val subtextFontSize = (13.5f * baseScale).coerceIn(11.0f, 13.5f).sp
+                val subtextLineHeight = (subtextFontSize.value * 1.36f).sp
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -3199,7 +3199,7 @@ fun MainSettingsScreen(
                         modifier = Modifier
                             .width(playerWidth)
                             .height(playerHeight),
-                        scaleFactor = 0.85f
+                        scaleFactor = 0.69f
                     )
                     
                     Spacer(modifier = Modifier.width(12.dp))

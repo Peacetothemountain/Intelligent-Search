@@ -1369,7 +1369,9 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     android.os.BatteryManager.BATTERY_HEALTH_DEAD -> "Dead"
                     android.os.BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over Voltage"
                     android.os.BatteryManager.BATTERY_HEALTH_COLD -> "Cold"
-                    else -> "Normal"
+                    8 -> "Dock Defender"
+                    11 -> "Optimized"
+                    else -> "Good"
                 }
 
                 // Battery cycle count (Android 14+ / API 34+ property & sysfs fallback)
@@ -1380,25 +1382,23 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     } catch (_: Exception) {}
                     if (cycles <= 0) {
                         try {
-                            cycles = bm?.getIntProperty(7 /* BATTERY_PROPERTY_CYCLE_COUNT */) ?: -1
+                            cycles = bm?.getIntProperty(8 /* BATTERY_PROPERTY_CYCLE_COUNT */) ?: -1
                         } catch (_: Exception) {}
                     }
                 }
                 if (cycles <= 0) {
                     val cycleFiles = listOf(
                         "/sys/class/power_supply/battery/cycle_count",
+                        "/sys/class/power_supply/max77779fg/cycle_count",
                         "/sys/class/power_supply/maxfg/cycle_count",
                         "/sys/class/power_supply/bms/battery_cycle"
                     )
                     for (cf in cycleFiles) {
                         try {
-                            val f = java.io.File(cf)
-                            if (f.exists() && f.canRead()) {
-                                val parsed = f.readText().trim().toIntOrNull()
-                                if (parsed != null && parsed >= 0) {
-                                    cycles = parsed
-                                    break
-                                }
+                            val parsed = java.io.File(cf).readText().trim().toIntOrNull()
+                            if (parsed != null && parsed >= 0) {
+                                cycles = parsed
+                                break
                             }
                         } catch (_: Exception) {}
                     }
@@ -1408,68 +1408,108 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 // Technology / Chemistry
                 batteryTechnology = batteryStatus?.getStringExtra(android.os.BatteryManager.EXTRA_TECHNOLOGY)?.takeIf { it.isNotBlank() } ?: "Li-ion"
 
-                // Thermals
-                thermalStatus = when {
+                // Thermals - query system PowerManager thermal status API first, then battery temp
+                val pmPower = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+                val osThermal = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    try {
+                        when (pmPower?.currentThermalStatus) {
+                            android.os.PowerManager.THERMAL_STATUS_NONE -> "Cool"
+                            android.os.PowerManager.THERMAL_STATUS_LIGHT -> "Optimal"
+                            android.os.PowerManager.THERMAL_STATUS_MODERATE -> "Warm"
+                            android.os.PowerManager.THERMAL_STATUS_SEVERE -> "Hot"
+                            android.os.PowerManager.THERMAL_STATUS_CRITICAL -> "Critical"
+                            android.os.PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
+                            android.os.PowerManager.THERMAL_STATUS_SHUTDOWN -> "Overheat"
+                            else -> null
+                        }
+                    } catch (_: Exception) { null }
+                } else null
+
+                thermalStatus = osThermal ?: when {
                     batteryTemp < 20f -> "Cool"
                     batteryTemp <= 35f -> "Optimal"
                     batteryTemp <= 41f -> "Warm"
                     else -> "Overheat"
                 }
 
-                // Health Wear / State of Health (SoH %)
+                // Health Wear / State of Health (SoH %) from actual fuel gauge or design capacity
                 var healthPct = -1
                 val chargeFullPaths = listOf(
                     "/sys/class/power_supply/battery/charge_full" to "/sys/class/power_supply/battery/charge_full_design",
-                    "/sys/class/power_supply/maxfg/charge_full" to "/sys/class/power_supply/maxfg/charge_full_design"
+                    "/sys/class/power_supply/max77779fg/charge_full" to "/sys/class/power_supply/max77779fg/charge_full_design",
+                    "/sys/class/power_supply/maxfg/charge_full" to "/sys/class/power_supply/maxfg/charge_full_design",
+                    "/sys/class/power_supply/bms/charge_full" to "/sys/class/power_supply/bms/charge_full_design"
                 )
                 for ((fullPath, designPath) in chargeFullPaths) {
                     try {
-                        val fFull = java.io.File(fullPath)
-                        val fDesign = java.io.File(designPath)
-                        if (fFull.exists() && fDesign.exists()) {
-                            val fullVal = fFull.readText().trim().toDoubleOrNull() ?: 0.0
-                            val designVal = fDesign.readText().trim().toDoubleOrNull() ?: 0.0
-                            if (fullVal > 1000.0 && designVal > 1000.0) {
-                                healthPct = ((fullVal / designVal) * 100).toInt().coerceIn(30, 100)
-                                break
-                            }
+                        val fullVal = java.io.File(fullPath).readText().trim().toDoubleOrNull() ?: 0.0
+                        val designVal = java.io.File(designPath).readText().trim().toDoubleOrNull() ?: 0.0
+                        if (fullVal > 1000.0 && designVal > 1000.0) {
+                            healthPct = ((fullVal / designVal) * 100.0).toInt().coerceIn(30, 100)
+                            break
                         }
                     } catch (_: Exception) {}
                 }
-                if (healthPct <= 0 && cycles > 0) {
-                    healthPct = (100 - (cycles * 0.04f)).toInt().coerceIn(50, 100)
-                } else if (healthPct <= 0) {
-                    healthPct = 100
+                if (healthPct <= 0) {
+                    healthPct = if (cycles > 0) (100 - (cycles * 0.04f)).toInt().coerceIn(70, 100) else 100
                 }
                 batteryHealthPct = healthPct
 
-                val rawCurrentNow = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: 0
-                val rawCurrentAvg = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) ?: 0
-                val effectiveRaw = if (rawCurrentNow != 0) rawCurrentNow else rawCurrentAvg
-                val absCurrent = kotlin.math.abs(effectiveRaw)
-                val currentMa = if (absCurrent > 10_000) (absCurrent / 1000f) else absCurrent.toFloat()
+                // Accurate Current & Power (Watts)
+                val rawCurrentNow = try { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) } catch (_: Exception) { null } ?: Integer.MIN_VALUE
+                val rawCurrentAvg = try { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) } catch (_: Exception) { null } ?: Integer.MIN_VALUE
+
+                val rawCurrent = when {
+                    rawCurrentNow != Integer.MIN_VALUE && rawCurrentNow != 0 -> rawCurrentNow
+                    rawCurrentAvg != Integer.MIN_VALUE && rawCurrentAvg != 0 -> rawCurrentAvg
+                    else -> listOf(
+                        "/sys/class/power_supply/battery/current_now",
+                        "/sys/class/power_supply/max77779fg/current_now",
+                        "/sys/class/power_supply/battery/current_avg"
+                    ).firstNotNullOfOrNull { path ->
+                        try { java.io.File(path).readText().trim().toIntOrNull() } catch (_: Exception) { null }
+                    } ?: 0
+                }
+                val absCurrent = kotlin.math.abs(rawCurrent)
+                val currentMa = when {
+                    absCurrent > 10_000 -> absCurrent / 1000f // uA -> mA
+                    absCurrent > 0 -> absCurrent.toFloat()
+                    else -> 0f
+                }
                 val watts = if (batteryVolt > 0f && currentMa > 0f) (batteryVolt * currentMa) / 1000f else 0f
                 batteryWatts = watts
 
-                val chargeCounter = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) ?: -1
-                val totalCapacityMah = if (batteryLevel > 5 && chargeCounter > 0) {
-                    ((chargeCounter / 1000f) / (batteryLevel / 100f)).coerceIn(3500f, 5500f)
+                val designMah = listOf(
+                    "/sys/class/power_supply/battery/charge_full_design",
+                    "/sys/class/power_supply/max77779fg/charge_full_design"
+                ).firstNotNullOfOrNull { path ->
+                    try {
+                        val v = java.io.File(path).readText().trim().toFloatOrNull()
+                        if (v != null && v > 1000f) v / 1000f else v
+                    } catch (_: Exception) { null }
+                } ?: 5265f
+
+                val chargeCounter = try {
+                    val cc = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) ?: -1
+                    if (cc != Integer.MIN_VALUE && cc > 0) cc / 1000f else -1f
+                } catch (_: Exception) { -1f }
+
+                val totalCapacityMah = if (batteryLevel > 5 && chargeCounter > 0f) {
+                    (chargeCounter / (batteryLevel / 100f)).coerceIn(3500f, 6000f)
                 } else {
-                    4800f
+                    designMah
                 }
-                val currentChargeMah = if (chargeCounter > 0) (chargeCounter / 1000f) else (batteryLevel / 100f * totalCapacityMah)
+                val currentChargeMah = if (chargeCounter > 0f) chargeCounter else (batteryLevel / 100f * totalCapacityMah)
 
                 if (isCharging) {
                     val pluggedType = when (plugged) {
-                        android.os.BatteryManager.BATTERY_PLUGGED_AC -> "Fast AC"
+                        android.os.BatteryManager.BATTERY_PLUGGED_AC -> if (watts >= 15f) "Rapid (AC)" else "AC"
                         android.os.BatteryManager.BATTERY_PLUGGED_USB -> "USB"
                         android.os.BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Wireless"
                         android.os.BatteryManager.BATTERY_PLUGGED_DOCK -> "Dock"
                         else -> "Charger"
                     }
-                    chargingRateStr = if (watts >= 15f) {
-                        "Rapid ($pluggedType) · ${String.format(java.util.Locale.US, "%.1f", watts)}W (${currentMa.toInt()}mA)"
-                    } else if (watts > 0f) {
+                    chargingRateStr = if (watts > 0.05f) {
                         "Charging ($pluggedType) · ${String.format(java.util.Locale.US, "%.1f", watts)}W (${currentMa.toInt()}mA)"
                     } else {
                         "Charging ($pluggedType)"
@@ -1491,33 +1531,35 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             timeEstimateStr = if (hours > 0) "${hours}h ${mins}m until full" else "${mins}m until full"
                         } else {
                             val remainingMah = ((100 - batteryLevel) / 100f * totalCapacityMah).coerceAtLeast(0f)
-                            val effectiveCurrent = currentMa.coerceAtLeast(350f)
-                            val estHours = if (batteryLevel < 80) {
-                                val ccMah = ((80 - batteryLevel) / 100f * totalCapacityMah).coerceAtLeast(0f)
-                                val cvMah = (20f / 100f * totalCapacityMah)
-                                (ccMah / effectiveCurrent) + (cvMah / (effectiveCurrent * 0.45f))
+                            if (currentMa > 50f) {
+                                val estHours = remainingMah / currentMa
+                                val totalMinutes = (estHours * 60f).toInt().coerceIn(1, 1440)
+                                val hours = totalMinutes / 60
+                                val mins = totalMinutes % 60
+                                timeEstimateStr = if (hours > 0) "${hours}h ${mins}m until full" else "${mins}m until full"
                             } else {
-                                remainingMah / (effectiveCurrent * 0.50f)
+                                timeEstimateStr = "Charging..."
                             }
-                            val totalMinutes = (estHours * 60f).toInt().coerceIn(1, 480)
-                            val hours = totalMinutes / 60
-                            val mins = totalMinutes % 60
-                            timeEstimateStr = if (hours > 0) "${hours}h ${mins}m until full" else "${mins}m until full"
                         }
                     }
                 } else {
-                    chargingRateStr = if (watts > 0f && currentMa > 10f) {
+                    chargingRateStr = if (watts > 0.05f) {
                         "Discharge · ${String.format(java.util.Locale.US, "%.1f", watts)}W (${currentMa.toInt()}mA)"
                     } else {
                         "Discharging"
                     }
 
-                    val effectiveDrainMa = if (currentMa in 60f..3500f) currentMa else 360f
-                    val estHours = (currentChargeMah / effectiveDrainMa).coerceIn(0.5f, 72f)
-                    val totalMinutes = (estHours * 60f).toInt()
-                    val hours = totalMinutes / 60
-                    val mins = totalMinutes % 60
-                    timeEstimateStr = if (hours > 0) "${hours}h ${mins}m until depleted" else "${mins}m until depleted"
+                    if (currentMa > 50f) {
+                        val estHours = (currentChargeMah / currentMa).coerceIn(0.5f, 96f)
+                        val totalMinutes = (estHours * 60f).toInt()
+                        val hours = totalMinutes / 60
+                        val mins = totalMinutes % 60
+                        timeEstimateStr = if (hours > 0) "${hours}h ${mins}m until depleted" else "${mins}m until depleted"
+                    } else {
+                        val estHours = (batteryLevel / 100f * 24f).coerceAtLeast(1f)
+                        val hours = estHours.toInt()
+                        timeEstimateStr = "~${hours}h until depleted"
+                    }
                 }
             } catch (_: Exception) {}
 
@@ -1534,6 +1576,10 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     var procCachedKb = 0L
                     var procSwapTotalKb = 0L
                     var procSwapFreeKb = 0L
+                    var procAnonPagesKb = 0L
+                    var procSlabKb = 0L
+                    var procKernelStackKb = 0L
+                    var procPageTablesKb = 0L
 
                     try {
                         val reader = java.io.BufferedReader(java.io.FileReader("/proc/meminfo"))
@@ -1558,6 +1604,18 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 }
                                 l.startsWith("SwapFree:") -> {
                                     procSwapFreeKb = l.substringAfter("SwapFree:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
+                                l.startsWith("AnonPages:") -> {
+                                    procAnonPagesKb = l.substringAfter("AnonPages:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
+                                l.startsWith("Slab:") -> {
+                                    procSlabKb = l.substringAfter("Slab:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
+                                l.startsWith("KernelStack:") -> {
+                                    procKernelStackKb = l.substringAfter("KernelStack:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
+                                l.startsWith("PageTables:") -> {
+                                    procPageTablesKb = l.substringAfter("PageTables:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
                                 }
                             }
                         }
@@ -1597,151 +1655,19 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         else -> "Optimal"
                     }
 
-                    val pm = context.packageManager
-                    val now = System.currentTimeMillis()
+                    val rt = Runtime.getRuntime()
+                    val myHeapMb = ((rt.totalMemory() - rt.freeMemory()) + android.os.Debug.getNativeHeapAllocatedSize()) / (1024f * 1024f)
 
-                    // 1. Live measurement of Intelligent Search's actual kernel PSS and JVM memory
-                    var myRamMb = 0f
-                    try {
-                        val myPid = android.os.Process.myPid()
-                        val myMem = actMgr?.getProcessMemoryInfo(intArrayOf(myPid))?.firstOrNull()
-                        val pss = (myMem?.totalPss ?: 0) / 1024f
-                        val rt = Runtime.getRuntime()
-                        val jvmMb = (rt.totalMemory() - rt.freeMemory()) / (1024f * 1024f)
-                        myRamMb = maxOf(pss, jvmMb, 220f)
-                    } catch (_: Exception) {
-                        myRamMb = 280f
-                    }
+                    val activeAppsMb = (procAnonPagesKb / 1024f).coerceAtLeast(0f)
+                    val sysCacheMb = (procCachedKb + procBuffersKb) / 1024f
+                    val kernelMb = (procSlabKb + procKernelStackKb + procPageTablesKb) / 1024f
 
-                    // 2. Discover user-opened foreground & background apps in real time (up to the second)
-                    val activeApps = mutableMapOf<String, Long>()
-                    val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? android.app.usage.UsageStatsManager
-
-                    // Query real-time activity events over the last 10 minutes to capture actually open apps
-                    try {
-                        val events = usm?.queryEvents(now - 1000L * 60 * 10, now)
-                        if (events != null) {
-                            val evt = android.app.usage.UsageEvents.Event()
-                            while (events.hasNextEvent()) {
-                                events.getNextEvent(evt)
-                                val pkg = evt.packageName ?: continue
-                                if (pkg == "android" || pkg == context.packageName ||
-                                    pkg == "com.google.android.gms" || pkg == "com.android.systemui"
-                                ) continue
-
-                                // Only evaluate launchable user-facing apps (apps that user can open from launcher)
-                                val isLaunchable = try {
-                                    pm.getLaunchIntentForPackage(pkg) != null
-                                } catch (_: Exception) { false }
-                                if (!isLaunchable) continue
-
-                                when (evt.eventType) {
-                                    android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED,
-                                    android.app.usage.UsageEvents.Event.USER_INTERACTION -> {
-                                        activeApps[pkg] = evt.timeStamp
-                                    }
-                                    android.app.usage.UsageEvents.Event.ACTIVITY_PAUSED -> {
-                                        if (activeApps.containsKey(pkg)) {
-                                            activeApps[pkg] = maxOf(activeApps[pkg] ?: 0L, evt.timeStamp)
-                                        }
-                                    }
-                                    24 /* ACTIVITY_DESTROYED */ -> {
-                                        // App was closed or swiped away from Recents - immediately remove
-                                        activeApps.remove(pkg)
-                                    }
-                                    android.app.usage.UsageEvents.Event.ACTIVITY_STOPPED -> {
-                                        if (activeApps.containsKey(pkg)) {
-                                            activeApps[pkg] = maxOf(activeApps[pkg] ?: 0L, evt.timeStamp)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } catch (_: Exception) {}
-
-                    // Filter out apps that haven't had active interaction in the last 8 minutes
-                    val trulyOpenApps = activeApps.filter { (_, lastActive) ->
-                        (now - lastActive) <= 1000L * 60 * 8
-                    }
-
-                    // Sort candidate background apps strictly by recency of use
-                    val sortedBackgroundPkgs = trulyOpenApps.entries
-                        .sortedByDescending { it.value }
-                        .map { it.key }
-
-                    // Build package list: current active app + actually open background apps
-                    val topPkgs = mutableListOf<String>()
-                    topPkgs.add(context.packageName)
-                    for (pkg in sortedBackgroundPkgs) {
-                        if (!topPkgs.contains(pkg)) {
-                            topPkgs.add(pkg)
-                        }
-                        if (topPkgs.size >= 3) break
-                    }
-
-                    val sysLoad = if (totalBytes > 0) (usedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0.4f, 0.95f) else 0.7f
-
-                    val processEntries = topPkgs.map { pkg ->
-                        val friendlyName = if (pkg == context.packageName) {
-                            "Intelligent Search"
-                        } else {
-                            try {
-                                val appInfo = pm.getApplicationInfo(pkg, 0)
-                                val label = pm.getApplicationLabel(appInfo).toString()
-                                if (label.isNotBlank()) label else pkg.substringAfterLast('.')
-                            } catch (_: Exception) {
-                                pkg.substringAfterLast('.').replaceFirstChar {
-                                    if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString()
-                                }
-                            }
-                        }
-
-                        val ramMb = if (pkg == context.packageName) {
-                            myRamMb
-                        } else {
-                            val isLargeHeap = try {
-                                val ai = pm.getApplicationInfo(pkg, 0)
-                                (ai.flags and android.content.pm.ApplicationInfo.FLAG_LARGE_HEAP) != 0
-                            } catch (_: Exception) { false }
-
-                            val base = when {
-                                pkg.contains("twitter", ignoreCase = true) || pkg.contains("x.android", ignoreCase = true) -> 530f
-                                pkg.contains("chrome", ignoreCase = true) || pkg.contains("browser", ignoreCase = true) -> 560f
-                                pkg.contains("youtube", ignoreCase = true) -> 490f
-                                pkg.contains("instagram", ignoreCase = true) || pkg.contains("katana", ignoreCase = true) -> 480f
-                                pkg.contains("camera", ignoreCase = true) || pkg.contains("photos", ignoreCase = true) -> 460f
-                                pkg.contains("bard", ignoreCase = true) || pkg.contains("gemini", ignoreCase = true) -> 450f
-                                pkg.contains("nexuslauncher", ignoreCase = true) -> 340f
-                                pkg.contains("settings", ignoreCase = true) -> 210f
-                                pkg.contains("gm", ignoreCase = true) -> 240f
-                                isLargeHeap -> 410f
-                                else -> 280f
-                            }
-
-                            val lastUsedTime = trulyOpenApps[pkg] ?: (now - 1000L * 60 * 30)
-                            val ageMin = ((now - lastUsedTime) / (1000f * 60f)).coerceAtLeast(0f)
-                            val recencyScale = when {
-                                ageMin < 3f -> 1.08f
-                                ageMin < 15f -> 1.00f
-                                ageMin < 45f -> 0.90f
-                                else -> 0.82f
-                            }
-
-                            val hashSeed = (pkg.hashCode() and 0x7FFFFFFF) % 50
-                            val timeSec = now / 1000.0
-                            val dynamicJitter = (kotlin.math.sin(timeSec * 0.9 + hashSeed) * 6f + kotlin.math.cos(timeSec * 1.4 + hashSeed) * 3f).toFloat()
-
-                            ((base * recencyScale * (0.85f + 0.25f * sysLoad)) + dynamicJitter).coerceIn(60f, 1200f)
-                        }
-
-                        ProcessRamEntry(name = friendlyName, ramMb = ramMb)
-                    }
-
-                    val topProcessesList = processEntries
-                        .groupBy { it.name }
-                        .map { (name, list) -> ProcessRamEntry(name = name, ramMb = list.maxOf { it.ramMb }) }
-                        .sortedByDescending { it.ramMb }
-                        .take(3)
+                    val topProcessesList = listOf(
+                        ProcessRamEntry(name = "Active Apps", ramMb = activeAppsMb),
+                        ProcessRamEntry(name = "System Cache", ramMb = sysCacheMb),
+                        ProcessRamEntry(name = "Kernel & OS", ramMb = kernelMb),
+                        ProcessRamEntry(name = "App Footprint", ramMb = myHeapMb)
+                    )
 
                     MemorySnapshot(
                         totalGb = totGb,
@@ -2353,7 +2279,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "Apps using RAM",
+                            text = "Memory Breakdown",
                             style = MaterialTheme.typography.labelSmall,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
@@ -2779,7 +2705,7 @@ fun MainSettingsScreen(
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Text(
-                                        "As of Android 17 QPR2 user is able to change Default Search Engine App. Please check settings to apply Intelligent Search as the default search engine. This will natively set Intelligent Search as the home search bar widget.",
+                                        "As of Android 17 QPR2 users are able to change Default Search Engine App. Please check settings to apply Intelligent Search as the default search engine. This will natively set Intelligent Search as the home search bar widget.",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
@@ -3074,6 +3000,7 @@ fun MainSettingsScreen(
                 )
                 val isDebugUnlocked by rememberBooleanPreference(prefs, "debug_unlocked", false)
                 val searchEngine = prefs.getString("search.engine", "Google") ?: "Google"
+                var showTorBrowserSettingsDialog by remember { mutableStateOf(false) }
                 val browserHistorySubtitle = when (searchEngine) {
                     "Google" -> "View Your Chrome and Google History."
                     "Bing" -> "View Your Bing History."
@@ -3113,12 +3040,13 @@ fun MainSettingsScreen(
                                 try {
                                     val torIntent = context.packageManager.getLaunchIntentForPackage("org.torproject.torbrowser")
                                         ?: context.packageManager.getLaunchIntentForPackage("org.torproject.torbrowser_alpha")
-                                        ?: Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.torproject.org")).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                    context.startActivity(torIntent.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                                    if (torIntent != null) {
+                                        context.startActivity(torIntent.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                                    } else {
+                                        showTorBrowserSettingsDialog = true
+                                    }
                                 } catch (e: Exception) {
-                                    e.printStackTrace()
+                                    showTorBrowserSettingsDialog = true
                                 }
                             }
                             else -> {
@@ -3135,6 +3063,92 @@ fun MainSettingsScreen(
                     },
                     showDivider = true,
                 )
+
+                if (showTorBrowserSettingsDialog) {
+                    androidx.compose.ui.window.Dialog(
+                        onDismissRequest = { showTorBrowserSettingsDialog = false }
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(28.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            tonalElevation = 6.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(MaterialTheme.colorScheme.primaryContainer),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Security,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Tor Browser Required",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Tor Project search routes queries securely through the official Tor Project Browser. Download it from Google Play Store to enable search overlay passthrough.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    androidx.compose.material3.OutlinedButton(
+                                        onClick = { showTorBrowserSettingsDialog = false },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(20.dp)
+                                    ) {
+                                        Text("Close")
+                                    }
+                                    androidx.compose.material3.Button(
+                                        onClick = {
+                                            showTorBrowserSettingsDialog = false
+                                            try {
+                                                val playStoreIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=org.torproject.torbrowser")).apply {
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                                context.startActivity(playStoreIntent)
+                                            } catch (_: Exception) {
+                                                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=org.torproject.torbrowser")).apply {
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                                context.startActivity(webIntent)
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(20.dp)
+                                    ) {
+                                        Text("Play Store")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 SettingsRow(
                     title = "Encrypted Backup",
                     subtitle = "Import, Export, and Restore Backup App Data.",
@@ -3165,16 +3179,16 @@ fun MainSettingsScreen(
                 val density = LocalDensity.current
                 val fontScale = density.fontScale.coerceIn(0.85f, 1.5f)
 
-                val textTargetWidth = (205.dp * (if (fontScale > 1f) (fontScale * 0.9f) else 1f)).coerceIn(190.dp, 250.dp)
+                val textTargetWidth = (220.dp * (if (fontScale > 1f) (fontScale * 0.9f) else 1f)).coerceIn(200.dp, 260.dp)
                 val remainingForPlayer = containerWidth - textTargetWidth - 12.dp
-                val playerWidth = remainingForPlayer.coerceIn(95.dp, 165.dp)
+                val playerWidth = remainingForPlayer.coerceIn(100.dp, 175.dp)
                 val playerHeight = playerWidth * (220f / 175f)
 
                 val baseScale = (containerWidth / 390.dp).coerceIn(0.82f, 1.0f) / fontScale.coerceAtLeast(1.0f)
-                val titleFontSize = (18f * baseScale).coerceIn(13.5f, 18f).sp
-                val titleLineHeight = (titleFontSize.value * 1.33f).sp
-                val subtextFontSize = (13.5f * baseScale).coerceIn(10.5f, 14f).sp
-                val subtextLineHeight = (subtextFontSize.value * 1.42f).sp
+                val titleFontSize = (20.5f * baseScale).coerceIn(15.5f, 20.5f).sp
+                val titleLineHeight = (titleFontSize.value * 1.30f).sp
+                val subtextFontSize = (14.5f * baseScale).coerceIn(11.5f, 14.5f).sp
+                val subtextLineHeight = (subtextFontSize.value * 1.38f).sp
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -3185,7 +3199,7 @@ fun MainSettingsScreen(
                         modifier = Modifier
                             .width(playerWidth)
                             .height(playerHeight),
-                        scaleFactor = 0.70f
+                        scaleFactor = 0.85f
                     )
                     
                     Spacer(modifier = Modifier.width(12.dp))
@@ -3311,8 +3325,8 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
 
                         var vibrationEnabled by rememberBooleanPreference(prefs, "vibration_enabled", true)
                         SettingsRowToggle(
-                            title = "Vibration",
-                            subtitle = "Haptic Vibration Across the Entire App.",
+                            title = "System Vibration",
+                            subtitle = "Enable Haptic Vibrations Across Intelligent Search",
                             icon = Icons.Outlined.Vibration,
                             isChecked = vibrationEnabled,
                             onCheckedChange = { 
@@ -4714,6 +4728,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var searchEngine by rememberStringPreference(prefs, "search.engine", "Google")
                 var customEngineName by rememberStringPreference(prefs, "custom_search_engine_name", "Custom")
                 val effectiveSearchEngineName = if (searchEngine == "Custom") customEngineName else searchEngine
+                var showTorDialog by remember { mutableStateOf(false) }
 
                 SettingsDropdownRow(
                     title = "Primary Search App",
@@ -4721,9 +4736,105 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     icon = Icons.Outlined.Search,
                     options = listOf("Google", "DuckDuckGo", "Bing", "Tor Project", "Custom"),
                     selectedOption = searchEngine,
-                    onOptionSelected = { searchEngine = it },
+                    onOptionSelected = { selected ->
+                        if (selected == "Tor Project") {
+                            val pm = context.packageManager
+                            val isTorInstalled = pm.getLaunchIntentForPackage("org.torproject.torbrowser") != null ||
+                                pm.getLaunchIntentForPackage("org.torproject.torbrowser_alpha") != null
+                            if (!isTorInstalled) {
+                                showTorDialog = true
+                            }
+                        }
+                        searchEngine = selected
+                    },
                     showDivider = searchEngine != "Custom"
                 )
+
+                if (showTorDialog) {
+                    androidx.compose.ui.window.Dialog(
+                        onDismissRequest = { showTorDialog = false }
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(28.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            tonalElevation = 6.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(MaterialTheme.colorScheme.primaryContainer),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Security,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Tor Browser Required",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Tor Project search routes queries securely through the official Tor Project Browser. Download it from Google Play Store to enable search overlay passthrough.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    androidx.compose.material3.OutlinedButton(
+                                        onClick = { showTorDialog = false },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(20.dp)
+                                    ) {
+                                        Text("Close")
+                                    }
+                                    androidx.compose.material3.Button(
+                                        onClick = {
+                                            showTorDialog = false
+                                            try {
+                                                val playStoreIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=org.torproject.torbrowser")).apply {
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                                context.startActivity(playStoreIntent)
+                                            } catch (_: Exception) {
+                                                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=org.torproject.torbrowser")).apply {
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                                context.startActivity(webIntent)
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(20.dp)
+                                    ) {
+                                        Text("Play Store")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 if (searchEngine == "Custom") {
                     var customUrl by rememberStringPreference(prefs, "custom_search_engine_url", "https://duckduckgo.com/?q=%s")
                     Row(

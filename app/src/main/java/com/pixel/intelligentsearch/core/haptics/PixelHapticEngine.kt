@@ -106,7 +106,17 @@ class PixelHapticEngine(private val context: Context) {
         amplitudeScale: Float = 1.0f,
         velocity: Float = 0f
     ) {
-        performPredictiveBackHaptic(view)
+        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("vibration_enabled", true)) return
+
+        val effect = composeWaveform(type, amplitudeScale, velocity)
+        if (effect != null) {
+            vibrateWithAttributes(effect)
+        } else if (view != null) {
+            performViewFallback(view, type)
+        } else {
+            performPredictiveBackHaptic(view)
+        }
     }
 
     private fun vibrateWithAttributes(effect: VibrationEffect) {

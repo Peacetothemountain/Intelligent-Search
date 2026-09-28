@@ -42,10 +42,12 @@ object MemorySanitizer {
     fun wipe(buffer: ByteBuffer?) {
         if (buffer == null) return
         buffer.clear()
-        val zeroBytes = ByteArray(minOf(buffer.capacity(), 1024))
-        while (buffer.hasRemaining()) {
-            val toWrite = minOf(buffer.remaining(), zeroBytes.size)
-            buffer.put(zeroBytes, 0, toWrite)
+        if (buffer.hasArray()) {
+            Arrays.fill(buffer.array(), 0.toByte())
+        } else {
+            while (buffer.hasRemaining()) {
+                buffer.put(0.toByte())
+            }
         }
         buffer.clear()
     }
@@ -157,7 +159,12 @@ class SecuritySessionLock private constructor() : DefaultLifecycleObserver {
 
     init {
         try {
-            ProcessLifecycleOwner.get().lifecycle.addObserver(this)
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            handler.post {
+                try {
+                    ProcessLifecycleOwner.get().lifecycle.addObserver(this@SecuritySessionLock)
+                } catch (_: Throwable) {}
+            }
         } catch (_: Throwable) {
             // ProcessLifecycleOwner might not be initialized in non-UI test runners
         }
@@ -194,7 +201,8 @@ class SecuritySessionLock private constructor() : DefaultLifecycleObserver {
     fun lockdown() {
         isSessionUnlocked = false
         lastUnlockTimestamp = 0L
-        for (listener in lockListeners) {
+        val snapshot = lockListeners.toList()
+        for (listener in snapshot) {
             try {
                 listener.invoke()
             } catch (_: Throwable) {}

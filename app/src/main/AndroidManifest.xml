@@ -244,6 +244,7 @@
         <provider
             android:name="com.pixel.intelligentsearch.core.data.GlobalSearchProvider"
             android:authorities="com.pixel.intelligentsearch.globalsearch"
+            android:readPermission="android.permission.GLOBAL_SEARCH"
             android:exported="true" />
 
     </application>

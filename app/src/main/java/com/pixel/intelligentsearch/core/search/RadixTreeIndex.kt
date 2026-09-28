@@ -53,68 +53,87 @@ class RadixTreeIndex<T> {
      * Multiple values may be mapped to the same key.
      */
     fun insert(rawKey: String, value: T) {
-        val key = rawKey.trim().lowercase()
+        val key = rawKey.trim().lowercase(java.util.Locale.ROOT)
         if (key.isEmpty()) return
 
         lock.write {
-            var currentNode = root
-            var remainingKey = key
+            insertInternal(key, value)
+        }
+    }
 
-            while (remainingKey.isNotEmpty()) {
-                val firstChar = remainingKey[0]
-                val child = currentNode.findChildByFirstChar(firstChar)
-
-                if (child == null) {
-                    // No matching branch: create a new edge containing all remaining characters
-                    val newNode = RadixNode<T>(edge = remainingKey)
-                    newNode.values.add(value)
-                    currentNode.children.add(newNode)
-                    totalEntries++
-                    return@write
+    /**
+     * Atomically inserts multiple key-value pairs into the Radix Tree under a single write lock.
+     */
+    fun insertBatch(items: List<Pair<String, T>>) {
+        if (items.isEmpty()) return
+        lock.write {
+            for (item in items) {
+                val key = item.first.trim().lowercase(java.util.Locale.ROOT)
+                if (key.isNotEmpty()) {
+                    insertInternal(key, item.second)
                 }
+            }
+        }
+    }
 
-                val commonPrefixLength = getCommonPrefixLength(remainingKey, child.edge)
+    private fun insertInternal(key: String, value: T) {
+        var currentNode = root
+        var remainingKey = key
 
-                if (commonPrefixLength == child.edge.length) {
-                    // Entire child edge matched: descend deeper
-                    remainingKey = remainingKey.substring(commonPrefixLength)
-                    currentNode = child
-                    if (remainingKey.isEmpty()) {
-                        // Reached terminal position
-                        child.values.add(value)
-                        totalEntries++
-                        return@write
-                    }
+        while (remainingKey.isNotEmpty()) {
+            val firstChar = remainingKey[0]
+            val child = currentNode.findChildByFirstChar(firstChar)
+
+            if (child == null) {
+                // No matching branch: create a new edge containing all remaining characters
+                val newNode = RadixNode<T>(edge = remainingKey)
+                newNode.values.add(value)
+                currentNode.children.add(newNode)
+                totalEntries++
+                return
+            }
+
+            val commonPrefixLength = getCommonPrefixLength(remainingKey, child.edge)
+
+            if (commonPrefixLength == child.edge.length) {
+                // Entire child edge matched: descend deeper
+                remainingKey = remainingKey.substring(commonPrefixLength)
+                currentNode = child
+                if (remainingKey.isEmpty()) {
+                    // Reached terminal position
+                    child.values.add(value)
+                    totalEntries++
+                    return
+                }
+            } else {
+                // Partial match: split child edge at commonPrefixLength
+                val existingEdgeSuffix = child.edge.substring(commonPrefixLength)
+                val newEdgeSuffix = remainingKey.substring(commonPrefixLength)
+
+                // Node representing the split branch
+                val splitChild = RadixNode<T>(
+                    edge = existingEdgeSuffix,
+                    children = ArrayList(child.children),
+                    values = LinkedHashSet(child.values)
+                )
+
+                // Retarget child edge to the common prefix
+                child.edge = child.edge.substring(0, commonPrefixLength)
+                child.children.clear()
+                child.values.clear()
+                child.children.add(splitChild)
+
+                if (newEdgeSuffix.isEmpty()) {
+                    // The key ends at this split node
+                    child.values.add(value)
                 } else {
-                    // Partial match: split child edge at commonPrefixLength
-                    val existingEdgeSuffix = child.edge.substring(commonPrefixLength)
-                    val newEdgeSuffix = remainingKey.substring(commonPrefixLength)
-
-                    // Node representing the split branch
-                    val splitChild = RadixNode<T>(
-                        edge = existingEdgeSuffix,
-                        children = ArrayList(child.children),
-                        values = LinkedHashSet(child.values)
-                    )
-
-                    // Retarget child edge to the common prefix
-                    child.edge = child.edge.substring(0, commonPrefixLength)
-                    child.children.clear()
-                    child.values.clear()
-                    child.children.add(splitChild)
-
-                    if (newEdgeSuffix.isEmpty()) {
-                        // The key ends at this split node
-                        child.values.add(value)
-                    } else {
-                        // Create a second child for the new suffix
-                        val newLeaf = RadixNode<T>(edge = newEdgeSuffix)
-                        newLeaf.values.add(value)
-                        child.children.add(newLeaf)
-                    }
-                    totalEntries++
-                    return@write
+                    // Create a second child for the new suffix
+                    val newLeaf = RadixNode<T>(edge = newEdgeSuffix)
+                    newLeaf.values.add(value)
+                    child.children.add(newLeaf)
                 }
+                totalEntries++
+                return
             }
         }
     }
@@ -124,7 +143,7 @@ class RadixTreeIndex<T> {
      * Completes in O(K) where K = prefix length, independent of index size.
      */
     fun searchPrefix(rawPrefix: String, limit: Int = 100): List<T> {
-        val prefix = rawPrefix.trim().lowercase()
+        val prefix = rawPrefix.trim().lowercase(java.util.Locale.ROOT)
         if (prefix.isEmpty()) return emptyList()
 
         return lock.read {
@@ -172,7 +191,7 @@ class RadixTreeIndex<T> {
         maxDistance: Int = 2,
         limit: Int = 50
     ): List<FuzzyMatchResult<T>> {
-        val query = rawQuery.trim().lowercase()
+        val query = rawQuery.trim().lowercase(java.util.Locale.ROOT)
         if (query.isEmpty()) return emptyList()
 
         return lock.read {
@@ -186,13 +205,12 @@ class RadixTreeIndex<T> {
                     previousRow = initialRow,
                     currentKeyPath = StringBuilder(),
                     maxDistance = maxDistance,
-                    limit = limit,
+                    limit = limit * 2,
                     results = results
                 )
-                if (results.size >= limit) break
             }
 
-            results.sortedBy { it.distance }
+            results.sortedBy { it.distance }.take(limit)
         }
     }
 
@@ -281,6 +299,31 @@ class RadixTreeIndex<T> {
             i++
         }
         return i
+    }
+
+    /**
+     * Thread-safe predicate-based pruning to remove uninstalled apps or stale entries.
+     */
+    fun removeIf(predicate: (T) -> Boolean) {
+        lock.write {
+            pruneRecursive(root, predicate)
+        }
+    }
+
+    private fun pruneRecursive(node: RadixNode<T>, predicate: (T) -> Boolean): Boolean {
+        val beforeCount = node.values.size
+        node.values.removeAll(predicate)
+        totalEntries -= (beforeCount - node.values.size)
+
+        val iterator = node.children.iterator()
+        while (iterator.hasNext()) {
+            val child = iterator.next()
+            val childIsEmpty = pruneRecursive(child, predicate)
+            if (childIsEmpty && child.values.isEmpty()) {
+                iterator.remove()
+            }
+        }
+        return node.children.isEmpty() && node.values.isEmpty()
     }
 
     /**

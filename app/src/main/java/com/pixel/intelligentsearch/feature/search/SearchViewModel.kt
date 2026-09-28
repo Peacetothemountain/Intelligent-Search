@@ -89,7 +89,7 @@ class SearchViewModel @Inject constructor(
     private var remoteSearchJob: Job? = null
 
     private val localInferenceEngine = com.pixel.intelligentsearch.core.local.LocalInferenceEngine(context)
-    private val adpfThermalManager = com.pixel.intelligentsearch.core.performance.ADPFThermalManager(context)
+    private val adpfThermalManager = com.pixel.intelligentsearch.core.performance.ADPFThermalManager.getInstance(context)
     private val appSearchEngine = com.pixel.intelligentsearch.core.data.AppSearchEngine(context)
     private val privateSpaceManager = com.pixel.intelligentsearch.core.data.PrivateSpaceManager(context)
     private val multiProfileManager = com.pixel.intelligentsearch.core.profile.MultiProfileManager(context)
@@ -140,10 +140,17 @@ class SearchViewModel @Inject constructor(
         }
         
         viewModelScope.launch {
-            directBootManager.isUserUnlocked.collect { isUnlocked ->
+            directBootManager.isUserUnlocked.collectLatest { isUnlocked ->
                 _uiState.update { it.copy(isDirectBootLocked = !isUnlocked) }
                 if (isUnlocked) {
                     loadInitialData()
+                    try {
+                        historyDao.getSearchHistoryFlow().collect { historyEntities ->
+                            _uiState.update { it.copy(recentSearches = historyEntities.map { entity -> entity.query }) }
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("SearchViewModel", "Error collecting search history", e)
+                    }
                 }
             }
         }
@@ -153,16 +160,6 @@ class SearchViewModel @Inject constructor(
                 val hasLocked = profiles.any { it.profileType == ProfileType.PRIVATE && it.isLocked }
                 _uiState.update { it.copy(hasLockedPrivateSpace = hasLocked) }
             }
-        }
-
-        viewModelScope.launch {
-            try {
-                if (directBootManager.checkIsUserUnlocked()) {
-                    historyDao.getSearchHistoryFlow().collect { historyEntities ->
-                        _uiState.update { it.copy(recentSearches = historyEntities.map { entity -> entity.query }) }
-                    }
-                }
-            } catch (_: Exception) {}
         }
     }
 
@@ -580,6 +577,12 @@ class SearchViewModel @Inject constructor(
 
     fun notifyAppLaunch(packageName: String) {
         nativeAppPredictionProvider.notifyAppLaunch(packageName)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        searchJob?.cancel()
+        remoteSearchJob?.cancel()
     }
 }
 

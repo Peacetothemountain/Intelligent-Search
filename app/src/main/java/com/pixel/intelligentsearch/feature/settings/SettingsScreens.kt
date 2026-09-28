@@ -2120,6 +2120,14 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                         contentAlignment = Alignment.Center
                     ) {
+                        val gridDashEffect = remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4f, 4f)) }
+                        val stemDashEffect = remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3f, 3f)) }
+                        val gradientBrush = remember(primaryColor) {
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                listOf(primaryColor.copy(alpha = 0.32f), primaryColor.copy(alpha = 0.04f), Color.Transparent)
+                            )
+                        }
+
                         androidx.compose.foundation.Canvas(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -2137,7 +2145,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                     start = androidx.compose.ui.geometry.Offset(0f, gy),
                                     end = androidx.compose.ui.geometry.Offset(w, gy),
                                     strokeWidth = 0.8.dp.toPx(),
-                                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4f, 4f))
+                                    pathEffect = gridDashEffect
                                 )
                             }
 
@@ -2213,9 +2221,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 // Soft Material You primary vertical gradient fill
                                 drawPath(
                                     path = fillPath,
-                                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                        listOf(primaryColor.copy(alpha = 0.32f), primaryColor.copy(alpha = 0.04f), Color.Transparent)
-                                    )
+                                    brush = gradientBrush
                                 )
 
                                 // Crisp spline outline
@@ -2239,7 +2245,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                         start = pt,
                                         end = androidx.compose.ui.geometry.Offset(pt.x, h),
                                         strokeWidth = 1.dp.toPx(),
-                                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3f, 3f))
+                                        pathEffect = stemDashEffect
                                     )
 
                                     // Pulsing halo aura

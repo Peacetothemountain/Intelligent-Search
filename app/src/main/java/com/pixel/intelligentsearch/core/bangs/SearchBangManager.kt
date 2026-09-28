@@ -131,8 +131,16 @@ class SearchBangManager @Inject constructor(
                 description = "Search Songs and Artists on Spotify."
             )
         )
+    }
 
-        private val PREFIX_BANG_PATTERN = Pattern.compile("^(![a-zA-Z0-9_-]+)\\s*(.*)$")
+    init {
+        context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+            .registerOnSharedPreferenceChangeListener { _, key ->
+                if (key == "web_shortcut_trigger_symbol" || key == "custom_bangs_json" || key == "disabled_web_shortcuts") {
+                    cachedTriggerSymbol = null
+                    cachedSyncBangs = null
+                }
+            }
     }
 
     @Volatile
@@ -159,7 +167,7 @@ class SearchBangManager @Inject constructor(
                 bang
             }
         }
-        val res = (builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase() !in disabled } + customBangs).distinctBy { it.displayPrefix }
+        val res = (customBangs + builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase(java.util.Locale.ROOT) !in disabled }).distinctBy { it.displayPrefix }
         cachedSyncBangs = res
         res
     }
@@ -186,7 +194,7 @@ class SearchBangManager @Inject constructor(
                 bang
             }
         }
-        val result = (builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase() !in disabled } + customBangs).distinctBy { it.displayPrefix }
+        val result = (customBangs + builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase(java.util.Locale.ROOT) !in disabled }).distinctBy { it.displayPrefix }
         cachedSyncBangs = result
         return result
     }
@@ -291,8 +299,14 @@ class SearchBangManager @Inject constructor(
                     putExtra("query", query)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-                if (pkgSearchIntent.resolveActivity(pm) != null) {
-                    return pkgSearchIntent
+                val resolved = pkgSearchIntent.resolveActivity(pm)
+                if (resolved != null) {
+                    try {
+                        val activityInfo = pm.getActivityInfo(resolved, 0)
+                        if (activityInfo.exported) {
+                            return pkgSearchIntent
+                        }
+                    } catch (_: Exception) {}
                 }
             }
         }

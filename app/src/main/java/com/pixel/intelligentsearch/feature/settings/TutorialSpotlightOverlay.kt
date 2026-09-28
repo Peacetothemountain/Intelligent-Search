@@ -137,7 +137,6 @@ fun TutorialSpotlightOverlay(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .graphicsLayer { alpha = 0.99f }
             .background(Color.Transparent)
             .onGloballyPositioned { coordinates ->
                 overlayRootOffset = coordinates.positionInRoot()

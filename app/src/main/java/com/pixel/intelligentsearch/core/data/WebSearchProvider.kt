@@ -60,8 +60,9 @@ object WebSearchProvider {
                     return suggestions.isNotEmpty()
                 }
             } catch (_: Exception) {
-            } finally {
                 try { connection?.disconnect() } catch (_: Exception) {}
+            } finally {
+                try { connection?.inputStream?.close() } catch (_: Exception) {}
             }
             return false
         }

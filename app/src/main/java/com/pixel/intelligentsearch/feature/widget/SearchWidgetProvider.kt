@@ -104,7 +104,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
     companion object {
         private const val TAG = "SearchWidgetProvider"
-        private val widgetScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        private val widgetScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         fun hasSavedSystemDesign(prefs: SharedPreferences): Boolean {
             return prefs.getBoolean("widget_system_design_saved", false)

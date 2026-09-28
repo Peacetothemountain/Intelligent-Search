@@ -80,8 +80,8 @@ open class MainActivity : AppCompatActivity() {
         }
         setIntent(intent)
         if (checkAndForwardIfSearchOverlayDisabled()) return
-        val queryExtra = intent.getStringExtra("query") ?: intent.getStringExtra(SearchManager.QUERY)
-        if (queryExtra != null) {
+        val queryExtra = intent.getStringExtra("query") ?: intent.getStringExtra(SearchManager.QUERY) ?: intent.getStringExtra(Intent.EXTRA_TEXT)
+        if (!queryExtra.isNullOrBlank()) {
             searchViewModel.onQueryChanged(queryExtra)
         } else {
             searchViewModel.onQueryChanged("")
@@ -167,6 +167,10 @@ open class MainActivity : AppCompatActivity() {
         }
 
         if (checkAndForwardIfSearchOverlayDisabled()) return
+        val queryExtra = intent?.getStringExtra("query") ?: intent?.getStringExtra(SearchManager.QUERY) ?: intent?.getStringExtra(Intent.EXTRA_TEXT)
+        if (!queryExtra.isNullOrBlank()) {
+            searchViewModel.onQueryChanged(queryExtra)
+        }
         if (handleIntent(intent)) return
         
         setContent {
@@ -325,6 +329,14 @@ open class MainActivity : AppCompatActivity() {
             com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(this)
         } catch (e: Throwable) {
             android.util.Log.e("MainActivity", "Failed to update widget on pause", e)
+        }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= TRIM_MEMORY_UI_HIDDEN) {
+            com.pixel.intelligentsearch.feature.search.clearAllUiMemoryCaches()
+            com.pixel.intelligentsearch.core.data.SystemDataProvider.invalidateAppsCache()
         }
     }
 

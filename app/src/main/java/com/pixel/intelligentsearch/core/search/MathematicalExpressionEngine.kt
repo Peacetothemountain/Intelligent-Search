@@ -79,11 +79,12 @@ object MathematicalExpressionEngine {
 
     private fun isLikelyMathExpression(expr: String): Boolean {
         if (expr.isEmpty()) return false
+        val lower = expr.lowercase(Locale.ROOT)
         // Must contain at least one operator or recognized scientific function
-        val hasOperatorOrFunc = expr.any { it in "+-*/%^!()" } ||
-                expr.contains("sin") || expr.contains("cos") || expr.contains("tan") ||
-                expr.contains("log") || expr.contains("ln") || expr.contains("sqrt") ||
-                expr.contains("abs") || expr.contains("pi") || expr.contains("deg") || expr.contains("rad")
+        val hasOperatorOrFunc = lower.any { it in "+-*/%^!()" } ||
+                lower.contains("sin") || lower.contains("cos") || lower.contains("tan") ||
+                lower.contains("log") || lower.contains("ln") || lower.contains("sqrt") ||
+                lower.contains("abs") || lower.contains("pi") || lower.contains("deg") || lower.contains("rad")
 
         if (!hasOperatorOrFunc) return false
 
@@ -150,10 +151,17 @@ object MathematicalExpressionEngine {
             }
         }
 
-        // Factor = Unary (+, -) Factor | Primary (^ Factor)? (!)*
+        // Factor = Unary (+, -)* Primary (!)* (^ Factor)?
         private fun parseFactor(): Double {
-            if (eat('+'.code)) return parseFactor()
-            if (eat('-'.code)) return -parseFactor()
+            var sign = 1.0
+            while (true) {
+                if (eat('+'.code)) continue
+                if (eat('-'.code)) {
+                    sign = -sign
+                    continue
+                }
+                break
+            }
 
             var x: Double
             val startPos = pos
@@ -171,8 +179,8 @@ object MathematicalExpressionEngine {
                 }
                 x = str.substring(startPos, pos).toDouble()
             } else if (ch in 'a'.code..'z'.code || ch in 'A'.code..'Z'.code) {
-                while (ch in 'a'.code..'z'.code || ch in 'A'.code..'Z'.code) nextChar()
-                val func = str.substring(startPos, pos).lowercase()
+                while (ch in 'a'.code..'z'.code || ch in 'A'.code..'Z'.code || ch in '0'.code..'9'.code) nextChar()
+                val func = str.substring(startPos, pos).lowercase(Locale.ROOT)
 
                 x = when (func) {
                     "pi" -> Math.PI
@@ -214,12 +222,7 @@ object MathematicalExpressionEngine {
                 throw IllegalArgumentException("Unexpected char: " + ch.toChar())
             }
 
-            // Exponentiation
-            if (eat('^'.code)) {
-                x = x.pow(parseFactor())
-            }
-
-            // Factorial operator: e.g. 5!
+            // Factorial operator has higher binding precedence than exponentiation: e.g. 3!^2 = 6^2 = 36
             while (eat('!'.code)) {
                 val n = x.toLong()
                 if (x < 0 || x != n.toDouble() || n > 20) throw IllegalArgumentException("Factorial out of range")
@@ -228,7 +231,12 @@ object MathematicalExpressionEngine {
                 x = fact.toDouble()
             }
 
-            return x
+            // Exponentiation
+            if (eat('^'.code)) {
+                x = x.pow(parseFactor())
+            }
+
+            return sign * x
         }
     }
 
@@ -386,7 +394,11 @@ object MathematicalExpressionEngine {
     )
 
     private fun evaluateUnitConversion(query: String): MathEvaluationResult.UnitConversion? {
-        val normalizedQuery = query.trim()
+        // Shift prefix currency symbols (e.g. "$100 to eur" -> "100 $ to eur")
+        val prefixShifted = query.trim()
+            .replace(Regex("([$€£¥₹])\\s*([0-9.]+)"), "$2 $1")
+
+        val normalizedQuery = prefixShifted
             .replace("$", " usd ")
             .replace("€", " eur ")
             .replace("£", " gbp ")
@@ -398,18 +410,18 @@ object MathematicalExpressionEngine {
         val match = REGEX_UNIT_CONVERSION.find(normalizedQuery) ?: return null
 
         val value = match.groupValues[1].toDoubleOrNull() ?: return null
-        val fromUnit = match.groupValues[2].lowercase()
-        val toUnit = match.groupValues[3].lowercase()
+        val fromUnit = match.groupValues[2].lowercase(Locale.ROOT)
+        val toUnit = match.groupValues[3].lowercase(Locale.ROOT)
 
         // 1. Temperature Check
         if (isTemperature(fromUnit) && isTemperature(toUnit)) {
             val converted = convertTemperature(value, fromUnit, toUnit)
             return MathEvaluationResult.UnitConversion(
                 fromValue = value,
-                fromUnit = fromUnit.uppercase(),
+                fromUnit = fromUnit.uppercase(Locale.ROOT),
                 toValue = converted,
-                toUnit = toUnit.uppercase(),
-                formatted = "${formatNumber(value)} ${fromUnit.uppercase()} = ${formatNumber(converted)} ${toUnit.uppercase()}"
+                toUnit = toUnit.uppercase(Locale.ROOT),
+                formatted = "${formatNumber(value)} ${fromUnit.uppercase(Locale.ROOT)} = ${formatNumber(converted)} ${toUnit.uppercase(Locale.ROOT)}"
             )
         }
 
@@ -435,10 +447,10 @@ object MathematicalExpressionEngine {
             val result = inUsd * currencyRatios[toUnit]!!
             return MathEvaluationResult.UnitConversion(
                 fromValue = value,
-                fromUnit = fromUnit.uppercase(),
+                fromUnit = fromUnit.uppercase(Locale.ROOT),
                 toValue = result,
-                toUnit = toUnit.uppercase(),
-                formatted = "${formatNumber(value)} ${fromUnit.uppercase()} = ${formatNumber(result)} ${toUnit.uppercase()}"
+                toUnit = toUnit.uppercase(Locale.ROOT),
+                formatted = "${formatNumber(value)} ${fromUnit.uppercase(Locale.ROOT)} = ${formatNumber(result)} ${toUnit.uppercase(Locale.ROOT)}"
             )
         }
 
@@ -461,10 +473,14 @@ object MathematicalExpressionEngine {
     }
 
     private fun formatNumber(value: Double): String {
-        return if (value % 1.0 == 0.0 && abs(value) < 1e15) {
+        if (value == 0.0) return "0"
+        val absVal = abs(value)
+        return if (value % 1.0 == 0.0 && absVal < 1e15) {
             value.toLong().toString()
+        } else if (absVal in 1e-15..1e-4 || absVal >= 1e15) {
+            String.format(Locale.ROOT, "%.4e", value)
         } else {
-            String.format(Locale.US, "%.4f", value).trimEnd('0').trimEnd('.')
+            String.format(Locale.ROOT, "%.4f", value).trimEnd('0').trimEnd('.')
         }
     }
 }

@@ -168,7 +168,7 @@ class EncryptedDataVault @Inject constructor(
         profileId: String = "default",
         generateBlindIndexFor: String? = null
     ): EncryptedVaultRecord {
-        val iv = cipher.iv ?: ByteArray(IV_LENGTH)
+        val iv = cipher.iv ?: throw IllegalStateException("Biometric cipher must have an initialized initialization vector (IV).")
         val aad = buildAad(domain, recordId, profileId)
         cipher.updateAAD(aad)
         val ciphertextWithTag = cipher.doFinal(plaintext)

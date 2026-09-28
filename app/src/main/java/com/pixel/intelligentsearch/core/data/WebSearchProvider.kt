@@ -21,6 +21,7 @@ object WebSearchProvider {
     fun getWebSuggestionsSync(query: String, engine: String = "Google", timeoutMs: Int = 600): List<String> {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return emptyList()
+        if (engine == "Tor Project" || engine == "Tor Browser") return emptyList()
 
         val cacheKey = "$engine:${trimmed.lowercase()}"
         synchronized(suggestionCache) {
@@ -59,17 +60,14 @@ object WebSearchProvider {
                     return suggestions.isNotEmpty()
                 }
             } catch (_: Exception) {
-            } finally {
                 try { connection?.disconnect() } catch (_: Exception) {}
+            } finally {
+                try { connection?.inputStream?.close() } catch (_: Exception) {}
             }
             return false
         }
 
-        val success = fetchFromUrl(primaryUrl)
-        if (!success && engine != "Google") {
-            // Fallback to Google suggestion API if primary provider times out
-            fetchFromUrl("https://suggestqueries.google.com/complete/search?client=chrome&q=$encodedQuery")
-        }
+        fetchFromUrl(primaryUrl)
 
         if (suggestions.isNotEmpty()) {
             synchronized(suggestionCache) {

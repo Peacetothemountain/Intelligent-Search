@@ -63,7 +63,8 @@ class GlobalSearchProvider : ContentProvider() {
         if (cancellationSignal?.isCanceled == true) return cursor
 
         val selectionArgs = queryArgs?.getStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS)
-        val queryTerm = extractQueryTerm(uri, selectionArgs)
+        val rawQuery = extractQueryTerm(uri, selectionArgs)
+        val queryTerm = rawQuery.replace("\u0000", "").trim().take(128)
         if (queryTerm.isBlank()) return cursor
 
         val coordinator = try {
@@ -100,18 +101,14 @@ class GlobalSearchProvider : ContentProvider() {
                 ))
             }
 
-            // 2. Apps
+            // 2. Apps - In-memory intent synthesis to eliminate synchronous Binder IPC storm
             for (app in results.apps) {
                 if (cancellationSignal?.isCanceled == true) break
-                val launchIntent = context?.packageManager?.getLaunchIntentForPackage(app.packageName)
-                    ?: if (app.activityName != null) {
-                        Intent(Intent.ACTION_MAIN).apply {
-                            addCategory(Intent.CATEGORY_LAUNCHER)
-                            setClassName(app.packageName, app.activityName)
-                        }
-                    } else null
-                val launchIntentUri = launchIntent?.toUri(Intent.URI_INTENT_SCHEME)
-                    ?: "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${app.packageName};end"
+                val launchIntentUri = if (app.activityName != null) {
+                    "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;component=${app.packageName}/${app.activityName};end"
+                } else {
+                    "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${app.packageName};end"
+                }
 
                 cursor.addRow(arrayOf<Any?>(
                     rowId++,
@@ -125,11 +122,12 @@ class GlobalSearchProvider : ContentProvider() {
                 ))
             }
 
-            // 3. Contacts (Restricted to callers with READ_CONTACTS or self/system)
+            // 3. Contacts (Strict caller validation preventing unauthorized contact leakage)
             val caller = callingPackage
-            val isAuthorized = caller == null || 
+            val isAuthorized = caller != null && (
                 caller == context?.packageName || 
                 context?.packageManager?.checkPermission(android.Manifest.permission.READ_CONTACTS, caller) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            )
 
             if (isAuthorized) {
                 for (contact in results.contacts) {
@@ -169,19 +167,22 @@ class GlobalSearchProvider : ContentProvider() {
         val engine = prefs?.getString("search.engine", "Google") ?: "Google"
         val customUrl = prefs?.getString("custom_search_engine_url", "") ?: ""
 
-        val providerName = when (engine) {
-            "DuckDuckGo" -> "DuckDuckGo"
-            "Bing" -> "Bing"
-            "Custom" -> if (customUrl.isNotBlank()) "Web" else "Web"
+        val isTorEngine = engine == "Tor Project" || engine == "Tor Browser"
+        val providerName = when {
+            isTorEngine -> "Tor"
+            engine == "DuckDuckGo" -> "DuckDuckGo"
+            engine == "Bing" -> "Bing"
+            engine == "Custom" -> if (customUrl.isNotBlank()) "Web" else "Web"
             else -> "Google"
         }
 
         fun buildWebSearchUrl(q: String): String {
             val encoded = Uri.encode(q)
-            return when (engine) {
-                "DuckDuckGo" -> "https://duckduckgo.com/?q=$encoded"
-                "Bing" -> "https://www.bing.com/search?q=$encoded"
-                "Custom" -> {
+            return when {
+                isTorEngine -> "https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q=$encoded"
+                engine == "DuckDuckGo" -> "https://duckduckgo.com/?q=$encoded"
+                engine == "Bing" -> "https://www.bing.com/search?q=$encoded"
+                engine == "Custom" -> {
                     if (customUrl.isNotBlank()) {
                         val rawUrl = if (customUrl.contains("%s")) {
                             customUrl.replace("%s", encoded)
@@ -199,9 +200,13 @@ class GlobalSearchProvider : ContentProvider() {
             }
         }
 
-        // Check in-memory cache first (< 0.1ms). If uncached, fetch with strict 80ms timeout to avoid Binder stall.
-        val cached = WebSearchProvider.getCachedSuggestions(queryTerm, engine)
-        val suggestions = cached ?: WebSearchProvider.getWebSuggestionsSync(queryTerm, engine, timeoutMs = 80)
+        // Check in-memory cache first (< 0.1ms). For Tor engine, suppress remote clearnet suggestions completely.
+        val suggestions = if (isTorEngine) {
+            emptyList()
+        } else {
+            val cached = WebSearchProvider.getCachedSuggestions(queryTerm, engine)
+            cached ?: WebSearchProvider.getWebSuggestionsSync(queryTerm, engine, timeoutMs = 80)
+        }
         for (suggestion in suggestions.take(5)) {
             val suggestUrl = buildWebSearchUrl(suggestion)
             cursor.addRow(arrayOf<Any?>(

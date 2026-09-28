@@ -50,7 +50,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun click(view: View? = null, scale: Float = 1.0f) {
         if (isHapticEnabled) {
-            hapticEngine.performPredictiveBackHaptic(view)
+            hapticEngine.performHaptic(view, PixelHapticType.CLICK, scale)
         }
     }
 
@@ -59,7 +59,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun tick(view: View? = null, scale: Float = 1.0f) {
         if (isHapticEnabled) {
-            hapticEngine.performPredictiveBackHaptic(view)
+            hapticEngine.performHaptic(view, PixelHapticType.TICK, scale)
         }
     }
 
@@ -73,7 +73,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
         lastScrollDetentTimestamp = now
 
         if (isHapticEnabled) {
-            hapticEngine.performPredictiveBackHaptic(view)
+            hapticEngine.performHaptic(view, PixelHapticType.SCROLL_DETENT, 1.0f, velocity)
         }
     }
 
@@ -89,7 +89,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
         lastMagneticResistanceTimestamp = now
 
         if (isHapticEnabled) {
-            hapticEngine.performPredictiveBackHaptic(view)
+            hapticEngine.performHaptic(view, PixelHapticType.MAGNETIC_RESISTANCE, p)
         }
     }
 
@@ -98,7 +98,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun magneticThresholdSnap(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performPredictiveBackHaptic(view)
+            hapticEngine.performHaptic(view, PixelHapticType.GESTURE_THRESHOLD)
         }
     }
 
@@ -107,7 +107,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun springReleaseSnap(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performPredictiveBackHaptic(view)
+            hapticEngine.performHaptic(view, PixelHapticType.SPRING_RELEASE)
         }
     }
 
@@ -116,7 +116,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun appLaunch(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performPredictiveBackHaptic(view)
+            hapticEngine.performHaptic(view, PixelHapticType.APP_LAUNCH)
         }
     }
 
@@ -125,7 +125,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun toggle(view: View? = null, isChecked: Boolean) {
         if (isHapticEnabled) {
-            hapticEngine.performPredictiveBackHaptic(view)
+            hapticEngine.performHaptic(view, if (isChecked) PixelHapticType.TOGGLE_ON else PixelHapticType.TOGGLE_OFF)
         }
     }
 
@@ -134,7 +134,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun mathCalculation(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performPredictiveBackHaptic(view)
+            hapticEngine.performHaptic(view, PixelHapticType.LOW_TICK)
         }
     }
 
@@ -143,7 +143,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun securityHeartbeat(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performPredictiveBackHaptic(view)
+            hapticEngine.performHaptic(view, PixelHapticType.SECURITY_HEARTBEAT)
         }
     }
 
@@ -152,7 +152,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun deleteThud(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performPredictiveBackHaptic(view)
+            hapticEngine.performHaptic(view, PixelHapticType.DELETE_THUD)
         }
     }
 
@@ -161,7 +161,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun overlayOpen(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performPredictiveBackHaptic(view)
+            hapticEngine.performHaptic(view, PixelHapticType.SPRING_RELEASE)
         }
     }
 
@@ -170,7 +170,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun overlayDismiss(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performPredictiveBackHaptic(view)
+            hapticEngine.performHaptic(view, PixelHapticType.GESTURE_THRESHOLD)
         }
     }
 
@@ -179,7 +179,7 @@ class TactileSonicEngine private constructor(private val context: Context) {
      */
     fun reorderSwap(view: View? = null) {
         if (isHapticEnabled) {
-            hapticEngine.performPredictiveBackHaptic(view)
+            hapticEngine.performHaptic(view, PixelHapticType.TICK)
         }
     }
 }

@@ -12,7 +12,8 @@ data class AppShortcutItem(
     val packageName: String,
     val shortLabel: String,
     val longLabel: String,
-    val shortcutInfo: ShortcutInfo
+    val shortcutInfo: ShortcutInfo,
+    val userHandle: android.os.UserHandle = android.os.Process.myUserHandle()
 )
 
 object ShortcutProvider {
@@ -33,23 +34,30 @@ object ShortcutProvider {
                     )
                 }
                 
-                val userHandle = Process.myUserHandle()
-                val shortcuts = launcherApps.getShortcuts(queryObj, userHandle)
-                
-                shortcuts?.forEach { info ->
-                    val shortLabel = info.shortLabel?.toString() ?: ""
-                    val longLabel = info.longLabel?.toString() ?: ""
+                val profiles = launcherApps.profiles ?: listOf(Process.myUserHandle())
+                for (userHandle in profiles) {
+                    val shortcuts = try {
+                        launcherApps.getShortcuts(queryObj, userHandle)
+                    } catch (_: Exception) {
+                        null
+                    }
                     
-                    if (shortLabel.contains(query, ignoreCase = true) || longLabel.contains(query, ignoreCase = true)) {
-                        results.add(
-                            AppShortcutItem(
-                                id = info.id,
-                                packageName = info.`package`,
-                                shortLabel = shortLabel,
-                                longLabel = longLabel,
-                                shortcutInfo = info
+                    shortcuts?.forEach { info ->
+                        val shortLabel = info.shortLabel?.toString() ?: ""
+                        val longLabel = info.longLabel?.toString() ?: ""
+                        
+                        if (shortLabel.contains(query, ignoreCase = true) || longLabel.contains(query, ignoreCase = true)) {
+                            results.add(
+                                AppShortcutItem(
+                                    id = info.id,
+                                    packageName = info.`package`,
+                                    shortLabel = shortLabel,
+                                    longLabel = longLabel,
+                                    shortcutInfo = info,
+                                    userHandle = userHandle
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
@@ -72,21 +80,28 @@ object ShortcutProvider {
                         LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST
                     )
                 }
-                val userHandle = Process.myUserHandle()
-                val shortcuts = launcherApps.getShortcuts(queryObj, userHandle)
-                shortcuts?.forEach { info ->
-                    val shortLabel = info.shortLabel?.toString() ?: ""
-                    val longLabel = info.longLabel?.toString() ?: ""
-                    if (shortLabel.isNotBlank() || longLabel.isNotBlank()) {
-                        results.add(
-                            AppShortcutItem(
-                                id = info.id,
-                                packageName = info.`package`,
-                                shortLabel = shortLabel,
-                                longLabel = longLabel,
-                                shortcutInfo = info
+                val profiles = launcherApps.profiles ?: listOf(Process.myUserHandle())
+                for (userHandle in profiles) {
+                    val shortcuts = try {
+                        launcherApps.getShortcuts(queryObj, userHandle)
+                    } catch (_: Exception) {
+                        null
+                    }
+                    shortcuts?.forEach { info ->
+                        val shortLabel = info.shortLabel?.toString() ?: ""
+                        val longLabel = info.longLabel?.toString() ?: ""
+                        if (shortLabel.isNotBlank() || longLabel.isNotBlank()) {
+                            results.add(
+                                AppShortcutItem(
+                                    id = info.id,
+                                    packageName = info.`package`,
+                                    shortLabel = shortLabel,
+                                    longLabel = longLabel,
+                                    shortcutInfo = info,
+                                    userHandle = userHandle
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }

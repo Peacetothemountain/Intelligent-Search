@@ -173,9 +173,12 @@ object SystemDataProvider {
         finalApps
     }
 
-    suspend fun getRecentApps(context: Context, hiddenApps: Set<String> = emptySet()): List<AppItem> = withContext(Dispatchers.IO) {
+    suspend fun getRecentApps(context: Context, hiddenApps: Set<String> = emptySet(), fallbackToAll: Boolean = true): List<AppItem> = withContext(Dispatchers.IO) {
         val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
-            ?: return@withContext getAllApps(context).filter { !hiddenApps.contains(it.packageName) }.take(8)
+            ?: run {
+                if (!fallbackToAll) return@withContext emptyList()
+                return@withContext getAllApps(context).filter { !hiddenApps.contains(it.packageName) }.take(8)
+            }
         val time = System.currentTimeMillis()
         val stats = try {
             usageStatsManager.queryUsageStats(
@@ -222,6 +225,7 @@ object SystemDataProvider {
         }
         
         if (recentApps.isEmpty()) {
+            if (!fallbackToAll) return@withContext emptyList()
             return@withContext getAllApps(context).filter { !hiddenApps.contains(it.packageName) }.take(8)
         }
         
@@ -245,26 +249,27 @@ object SystemDataProvider {
         }
 
         try {
-            val projection = arrayOf(
-                CalendarContract.Events.TITLE,
-                CalendarContract.Events.DTSTART
-            )
-
             val now = System.currentTimeMillis()
             val tomorrow = now + 1000 * 60 * 60 * 24
-            
-            val selection = "${CalendarContract.Events.DTSTART} >= ? AND ${CalendarContract.Events.DTSTART} <= ?"
-            val selectionArgs = arrayOf(now.toString(), tomorrow.toString())
+
+            val builder = CalendarContract.Instances.CONTENT_URI.buildUpon()
+            android.content.ContentUris.appendId(builder, now)
+            android.content.ContentUris.appendId(builder, tomorrow)
+
+            val projection = arrayOf(
+                CalendarContract.Instances.TITLE,
+                CalendarContract.Instances.BEGIN
+            )
 
             context.contentResolver.query(
-                CalendarContract.Events.CONTENT_URI,
+                builder.build(),
                 projection,
-                selection,
-                selectionArgs,
-                "${CalendarContract.Events.DTSTART} ASC"
+                null,
+                null,
+                "${CalendarContract.Instances.BEGIN} ASC"
             )?.use { cursor ->
-                val titleIndex = cursor.getColumnIndex(CalendarContract.Events.TITLE)
-                val dtStartIndex = cursor.getColumnIndex(CalendarContract.Events.DTSTART)
+                val titleIndex = cursor.getColumnIndex(CalendarContract.Instances.TITLE)
+                val dtStartIndex = cursor.getColumnIndex(CalendarContract.Instances.BEGIN)
 
                 while (cursor.moveToNext() && events.size < 3) { // Max 3 events
                     val title = if (titleIndex >= 0) cursor.getString(titleIndex) else null

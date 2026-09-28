@@ -21,6 +21,8 @@ import com.pixel.intelligentsearch.core.data.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
+private val URL_PATTERN = Regex("""^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(/.*)?$""")
+
 @androidx.compose.runtime.Immutable
 data class DirectAction(
     val title: String,
@@ -87,7 +89,7 @@ class SearchViewModel @Inject constructor(
     private var remoteSearchJob: Job? = null
 
     private val localInferenceEngine = com.pixel.intelligentsearch.core.local.LocalInferenceEngine(context)
-    private val adpfThermalManager = com.pixel.intelligentsearch.core.performance.ADPFThermalManager(context)
+    private val adpfThermalManager = com.pixel.intelligentsearch.core.performance.ADPFThermalManager.getInstance(context)
     private val appSearchEngine = com.pixel.intelligentsearch.core.data.AppSearchEngine(context)
     private val privateSpaceManager = com.pixel.intelligentsearch.core.data.PrivateSpaceManager(context)
     private val multiProfileManager = com.pixel.intelligentsearch.core.profile.MultiProfileManager(context)
@@ -138,10 +140,17 @@ class SearchViewModel @Inject constructor(
         }
         
         viewModelScope.launch {
-            directBootManager.isUserUnlocked.collect { isUnlocked ->
+            directBootManager.isUserUnlocked.collectLatest { isUnlocked ->
                 _uiState.update { it.copy(isDirectBootLocked = !isUnlocked) }
                 if (isUnlocked) {
                     loadInitialData()
+                    try {
+                        historyDao.getSearchHistoryFlow().collect { historyEntities ->
+                            _uiState.update { it.copy(recentSearches = historyEntities.map { entity -> entity.query }) }
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("SearchViewModel", "Error collecting search history", e)
+                    }
                 }
             }
         }
@@ -151,16 +160,6 @@ class SearchViewModel @Inject constructor(
                 val hasLocked = profiles.any { it.profileType == ProfileType.PRIVATE && it.isLocked }
                 _uiState.update { it.copy(hasLockedPrivateSpace = hasLocked) }
             }
-        }
-
-        viewModelScope.launch {
-            try {
-                if (directBootManager.checkIsUserUnlocked()) {
-                    historyDao.getSearchHistoryFlow().collect { historyEntities ->
-                        _uiState.update { it.copy(recentSearches = historyEntities.map { entity -> entity.query }) }
-                    }
-                }
-            } catch (_: Exception) {}
         }
     }
 
@@ -315,16 +314,11 @@ class SearchViewModel @Inject constructor(
 
     private fun executeLocalSearch(newQuery: String) {
         val prefs = customPrefs
-        val mockLargeDataset = prefs.getBoolean("debug.mock_large_dataset", false)
         val verboseLogging = prefs.getBoolean("debug.verbose_logging", false)
         val forceSearchError = prefs.getBoolean("debug.force_search_error", false)
 
         searchJob?.cancel()
         searchJob = viewModelScope.launch(Dispatchers.Default) {
-            try {
-                android.os.Process.setThreadPriority(-10)
-            } catch (_: Exception) {}
-
             if (verboseLogging) android.util.Log.d("SearchDebug", "Local query started: $newQuery")
             val startTime = System.currentTimeMillis()
 
@@ -452,7 +446,7 @@ class SearchViewModel @Inject constructor(
                 val word = q.removePrefix("define ").removePrefix("meaning of ").removePrefix("definition of ").trim()
                 val providerName = when (engine) { "DuckDuckGo" -> "DuckDuckGo"; "Bing" -> "Bing"; else -> "Dictionary" }
                 InstantAnswer(word.replaceFirstChar { it.uppercase() }, "$providerName • Tap for full definition", "dictionary")
-            } else if (q.matches(Regex("""^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(/.*)?$""")) || q.startsWith("http://") || q.startsWith("https://")) {
+            } else if (q.matches(URL_PATTERN) || q.startsWith("http://") || q.startsWith("https://")) {
                 InstantAnswer(newQuery.trim(), "Go to Website • Tap to open", "url")
             } else {
                 null
@@ -489,11 +483,17 @@ class SearchViewModel @Inject constructor(
 
     private fun fetchRemoteWebSuggestions(query: String) {
         if (query.isBlank()) return
+        val settings = settingsState.value
+        val engine = settings.searchEngine
+        if (engine == "Tor Project" || engine == "Tor Browser") {
+            remoteSearchJob?.cancel()
+            _uiState.update { it.copy(webSuggestions = emptyList()) }
+            return
+        }
+
         val suggestionsEnabled = customPrefs.getBoolean("search.web.suggestions", true)
         if (!suggestionsEnabled) return
 
-        val settings = settingsState.value
-        val engine = settings.searchEngine
         val maxResults = settings.webResultsCount.coerceAtLeast(5)
 
         remoteSearchJob?.cancel()
@@ -507,15 +507,17 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    private var lastClearedHistory: List<HistoryEntity> = emptyList()
+
     fun addSearchHistory(query: String) {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return
         _uiState.update { state ->
-            val updated = (listOf(trimmed) + state.recentSearches.filterNot { it.equals(trimmed, ignoreCase = true) }).take(10)
+            val updated = (listOf(trimmed) + state.recentSearches.filterNot { it.equals(trimmed, ignoreCase = true) }).take(25)
             state.copy(recentSearches = updated)
         }
         viewModelScope.launch(Dispatchers.IO) {
-            historyDao.recordAndPrune(trimmed, System.currentTimeMillis(), 10)
+            historyDao.recordAndPrune(trimmed, System.currentTimeMillis(), 25)
         }
     }
 
@@ -531,8 +533,33 @@ class SearchViewModel @Inject constructor(
     }
 
     fun clearSearchHistory() {
+        val currentSearches = _uiState.value.recentSearches
+        _uiState.update { state -> state.copy(recentSearches = emptyList()) }
         viewModelScope.launch(Dispatchers.IO) {
-            historyDao.clearHistory()
+            try {
+                val dbHistory = historyDao.getSearchHistory()
+                lastClearedHistory = if (dbHistory.isNotEmpty()) {
+                    dbHistory
+                } else {
+                    currentSearches.map { HistoryEntity(it, System.currentTimeMillis()) }
+                }
+                historyDao.clearHistory()
+            } catch (_: Exception) {
+                lastClearedHistory = currentSearches.map { HistoryEntity(it, System.currentTimeMillis()) }
+            }
+        }
+    }
+
+    fun undoClearSearchHistory() {
+        val toRestore = lastClearedHistory
+        if (toRestore.isNotEmpty()) {
+            _uiState.update { state -> state.copy(recentSearches = toRestore.map { it.query }) }
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    historyDao.insertSearches(toRestore)
+                    lastClearedHistory = emptyList()
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -550,6 +577,12 @@ class SearchViewModel @Inject constructor(
 
     fun notifyAppLaunch(packageName: String) {
         nativeAppPredictionProvider.notifyAppLaunch(packageName)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        searchJob?.cancel()
+        remoteSearchJob?.cancel()
     }
 }
 

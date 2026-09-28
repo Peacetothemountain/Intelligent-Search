@@ -39,6 +39,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         when (intent.action) {
+            Intent.ACTION_MY_PACKAGE_REPLACED,
             "com.pixel.intelligentsearch.ACTION_UPDATE_WIDGET" -> {
                 val pendingResult = goAsync()
                 updateAllWidgets(context, pendingResult)
@@ -103,7 +104,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
     companion object {
         private const val TAG = "SearchWidgetProvider"
-        private val widgetScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        private val widgetScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         fun hasSavedSystemDesign(prefs: SharedPreferences): Boolean {
             return prefs.getBoolean("widget_system_design_saved", false)
@@ -248,6 +249,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val isDark = when (themeMode) {
                 "Material Dark", "Dark mode", "Dark" -> true
                 "Material Light", "Light mode", "Light" -> false
+                "System", "System App Theme", "System Default", "system" -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
                 else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
             }
 

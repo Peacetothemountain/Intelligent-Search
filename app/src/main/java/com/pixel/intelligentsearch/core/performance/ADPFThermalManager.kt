@@ -12,6 +12,7 @@ import android.os.PowerManager
 import android.os.Process
 import android.util.Log
 import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,6 +63,8 @@ class ADPFThermalManager(private val context: Context) {
     private val monitorThread = HandlerThread("ADPF-Thermal-Monitor").apply { start() }
     private val monitorHandler = Handler(monitorThread.looper)
 
+    private var powerSaveReceiver: BroadcastReceiver? = null
+
     private val thermalStatusListener: PowerManager.OnThermalStatusChangedListener? by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             PowerManager.OnThermalStatusChangedListener { status ->
@@ -87,11 +90,18 @@ class ADPFThermalManager(private val context: Context) {
         }
         try {
             val filter = IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
-            context.registerReceiver(object : BroadcastReceiver() {
+            val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
                     applyThermalMitigations(_thermalThrottleLevel.value)
                 }
-            }, filter)
+            }
+            powerSaveReceiver = receiver
+            ContextCompat.registerReceiver(
+                context,
+                receiver,
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
         } catch (_: Throwable) {}
         // Kick off periodic headroom query on the monitor thread
         scheduleHeadroomPoll()
@@ -255,10 +265,10 @@ class ADPFThermalManager(private val context: Context) {
 
     private fun evaluateThermalFromHeadroom(headroom: Float) {
         val newLevel = when {
-            headroom >= 1.50f -> ThermalThrottleLevel.CRITICAL
-            headroom >= 1.25f -> ThermalThrottleLevel.SEVERE
-            headroom >= 1.00f -> ThermalThrottleLevel.MODERATE
-            headroom >= 0.85f -> ThermalThrottleLevel.LIGHT
+            headroom >= 1.25f -> ThermalThrottleLevel.CRITICAL
+            headroom >= 1.00f -> ThermalThrottleLevel.SEVERE
+            headroom >= 0.85f -> ThermalThrottleLevel.MODERATE
+            headroom >= 0.75f -> ThermalThrottleLevel.LIGHT
             else -> ThermalThrottleLevel.NORMAL
         }
         if (_thermalThrottleLevel.value != newLevel) {
@@ -293,6 +303,9 @@ class ADPFThermalManager(private val context: Context) {
             ThermalThrottleLevel.SEVERE
         } else {
             level
+        }
+        if (_thermalThrottleLevel.value != effectiveLevel) {
+            _thermalThrottleLevel.value = effectiveLevel
         }
         Log.i(TAG, "Thermal mitigation transition: $effectiveLevel (effective, requested=$level, headroom=${_thermalHeadroom.value})")
         when (effectiveLevel) {
@@ -379,6 +392,12 @@ class ADPFThermalManager(private val context: Context) {
             try {
                 powerManager.removeThermalStatusListener(thermalStatusListener!!)
             } catch (_: Throwable) {}
+        }
+        powerSaveReceiver?.let {
+            try {
+                context.unregisterReceiver(it)
+            } catch (_: Throwable) {}
+            powerSaveReceiver = null
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val session = hintSession as? PerformanceHintManager.Session

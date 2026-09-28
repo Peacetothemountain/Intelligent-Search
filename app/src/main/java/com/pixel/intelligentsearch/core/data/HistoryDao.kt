@@ -10,10 +10,10 @@ interface HistoryDao {
     @Query("SELECT * FROM search_history ORDER BY timestamp DESC")
     suspend fun getSearchHistory(): List<HistoryEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertSearch(search: HistoryEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertSearches(searches: List<HistoryEntity>)
 
     @Delete
@@ -28,7 +28,7 @@ interface HistoryDao {
     @Query("SELECT COUNT(*) FROM search_history")
     suspend fun getCount(): Int
 
-    @Query("DELETE FROM search_history WHERE query NOT IN (SELECT query FROM search_history ORDER BY timestamp DESC LIMIT :limit)")
+    @Query("DELETE FROM search_history WHERE timestamp < (SELECT timestamp FROM search_history ORDER BY timestamp DESC LIMIT 1 OFFSET :limit - 1)")
     suspend fun pruneHistory(limit: Int)
 
     @Transaction

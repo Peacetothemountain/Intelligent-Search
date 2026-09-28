@@ -30,6 +30,10 @@ class SettingsActivity : AppCompatActivity() {
             window.isStatusBarContrastEnforced = false
             window.isNavigationBarContrastEnforced = false
         }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+        }
         enableEdgeToEdge()
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
@@ -45,6 +49,12 @@ class SettingsActivity : AppCompatActivity() {
                 OVERRIDE_TRANSITION_CLOSE,
                 com.pixel.intelligentsearch.R.anim.slide_in_left,
                 com.pixel.intelligentsearch.R.anim.slide_out_right
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(
+                com.pixel.intelligentsearch.R.anim.slide_in_right,
+                com.pixel.intelligentsearch.R.anim.slide_out_left
             )
         }
         
@@ -68,6 +78,7 @@ class SettingsActivity : AppCompatActivity() {
             val darkTheme = when (themeMode) {
                 "Material Dark", "Dark mode", "Dark" -> true
                 "Material Light", "Light mode", "Light" -> false
+                "System", "System App Theme", "System Default", "system" -> isSystemInDarkTheme()
                 else -> isSystemInDarkTheme()
             }
 
@@ -75,6 +86,7 @@ class SettingsActivity : AppCompatActivity() {
                 "Material Dark", "Material Light" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.MATERIAL
                 "Dark mode", "Dark" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.DARK
                 "Light mode", "Light" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.LIGHT
+                "System", "System App Theme", "System Default", "system" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.SYSTEM
                 else -> com.pixel.intelligentsearch.core.ui.AppColorTheme.SYSTEM
             }
 
@@ -117,6 +129,23 @@ class SettingsActivity : AppCompatActivity() {
             android.util.Log.e("SettingsActivity", "Failed to update widgets on pause", e)
         }
     }
+    override fun finish() {
+        super.finish()
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(
+                OVERRIDE_TRANSITION_CLOSE,
+                com.pixel.intelligentsearch.R.anim.slide_in_left,
+                com.pixel.intelligentsearch.R.anim.slide_out_right
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(
+                com.pixel.intelligentsearch.R.anim.slide_in_left,
+                com.pixel.intelligentsearch.R.anim.slide_out_right
+            )
+        }
+    }
+
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         if (newConfig.smallestScreenWidthDp < 600) {

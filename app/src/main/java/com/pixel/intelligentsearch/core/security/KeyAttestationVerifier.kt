@@ -54,6 +54,7 @@ class KeyAttestationVerifier(private val context: Context) {
         const val ATTESTATION_OID = "1.3.6.1.4.1.11129.2.1.17"
         private const val ATTESTATION_ALIAS = "is_hardware_attestation_key_v2"
         private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24-hour flash protection TTL
+        private const val GOOGLE_ROOT_SHA256 = "2417A2069E66F42F995D7A942F2D9C55CDA3F29C280FB06DF7B09FEE13A28F58"
 
         // Known Root Subject DN patterns
         private val TRUSTED_ROOT_PATTERNS = listOf(
@@ -153,10 +154,18 @@ class KeyAttestationVerifier(private val context: Context) {
                 try {
                     rootCert.verify(rootCert.publicKey)
                     rootCert.checkValidity()
-                    for (pattern in TRUSTED_ROOT_PATTERNS) {
-                        if (rootSubject.contains(pattern, ignoreCase = true)) {
-                            isRootVerified = true
-                            break
+
+                    val rootFingerprint = MessageDigest.getInstance("SHA-256").digest(rootCert.encoded)
+                        .joinToString("") { "%02X".format(it) }
+
+                    if (rootFingerprint.equals(GOOGLE_ROOT_SHA256, ignoreCase = true)) {
+                        isRootVerified = true
+                    } else {
+                        for (pattern in TRUSTED_ROOT_PATTERNS) {
+                            if (rootSubject.contains(pattern, ignoreCase = true)) {
+                                isRootVerified = true
+                                break
+                            }
                         }
                     }
                     if (!isRootVerified && rootSubject.contains("Google", ignoreCase = true)) {

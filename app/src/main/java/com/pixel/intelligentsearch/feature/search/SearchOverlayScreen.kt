@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch.feature.search
+import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
 import com.pixel.intelligentsearch.feature.settings.tutorialTarget
 import android.app.SearchManager
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
@@ -674,7 +675,7 @@ fun SearchOverlayScreen(
                     else -> null
                 }
                 if (torPkg != null) {
-                    val torUrl = "https://duckduckgo.com/?q=$encodedQuery"
+                    val torUrl = "https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q=$encodedQuery"
                     Intent(Intent.ACTION_VIEW, Uri.parse(torUrl)).apply {
                         setPackage(torPkg)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -2011,18 +2012,28 @@ fun SearchOverlayScreen(
                                     val targetUrl = if (instantAnswer.title.startsWith("http://") || instantAnswer.title.startsWith("https://")) {
                                         instantAnswer.title
                                     } else "https://${instantAnswer.title}"
-                                    val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
-                                        if (settingsState.searchEngine == "Tor Project" || settingsState.searchEngine == "Tor Browser") {
-                                            val pm = context.packageManager
-                                            if (pm.getLaunchIntentForPackage("org.torproject.torbrowser") != null) {
-                                                setPackage("org.torproject.torbrowser")
-                                            } else if (pm.getLaunchIntentForPackage("org.torproject.torbrowser_alpha") != null) {
-                                                setPackage("org.torproject.torbrowser_alpha")
-                                            }
+                                    if (settingsState.searchEngine == "Tor Project" || settingsState.searchEngine == "Tor Browser") {
+                                        val pm = context.packageManager
+                                        val torPkg = when {
+                                            pm.getLaunchIntentForPackage("org.torproject.torbrowser") != null -> "org.torproject.torbrowser"
+                                            pm.getLaunchIntentForPackage("org.torproject.torbrowser_alpha") != null -> "org.torproject.torbrowser_alpha"
+                                            else -> null
                                         }
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                        if (torPkg != null) {
+                                            val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
+                                                setPackage(torPkg)
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                            }
+                                            launchSafeIntent(context, urlIntent)
+                                        } else {
+                                            showTorInstallPopup = true
+                                        }
+                                    } else {
+                                        val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                        }
+                                        launchSafeIntent(context, urlIntent)
                                     }
-                                    launchSafeIntent(context, urlIntent)
                                 }
                             )
                         }
@@ -2506,89 +2517,9 @@ fun SearchOverlayScreen(
         }
 
         if (showTorInstallPopup) {
-            androidx.compose.ui.window.Dialog(
-                onDismissRequest = { showTorInstallPopup = false }
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(28.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    tonalElevation = 6.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primaryContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Security,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Tor Browser Required",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Tor Project search routes queries securely through the official Tor Project Browser. Download it from Google Play Store to enable search overlay passthrough.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            androidx.compose.material3.OutlinedButton(
-                                onClick = { showTorInstallPopup = false },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(20.dp)
-                            ) {
-                                Text("Close")
-                            }
-                            androidx.compose.material3.Button(
-                                onClick = {
-                                    showTorInstallPopup = false
-                                    try {
-                                        val playStoreIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=org.torproject.torbrowser")).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                        context.startActivity(playStoreIntent)
-                                    } catch (_: Exception) {
-                                        val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=org.torproject.torbrowser")).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                        context.startActivity(webIntent)
-                                    }
-                                },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(20.dp)
-                            ) {
-                                Text("Play Store")
-                            }
-                        }
-                    }
-                }
-            }
+            TorBrowserInstallDialog(
+                onDismiss = { showTorInstallPopup = false }
+            )
         }
     }
 }

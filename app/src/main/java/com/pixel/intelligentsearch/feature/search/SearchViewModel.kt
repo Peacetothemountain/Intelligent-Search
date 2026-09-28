@@ -486,11 +486,17 @@ class SearchViewModel @Inject constructor(
 
     private fun fetchRemoteWebSuggestions(query: String) {
         if (query.isBlank()) return
+        val settings = settingsState.value
+        val engine = settings.searchEngine
+        if (engine == "Tor Project" || engine == "Tor Browser") {
+            remoteSearchJob?.cancel()
+            _uiState.update { it.copy(webSuggestions = emptyList()) }
+            return
+        }
+
         val suggestionsEnabled = customPrefs.getBoolean("search.web.suggestions", true)
         if (!suggestionsEnabled) return
 
-        val settings = settingsState.value
-        val engine = settings.searchEngine
         val maxResults = settings.webResultsCount.coerceAtLeast(5)
 
         remoteSearchJob?.cancel()

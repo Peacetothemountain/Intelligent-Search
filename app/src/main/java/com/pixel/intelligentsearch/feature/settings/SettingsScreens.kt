@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch.feature.settings
+import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -1470,24 +1471,50 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         try { java.io.File(path).readText().trim().toIntOrNull() } catch (_: Exception) { null }
                     } ?: 0
                 }
-                val absCurrent = kotlin.math.abs(rawCurrent)
+                val absCurrent = kotlin.math.abs(rawCurrent).toFloat()
+                // BatteryManager.BATTERY_PROPERTY_CURRENT_NOW & sysfs current_now are in microamperes (uA).
+                // Enforce physical conversion to milliamperes (uA -> mA) and bound to physical battery limits (<= 12,000 mA).
                 val currentMa = when {
-                    absCurrent > 10_000 -> absCurrent / 1000f // uA -> mA
-                    absCurrent > 0 -> absCurrent.toFloat()
+                    absCurrent > 1000f -> (absCurrent / 1000f).coerceAtMost(12000f)
+                    absCurrent > 0f -> absCurrent
                     else -> 0f
                 }
                 val watts = if (batteryVolt > 0f && currentMa > 0f) (batteryVolt * currentMa) / 1000f else 0f
                 batteryWatts = watts
 
-                val designMah = listOf(
+                // 5-Tier Battery Design Capacity Resolution Engine
+                // Tier 1: Internal PowerProfile reflection (framework truth)
+                val powerProfileCapacity = try {
+                    val powerProfileClass = Class.forName("com.android.internal.os.PowerProfile")
+                    val constructor = powerProfileClass.getConstructor(android.content.Context::class.java)
+                    val powerProfile = constructor.newInstance(context)
+                    val getBatteryCapacityMethod = powerProfileClass.getMethod("getBatteryCapacity")
+                    (getBatteryCapacityMethod.invoke(powerProfile) as? Double)?.toFloat()
+                } catch (_: Exception) { null }
+
+                // Tier 2: Sysfs charge_full_design files (when SELinux allows)
+                val sysfsCapacity = listOf(
                     "/sys/class/power_supply/battery/charge_full_design",
-                    "/sys/class/power_supply/max77779fg/charge_full_design"
+                    "/sys/class/power_supply/max77779fg/charge_full_design",
+                    "/sys/class/power_supply/maxfg/charge_full_design",
+                    "/sys/class/power_supply/bms/charge_full_design"
                 ).firstNotNullOfOrNull { path ->
                     try {
                         val v = java.io.File(path).readText().trim().toFloatOrNull()
                         if (v != null && v > 1000f) v / 1000f else v
                     } catch (_: Exception) { null }
-                } ?: 5265f
+                }
+
+                // Tier 3: Framework config_batteryCapacity resource
+                val resourceCapacity = try {
+                    val resId = context.resources.getIdentifier("config_batteryCapacity", "dimen", "android")
+                    if (resId > 0) context.resources.getDimension(resId) else null
+                } catch (_: Exception) { null }
+
+                val designMah = powerProfileCapacity?.takeIf { it in 1500f..10000f }
+                    ?: sysfsCapacity?.takeIf { it in 1500f..10000f }
+                    ?: resourceCapacity?.takeIf { it in 1500f..10000f }
+                    ?: 5000f
 
                 val chargeCounter = try {
                     val cc = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) ?: -1
@@ -1495,7 +1522,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 } catch (_: Exception) { -1f }
 
                 val totalCapacityMah = if (batteryLevel > 5 && chargeCounter > 0f) {
-                    (chargeCounter / (batteryLevel / 100f)).coerceIn(3500f, 6000f)
+                    (chargeCounter / (batteryLevel / 100f)).coerceIn(2000f, 10000f)
                 } else {
                     designMah
                 }
@@ -1957,7 +1984,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = when (thermalStatus) {
-                                    "Overheat" -> MaterialTheme.colorScheme.error
+                                    "Overheat", "Emergency", "Critical", "Hot" -> MaterialTheme.colorScheme.error
                                     "Warm" -> MaterialTheme.colorScheme.tertiary
                                     else -> MaterialTheme.colorScheme.primary
                                 }
@@ -2705,12 +2732,12 @@ fun MainSettingsScreen(
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Text(
-                                        "As of Android 17 QPR2 users are able to change Default Search Engine App. Please check settings to apply Intelligent Search as the default search engine. This will natively set Intelligent Search as the home search bar widget.",
+                                        "After QPR2, users are able to change the Default Search Engine App. Please check system settings to select Intelligent Search as your default search engine, which natively activates Intelligent Search as the home search widget.",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        "If you're running and older version of Android, you will still need to use adb shell settings put secure selected_search_engine com.pixel.intelligentsearch",
+                                        "If you're running an older version of Android, you can still configure it manually via ADB:",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
@@ -2728,7 +2755,7 @@ fun MainSettingsScreen(
                                         )
                                     }
                                     Text(
-                                        "*Please be advised. Using the default search engine selector within Android 17 QPR2 and newer will not effect At A Glance Sports and Finances options, however using the adb shell cmd will still block Sports and Finance options.",
+                                        "*Please be advised: configuring the default search engine on Android 17 QPR2 and newer will not affect At a Glance sports and finance integrations; however, configuring via ADB command will still bypass these integrations.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -3065,89 +3092,9 @@ fun MainSettingsScreen(
                 )
 
                 if (showTorBrowserSettingsDialog) {
-                    androidx.compose.ui.window.Dialog(
-                        onDismissRequest = { showTorBrowserSettingsDialog = false }
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(28.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            tonalElevation = 6.dp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(24.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(56.dp)
-                                        .clip(androidx.compose.foundation.shape.CircleShape)
-                                        .background(MaterialTheme.colorScheme.primaryContainer),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Security,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "Tor Browser Required",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "Tor Project search routes queries securely through the official Tor Project Browser. Download it from Google Play Store to enable search overlay passthrough.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(24.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    androidx.compose.material3.OutlinedButton(
-                                        onClick = { showTorBrowserSettingsDialog = false },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(20.dp)
-                                    ) {
-                                        Text("Close")
-                                    }
-                                    androidx.compose.material3.Button(
-                                        onClick = {
-                                            showTorBrowserSettingsDialog = false
-                                            try {
-                                                val playStoreIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=org.torproject.torbrowser")).apply {
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                }
-                                                context.startActivity(playStoreIntent)
-                                            } catch (_: Exception) {
-                                                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=org.torproject.torbrowser")).apply {
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                }
-                                                context.startActivity(webIntent)
-                                            }
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(20.dp)
-                                    ) {
-                                        Text("Play Store")
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    TorBrowserInstallDialog(
+                        onDismiss = { showTorBrowserSettingsDialog = false }
+                    )
                 }
                 SettingsRow(
                     title = "Encrypted Backup",
@@ -3181,7 +3128,7 @@ fun MainSettingsScreen(
 
                 val textTargetWidth = (222.dp * (if (fontScale > 1f) (fontScale * 0.9f) else 1f)).coerceIn(205.dp, 255.dp)
                 val remainingForPlayer = containerWidth - textTargetWidth - 12.dp
-                val playerWidth = remainingForPlayer.coerceIn(95.dp, 160.dp)
+                val playerWidth = remainingForPlayer.coerceIn(80.dp, 160.dp)
                 val playerHeight = playerWidth * (200f / 160f)
 
                 val baseScale = (containerWidth / 390.dp).coerceIn(0.82f, 1.0f) / fontScale.coerceAtLeast(1.0f)
@@ -3214,20 +3161,20 @@ fun MainSettingsScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                             lineHeight = titleLineHeight,
-                            softWrap = false,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             maxLines = 2
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                         Text(
-                            text = "If you need support please email me at:\nsupport.nbdesigns@gmail.com",
+                            text = "If you need support please email me at:\nsupport.ngdesigns@gmail.com",
                             fontSize = subtextFontSize,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = subtextLineHeight,
-                            softWrap = false,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             maxLines = 2,
                             modifier = Modifier.bouncyClickable {
-                                uriHandler.openUri("mailto:support.nbdesigns@gmail.com")
+                                uriHandler.openUri("mailto:support.ngdesigns@gmail.com")
                             }
                         )
                     }
@@ -4743,6 +4690,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 pm.getLaunchIntentForPackage("org.torproject.torbrowser_alpha") != null
                             if (!isTorInstalled) {
                                 showTorDialog = true
+                                return@SettingsDropdownRow
                             }
                         }
                         searchEngine = selected
@@ -4751,89 +4699,9 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 )
 
                 if (showTorDialog) {
-                    androidx.compose.ui.window.Dialog(
-                        onDismissRequest = { showTorDialog = false }
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(28.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            tonalElevation = 6.dp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(24.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(56.dp)
-                                        .clip(androidx.compose.foundation.shape.CircleShape)
-                                        .background(MaterialTheme.colorScheme.primaryContainer),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Security,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "Tor Browser Required",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "Tor Project search routes queries securely through the official Tor Project Browser. Download it from Google Play Store to enable search overlay passthrough.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(24.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    androidx.compose.material3.OutlinedButton(
-                                        onClick = { showTorDialog = false },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(20.dp)
-                                    ) {
-                                        Text("Close")
-                                    }
-                                    androidx.compose.material3.Button(
-                                        onClick = {
-                                            showTorDialog = false
-                                            try {
-                                                val playStoreIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=org.torproject.torbrowser")).apply {
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                }
-                                                context.startActivity(playStoreIntent)
-                                            } catch (_: Exception) {
-                                                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=org.torproject.torbrowser")).apply {
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                }
-                                                context.startActivity(webIntent)
-                                            }
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(20.dp)
-                                    ) {
-                                        Text("Play Store")
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    TorBrowserInstallDialog(
+                        onDismiss = { showTorDialog = false }
+                    )
                 }
                 if (searchEngine == "Custom") {
                     var customUrl by rememberStringPreference(prefs, "custom_search_engine_url", "https://duckduckgo.com/?q=%s")
@@ -10600,9 +10468,10 @@ fun BackupRestoreScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(340.dp),
-                    scaleFactor = 1.05f
+                    scaleFactor = 1.0f
                 )
             }
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }

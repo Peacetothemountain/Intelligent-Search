@@ -21,6 +21,7 @@ object WebSearchProvider {
     fun getWebSuggestionsSync(query: String, engine: String = "Google", timeoutMs: Int = 600): List<String> {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return emptyList()
+        if (engine == "Tor Project" || engine == "Tor Browser") return emptyList()
 
         val cacheKey = "$engine:${trimmed.lowercase()}"
         synchronized(suggestionCache) {
@@ -31,7 +32,7 @@ object WebSearchProvider {
         val suggestions = mutableListOf<String>()
         val encodedQuery = URLEncoder.encode(trimmed, "UTF-8")
         val primaryUrl = when (engine) {
-            "DuckDuckGo", "Tor Project", "Tor Browser" -> "https://duckduckgo.com/ac/?q=$encodedQuery&type=list"
+            "DuckDuckGo" -> "https://duckduckgo.com/ac/?q=$encodedQuery&type=list"
             "Bing" -> "https://api.bing.com/osjson.aspx?query=$encodedQuery"
             else -> "https://suggestqueries.google.com/complete/search?client=chrome&q=$encodedQuery"
         }
@@ -65,11 +66,7 @@ object WebSearchProvider {
             return false
         }
 
-        val success = fetchFromUrl(primaryUrl)
-        if (!success && engine != "Google") {
-            // Fallback to Google suggestion API if primary provider times out
-            fetchFromUrl("https://suggestqueries.google.com/complete/search?client=chrome&q=$encodedQuery")
-        }
+        fetchFromUrl(primaryUrl)
 
         if (suggestions.isNotEmpty()) {
             synchronized(suggestionCache) {

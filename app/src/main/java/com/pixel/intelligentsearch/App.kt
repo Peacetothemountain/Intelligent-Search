@@ -43,7 +43,12 @@ class App : Application() {
             try {
                 val sw = StringWriter()
                 throwable.printStackTrace(PrintWriter(sw))
-                val dir = getExternalFilesDir(null) ?: filesDir
+                val deContext = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                    createDeviceProtectedStorageContext()
+                } else {
+                    this
+                }
+                val dir = getExternalFilesDir(null) ?: deContext.filesDir
                 val file = File(dir, "crash_log.txt")
                 file.writeText(sw.toString())
                 Log.e("CrashLogger", "Crash caught", throwable)
@@ -51,6 +56,14 @@ class App : Application() {
                 Log.e("CrashLogger", "Failed to write crash log: ${e.message}")
             }
             defaultHandler?.uncaughtException(thread, throwable)
+        }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= TRIM_MEMORY_UI_HIDDEN) {
+            com.pixel.intelligentsearch.core.data.SystemDataProvider.invalidateAppsCache()
+            com.pixel.intelligentsearch.feature.search.clearAllUiMemoryCaches()
         }
     }
 

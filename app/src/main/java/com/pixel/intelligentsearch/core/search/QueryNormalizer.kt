@@ -19,7 +19,7 @@ object QueryNormalizer {
         if (input.isNullOrBlank()) return ""
         val decomposed = Normalizer.normalize(input, Normalizer.Form.NFD)
         val withoutAccents = DIACRITICS_PATTERN.matcher(decomposed).replaceAll("")
-        val stripped = PUNCTUATION_PATTERN.matcher(withoutAccents.lowercase()).replaceAll(" ")
+        val stripped = PUNCTUATION_PATTERN.matcher(withoutAccents.lowercase(java.util.Locale.ROOT)).replaceAll(" ")
         return WHITESPACE_PATTERN.matcher(stripped).replaceAll(" ").trim()
     }
 
@@ -40,20 +40,24 @@ object QueryNormalizer {
             return sb.toString()
         }
         // Support CamelCase / PascalCase words (e.g. YouTube -> "yt", WhatsApp -> "wa", SoundCloud -> "sc")
-        val capitals = input.filter { it.isUpperCase() }.lowercase()
+        val capitals = input.filter { it.isUpperCase() }.lowercase(java.util.Locale.ROOT)
         if (capitals.length in 2..5) {
             return capitals
         }
         return ""
     }
 
-    fun containsAllTokens(target: String?, query: String?): Boolean {
-        if (target.isNullOrBlank() || query.isNullOrBlank()) return false
+    fun containsAllTokens(target: String?, queryTokens: List<String>): Boolean {
+        if (target.isNullOrBlank() || queryTokens.isEmpty()) return false
         val targetTokens = tokenize(target)
-        val queryTokens = tokenize(query)
-        if (queryTokens.isEmpty()) return false
         return queryTokens.all { qToken ->
             targetTokens.any { tToken -> tToken.startsWith(qToken) || tToken.contains(qToken) }
         }
+    }
+
+    fun containsAllTokens(target: String?, query: String?): Boolean {
+        if (target.isNullOrBlank() || query.isNullOrBlank()) return false
+        val queryTokens = tokenize(query)
+        return containsAllTokens(target, queryTokens)
     }
 }

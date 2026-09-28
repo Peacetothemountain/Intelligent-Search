@@ -1,9 +1,11 @@
 package com.pixel.intelligentsearch.feature.search
+import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
 import com.pixel.intelligentsearch.feature.settings.tutorialTarget
 import android.app.SearchManager
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
+import com.pixel.intelligentsearch.feature.settings.SettingsDebouncer
 import com.pixel.intelligentsearch.feature.settings.TutorialSpotlightOverlay
 import com.pixel.intelligentsearch.feature.settings.TutorialManager
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
@@ -58,6 +60,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -219,12 +222,18 @@ fun ShortcutRow(iconRes: Int, title: String, onClick: () -> Unit) {
 data class AppIconResult(val bitmap: androidx.compose.ui.graphics.ImageBitmap, val isMonochrome: Boolean)
 
 private val themedIconCache = android.util.LruCache<String, AppIconResult>(256)
+private val fileThumbnailCache = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(128)
 private var cachedActivePack: String? = null
 
 fun clearThemedIconCache() {
     cachedActivePack = null
     themedIconCache.evictAll()
     com.pixel.intelligentsearch.core.util.MaterialOutlineManager.clearCache()
+}
+
+fun clearAllUiMemoryCaches() {
+    clearThemedIconCache()
+    fileThumbnailCache.evictAll()
 }
 
 fun peekThemedAppIcon(packageName: String, activePackOverride: String? = null): AppIconResult? {
@@ -498,6 +507,15 @@ fun SearchOverlayScreen(
         }
     }
 
+    val distinctRecents = remember(uiState.recentSearches) { uiState.recentSearches.distinct() }
+    var showHistoryClearedSnackbar by remember { mutableStateOf(false) }
+    LaunchedEffect(showHistoryClearedSnackbar) {
+        if (showHistoryClearedSnackbar) {
+            delay(5000)
+            showHistoryClearedSnackbar = false
+        }
+    }
+
     LaunchedEffect(isOpening) {
         if (isOpening) {
             overlayProgressAnim.snapTo(1f)
@@ -536,6 +554,7 @@ fun SearchOverlayScreen(
     val hapticContext = LocalContext.current
 
     var isKeyboardDismissedByUser by rememberSaveable { mutableStateOf(false) }
+    var showTorInstallPopup by remember { mutableStateOf(false) }
 
     LaunchedEffect(showTutorial) {
         if (showTutorial) {
@@ -654,6 +673,24 @@ fun SearchOverlayScreen(
                     }
                 }
             }
+            "Tor Project", "Tor Browser" -> {
+                val pm = context.packageManager
+                val torPkg = when {
+                    pm.getLaunchIntentForPackage("org.torproject.torbrowser") != null -> "org.torproject.torbrowser"
+                    pm.getLaunchIntentForPackage("org.torproject.torbrowser_alpha") != null -> "org.torproject.torbrowser_alpha"
+                    else -> null
+                }
+                if (torPkg != null) {
+                    val torUrl = "https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q=$encodedQuery"
+                    Intent(Intent.ACTION_VIEW, Uri.parse(torUrl)).apply {
+                        setPackage(torPkg)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    }
+                } else {
+                    showTorInstallPopup = true
+                    null
+                }
+            }
             else -> {
                 val googleIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                     setPackage("com.google.android.googlequicksearchbox")
@@ -673,6 +710,7 @@ fun SearchOverlayScreen(
                 }
             }
         }
+        if (intent == null) return@launchWebSearch
         try {
             viewModel.addSearchHistory(searchQuery)
             viewModel.onQueryChanged("")
@@ -716,8 +754,7 @@ fun SearchOverlayScreen(
                 } else {
                     val active = TutorialManager.isTutorialActive(prefs)
                     val step = TutorialManager.getStep(prefs)
-                    if (active && step >= 2) {
-                        TutorialManager.setStep(prefs, 3)
+                    if (active && step >= 3) {
                         TutorialManager.completeTutorial(prefs)
                         showTutorial = false
                     } else {
@@ -750,16 +787,12 @@ fun SearchOverlayScreen(
     
     PredictiveBackHandler(enabled = !showTutorial) { progressFlow ->
         try {
-            var lastEmittedBackProg = 0f
             progressFlow.collect { backEvent ->
                 predictiveBackEdge = backEvent.swipeEdge
                 predictiveBackProgress.snapTo(backEvent.progress)
-                if (backEvent.progress > 0.15f && kotlin.math.abs(backEvent.progress - lastEmittedBackProg) > 0.18f) {
-                    lastEmittedBackProg = backEvent.progress
-                    sensoryEngine.magneticResistance(view, backEvent.progress)
-                }
             }
             if (uiState.query.isNotEmpty()) {
+                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                 viewModel.onQueryChanged("")
                 textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
                 hasStartedTyping = false
@@ -768,12 +801,11 @@ fun SearchOverlayScreen(
                 keyboardController?.hide()
                 hasStartedTyping = false
                 viewModel.onQueryChanged("")
-                sensoryEngine.springReleaseSnap(view)
+                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                 predictiveBackProgress.snapTo(0f)
                 goToHomeScreen()
             }
         } catch (_: java.util.concurrent.CancellationException) {
-            sensoryEngine.tick(view, scale = 0.5f)
             predictiveBackProgress.animateTo(
                 targetValue = 0f,
                 animationSpec = spring(dampingRatio = 0.85f, stiffness = 300f)
@@ -970,7 +1002,9 @@ fun SearchOverlayScreen(
                                 if (bestMatch != null) {
                                     when (bestMatch) {
                                         is ContactItem -> {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri))
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri)).apply {
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
                                             launchSafeIntent(context, intent)
                                         }
                                         is AppItem -> {
@@ -1062,10 +1096,12 @@ fun SearchOverlayScreen(
 
                 IconButton(
                     onClick = { 
-                        hasStartedTyping = false
-                        focusManager.clearFocus(force = true)
-                        keyboardController?.hide()
-                        onOpenSettings("main") 
+                        if (SettingsDebouncer.canClick()) {
+                            hasStartedTyping = false
+                            focusManager.clearFocus(force = true)
+                            keyboardController?.hide()
+                            onOpenSettings("main") 
+                        }
                     },
                     modifier = Modifier
                         .size(48.dp)
@@ -1330,7 +1366,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.smartClipboardSuggestions && uiState.directActions.isNotEmpty()) {
-                items(uiState.directActions, key = { action -> "direct_action_${action.title}_${action.subtitle}" }) { action ->
+                itemsIndexed(uiState.directActions, key = { index, action -> "direct_action_${index}_${action.title}_${action.subtitle}" }) { _, action ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1396,6 +1432,7 @@ fun SearchOverlayScreen(
                                         },
                                         onDragEnd = {
                                             if (kotlin.math.abs(offsetX.value) > 130f) {
+                                                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                                                 dismissDirection = if (offsetX.value >= 0f) 1f else -1f
                                                 dismissed = true
                                             } else {
@@ -1484,7 +1521,9 @@ fun SearchOverlayScreen(
                                         val intent = if (settingsState.contactDirectCall) {
                                             Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                         } else {
-                                            Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri))
+                                            Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
                                         }
                                         launchSafeIntent(context, intent)
                                     }
@@ -1605,23 +1644,65 @@ fun SearchOverlayScreen(
                 }
             }
 
-            if (settingsState.searchPreviousSearches && uiState.query.isEmpty() && uiState.recentSearches.isNotEmpty()) {
-                val isSingleRecent = uiState.recentSearches.size == 1
+            if (settingsState.searchPreviousSearches && uiState.query.isEmpty() && distinctRecents.isNotEmpty()) {
+                val isSingleRecent = distinctRecents.size == 1
                 if (!isSingleRecent) {
                     item(key = "recent_label") {
-                        Text(
-                            text = "Recent",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp,
-                            fontFamily = GoogleSansFlex,
-                            fontWeight = FontWeight.SemiBold,
+                        Row(
                             modifier = Modifier
+                                .fillMaxWidth()
                                 .animateItem()
-                                .padding(horizontal = 24.dp, vertical = 6.dp)
-                        )
+                                .padding(horizontal = 24.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Recent",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 13.sp,
+                                fontFamily = GoogleSansFlex,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            if (distinctRecents.size > 7) {
+                                Surface(
+                                    onClick = {
+                                        sensoryEngine.deleteThud(view)
+                                        viewModel.clearSearchHistory()
+                                        showHistoryClearedSnackbar = true
+                                    },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                    ),
+                                    modifier = Modifier.height(26.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.DeleteSweep,
+                                            contentDescription = "Delete All",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = "Delete All",
+                                            color = MaterialTheme.colorScheme.error,
+                                            fontSize = 11.5.sp,
+                                            fontFamily = GoogleSansFlex,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-                items(uiState.recentSearches.distinct(), key = { query -> "recent_$query" }) { recentQuery ->
+                items(distinctRecents, key = { query -> "recent_$query" }) { recentQuery ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1672,6 +1753,7 @@ fun SearchOverlayScreen(
                                     },
                                     onDragEnd = {
                                         if (kotlin.math.abs(offsetX.value) > 120f) {
+                                            sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                                             dismissDirection = if (offsetX.value >= 0f) 1f else -1f
                                             dismissed = true
                                         } else {
@@ -1785,7 +1867,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
-                items(uiState.calendarEvents, key = { event -> "event_${event.title}_${event.startTime}" }) { event ->
+                itemsIndexed(uiState.calendarEvents, key = { index, event -> "event_${index}_${event.title}_${event.startTime}" }) { _, event ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1840,6 +1922,7 @@ fun SearchOverlayScreen(
                                         },
                                         onDragEnd = {
                                             if (kotlin.math.abs(offsetX.value) > 130f) {
+                                                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                                                 dismissDirection = if (offsetX.value >= 0f) 1f else -1f
                                                 dismissed = true
                                             } else {
@@ -1875,7 +1958,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchShortcuts && uiState.shortcuts.isNotEmpty()) {
-                items(uiState.shortcuts, key = { shortcut -> "shortcut_${shortcut.packageName}_${shortcut.id}" }) { shortcut ->
+                itemsIndexed(uiState.shortcuts, key = { index, shortcut -> "shortcut_${index}_${shortcut.packageName}_${shortcut.id}" }) { _, shortcut ->
                     Row(
                         modifier = Modifier.fillMaxWidth().expressiveRowClickable {
                             hasStartedTyping = false
@@ -1883,7 +1966,7 @@ fun SearchOverlayScreen(
                             keyboardController?.hide()
                             val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? android.content.pm.LauncherApps
                             try {
-                                launcherApps?.startShortcut(shortcut.packageName, shortcut.id, null, null, android.os.Process.myUserHandle())
+                                launcherApps?.startShortcut(shortcut.packageName, shortcut.id, null, null, shortcut.userHandle)
                                 viewModel.onQueryChanged("")
                             } catch (e: Exception) { e.printStackTrace() }
                         }.padding(horizontal = 16.dp, vertical = 14.dp),
@@ -1935,10 +2018,28 @@ fun SearchOverlayScreen(
                                     val targetUrl = if (instantAnswer.title.startsWith("http://") || instantAnswer.title.startsWith("https://")) {
                                         instantAnswer.title
                                     } else "https://${instantAnswer.title}"
-                                    val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                    if (settingsState.searchEngine == "Tor Project" || settingsState.searchEngine == "Tor Browser") {
+                                        val pm = context.packageManager
+                                        val torPkg = when {
+                                            pm.getLaunchIntentForPackage("org.torproject.torbrowser") != null -> "org.torproject.torbrowser"
+                                            pm.getLaunchIntentForPackage("org.torproject.torbrowser_alpha") != null -> "org.torproject.torbrowser_alpha"
+                                            else -> null
+                                        }
+                                        if (torPkg != null) {
+                                            val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
+                                                setPackage(torPkg)
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                            }
+                                            launchSafeIntent(context, urlIntent)
+                                        } else {
+                                            showTorInstallPopup = true
+                                        }
+                                    } else {
+                                        val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                        }
+                                        launchSafeIntent(context, urlIntent)
                                     }
-                                    launchSafeIntent(context, urlIntent)
                                 }
                             )
                         }
@@ -1979,11 +2080,13 @@ fun SearchOverlayScreen(
                                     if (uiState.query.isEmpty()) {
                                         item(key = "search_settings_shortcut") {
                                             SearchSettingsItem {
-                                                onOpenSettings("main")
+                                                if (SettingsDebouncer.canClick()) {
+                                                    onOpenSettings("main")
+                                                }
                                             }
                                         }
                                     }
-                                    items(filteredApps, key = { app -> "app_${app.packageName}" }) { app ->
+                                    items(filteredApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }) { app ->
                                         AppGridItem(app) { performAppLaunch(app.packageName) }
                                     }
                                 }
@@ -1993,7 +2096,7 @@ fun SearchOverlayScreen(
                     "web" -> {
                         if (showWeb && (settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
                             if (allDisplaySuggestions.isNotEmpty()) {
-                                items(allDisplaySuggestions, key = { suggestion -> "sugg_$suggestion" }) { suggestion ->
+                                itemsIndexed(allDisplaySuggestions, key = { index, suggestion -> "sugg_${index}_$suggestion" }) { _, suggestion ->
                                     val isRecent = uiState.recentSearches.any { it.equals(suggestion, ignoreCase = true) }
                                     val trimmed = uiState.query.trim()
                                     val annotatedSuggestion = remember(suggestion, trimmed) {
@@ -2090,7 +2193,7 @@ fun SearchOverlayScreen(
                     "contacts" -> {
                         if (showPeople && settingsState.searchContacts && filteredContacts.isNotEmpty()) {
                             item(key = "contacts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                            items(filteredContacts, key = { contact -> "contact_${contact.lookupUri.ifBlank { contact.phoneNumber }}" }) { contact ->
+                            itemsIndexed(filteredContacts, key = { index, contact -> "contact_${index}_${contact.lookupUri.ifBlank { contact.phoneNumber }}" }) { _, contact ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -2099,7 +2202,9 @@ fun SearchOverlayScreen(
                                             val intent = if (settingsState.contactDirectCall) {
                                                 Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
                                             } else {
-                                                Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri))
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri)).apply {
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
                                             }
                                             launchSafeIntent(context, intent)
                                         }
@@ -2121,7 +2226,7 @@ fun SearchOverlayScreen(
                     "files" -> {
                         if (showFiles && settingsState.searchFiles && filteredFiles.isNotEmpty()) {
                             item(key = "files_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                            items(filteredFiles, key = { file -> "file_${file.uri}" }) { file ->
+                            itemsIndexed(filteredFiles, key = { index, file -> "file_${index}_${file.uri}" }) { _, file ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -2223,7 +2328,16 @@ fun SearchOverlayScreen(
                 .fillMaxSize()
                 .drawBehind {
                     val p = overlayProgressAnim.value.coerceIn(0f, 1f)
-                    drawRect(color = scrimColor, alpha = if (isShowWallpaper) scrimAlphaFactor * p else p)
+                    val baseAlpha = if (isShowWallpaper) scrimAlphaFactor * p else p
+                    drawRect(
+                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                            colors = listOf(
+                                scrimColor.copy(alpha = (baseAlpha * 1.05f).coerceIn(0f, 1f)),
+                                scrimColor.copy(alpha = baseAlpha),
+                                scrimColor.copy(alpha = (baseAlpha * 0.95f).coerceIn(0f, 1f))
+                            )
+                        )
+                    )
                 }
         )
 
@@ -2336,6 +2450,60 @@ fun SearchOverlayScreen(
             }
         }
 
+        AnimatedVisibility(
+            visible = showHistoryClearedSnackbar,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = if (settingsState.bottomSearch) 86.dp else 24.dp, start = 16.dp, end = 16.dp)
+                .imePadding()
+                .zIndex(200f)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp,
+                border = BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Search History Cleared",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    TextButton(
+                        onClick = {
+                            sensoryEngine.click(view)
+                            viewModel.undoClearSearchHistory()
+                            showHistoryClearedSnackbar = false
+                        }
+                    ) {
+                        Text(
+                            text = "Undo",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        }
+
         if (showTutorial) {
             TutorialSpotlightOverlay(
                 prefs = prefs,
@@ -2353,10 +2521,14 @@ fun SearchOverlayScreen(
                 }
             )
         }
+
+        if (showTorInstallPopup) {
+            TorBrowserInstallDialog(
+                onDismiss = { showTorInstallPopup = false }
+            )
+        }
     }
 }
-
-private val fileThumbnailCache = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(128)
 
 @Composable
 fun FileIconThumbnail(uri: String, mimeType: String) {

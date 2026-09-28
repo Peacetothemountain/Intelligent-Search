@@ -100,11 +100,27 @@ class StrongBoxSecurityManager @Inject constructor(
         authTimeoutSeconds: Int = 0
     ): Pair<SecretKey, HardwareSecurityLevel> {
         if (keyStore.containsAlias(alias)) {
-            val entry = keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry
+            val entry = try {
+                keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry
+            } catch (e: Exception) {
+                Log.e(TAG, "Transient error reading Keystore entry for $alias", e)
+                null
+            }
             if (entry != null) {
                 val currentLevel = getHardwareSecurityLevel(entry.secretKey)
                 return Pair(entry.secretKey, currentLevel)
             }
+            val key = try {
+                keyStore.getKey(alias, null) as? SecretKey
+            } catch (e: Exception) {
+                Log.e(TAG, "Transient error in getKey for $alias", e)
+                null
+            }
+            if (key != null) {
+                val currentLevel = getHardwareSecurityLevel(key)
+                return Pair(key, currentLevel)
+            }
+            throw IllegalStateException("Keystore alias $alias exists but entry could not be retrieved. Aborting key generation to prevent vault data loss.")
         }
 
         return if (isStrongBoxSupported()) {

@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch.feature.settings
+import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -110,6 +111,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -148,6 +150,158 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.compositionLocalOf
 import com.pixel.intelligentsearch.core.data.SettingsManager
 
+@Composable
+private fun IconButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.material3.IconButton(
+        onClick = {
+            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            onClick()
+        },
+        modifier = modifier,
+        enabled = enabled,
+        colors = colors,
+        interactionSource = interactionSource,
+        content = content
+    )
+}
+
+@Composable
+private fun TextButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: androidx.compose.ui.graphics.Shape = ButtonDefaults.textShape,
+    colors: ButtonColors = ButtonDefaults.textButtonColors(),
+    elevation: ButtonElevation? = null,
+    border: androidx.compose.foundation.BorderStroke? = null,
+    contentPadding: PaddingValues = ButtonDefaults.TextButtonContentPadding,
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable RowScope.() -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.material3.TextButton(
+        onClick = {
+            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            onClick()
+        },
+        modifier = modifier,
+        enabled = enabled,
+        shape = shape,
+        colors = colors,
+        elevation = elevation,
+        border = border,
+        contentPadding = contentPadding,
+        interactionSource = interactionSource,
+        content = content
+    )
+}
+
+@Composable
+private fun Button(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: androidx.compose.ui.graphics.Shape = ButtonDefaults.shape,
+    colors: ButtonColors = ButtonDefaults.buttonColors(),
+    elevation: ButtonElevation? = ButtonDefaults.buttonElevation(),
+    border: androidx.compose.foundation.BorderStroke? = null,
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable RowScope.() -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.material3.Button(
+        onClick = {
+            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            onClick()
+        },
+        modifier = modifier,
+        enabled = enabled,
+        shape = shape,
+        colors = colors,
+        elevation = elevation,
+        border = border,
+        contentPadding = contentPadding,
+        interactionSource = interactionSource,
+        content = content
+    )
+}
+
+@Composable
+private fun FilledTonalButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: androidx.compose.ui.graphics.Shape = ButtonDefaults.filledTonalShape,
+    colors: ButtonColors = ButtonDefaults.filledTonalButtonColors(),
+    elevation: ButtonElevation? = ButtonDefaults.filledTonalButtonElevation(),
+    border: androidx.compose.foundation.BorderStroke? = null,
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable RowScope.() -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.material3.FilledTonalButton(
+        onClick = {
+            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            onClick()
+        },
+        modifier = modifier,
+        enabled = enabled,
+        shape = shape,
+        colors = colors,
+        elevation = elevation,
+        border = border,
+        contentPadding = contentPadding,
+        interactionSource = interactionSource,
+        content = content
+    )
+}
+
+@Composable
+private fun OutlinedButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: androidx.compose.ui.graphics.Shape = ButtonDefaults.outlinedShape,
+    colors: ButtonColors = ButtonDefaults.outlinedButtonColors(),
+    elevation: ButtonElevation? = null,
+    border: androidx.compose.foundation.BorderStroke? = ButtonDefaults.outlinedButtonBorder(enabled),
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable RowScope.() -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.material3.OutlinedButton(
+        onClick = {
+            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            onClick()
+        },
+        modifier = modifier,
+        enabled = enabled,
+        shape = shape,
+        colors = colors,
+        elevation = elevation,
+        border = border,
+        contentPadding = contentPadding,
+        interactionSource = interactionSource,
+        content = content
+    )
+}
+
 @Language("AGSL")
 private const val GEMINI_CORNER_SWIPE_SHADER = """
     uniform float2 resolution;
@@ -161,10 +315,10 @@ private const val GEMINI_CORNER_SWIPE_SHADER = """
         float2 uv = fragCoord / resolution.xy;
         float y = 1.0 - uv.y; // 0.0 at bottom edge, 1.0 at top
         
-        // Gemini corner swipe light bar ribbons
-        float wave1 = sin(uv.x * 6.28 + time * 2.5) * 0.16;
-        float wave2 = cos(uv.x * 9.42 - time * 1.9) * 0.10;
-        float wave3 = sin((uv.x - 0.5) * 5.0 + time * 1.6) * 0.14;
+        // Multi-frequency harmonic dispersion ribbons
+        float wave1 = sin(uv.x * 6.28 + time * 2.2) * 0.14 + sin(uv.x * 12.56 - time * 1.5) * 0.04;
+        float wave2 = cos(uv.x * 9.42 - time * 1.8) * 0.09 + cos(uv.x * 15.7 + time * 2.1) * 0.03;
+        float wave3 = sin((uv.x - 0.5) * 5.0 + time * 1.5) * 0.12;
         
         // Corner arcs originating from bottom-left (0,0) and bottom-right (1,0)
         float dLeft = length(float2(uv.x * 1.15, y * 1.85));
@@ -198,10 +352,10 @@ private const val GEMINI_CORNER_SWIPE_SHADER = """
             mixedColor = mix(colorAccent, colorPrimary, smoothT);
         }
         
-        float pulse = 0.88 + 0.12 * sin(time * 2.8);
+        float pulse = 0.90 + 0.10 * sin(time * 2.4);
         float finalAlpha = intensity * mixedColor.a * pulse;
         
-        return half4(mixedColor.rgb * intensity, finalAlpha);
+        return half4(mixedColor.rgb * finalAlpha, finalAlpha);
     }
 """
 
@@ -292,6 +446,54 @@ val LocalSettingsState = compositionLocalOf<com.pixel.intelligentsearch.core.dat
 val LocalAnimationTime = staticCompositionLocalOf<Long> { 0L }
 
 // --- State Helpers ---
+fun getAlternatePreferenceKey(key: String): String? = when (key) {
+    "settings.bottom.search" -> "bottom_search"
+    "bottom_search" -> "settings.bottom.search"
+    "settings.bottom.search.result" -> "bottom_search_result"
+    "bottom_search_result" -> "settings.bottom.search.result"
+    "quick.search.horizontal" -> "quick_search_horizontal"
+    "quick_search_horizontal" -> "quick.search.horizontal"
+    "search.apps" -> "search_apps"
+    "search_apps" -> "search.apps"
+    "search.contacts" -> "search_contacts"
+    "search_contacts" -> "search.contacts"
+    "search.files" -> "search_files"
+    "search_files" -> "search.files"
+    "search.web" -> "search_web"
+    "search_web" -> "search.web"
+    "search.calculator" -> "search_calculator"
+    "search_calculator" -> "search.calculator"
+    "search.calendar" -> "search_calendar"
+    "search_calendar" -> "search.calendar"
+    "search.shortcuts" -> "search_shortcuts"
+    "search_shortcuts" -> "search.shortcuts"
+    "search.background.show.wall" -> "show_wallpaper"
+    "show_wallpaper" -> "search.background.show.wall"
+    "shortcut.inline" -> "shortcut_inline"
+    "shortcut_inline" -> "shortcut.inline"
+    "app.fuzzy.search" -> "app_fuzzy_search"
+    "app_fuzzy_search" -> "app.fuzzy.search"
+    "search.files.hidden.files" -> "search_files_hidden_files"
+    "search_files_hidden_files" -> "search.files.hidden.files"
+    "search.files.thumbnails" -> "search_files_thumbnails"
+    "search_files_thumbnails" -> "search.files.thumbnails"
+    "widget.theme.style" -> "widget_theme_style"
+    "widget_theme_style" -> "widget.theme.style"
+    "night.mode" -> "theme"
+    "theme" -> "night.mode"
+    else -> null
+}
+
+private fun readBooleanPref(prefs: SharedPreferences, key: String, altKey: String?, fallback: Boolean): Boolean {
+    return if (prefs.contains(key)) {
+        prefs.getBoolean(key, fallback)
+    } else if (altKey != null && prefs.contains(altKey)) {
+        prefs.getBoolean(altKey, fallback)
+    } else {
+        fallback
+    }
+}
+
 @Composable
 fun rememberBooleanPreference(
     prefs: SharedPreferences,
@@ -301,6 +503,7 @@ fun rememberBooleanPreference(
 ): MutableState<Boolean> {
     val viewModel = LocalSettingsViewModel.current
     val settingsState = LocalSettingsState.current
+    val altKey = remember(key) { getAlternatePreferenceKey(key) }
     
     val datastoreKey = when (key) {
         "search.apps" -> SettingsManager.SEARCH_APPS
@@ -325,7 +528,7 @@ fun rememberBooleanPreference(
         "contact_direct_call" -> SettingsManager.CONTACT_DIRECT_CALL
         "shortcut.inline" -> SettingsManager.SHORTCUT_INLINE
         "app.fuzzy.search" -> SettingsManager.APP_FUZZY_SEARCH
-        "quick.search.horizontal" -> SettingsManager.QUICK_SEARCH_HORIZONTAL
+        "quick.search.horizontal", "quick_search_horizontal" -> SettingsManager.QUICK_SEARCH_HORIZONTAL
         "search.files.hidden.files" -> SettingsManager.FILES_HIDDEN_FILES
         "search.files.thumbnails" -> SettingsManager.FILES_THUMBNAILS
         "tutorial_completed" -> SettingsManager.TUTORIAL_COMPLETED
@@ -340,59 +543,73 @@ fun rememberBooleanPreference(
         else -> null
     }
 
-    val currentValue = when (key) {
-        "search.apps" -> settingsState?.searchApps ?: prefs.getBoolean(key, defaultValue)
-        "search.contacts" -> settingsState?.searchContacts ?: prefs.getBoolean(key, defaultValue)
-        "search.files" -> settingsState?.searchFiles ?: prefs.getBoolean(key, defaultValue)
-        "search.web" -> settingsState?.searchWeb ?: prefs.getBoolean(key, defaultValue)
-        "search.calculator" -> settingsState?.searchCalculator ?: prefs.getBoolean(key, defaultValue)
-        "search.calendar" -> settingsState?.searchCalendar ?: prefs.getBoolean(key, defaultValue)
-        "search.shortcuts" -> settingsState?.searchShortcuts ?: prefs.getBoolean(key, defaultValue)
-        "search.background.show.wall" -> settingsState?.showWallpaper ?: prefs.getBoolean(key, defaultValue)
-        "app_animations" -> settingsState?.appAnimations ?: prefs.getBoolean(key, defaultValue)
-        "settings.bottom.search" -> settingsState?.bottomSearch ?: prefs.getBoolean(key, true)
-        "settings.bottom.search.result" -> settingsState?.bottomSearchResult ?: prefs.getBoolean(key, true)
-        "g_icon_enabled" -> settingsState?.gIconEnabled ?: prefs.getBoolean(key, defaultValue)
-        "widget_show_voice" -> settingsState?.widgetShowVoice ?: prefs.getBoolean(key, defaultValue)
-        "widget_show_gemini" -> settingsState?.widgetShowGemini ?: prefs.getBoolean(key, defaultValue)
-        "quick_search_youtube" -> settingsState?.quickSearchYoutube ?: prefs.getBoolean(key, defaultValue)
-        "quick_search_wikipedia" -> settingsState?.quickSearchWikipedia ?: prefs.getBoolean(key, defaultValue)
-        "quick_search_play_store" -> settingsState?.quickSearchPlayStore ?: prefs.getBoolean(key, defaultValue)
-        "quick_search_maps" -> settingsState?.quickSearchMaps ?: prefs.getBoolean(key, defaultValue)
-        "app_quick_launch" -> settingsState?.appQuickLaunch ?: prefs.getBoolean(key, defaultValue)
-        "contact_direct_call" -> settingsState?.contactDirectCall ?: prefs.getBoolean(key, defaultValue)
-        "shortcut.inline" -> settingsState?.shortcutInline ?: prefs.getBoolean(key, defaultValue)
-        "app.fuzzy.search" -> settingsState?.appFuzzySearch ?: prefs.getBoolean(key, defaultValue)
-        "quick.search.horizontal" -> settingsState?.quickSearchHorizontal ?: prefs.getBoolean(key, defaultValue)
-        "search.files.hidden.files" -> settingsState?.filesHiddenFiles ?: prefs.getBoolean(key, defaultValue)
-        "search.files.thumbnails" -> settingsState?.filesThumbnails ?: prefs.getBoolean(key, defaultValue)
-        "tutorial_completed" -> settingsState?.tutorialCompleted ?: prefs.getBoolean(key, defaultValue)
-        "force_tutorial" -> settingsState?.forceTutorial ?: prefs.getBoolean(key, defaultValue)
-        "context_aware_quick_apps" -> settingsState?.contextAwareQuickApps ?: prefs.getBoolean(key, defaultValue)
-        "smart_clipboard_suggestions" -> settingsState?.smartClipboardSuggestions ?: prefs.getBoolean(key, defaultValue)
-        "search_previous_searches" -> settingsState?.searchPreviousSearches ?: prefs.getBoolean(key, defaultValue)
-        "search_overlay_enabled" -> settingsState?.searchOverlayEnabled ?: prefs.getBoolean(key, defaultValue)
-        "matrix_animation_enabled" -> settingsState?.matrixAnimationEnabled ?: prefs.getBoolean(key, defaultValue)
-        "settings_back_to_search_overlay" -> settingsState?.backToSearchOverlay ?: prefs.getBoolean(key, defaultValue)
-        "vibration_enabled" -> settingsState?.vibrationEnabled ?: prefs.getBoolean(key, defaultValue)
-        else -> prefs.getBoolean(key, defaultValue)
+    val fallbackValue = when (key) {
+        "settings.bottom.search", "settings.bottom.search.result" -> true
+        else -> defaultValue
     }
 
-    val state = remember { mutableStateOf(currentValue) }
-    LaunchedEffect(currentValue) {
-        state.value = currentValue
+    val initialValue = remember(key, prefs) {
+        if (prefs.contains(key) || (altKey != null && prefs.contains(altKey))) {
+            readBooleanPref(prefs, key, altKey, fallbackValue)
+        } else {
+            val dsVal = when (key) {
+                "search.apps" -> settingsState?.searchApps
+                "search.contacts" -> settingsState?.searchContacts
+                "search.files" -> settingsState?.searchFiles
+                "search.web" -> settingsState?.searchWeb
+                "search.calculator" -> settingsState?.searchCalculator
+                "search.calendar" -> settingsState?.searchCalendar
+                "search.shortcuts" -> settingsState?.searchShortcuts
+                "search.background.show.wall" -> settingsState?.showWallpaper
+                "app_animations" -> settingsState?.appAnimations
+                "settings.bottom.search" -> settingsState?.bottomSearch
+                "settings.bottom.search.result" -> settingsState?.bottomSearchResult
+                "g_icon_enabled" -> settingsState?.gIconEnabled
+                "widget_show_voice" -> settingsState?.widgetShowVoice
+                "widget_show_gemini" -> settingsState?.widgetShowGemini
+                "quick_search_youtube" -> settingsState?.quickSearchYoutube
+                "quick_search_wikipedia" -> settingsState?.quickSearchWikipedia
+                "quick_search_play_store" -> settingsState?.quickSearchPlayStore
+                "quick_search_maps" -> settingsState?.quickSearchMaps
+                "app_quick_launch" -> settingsState?.appQuickLaunch
+                "contact_direct_call" -> settingsState?.contactDirectCall
+                "shortcut.inline" -> settingsState?.shortcutInline
+                "app.fuzzy.search" -> settingsState?.appFuzzySearch
+                "quick.search.horizontal", "quick_search_horizontal" -> settingsState?.quickSearchHorizontal
+                "search.files.hidden.files" -> settingsState?.filesHiddenFiles
+                "search.files.thumbnails" -> settingsState?.filesThumbnails
+                "tutorial_completed" -> settingsState?.tutorialCompleted
+                "force_tutorial" -> settingsState?.forceTutorial
+                "context_aware_quick_apps" -> settingsState?.contextAwareQuickApps
+                "smart_clipboard_suggestions" -> settingsState?.smartClipboardSuggestions
+                "search_previous_searches" -> settingsState?.searchPreviousSearches
+                "search_overlay_enabled" -> settingsState?.searchOverlayEnabled
+                "matrix_animation_enabled" -> settingsState?.matrixAnimationEnabled
+                "settings_back_to_search_overlay" -> settingsState?.backToSearchOverlay
+                "vibration_enabled" -> settingsState?.vibrationEnabled
+                else -> null
+            }
+            val resolved = dsVal ?: fallbackValue
+            prefs.edit().apply {
+                putBoolean(key, resolved)
+                if (altKey != null) putBoolean(altKey, resolved)
+                apply()
+            }
+            resolved
+        }
     }
 
-    androidx.compose.runtime.DisposableEffect(prefs, key) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
-            if (changedKey == key) {
-                val fallback = when (key) {
-                    "settings.bottom.search", "settings.bottom.search.result" -> true
-                    else -> defaultValue
-                }
-                state.value = sharedPreferences.getBoolean(key, fallback)
+    val state = remember { mutableStateOf(initialValue) }
+
+    val listener = remember(prefs, key, altKey) {
+        SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
+            if (changedKey == key || (altKey != null && changedKey == altKey)) {
+                state.value = readBooleanPref(sharedPreferences, key, altKey, fallbackValue)
             }
         }
+    }
+
+    androidx.compose.runtime.DisposableEffect(prefs, key, listener) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
@@ -407,12 +624,17 @@ fun rememberBooleanPreference(
             override var value: Boolean
                 get() = state.value
                 set(v) {
+                    if (state.value == v) return
                     state.value = v
                     val vm = currentViewModel
                     if (datastoreKey != null && vm != null) {
                         vm.updateSetting(datastoreKey, v)
                     }
-                    prefs.edit().putBoolean(key, v).apply()
+                    prefs.edit().apply {
+                        putBoolean(key, v)
+                        if (altKey != null) putBoolean(altKey, v)
+                        apply()
+                    }
                     currentOnChanged()
                 }
             override operator fun component1() = value
@@ -430,6 +652,7 @@ fun rememberIntPreference(
 ): MutableState<Int> {
     val viewModel = LocalSettingsViewModel.current
     val settingsState = LocalSettingsState.current
+    val altKey = remember(key) { getAlternatePreferenceKey(key) }
     
     val datastoreKey = when (key) {
         "search.background.blur" -> SettingsManager.BACKGROUND_BLUR
@@ -440,43 +663,73 @@ fun rememberIntPreference(
         else -> null
     }
 
-    val currentValue = when (key) {
-        "search.background.blur" -> settingsState?.backgroundBlur ?: prefs.getInt(key, defaultValue)
-        "search.background.transparency" -> settingsState?.backgroundTransparency ?: prefs.getInt(key, defaultValue)
-        "search.pill.opacity" -> settingsState?.pillOpacity ?: prefs.getInt(key, defaultValue)
-        "tutorial_step" -> settingsState?.tutorialStep ?: prefs.getInt(key, defaultValue)
-        "shortcut_results_count" -> settingsState?.shortcutResultsCount ?: prefs.getInt(key, defaultValue)
-        else -> prefs.getInt(key, defaultValue)
+    val initialValue = remember(key, prefs) {
+        if (prefs.contains(key)) {
+            prefs.getInt(key, defaultValue)
+        } else if (altKey != null && prefs.contains(altKey)) {
+            prefs.getInt(altKey, defaultValue)
+        } else {
+            val dsVal = when (key) {
+                "search.background.blur" -> settingsState?.backgroundBlur
+                "search.background.transparency" -> settingsState?.backgroundTransparency
+                "search.pill.opacity" -> settingsState?.pillOpacity
+                "tutorial_step" -> settingsState?.tutorialStep
+                "shortcut_results_count" -> settingsState?.shortcutResultsCount
+                else -> null
+            }
+            val resolved = dsVal ?: defaultValue
+            prefs.edit().apply {
+                putInt(key, resolved)
+                if (altKey != null) putInt(altKey, resolved)
+                apply()
+            }
+            resolved
+        }
     }
 
-    val state = remember { mutableIntStateOf(currentValue) }
-    LaunchedEffect(currentValue) {
-        state.value = currentValue
-    }
+    val state = remember { mutableIntStateOf(initialValue) }
 
-    androidx.compose.runtime.DisposableEffect(prefs, key) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
-            if (changedKey == key) {
-                state.value = sharedPreferences.getInt(key, defaultValue)
+    val listener = remember(prefs, key, altKey) {
+        SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
+            if (changedKey == key || (altKey != null && changedKey == altKey)) {
+                state.value = if (sharedPreferences.contains(key)) {
+                    sharedPreferences.getInt(key, defaultValue)
+                } else if (altKey != null && sharedPreferences.contains(altKey)) {
+                    sharedPreferences.getInt(altKey, defaultValue)
+                } else {
+                    defaultValue
+                }
             }
         }
+    }
+
+    androidx.compose.runtime.DisposableEffect(prefs, key, listener) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
         }
     }
 
+    val currentViewModel by rememberUpdatedState(viewModel)
+    val currentOnChanged by rememberUpdatedState(onChanged)
+
     return remember(key, prefs) {
         object : MutableState<Int> {
             override var value: Int
                 get() = state.value
                 set(v) {
+                    if (state.value == v) return
                     state.value = v
-                    if (datastoreKey != null && viewModel != null) {
-                        viewModel.updateSetting(datastoreKey, v)
+                    val vm = currentViewModel
+                    if (datastoreKey != null && vm != null) {
+                        vm.updateSetting(datastoreKey, v)
                     }
-                    prefs.edit().putInt(key, v).apply()
-                    onChanged()
+                    prefs.edit().apply {
+                        putInt(key, v)
+                        if (altKey != null) putInt(altKey, v)
+                        apply()
+                    }
+                    currentOnChanged()
                 }
             override operator fun component1() = value
             override operator fun component2(): (Int) -> Unit = { value = it }
@@ -491,8 +744,8 @@ fun rememberStringPreference(
     defaultValue: String
 ): MutableState<String> {
     val viewModel = LocalSettingsViewModel.current
-    val settingsState by (viewModel?.settingsState ?: kotlinx.coroutines.flow.MutableStateFlow(null))
-        .collectAsStateWithLifecycle()
+    val settingsState = LocalSettingsState.current
+    val altKey = remember(key) { getAlternatePreferenceKey(key) }
     
     val datastoreKey = when (key) {
         "night.mode" -> SettingsManager.THEME
@@ -505,47 +758,76 @@ fun rememberStringPreference(
         else -> null
     }
 
-    val currentValue = when (key) {
-        "night.mode" -> settingsState?.theme ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-        "search.engine" -> settingsState?.searchEngine ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-        "custom_search_engine_url" -> settingsState?.customSearchEngineUrl ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-        "widget.theme.style" -> settingsState?.widgetThemeStyle ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-        "search.pills" -> settingsState?.searchPills ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-        "custom_icon_pills" -> settingsState?.customIconPills ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-        "active_icon_pack" -> settingsState?.activeIconPack ?: (prefs.getString(key, defaultValue) ?: defaultValue)
-        else -> prefs.getString(key, defaultValue) ?: defaultValue
+    val initialValue = remember(key, prefs) {
+        if (prefs.contains(key)) {
+            prefs.getString(key, defaultValue) ?: defaultValue
+        } else if (altKey != null && prefs.contains(altKey)) {
+            prefs.getString(altKey, defaultValue) ?: defaultValue
+        } else {
+            val dsVal = when (key) {
+                "night.mode" -> settingsState?.theme
+                "search.engine" -> settingsState?.searchEngine
+                "custom_search_engine_url" -> settingsState?.customSearchEngineUrl
+                "widget.theme.style" -> settingsState?.widgetThemeStyle
+                "search.pills" -> settingsState?.searchPills
+                "custom_icon_pills" -> settingsState?.customIconPills
+                "active_icon_pack" -> settingsState?.activeIconPack
+                else -> null
+            }
+            val resolved = dsVal ?: defaultValue
+            prefs.edit().apply {
+                putString(key, resolved)
+                if (altKey != null) putString(altKey, resolved)
+                apply()
+            }
+            resolved
+        }
     }
 
-    val state = remember { mutableStateOf(currentValue) }
-    LaunchedEffect(currentValue) {
-        state.value = currentValue
-    }
+    val state = remember { mutableStateOf(initialValue) }
 
-    androidx.compose.runtime.DisposableEffect(prefs, key) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
-            if (changedKey == key) {
-                state.value = sharedPreferences.getString(key, defaultValue) ?: defaultValue
+    val listener = remember(prefs, key, altKey) {
+        SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
+            if (changedKey == key || (altKey != null && changedKey == altKey)) {
+                state.value = if (sharedPreferences.contains(key)) {
+                    sharedPreferences.getString(key, defaultValue) ?: defaultValue
+                } else if (altKey != null && sharedPreferences.contains(altKey)) {
+                    sharedPreferences.getString(altKey, defaultValue) ?: defaultValue
+                } else {
+                    defaultValue
+                }
             }
         }
+    }
+
+    androidx.compose.runtime.DisposableEffect(prefs, key, listener) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
         }
     }
 
+    val currentViewModel by rememberUpdatedState(viewModel)
+
     return remember(key, prefs) {
         object : MutableState<String> {
             override var value: String
                 get() = state.value
                 set(v) {
+                    if (state.value == v) return
                     state.value = v
-                    if (datastoreKey != null && viewModel != null) {
-                        viewModel.updateSetting(datastoreKey, v)
+                    val vm = currentViewModel
+                    if (datastoreKey != null && vm != null) {
+                        vm.updateSetting(datastoreKey, v)
                     }
                     if (key == "active_icon_pack") {
                         com.pixel.intelligentsearch.feature.search.clearThemedIconCache()
                     }
-                    prefs.edit().putString(key, v).apply()
+                    prefs.edit().apply {
+                        putString(key, v)
+                        if (altKey != null) putString(altKey, v)
+                        apply()
+                    }
                 }
             override operator fun component1() = value
             override operator fun component2(): (String) -> Unit = { value = it }
@@ -576,8 +858,7 @@ fun SettingsScreensHub(
         LocalSettingsState provides settingsState
     ) {
         val navController = androidx.navigation.compose.rememberNavController()
-        
-        val exoPlayer = androidx.compose.runtime.remember {
+        val exoPlayer = remember(context) {
             runCatching {
                 val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.bugdroid_video)
                 val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
@@ -594,25 +875,32 @@ fun SettingsScreensHub(
 
         val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
         androidx.compose.runtime.DisposableEffect(lifecycleOwner, exoPlayer) {
-            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                    exoPlayer?.play()
-                } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                    exoPlayer?.pause()
-                }
-            }
-            lifecycleOwner.lifecycle.addObserver(observer)
+            val player = exoPlayer
             onDispose {
-                lifecycleOwner.lifecycle.removeObserver(observer)
-                exoPlayer?.release()
+                player?.release()
             }
         }
 
+        var isNavTransitioning by remember { mutableStateOf(false) }
+
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
-            navController.navigate(route)
+            val currentEntry = navController.currentBackStackEntry
+            val isResumed = currentEntry?.lifecycle?.currentState == androidx.lifecycle.Lifecycle.State.RESUMED
+            val currentRoute = currentEntry?.destination?.route
+            val targetRouteName = route::class.qualifiedName ?: route::class.simpleName ?: ""
+
+            if (isResumed && !isNavTransitioning && (currentRoute == null || !currentRoute.endsWith(targetRouteName))) {
+                SettingsDebouncer.recordClick()
+                isNavTransitioning = true
+                navController.navigate(route) {
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            }
         }
 
         val handleExitBack: () -> Unit = {
+            SettingsDebouncer.recordClick()
             val act = context.findActivity() ?: (context as? Activity)
             if (act != null) {
                 if (act.isTaskRoot) {
@@ -648,11 +936,23 @@ fun SettingsScreensHub(
         val hasSubScreensInNavHost = navController.previousBackStackEntry != null
         val isAtRootMain = (currentRoute == null || currentRoute.contains("main", ignoreCase = true)) && !hasSubScreensInNavHost
 
+        LaunchedEffect(currentBackStackEntry) {
+            isNavTransitioning = true
+            kotlinx.coroutines.delay(320L)
+            isNavTransitioning = false
+        }
+
         val onBack: () -> Unit = {
-            if (navController.previousBackStackEntry != null) {
-                navController.popBackStack()
-            } else {
-                handleExitBack()
+            val currentEntry = navController.currentBackStackEntry
+            val isResumed = currentEntry?.lifecycle?.currentState == androidx.lifecycle.Lifecycle.State.RESUMED
+            if (isResumed && !isNavTransitioning) {
+                SettingsDebouncer.recordClick()
+                isNavTransitioning = true
+                if (navController.previousBackStackEntry != null) {
+                    navController.popBackStack()
+                } else {
+                    handleExitBack()
+                }
             }
         }
 
@@ -723,20 +1023,39 @@ fun SettingsScreensHub(
                     .fillMaxSize()
                     .then(if (showTutorial) Modifier.blur(24.dp) else Modifier)
             ) {
-                
+                if (isNavTransitioning) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .zIndex(99999f)
+                            .pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                                        event.changes.forEach { it.consume() }
+                                    }
+                                }
+                            }
+                    )
+                }
+
                 NavHost(
                     navController = navController,
                     startDestination = startRoute,
                     enterTransition = {
-                        slideInHorizontally(
-                            initialOffsetX = { (it * 0.22f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
-                        ) + fadeIn(
-                            animationSpec = tween(durationMillis = 240, easing = LinearOutSlowInEasing)
-                        ) + scaleIn(
-                            initialScale = 0.94f,
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
-                        )
+                        if (initialState.destination.route == null) {
+                            androidx.compose.animation.EnterTransition.None
+                        } else {
+                            slideInHorizontally(
+                                initialOffsetX = { (it * 0.22f).toInt() },
+                                animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            ) + fadeIn(
+                                animationSpec = tween(durationMillis = 240, easing = LinearOutSlowInEasing)
+                            ) + scaleIn(
+                                initialScale = 0.94f,
+                                animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            )
+                        }
                     },
                     exitTransition = {
                         slideOutHorizontally(
@@ -983,7 +1302,14 @@ private data class MemorySnapshot(
     val usedGb: Double,
     val availGb: Double,
     val pct: Int,
-    val processes: List<ProcessRamEntry>
+    val zRamUsedGb: Double,
+    val zRamTotalGb: Double,
+    val cachedGb: Double,
+    val isLowMem: Boolean,
+    val thresholdMb: Int,
+    val memPressure: String,
+    val processes: List<ProcessRamEntry>,
+    val physicalGb: Int = 12
 )
 
 @Composable
@@ -991,7 +1317,12 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
     var batteryLevel by remember { mutableIntStateOf(0) }
     var batteryTemp by remember { mutableFloatStateOf(0f) }
     var batteryVolt by remember { mutableFloatStateOf(0f) }
+    var batteryWatts by remember { mutableFloatStateOf(0f) }
     var batteryHealth by remember { mutableStateOf("Good") }
+    var batteryHealthPct by remember { mutableIntStateOf(100) }
+    var batteryCycles by remember { mutableIntStateOf(-1) }
+    var batteryTechnology by remember { mutableStateOf("Li-ion") }
+    var thermalStatus by remember { mutableStateOf("Optimal") }
     var isCharging by remember { mutableStateOf(false) }
     var chargingRateStr by remember { mutableStateOf("Calculating...") }
     var timeEstimateStr by remember { mutableStateOf("Calculating...") }
@@ -1000,6 +1331,13 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
     var usedRamGb by remember { mutableStateOf("0.0") }
     var usedRamPercent by remember { mutableIntStateOf(0) }
     var availableRamGb by remember { mutableStateOf("0.0") }
+    var physicalRamGb by remember { mutableIntStateOf(12) }
+    var zRamUsedGb by remember { mutableStateOf("0.0") }
+    var zRamTotalGb by remember { mutableStateOf("0.0") }
+    var cachedRamGb by remember { mutableStateOf("0.0") }
+    var isLowMemory by remember { mutableStateOf(false) }
+    var memoryPressure by remember { mutableStateOf("Optimal") }
+    var lmkThresholdMb by remember { mutableIntStateOf(0) }
     var topProcesses by remember { mutableStateOf<List<ProcessRamEntry>>(emptyList()) }
 
     val actMgr = remember(context) { context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager }
@@ -1032,35 +1370,173 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     android.os.BatteryManager.BATTERY_HEALTH_DEAD -> "Dead"
                     android.os.BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over Voltage"
                     android.os.BatteryManager.BATTERY_HEALTH_COLD -> "Cold"
-                    else -> "Normal"
+                    8 -> "Dock Defender"
+                    11 -> "Optimized"
+                    else -> "Good"
                 }
 
-                val rawCurrentNow = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: 0
-                val rawCurrentAvg = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) ?: 0
-                val effectiveRaw = if (rawCurrentNow != 0) rawCurrentNow else rawCurrentAvg
-                val absCurrent = kotlin.math.abs(effectiveRaw)
-                val currentMa = if (absCurrent > 10_000) (absCurrent / 1000f) else absCurrent.toFloat()
+                // Battery cycle count (Android 14+ / API 34+ property & sysfs fallback)
+                var cycles = -1
+                if (android.os.Build.VERSION.SDK_INT >= 34) {
+                    try {
+                        cycles = batteryStatus?.getIntExtra("android.os.extra.CYCLE_COUNT", -1) ?: -1
+                    } catch (_: Exception) {}
+                    if (cycles <= 0) {
+                        try {
+                            cycles = bm?.getIntProperty(8 /* BATTERY_PROPERTY_CYCLE_COUNT */) ?: -1
+                        } catch (_: Exception) {}
+                    }
+                }
+                if (cycles <= 0) {
+                    val cycleFiles = listOf(
+                        "/sys/class/power_supply/battery/cycle_count",
+                        "/sys/class/power_supply/max77779fg/cycle_count",
+                        "/sys/class/power_supply/maxfg/cycle_count",
+                        "/sys/class/power_supply/bms/battery_cycle"
+                    )
+                    for (cf in cycleFiles) {
+                        try {
+                            val parsed = java.io.File(cf).readText().trim().toIntOrNull()
+                            if (parsed != null && parsed >= 0) {
+                                cycles = parsed
+                                break
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+                batteryCycles = cycles
+
+                // Technology / Chemistry
+                batteryTechnology = batteryStatus?.getStringExtra(android.os.BatteryManager.EXTRA_TECHNOLOGY)?.takeIf { it.isNotBlank() } ?: "Li-ion"
+
+                // Thermals - query system PowerManager thermal status API first, then battery temp
+                val pmPower = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+                val osThermal = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    try {
+                        when (pmPower?.currentThermalStatus) {
+                            android.os.PowerManager.THERMAL_STATUS_NONE -> "Cool"
+                            android.os.PowerManager.THERMAL_STATUS_LIGHT -> "Optimal"
+                            android.os.PowerManager.THERMAL_STATUS_MODERATE -> "Warm"
+                            android.os.PowerManager.THERMAL_STATUS_SEVERE -> "Hot"
+                            android.os.PowerManager.THERMAL_STATUS_CRITICAL -> "Critical"
+                            android.os.PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
+                            android.os.PowerManager.THERMAL_STATUS_SHUTDOWN -> "Overheat"
+                            else -> null
+                        }
+                    } catch (_: Exception) { null }
+                } else null
+
+                thermalStatus = osThermal ?: when {
+                    batteryTemp < 20f -> "Cool"
+                    batteryTemp <= 35f -> "Optimal"
+                    batteryTemp <= 41f -> "Warm"
+                    else -> "Overheat"
+                }
+
+                // Health Wear / State of Health (SoH %) from actual fuel gauge or design capacity
+                var healthPct = -1
+                val chargeFullPaths = listOf(
+                    "/sys/class/power_supply/battery/charge_full" to "/sys/class/power_supply/battery/charge_full_design",
+                    "/sys/class/power_supply/max77779fg/charge_full" to "/sys/class/power_supply/max77779fg/charge_full_design",
+                    "/sys/class/power_supply/maxfg/charge_full" to "/sys/class/power_supply/maxfg/charge_full_design",
+                    "/sys/class/power_supply/bms/charge_full" to "/sys/class/power_supply/bms/charge_full_design"
+                )
+                for ((fullPath, designPath) in chargeFullPaths) {
+                    try {
+                        val fullVal = java.io.File(fullPath).readText().trim().toDoubleOrNull() ?: 0.0
+                        val designVal = java.io.File(designPath).readText().trim().toDoubleOrNull() ?: 0.0
+                        if (fullVal > 1000.0 && designVal > 1000.0) {
+                            healthPct = ((fullVal / designVal) * 100.0).toInt().coerceIn(30, 100)
+                            break
+                        }
+                    } catch (_: Exception) {}
+                }
+                if (healthPct <= 0) {
+                    healthPct = if (cycles > 0) (100 - (cycles * 0.04f)).toInt().coerceIn(70, 100) else 100
+                }
+                batteryHealthPct = healthPct
+
+                // Accurate Current & Power (Watts)
+                val rawCurrentNow = try { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) } catch (_: Exception) { null } ?: Integer.MIN_VALUE
+                val rawCurrentAvg = try { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) } catch (_: Exception) { null } ?: Integer.MIN_VALUE
+
+                val rawCurrent = when {
+                    rawCurrentNow != Integer.MIN_VALUE && rawCurrentNow != 0 -> rawCurrentNow
+                    rawCurrentAvg != Integer.MIN_VALUE && rawCurrentAvg != 0 -> rawCurrentAvg
+                    else -> listOf(
+                        "/sys/class/power_supply/battery/current_now",
+                        "/sys/class/power_supply/max77779fg/current_now",
+                        "/sys/class/power_supply/battery/current_avg"
+                    ).firstNotNullOfOrNull { path ->
+                        try { java.io.File(path).readText().trim().toIntOrNull() } catch (_: Exception) { null }
+                    } ?: 0
+                }
+                val absCurrent = kotlin.math.abs(rawCurrent).toFloat()
+                // BatteryManager.BATTERY_PROPERTY_CURRENT_NOW & sysfs current_now are in microamperes (uA).
+                // Enforce physical conversion to milliamperes (uA -> mA) and bound to physical battery limits (<= 12,000 mA).
+                val currentMa = when {
+                    absCurrent > 1000f -> (absCurrent / 1000f).coerceAtMost(12000f)
+                    absCurrent > 0f -> absCurrent
+                    else -> 0f
+                }
                 val watts = if (batteryVolt > 0f && currentMa > 0f) (batteryVolt * currentMa) / 1000f else 0f
+                batteryWatts = watts
 
-                val chargeCounter = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) ?: -1
-                val totalCapacityMah = if (batteryLevel > 5 && chargeCounter > 0) {
-                    ((chargeCounter / 1000f) / (batteryLevel / 100f)).coerceIn(3500f, 5500f)
-                } else {
-                    4800f
+                // 5-Tier Battery Design Capacity Resolution Engine
+                // Tier 1: Internal PowerProfile reflection (framework truth)
+                val powerProfileCapacity = try {
+                    val powerProfileClass = Class.forName("com.android.internal.os.PowerProfile")
+                    val constructor = powerProfileClass.getConstructor(android.content.Context::class.java)
+                    val powerProfile = constructor.newInstance(context)
+                    val getBatteryCapacityMethod = powerProfileClass.getMethod("getBatteryCapacity")
+                    (getBatteryCapacityMethod.invoke(powerProfile) as? Double)?.toFloat()
+                } catch (_: Exception) { null }
+
+                // Tier 2: Sysfs charge_full_design files (when SELinux allows)
+                val sysfsCapacity = listOf(
+                    "/sys/class/power_supply/battery/charge_full_design",
+                    "/sys/class/power_supply/max77779fg/charge_full_design",
+                    "/sys/class/power_supply/maxfg/charge_full_design",
+                    "/sys/class/power_supply/bms/charge_full_design"
+                ).firstNotNullOfOrNull { path ->
+                    try {
+                        val v = java.io.File(path).readText().trim().toFloatOrNull()
+                        if (v != null && v > 1000f) v / 1000f else v
+                    } catch (_: Exception) { null }
                 }
-                val currentChargeMah = if (chargeCounter > 0) (chargeCounter / 1000f) else (batteryLevel / 100f * totalCapacityMah)
+
+                // Tier 3: Framework config_batteryCapacity resource
+                val resourceCapacity = try {
+                    val resId = context.resources.getIdentifier("config_batteryCapacity", "dimen", "android")
+                    if (resId > 0) context.resources.getDimension(resId) else null
+                } catch (_: Exception) { null }
+
+                val designMah = powerProfileCapacity?.takeIf { it in 1500f..10000f }
+                    ?: sysfsCapacity?.takeIf { it in 1500f..10000f }
+                    ?: resourceCapacity?.takeIf { it in 1500f..10000f }
+                    ?: 5000f
+
+                val chargeCounter = try {
+                    val cc = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) ?: -1
+                    if (cc != Integer.MIN_VALUE && cc > 0) cc / 1000f else -1f
+                } catch (_: Exception) { -1f }
+
+                val totalCapacityMah = if (batteryLevel > 5 && chargeCounter > 0f) {
+                    (chargeCounter / (batteryLevel / 100f)).coerceIn(2000f, 10000f)
+                } else {
+                    designMah
+                }
+                val currentChargeMah = if (chargeCounter > 0f) chargeCounter else (batteryLevel / 100f * totalCapacityMah)
 
                 if (isCharging) {
                     val pluggedType = when (plugged) {
-                        android.os.BatteryManager.BATTERY_PLUGGED_AC -> "Fast AC"
+                        android.os.BatteryManager.BATTERY_PLUGGED_AC -> if (watts >= 15f) "Rapid (AC)" else "AC"
                         android.os.BatteryManager.BATTERY_PLUGGED_USB -> "USB"
                         android.os.BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Wireless"
                         android.os.BatteryManager.BATTERY_PLUGGED_DOCK -> "Dock"
                         else -> "Charger"
                     }
-                    chargingRateStr = if (watts >= 15f) {
-                        "Rapid ($pluggedType) · ${String.format(java.util.Locale.US, "%.1f", watts)}W (${currentMa.toInt()}mA)"
-                    } else if (watts > 0f) {
+                    chargingRateStr = if (watts > 0.05f) {
                         "Charging ($pluggedType) · ${String.format(java.util.Locale.US, "%.1f", watts)}W (${currentMa.toInt()}mA)"
                     } else {
                         "Charging ($pluggedType)"
@@ -1082,33 +1558,35 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             timeEstimateStr = if (hours > 0) "${hours}h ${mins}m until full" else "${mins}m until full"
                         } else {
                             val remainingMah = ((100 - batteryLevel) / 100f * totalCapacityMah).coerceAtLeast(0f)
-                            val effectiveCurrent = currentMa.coerceAtLeast(350f)
-                            val estHours = if (batteryLevel < 80) {
-                                val ccMah = ((80 - batteryLevel) / 100f * totalCapacityMah).coerceAtLeast(0f)
-                                val cvMah = (20f / 100f * totalCapacityMah)
-                                (ccMah / effectiveCurrent) + (cvMah / (effectiveCurrent * 0.45f))
+                            if (currentMa > 50f) {
+                                val estHours = remainingMah / currentMa
+                                val totalMinutes = (estHours * 60f).toInt().coerceIn(1, 1440)
+                                val hours = totalMinutes / 60
+                                val mins = totalMinutes % 60
+                                timeEstimateStr = if (hours > 0) "${hours}h ${mins}m until full" else "${mins}m until full"
                             } else {
-                                remainingMah / (effectiveCurrent * 0.50f)
+                                timeEstimateStr = "Charging..."
                             }
-                            val totalMinutes = (estHours * 60f).toInt().coerceIn(1, 480)
-                            val hours = totalMinutes / 60
-                            val mins = totalMinutes % 60
-                            timeEstimateStr = if (hours > 0) "${hours}h ${mins}m until full" else "${mins}m until full"
                         }
                     }
                 } else {
-                    chargingRateStr = if (watts > 0f && currentMa > 10f) {
+                    chargingRateStr = if (watts > 0.05f) {
                         "Discharge · ${String.format(java.util.Locale.US, "%.1f", watts)}W (${currentMa.toInt()}mA)"
                     } else {
                         "Discharging"
                     }
 
-                    val effectiveDrainMa = if (currentMa in 60f..3500f) currentMa else 360f
-                    val estHours = (currentChargeMah / effectiveDrainMa).coerceIn(0.5f, 72f)
-                    val totalMinutes = (estHours * 60f).toInt()
-                    val hours = totalMinutes / 60
-                    val mins = totalMinutes % 60
-                    timeEstimateStr = if (hours > 0) "${hours}h ${mins}m until depleted" else "${mins}m until depleted"
+                    if (currentMa > 50f) {
+                        val estHours = (currentChargeMah / currentMa).coerceIn(0.5f, 96f)
+                        val totalMinutes = (estHours * 60f).toInt()
+                        val hours = totalMinutes / 60
+                        val mins = totalMinutes % 60
+                        timeEstimateStr = if (hours > 0) "${hours}h ${mins}m until depleted" else "${mins}m until depleted"
+                    } else {
+                        val estHours = (batteryLevel / 100f * 24f).coerceAtLeast(1f)
+                        val hours = estHours.toInt()
+                        timeEstimateStr = "~${hours}h until depleted"
+                    }
                 }
             } catch (_: Exception) {}
 
@@ -1119,17 +1597,53 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     var totalBytes = memInfo.totalMem
                     var availBytes = memInfo.availMem
 
+                    var procTotalKb = -1L
+                    var procAvailKb = -1L
+                    var procBuffersKb = 0L
+                    var procCachedKb = 0L
+                    var procSwapTotalKb = 0L
+                    var procSwapFreeKb = 0L
+                    var procAnonPagesKb = 0L
+                    var procSlabKb = 0L
+                    var procKernelStackKb = 0L
+                    var procPageTablesKb = 0L
+
                     try {
                         val reader = java.io.BufferedReader(java.io.FileReader("/proc/meminfo"))
                         var line: String?
-                        var procTotalKb = -1L
-                        var procAvailKb = -1L
                         while (reader.readLine().also { line = it } != null) {
                             val l = line ?: break
-                            if (l.startsWith("MemTotal:")) {
-                                procTotalKb = l.substringAfter("MemTotal:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: -1L
-                            } else if (l.startsWith("MemAvailable:")) {
-                                procAvailKb = l.substringAfter("MemAvailable:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: -1L
+                            when {
+                                l.startsWith("MemTotal:") -> {
+                                    procTotalKb = l.substringAfter("MemTotal:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: -1L
+                                }
+                                l.startsWith("MemAvailable:") -> {
+                                    procAvailKb = l.substringAfter("MemAvailable:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: -1L
+                                }
+                                l.startsWith("Buffers:") -> {
+                                    procBuffersKb = l.substringAfter("Buffers:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
+                                l.startsWith("Cached:") -> {
+                                    procCachedKb = l.substringAfter("Cached:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
+                                l.startsWith("SwapTotal:") -> {
+                                    procSwapTotalKb = l.substringAfter("SwapTotal:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
+                                l.startsWith("SwapFree:") -> {
+                                    procSwapFreeKb = l.substringAfter("SwapFree:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
+                                l.startsWith("AnonPages:") -> {
+                                    procAnonPagesKb = l.substringAfter("AnonPages:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
+                                l.startsWith("Slab:") -> {
+                                    procSlabKb = l.substringAfter("Slab:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
+                                l.startsWith("KernelStack:") -> {
+                                    procKernelStackKb = l.substringAfter("KernelStack:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
+                                l.startsWith("PageTables:") -> {
+                                    procPageTablesKb = l.substringAfter("PageTables:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                }
                             }
                         }
                         reader.close()
@@ -1141,162 +1655,74 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     val calculatedPct = if (totalBytes > 0) ((usedBytes.toDouble() / totalBytes) * 100).toInt().coerceIn(0, 100) else 0
 
                     val totGb = totalBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
+                    val physGb = when {
+                        totGb <= 4.5 -> 4
+                        totGb <= 6.5 -> 6
+                        totGb <= 8.5 -> 8
+                        totGb <= 12.8 -> 12
+                        totGb <= 16.8 -> 16
+                        else -> 24
+                    }
                     val usdGb = usedBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
                     val avlGb = availBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
 
-                    val pm = context.packageManager
-                    val now = System.currentTimeMillis()
+                    val swapUsedKb = (procSwapTotalKb - procSwapFreeKb).coerceAtLeast(0L)
+                    val zRamUsedGb = swapUsedKb.toDouble() / (1024.0 * 1024.0)
+                    val zRamTotGb = procSwapTotalKb.toDouble() / (1024.0 * 1024.0)
+                    val cacheGb = (procBuffersKb + procCachedKb).toDouble() / (1024.0 * 1024.0)
 
-                    // 1. Live measurement of Intelligent Search's actual kernel PSS and JVM memory
-                    var myRamMb = 0f
-                    try {
-                        val myPid = android.os.Process.myPid()
-                        val myMem = actMgr?.getProcessMemoryInfo(intArrayOf(myPid))?.firstOrNull()
-                        val pss = (myMem?.totalPss ?: 0) / 1024f
-                        val rt = Runtime.getRuntime()
-                        val jvmMb = (rt.totalMemory() - rt.freeMemory()) / (1024f * 1024f)
-                        myRamMb = maxOf(pss, jvmMb, 220f)
-                    } catch (_: Exception) {
-                        myRamMb = 280f
+                    val isLow = memInfo.lowMemory
+                    val threshMb = (memInfo.threshold / (1024L * 1024L)).toInt()
+
+                    val freePct = if (totalBytes > 0) ((availBytes.toDouble() / totalBytes) * 100).toInt() else 30
+                    val pressure = when {
+                        isLow || freePct < 15 -> "Critical"
+                        freePct < 25 -> "High Load"
+                        freePct < 40 -> "Moderate"
+                        else -> "Optimal"
                     }
 
-                    // 2. Discover user-opened foreground & background apps in real time (up to the second)
-                    val activeApps = mutableMapOf<String, Long>()
-                    val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? android.app.usage.UsageStatsManager
+                    val rt = Runtime.getRuntime()
+                    val myHeapMb = ((rt.totalMemory() - rt.freeMemory()) + android.os.Debug.getNativeHeapAllocatedSize()) / (1024f * 1024f)
 
-                    // Query real-time activity events over the last 10 minutes to capture actually open apps
-                    try {
-                        val events = usm?.queryEvents(now - 1000L * 60 * 10, now)
-                        if (events != null) {
-                            val evt = android.app.usage.UsageEvents.Event()
-                            while (events.hasNextEvent()) {
-                                events.getNextEvent(evt)
-                                val pkg = evt.packageName ?: continue
-                                if (pkg == "android" || pkg == context.packageName ||
-                                    pkg == "com.google.android.gms" || pkg == "com.android.systemui"
-                                ) continue
+                    val activeAppsMb = (procAnonPagesKb / 1024f).coerceAtLeast(0f)
+                    val sysCacheMb = (procCachedKb + procBuffersKb) / 1024f
+                    val kernelMb = (procSlabKb + procKernelStackKb + procPageTablesKb) / 1024f
 
-                                // Only evaluate launchable user-facing apps (apps that user can open from launcher)
-                                val isLaunchable = try {
-                                    pm.getLaunchIntentForPackage(pkg) != null
-                                } catch (_: Exception) { false }
-                                if (!isLaunchable) continue
+                    val topProcessesList = listOf(
+                        ProcessRamEntry(name = "Active Apps", ramMb = activeAppsMb),
+                        ProcessRamEntry(name = "System Cache", ramMb = sysCacheMb),
+                        ProcessRamEntry(name = "Kernel & OS", ramMb = kernelMb),
+                        ProcessRamEntry(name = "App Footprint", ramMb = myHeapMb)
+                    )
 
-                                when (evt.eventType) {
-                                    android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED,
-                                    android.app.usage.UsageEvents.Event.USER_INTERACTION -> {
-                                        activeApps[pkg] = evt.timeStamp
-                                    }
-                                    android.app.usage.UsageEvents.Event.ACTIVITY_PAUSED -> {
-                                        if (activeApps.containsKey(pkg)) {
-                                            activeApps[pkg] = maxOf(activeApps[pkg] ?: 0L, evt.timeStamp)
-                                        }
-                                    }
-                                    24 /* ACTIVITY_DESTROYED */ -> {
-                                        // App was closed or swiped away from Recents - immediately remove
-                                        activeApps.remove(pkg)
-                                    }
-                                    android.app.usage.UsageEvents.Event.ACTIVITY_STOPPED -> {
-                                        if (activeApps.containsKey(pkg)) {
-                                            activeApps[pkg] = maxOf(activeApps[pkg] ?: 0L, evt.timeStamp)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } catch (_: Exception) {}
-
-                    // Filter out apps that haven't had active interaction in the last 8 minutes
-                    val trulyOpenApps = activeApps.filter { (_, lastActive) ->
-                        (now - lastActive) <= 1000L * 60 * 8
-                    }
-
-                    // Sort candidate background apps strictly by recency of use
-                    val sortedBackgroundPkgs = trulyOpenApps.entries
-                        .sortedByDescending { it.value }
-                        .map { it.key }
-
-                    // Build package list: current active app + actually open background apps
-                    val topPkgs = mutableListOf<String>()
-                    topPkgs.add(context.packageName)
-                    for (pkg in sortedBackgroundPkgs) {
-                        if (!topPkgs.contains(pkg)) {
-                            topPkgs.add(pkg)
-                        }
-                        if (topPkgs.size >= 4) break
-                    }
-
-                    val sysLoad = if (totalBytes > 0) (usedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0.4f, 0.95f) else 0.7f
-
-                    val processEntries = topPkgs.map { pkg ->
-                        val friendlyName = if (pkg == context.packageName) {
-                            "Intelligent Search"
-                        } else {
-                            try {
-                                val appInfo = pm.getApplicationInfo(pkg, 0)
-                                val label = pm.getApplicationLabel(appInfo).toString()
-                                if (label.isNotBlank()) label else pkg.substringAfterLast('.')
-                            } catch (_: Exception) {
-                                pkg.substringAfterLast('.').replaceFirstChar {
-                                    if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString()
-                                }
-                            }
-                        }
-
-                        val ramMb = if (pkg == context.packageName) {
-                            myRamMb
-                        } else {
-                            val isLargeHeap = try {
-                                val ai = pm.getApplicationInfo(pkg, 0)
-                                (ai.flags and android.content.pm.ApplicationInfo.FLAG_LARGE_HEAP) != 0
-                            } catch (_: Exception) { false }
-
-                            val base = when {
-                                pkg.contains("twitter", ignoreCase = true) || pkg.contains("x.android", ignoreCase = true) -> 530f
-                                pkg.contains("chrome", ignoreCase = true) || pkg.contains("browser", ignoreCase = true) -> 560f
-                                pkg.contains("youtube", ignoreCase = true) -> 490f
-                                pkg.contains("instagram", ignoreCase = true) || pkg.contains("katana", ignoreCase = true) -> 480f
-                                pkg.contains("camera", ignoreCase = true) || pkg.contains("photos", ignoreCase = true) -> 460f
-                                pkg.contains("bard", ignoreCase = true) || pkg.contains("gemini", ignoreCase = true) -> 450f
-                                pkg.contains("nexuslauncher", ignoreCase = true) -> 340f
-                                pkg.contains("settings", ignoreCase = true) -> 210f
-                                pkg.contains("gm", ignoreCase = true) -> 240f
-                                isLargeHeap -> 410f
-                                else -> 280f
-                            }
-
-                            val lastUsedTime = trulyOpenApps[pkg] ?: (now - 1000L * 60 * 30)
-                            val ageMin = ((now - lastUsedTime) / (1000f * 60f)).coerceAtLeast(0f)
-                            val recencyScale = when {
-                                ageMin < 3f -> 1.08f
-                                ageMin < 15f -> 1.00f
-                                ageMin < 45f -> 0.90f
-                                else -> 0.82f
-                            }
-
-                            val hashSeed = (pkg.hashCode() and 0x7FFFFFFF) % 50
-                            val timeSec = now / 1000.0
-                            val dynamicJitter = (kotlin.math.sin(timeSec * 0.9 + hashSeed) * 6f + kotlin.math.cos(timeSec * 1.4 + hashSeed) * 3f).toFloat()
-
-                            ((base * recencyScale * (0.85f + 0.25f * sysLoad)) + dynamicJitter).coerceIn(60f, 1200f)
-                        }
-
-                        ProcessRamEntry(name = friendlyName, ramMb = ramMb)
-                    }
-
-                    val topProcessesList = processEntries
-                        .groupBy { it.name }
-                        .map { (name, list) -> ProcessRamEntry(name = name, ramMb = list.maxOf { it.ramMb }) }
-                        .sortedByDescending { it.ramMb }
-                        .take(4)
-
-                    MemorySnapshot(totGb, usdGb, avlGb, calculatedPct, topProcessesList)
+                    MemorySnapshot(
+                        totalGb = totGb,
+                        usedGb = usdGb,
+                        availGb = avlGb,
+                        pct = calculatedPct,
+                        zRamUsedGb = zRamUsedGb,
+                        zRamTotalGb = zRamTotGb,
+                        cachedGb = cacheGb,
+                        isLowMem = isLow,
+                        thresholdMb = threshMb,
+                        memPressure = pressure,
+                        processes = topProcessesList,
+                        physicalGb = physGb
+                    )
                 }
 
                 totalRamGb = String.format(java.util.Locale.US, "%.1f", snapshot.totalGb)
                 usedRamGb = String.format(java.util.Locale.US, "%.1f", snapshot.usedGb)
                 usedRamPercent = snapshot.pct
                 availableRamGb = String.format(java.util.Locale.US, "%.1f", snapshot.availGb)
+                physicalRamGb = snapshot.physicalGb
+                zRamUsedGb = String.format(java.util.Locale.US, "%.1f", snapshot.zRamUsedGb)
+                zRamTotalGb = String.format(java.util.Locale.US, "%.1f", snapshot.zRamTotalGb)
+                cachedRamGb = String.format(java.util.Locale.US, "%.1f", snapshot.cachedGb)
+                isLowMemory = snapshot.isLowMem
+                memoryPressure = snapshot.memPressure
+                lmkThresholdMb = snapshot.thresholdMb
                 topProcesses = snapshot.processes
             } catch (_: Exception) {}
 
@@ -1322,20 +1748,22 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // --- TOP CARD: Battery Health ---
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(176.dp),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceContainerLow,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1359,30 +1787,52 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = batteryHealth,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
+                        if (batteryHealthPct > 0) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                            ) {
+                                Text(
+                                    text = "$batteryHealthPct% Health",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = batteryHealth,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
                     }
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(86.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val primaryColor = MaterialTheme.colorScheme.primary
                     val tertiaryColor = MaterialTheme.colorScheme.tertiary
                     Box(
                         modifier = Modifier
-                            .size(width = 68.dp, height = 54.dp)
+                            .weight(1.2f)
+                            .fillMaxHeight()
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                         contentAlignment = Alignment.Center
@@ -1414,36 +1864,157 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         }
                         Text(
                             text = "$batteryLevel%",
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
                     Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                        modifier = Modifier
+                            .weight(1.1f)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.SpaceEvenly
                     ) {
                         Text(
                             text = chargingRateStr,
                             style = MaterialTheme.typography.bodySmall,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Text(
                             text = timeEstimateStr,
                             style = MaterialTheme.typography.bodySmall,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${String.format(java.util.Locale.US, "%.1f", batteryTemp)} °C  •  ${String.format(java.util.Locale.US, "%.2f", batteryVolt)} V",
+                            text = "${String.format(java.util.Locale.US, "%.1f", batteryTemp)} °C / ${String.format(java.util.Locale.US, "%.0f", batteryTemp * 1.8f + 32f)} °F ($thermalStatus)  •  ${String.format(java.util.Locale.US, "%.2f", batteryVolt)} V",
                             style = MaterialTheme.typography.labelSmall,
+                            fontSize = 9.5.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
+                    }
+                }
+
+                // Diagnostic Metric Chips for Battery
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val chipBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+
+                    // Cycle count chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Cycles",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = if (batteryCycles >= 0) "$batteryCycles" else "N/A",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // Live Power chip (Watts)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Power",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${String.format(java.util.Locale.US, "%.1f", batteryWatts)}W",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // Thermal chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Thermals",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = thermalStatus,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = when (thermalStatus) {
+                                    "Overheat", "Emergency", "Critical", "Hot" -> MaterialTheme.colorScheme.error
+                                    "Warm" -> MaterialTheme.colorScheme.tertiary
+                                    else -> MaterialTheme.colorScheme.primary
+                                }
+                            )
+                        }
+                    }
+
+                    // Chemistry chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Type",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = batteryTechnology,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }
@@ -1451,16 +2022,18 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
 
         // --- BOTTOM CARD: System RAM Usage (Live Graph on Left, RAM Usage Breakdown on Right) ---
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(176.dp),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceContainerLow,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1484,12 +2057,35 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             color = MaterialTheme.colorScheme.secondary
                         )
                     }
-                    Text(
-                        text = "${usedRamGb}G / ${totalRamGb}G (${usedRamPercent}%)",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val pressureColor = when (memoryPressure) {
+                            "Critical" -> MaterialTheme.colorScheme.error
+                            "High Load" -> MaterialTheme.colorScheme.errorContainer
+                            "Moderate" -> MaterialTheme.colorScheme.tertiary
+                            else -> MaterialTheme.colorScheme.secondary
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = pressureColor.copy(alpha = 0.2f)
+                        ) {
+                            Text(
+                                text = memoryPressure,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = pressureColor,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Text(
+                            text = "${usedRamGb}G / ${totalRamGb}G (${physicalRamGb}G LPDDR5X)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
                 }
 
                 val materialAppColors = listOf(
@@ -1502,7 +2098,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(136.dp),
+                        .height(86.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1524,10 +2120,18 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                         contentAlignment = Alignment.Center
                     ) {
+                        val gridDashEffect = remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4f, 4f)) }
+                        val stemDashEffect = remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3f, 3f)) }
+                        val gradientBrush = remember(primaryColor) {
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                listOf(primaryColor.copy(alpha = 0.32f), primaryColor.copy(alpha = 0.04f), Color.Transparent)
+                            )
+                        }
+
                         androidx.compose.foundation.Canvas(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(start = 24.dp, end = 10.dp, top = 14.dp, bottom = 18.dp)
+                                .padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 14.dp)
                         ) {
                             val w = size.width
                             val h = size.height
@@ -1541,7 +2145,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                     start = androidx.compose.ui.geometry.Offset(0f, gy),
                                     end = androidx.compose.ui.geometry.Offset(w, gy),
                                     strokeWidth = 0.8.dp.toPx(),
-                                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4f, 4f))
+                                    pathEffect = gridDashEffect
                                 )
                             }
 
@@ -1617,9 +2221,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 // Soft Material You primary vertical gradient fill
                                 drawPath(
                                     path = fillPath,
-                                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                        listOf(primaryColor.copy(alpha = 0.32f), primaryColor.copy(alpha = 0.04f), Color.Transparent)
-                                    )
+                                    brush = gradientBrush
                                 )
 
                                 // Crisp spline outline
@@ -1643,7 +2245,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                         start = pt,
                                         end = androidx.compose.ui.geometry.Offset(pt.x, h),
                                         strokeWidth = 1.dp.toPx(),
-                                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3f, 3f))
+                                        pathEffect = stemDashEffect
                                     )
 
                                     // Pulsing halo aura
@@ -1672,7 +2274,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
                                 text = "${ceilingMb}M",
@@ -1688,7 +2290,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
                                 modifier = Modifier
                                     .align(Alignment.BottomStart)
-                                    .padding(bottom = 12.dp)
+                                    .padding(bottom = 10.dp)
                             )
                             Text(
                                 text = "Top Apps by RAM",
@@ -1697,7 +2299,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
-                                    .padding(bottom = 2.dp)
+                                    .padding(bottom = 1.dp)
                             )
                         }
                     }
@@ -1707,11 +2309,12 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight(),
-                        verticalArrangement = Arrangement.SpaceEvenly
+                        verticalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "Apps using RAM",
+                            text = "Memory Breakdown",
                             style = MaterialTheme.typography.labelSmall,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.secondary
                         )
@@ -1720,6 +2323,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             Text(
                                 text = "Analyzing processes...",
                                 style = MaterialTheme.typography.bodySmall,
+                                fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
@@ -1727,18 +2331,19 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 val appColor = materialAppColors[i % materialAppColors.size]
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(7.dp)
+                                            .size(6.dp)
                                             .clip(androidx.compose.foundation.shape.CircleShape)
                                             .background(appColor)
                                     )
                                     Text(
                                         text = entry.name,
                                         style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         modifier = Modifier.weight(1f),
@@ -1751,6 +2356,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                             "${entry.ramMb.toInt()} MB"
                                         },
                                         style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -1760,18 +2366,19 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(7.dp)
+                                    .size(6.dp)
                                     .clip(androidx.compose.foundation.shape.CircleShape)
                                     .background(MaterialTheme.colorScheme.outlineVariant)
                             )
                             Text(
                                 text = "Free RAM",
                                 style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 modifier = Modifier.weight(1f)
@@ -1779,8 +2386,118 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             Text(
                                 text = "${availableRamGb} GB",
                                 style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
+                }
+
+                // Diagnostic Metric Chips for RAM Breakdown
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val chipBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+
+                    // zRAM Swap Chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "zRAM Swap",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${zRamUsedGb}G / ${zRamTotalGb}G",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // Cache & Buffers Chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Cache/Buffers",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${cachedRamGb}G",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // Available RAM Chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Available",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${availableRamGb}G",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // LMK Kill Floor Chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = chipBg,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "LMK Kill Floor",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${lmkThresholdMb}MB",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -1788,6 +2505,116 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
             }
         }
     }
+}
+
+@Composable
+fun BugdroidPlayer(
+    player: androidx.media3.exoplayer.ExoPlayer?,
+    modifier: Modifier = Modifier,
+    scaleFactor: Float = 1.0f,
+    videoAspect: Float = 16f / 9f
+) {
+    val shaderSrc = """
+        uniform shader content;
+        half4 main(float2 coords) {
+            half4 color = content.eval(coords);
+            // Perceptually weighted Rec. 709 luminance (Green dominance: 0.7152)
+            float luma = dot(color.rgb, half3(0.2126, 0.7152, 0.0722));
+            // Smooth cubic Hermite keying with edge antialiasing
+            float alpha = smoothstep(0.14, 0.28, luma);
+            // Premultiplied alpha output preventing dark fringe halos
+            return half4(color.rgb * alpha, alpha);
+        }
+    """.trimIndent()
+
+    val cachedVideoRenderEffect = remember(shaderSrc) {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            val shader = android.graphics.RuntimeShader(shaderSrc)
+            val frameworkEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content")
+            frameworkEffect.asComposeRenderEffect()
+        } else null
+    }
+
+    androidx.compose.ui.viewinterop.AndroidView(
+        factory = { ctx ->
+            android.view.TextureView(ctx).apply {
+                isOpaque = false
+                val adjustAspectRatio: (android.view.TextureView) -> Unit = { tv ->
+                    val vw = tv.width
+                    val vh = tv.height
+                    if (vw > 0 && vh > 0) {
+                        val matrix = android.graphics.Matrix()
+                        val viewAspect = vw.toFloat() / vh.toFloat()
+                        var scaleX = 1f
+                        var scaleY = 1f
+                        if (viewAspect > videoAspect) {
+                            scaleY = (vw.toFloat() / videoAspect) / vh.toFloat()
+                        } else {
+                            scaleX = (vh.toFloat() * videoAspect) / vw.toFloat()
+                        }
+                        scaleX *= scaleFactor
+                        scaleY *= scaleFactor
+                        matrix.setScale(scaleX, scaleY, vw / 2f, vh / 2f)
+                        tv.setTransform(matrix)
+                    }
+                }
+
+                var currentSurface: android.view.Surface? = null
+
+                surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
+                    override fun onSurfaceTextureAvailable(
+                        surfaceTexture: android.graphics.SurfaceTexture,
+                        width: Int,
+                        height: Int
+                    ) {
+                        val surface = android.view.Surface(surfaceTexture)
+                        currentSurface = surface
+                        player?.setVideoSurface(surface)
+                        adjustAspectRatio(this@apply)
+                    }
+
+                    override fun onSurfaceTextureSizeChanged(
+                        surfaceTexture: android.graphics.SurfaceTexture,
+                        width: Int,
+                        height: Int
+                    ) {
+                        adjustAspectRatio(this@apply)
+                    }
+
+                    override fun onSurfaceTextureDestroyed(
+                        surfaceTexture: android.graphics.SurfaceTexture
+                    ): Boolean {
+                        currentSurface?.let {
+                            player?.clearVideoSurface(it)
+                            it.release()
+                        }
+                        currentSurface = null
+                        return true
+                    }
+
+                    override fun onSurfaceTextureUpdated(
+                        surfaceTexture: android.graphics.SurfaceTexture
+                    ) {}
+                }
+
+                if (isAvailable && surfaceTexture != null) {
+                    val surface = android.view.Surface(surfaceTexture)
+                    currentSurface = surface
+                    player?.setVideoSurface(surface)
+                    adjustAspectRatio(this@apply)
+                }
+            }
+        },
+        update = { tv ->
+            if (tv.isAvailable && tv.surfaceTexture != null) {
+                val surface = android.view.Surface(tv.surfaceTexture)
+                player?.setVideoSurface(surface)
+            }
+        },
+        modifier = modifier.graphicsLayer {
+            renderEffect = cachedVideoRenderEffect
+        }
+    )
 }
 
 // -----------------------------------------------------------------------------------------
@@ -1804,6 +2631,24 @@ fun MainSettingsScreen(
     showTutorial: Boolean = false
 ) {
     var showInfoDialog by remember { mutableStateOf(false) }
+
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, exoPlayer) {
+        val player = exoPlayer
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                player?.play()
+            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                player?.pause()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        player?.play()
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            player?.pause()
+        }
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -1831,12 +2676,20 @@ fun MainSettingsScreen(
             val coroutineScope = rememberCoroutineScope()
             val secureRepo = remember { com.pixel.intelligentsearch.core.security.SecureSettingsRepository(context) }
             val attestationVerifier = remember { com.pixel.intelligentsearch.core.security.KeyAttestationVerifier(context) }
-            val attestationResult = remember { attestationVerifier.generateAndVerifyAttestation() }
-            val hardwareLevel = remember { secureRepo.getHardwareSecurityLevel() }
-            
+            val hardwareLevel by androidx.compose.runtime.produceState(initialValue = com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX) {
+                value = withContext(Dispatchers.IO) {
+                    secureRepo.getHardwareSecurityLevel()
+                }
+            }
             val hardwareInfo = remember(hardwareLevel) {
                 com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detectSecurityHardware(context, hardwareLevel)
             }
+            val attestationResult by androidx.compose.runtime.produceState<com.pixel.intelligentsearch.core.security.AttestationResult?>(initialValue = null) {
+                value = withContext(Dispatchers.IO) {
+                    attestationVerifier.generateAndVerifyAttestation()
+                }
+            }
+            val view = androidx.compose.ui.platform.LocalView.current
 
             AlertDialog(
                 onDismissRequest = { showInfoDialog = false },
@@ -1874,7 +2727,7 @@ fun MainSettingsScreen(
                         state = pagerState,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(320.dp)
+                            .height(368.dp)
                     ) { page ->
                         when (page) {
                             0 -> {
@@ -1885,13 +2738,12 @@ fun MainSettingsScreen(
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Text(
-                                        "Check Android Default Apps. Change Search Engine App to: Intelligent Search",
+                                        "After QPR2, users are able to change the Default Search Engine App. Please check system settings to select Intelligent Search as your default search engine, which natively activates Intelligent Search as the home search widget.",
                                         style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        "If you are a Google Pixel user who uses stock Pixel Launcher and would like to set Intelligent Search as your default Pixel Launcher search bar widget, use the following ADB Command:",
+                                        "If you're running an older version of Android, you can still configure it manually via ADB:",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
@@ -1909,7 +2761,7 @@ fun MainSettingsScreen(
                                         )
                                     }
                                     Text(
-                                        "*Please be advised: Using adb shell settings put secure selected_search_engine com.pixel.intelligentsearch on Pixel Launcher will cause Sports and Finance options on Google At A Glance to not function.",
+                                        "*Please be advised: configuring the default search engine on Android 17 QPR2 and newer will not affect At a Glance sports and finance integrations; however, configuring via ADB command will still bypass these integrations.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -1984,13 +2836,17 @@ fun MainSettingsScreen(
                                             )
                                             Spacer(modifier = Modifier.height(4.dp))
                                             Text(
-                                                text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): " + if (attestationResult.isHardwareAttested) "Verified ✓" else "Attested",
+                                                text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): " + when {
+                                                    attestationResult == null -> "Verifying..."
+                                                    attestationResult?.isHardwareAttested == true -> "Verified ✓"
+                                                    else -> "Attested"
+                                                },
                                                 style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (attestationResult.isHardwareAttested) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                                color = if (attestationResult?.isHardwareAttested == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
-                                                text = "Certificate Chain Depth: ${attestationResult.certificateCount} certificates",
+                                                text = "Certificate Chain Depth: ${attestationResult?.certificateCount ?: "..."} certificates",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -2007,13 +2863,43 @@ fun MainSettingsScreen(
                 confirmButton = {
                     when (pagerState.currentPage) {
                         0 -> {
-                            TextButton(onClick = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                val clip = android.content.ClipData.newPlainText("ADB Command", "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch")
-                                clipboard?.setPrimaryClip(clip)
-                                Toast.makeText(context, "ADB command copied to clipboard", Toast.LENGTH_SHORT).show()
-                            }) {
-                                Text("Copy Command")
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(onClick = {
+                                    coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                }) {
+                                    Text("Security Info")
+                                }
+                                TextButton(onClick = {
+                                    try {
+                                        val intent = Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {
+                                        try {
+                                            val intent = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                            context.startActivity(intent)
+                                        } catch (_: Exception) {
+                                            Toast.makeText(context, "Unable to open Settings", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }) {
+                                    Text("Default Apps")
+                                }
+                                TextButton(onClick = {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                    val clip = android.content.ClipData.newPlainText("ADB Command", "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch")
+                                    clipboard?.setPrimaryClip(clip)
+                                    com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click(view)
+                                    Toast.makeText(context, "ADB command copied to clipboard", Toast.LENGTH_SHORT).show()
+                                }) {
+                                    Text("Copy Command")
+                                }
                             }
                         }
                         1 -> {
@@ -2024,29 +2910,34 @@ fun MainSettingsScreen(
                             }
                         }
                         else -> {
-                            TextButton(onClick = { showInfoDialog = false }) {
-                                Text("Close")
+                            TextButton(onClick = {
+                                coroutineScope.launch { pagerState.animateScrollToPage(0) }
+                            }) {
+                                Text("Developer Note")
                             }
                         }
                     }
                 },
-                dismissButton = {
-                    when (pagerState.currentPage) {
-                        0 -> {
+                dismissButton = when (pagerState.currentPage) {
+                    1 -> {
+                        {
+                            TextButton(onClick = {
+                                coroutineScope.launch { pagerState.animateScrollToPage(0) }
+                            }) {
+                                Text("Developer Note")
+                            }
+                        }
+                    }
+                    2 -> {
+                        {
                             TextButton(onClick = {
                                 coroutineScope.launch { pagerState.animateScrollToPage(1) }
                             }) {
                                 Text("Security Info")
                             }
                         }
-                        else -> {
-                            TextButton(onClick = {
-                                coroutineScope.launch { pagerState.animateScrollToPage(0) }
-                            }) {
-                                Text("Back to Note")
-                            }
-                        }
                     }
+                    else -> null
                 }
             )
         }
@@ -2142,10 +3033,12 @@ fun MainSettingsScreen(
                 )
                 val isDebugUnlocked by rememberBooleanPreference(prefs, "debug_unlocked", false)
                 val searchEngine = prefs.getString("search.engine", "Google") ?: "Google"
+                var showTorBrowserSettingsDialog by remember { mutableStateOf(false) }
                 val browserHistorySubtitle = when (searchEngine) {
                     "Google" -> "View Your Chrome and Google History."
                     "Bing" -> "View Your Bing History."
                     "DuckDuckGo" -> "Open Your DuckDuckGo App History."
+                    "Tor Project", "Tor Browser" -> "Open Tor Browser."
                     else -> "View Your $searchEngine History."
                 }
                 SettingsRow(
@@ -2176,6 +3069,19 @@ fun MainSettingsScreen(
                                     e.printStackTrace()
                                 }
                             }
+                            "Tor Project", "Tor Browser" -> {
+                                try {
+                                    val torIntent = context.packageManager.getLaunchIntentForPackage("org.torproject.torbrowser")
+                                        ?: context.packageManager.getLaunchIntentForPackage("org.torproject.torbrowser_alpha")
+                                    if (torIntent != null) {
+                                        context.startActivity(torIntent.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                                    } else {
+                                        showTorBrowserSettingsDialog = true
+                                    }
+                                } catch (e: Exception) {
+                                    showTorBrowserSettingsDialog = true
+                                }
+                            }
                             else -> {
                                 val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity?product=6")).apply {
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -2190,6 +3096,12 @@ fun MainSettingsScreen(
                     },
                     showDivider = true,
                 )
+
+                if (showTorBrowserSettingsDialog) {
+                    TorBrowserInstallDialog(
+                        onDismiss = { showTorBrowserSettingsDialog = false }
+                    )
+                }
                 SettingsRow(
                     title = "Encrypted Backup",
                     subtitle = "Import, Export, and Restore Backup App Data.",
@@ -2211,129 +3123,67 @@ fun MainSettingsScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
             
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                val context = androidx.compose.ui.platform.LocalContext.current
-                val shaderSrc = """
-                    uniform shader content;
-                    vec4 main(vec2 coords) {
-                        vec4 color = content.eval(coords);
-                        float maxVal = max(color.r, max(color.g, color.b));
-                        if (maxVal < 0.16) {
-                            return vec4(0.0, 0.0, 0.0, 0.0);
-                        }
-                        if (maxVal < 0.28) {
-                            float t = (maxVal - 0.16) / 0.12;
-                            return color * t;
-                        }
-                        return color;
+                val containerWidth = maxWidth
+                val density = LocalDensity.current
+                val fontScale = density.fontScale.coerceIn(0.85f, 1.5f)
+
+                val textTargetWidth = (222.dp * (if (fontScale > 1f) (fontScale * 0.9f) else 1f)).coerceIn(205.dp, 255.dp)
+                val remainingForPlayer = containerWidth - textTargetWidth - 12.dp
+                val playerWidth = remainingForPlayer.coerceIn(80.dp, 160.dp)
+                val playerHeight = playerWidth * (200f / 160f)
+
+                val baseScale = (containerWidth / 390.dp).coerceIn(0.82f, 1.0f) / fontScale.coerceAtLeast(1.0f)
+                val titleFontSize = (18.8f * baseScale).coerceIn(15.0f, 18.8f).sp
+                val titleLineHeight = (titleFontSize.value * 1.28f).sp
+                val subtextFontSize = (13.5f * baseScale).coerceIn(11.0f, 13.5f).sp
+                val subtextLineHeight = (subtextFontSize.value * 1.36f).sp
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BugdroidPlayer(
+                        player = exoPlayer,
+                        modifier = Modifier
+                            .width(playerWidth)
+                            .height(playerHeight),
+                        scaleFactor = 0.69f
+                    )
+                    
+                    Spacer(modifier = Modifier.width(12.dp))
+                    
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Thank you for using\nIntelligent\u00A0Search.",
+                            fontSize = titleFontSize,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            lineHeight = titleLineHeight,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            maxLines = 2
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                        Text(
+                            text = "If you need support please email me at:\nsupport.ngdesigns@gmail.com",
+                            fontSize = subtextFontSize,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = subtextLineHeight,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            maxLines = 2,
+                            modifier = Modifier.bouncyClickable {
+                                uriHandler.openUri("mailto:support.ngdesigns@gmail.com")
+                            }
+                        )
                     }
-                """.trimIndent()
-
-                val cachedVideoRenderEffect = remember(shaderSrc) {
-                    if (android.os.Build.VERSION.SDK_INT >= 33) {
-                        val shader = android.graphics.RuntimeShader(shaderSrc)
-                        val frameworkEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content")
-                        frameworkEffect.asComposeRenderEffect()
-                    } else null
-                }
-
-                androidx.compose.ui.viewinterop.AndroidView(
-                    factory = { ctx ->
-                        android.view.TextureView(ctx).apply {
-                            val adjustAspectRatio: (android.view.TextureView) -> Unit = { tv ->
-                                val vw = tv.width
-                                val vh = tv.height
-                                if (vw > 0 && vh > 0) {
-                                    val matrix = android.graphics.Matrix()
-                                    val videoAspect = 1280f / 720f
-                                    val viewAspect = vw.toFloat() / vh.toFloat()
-                                    var scaleX = 1f
-                                    var scaleY = 1f
-                                    if (viewAspect > videoAspect) {
-                                        scaleY = (vw.toFloat() / 1280f * 720f) / vh.toFloat()
-                                    } else {
-                                        scaleX = (vh.toFloat() / 720f * 1280f) / vw.toFloat()
-                                    }
-                                    
-                                    // Scale down / Zoom out (0.70f scale factor) to make the bugdroid wider and show the entire body and hands
-                                    scaleX *= 0.70f
-                                    scaleY *= 0.70f
-                                    
-                                    matrix.setScale(scaleX, scaleY, vw / 2f, vh / 2f)
-                                    tv.setTransform(matrix)
-                                }
-                            }
-
-                            var currentSurface: android.view.Surface? = null
-
-                            surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
-                                override fun onSurfaceTextureAvailable(
-                                    surfaceTexture: android.graphics.SurfaceTexture,
-                                    width: Int,
-                                    height: Int
-                                ) {
-                                    val surface = android.view.Surface(surfaceTexture)
-                                    currentSurface = surface
-                                    exoPlayer?.setVideoSurface(surface)
-                                    adjustAspectRatio(this@apply)
-                                }
-
-                                override fun onSurfaceTextureSizeChanged(
-                                    surfaceTexture: android.graphics.SurfaceTexture,
-                                    width: Int,
-                                    height: Int
-                                ) {
-                                    adjustAspectRatio(this@apply)
-                                }
-
-                                override fun onSurfaceTextureDestroyed(
-                                    surfaceTexture: android.graphics.SurfaceTexture
-                                ): Boolean {
-                                    currentSurface?.let {
-                                        exoPlayer?.clearVideoSurface(it)
-                                        it.release()
-                                    }
-                                    currentSurface = null
-                                    return true
-                                }
-
-                                override fun onSurfaceTextureUpdated(
-                                    surfaceTexture: android.graphics.SurfaceTexture
-                                ) {}
-                            }
-                        }
-                    },
-                    modifier = Modifier
-                        .height(220.dp)
-                        .width(200.dp) // Wider view container to fit the waving arms
-                        .graphicsLayer {
-                            renderEffect = cachedVideoRenderEffect
-                        }
-                )
-                
-                Spacer(modifier = Modifier.width(16.dp))
-                
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Thank you for using Intelligent Search.",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                    Text(
-                        text = "If you need support please email me at:\nsupport.nbdesigns@gmail.com",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 20.sp,
-                        modifier = Modifier.bouncyClickable {
-                            uriHandler.openUri("mailto:support.nbdesigns@gmail.com")
-                        }
-                    )
                 }
             }
             Spacer(modifier = Modifier.height(32.dp))
@@ -2376,17 +3226,31 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                 ) {
                     SettingsCard {
                         val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
-                        val defaultThemeValue = if (isSystemDark) "Material Dark" else "Material Light"
-                        var rawThemeMode by rememberStringPreference(prefs, "night.mode", defaultThemeValue)
-                        val themeMode = if (rawThemeMode == "System") "Material Dark" else rawThemeMode
+                        var rawThemeMode by rememberStringPreference(prefs, "night.mode", "System")
+                        val themeMode = when (rawThemeMode) {
+                            "System", "System App Theme", "System Default", "system" -> "System"
+                            "Material Dark", "Dark mode", "Dark" -> "Material Dark"
+                            "Material Light", "Light mode", "Light" -> "Material Light"
+                            else -> "System"
+                        }
 
                         SettingsDropdownRow(
                             title = "App Theme",
                             subtitle = themeMode,
                             icon = Icons.Outlined.BrightnessMedium,
-                            options = listOf("Material Dark", "Material Light"),
+                            options = listOf("System", "Material Dark", "Material Light"),
                             selectedOption = themeMode,
-                            onOptionSelected = { rawThemeMode = it },
+                            onOptionSelected = { 
+                                rawThemeMode = it
+                                val intent = android.content.Intent(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
+                                    action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                                    val ids = android.appwidget.AppWidgetManager.getInstance(context).getAppWidgetIds(
+                                        android.content.ComponentName(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java)
+                                    )
+                                    putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+                                }
+                                context.sendBroadcast(intent)
+                            },
                             showDivider = true
                         )
 
@@ -2409,6 +3273,19 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                             subtitle = activeIconPackLabel,
                             icon = Icons.Outlined.Palette,
                             onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.CustomIcons) },
+                            showDivider = true
+                        )
+
+                        var vibrationEnabled by rememberBooleanPreference(prefs, "vibration_enabled", true)
+                        SettingsRowToggle(
+                            title = "System Vibration",
+                            subtitle = "Enable Haptic Vibrations Across Intelligent Search",
+                            icon = Icons.Outlined.Vibration,
+                            isChecked = vibrationEnabled,
+                            onCheckedChange = { 
+                                vibrationEnabled = it 
+                                com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).isHapticEnabled = it
+                            },
                             showDivider = true
                         )
 
@@ -3057,7 +3934,7 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(24.dp))
-                    androidx.compose.material3.Button(onClick = triggerAuth) {
+                    Button(onClick = triggerAuth) {
                         Text("Unlock with Biometrics")
                     }
                 }
@@ -3286,6 +4163,65 @@ fun BingOfficialAppIcon(modifier: Modifier = Modifier) {
 }
 
 @Composable
+fun TorOfficialAppIcon(modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val torDrawable = remember(context) {
+        runCatching {
+            context.packageManager.getApplicationIcon("org.torproject.torbrowser")
+        }.getOrNull() ?: runCatching {
+            context.packageManager.getApplicationIcon("org.torproject.torbrowser_alpha")
+        }.getOrNull()
+    }
+    if (torDrawable != null) {
+        val bitmap = remember(torDrawable) {
+            runCatching { torDrawable.toBitmap(width = 96, height = 96).asImageBitmap() }.getOrNull()
+        }
+        if (bitmap != null) {
+            Image(bitmap = bitmap, contentDescription = "Tor Project", modifier = modifier.clip(RoundedCornerShape(6.dp)))
+            return
+        }
+    }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xFF7D4698)),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize().padding(3.dp)) {
+            val w = size.width
+            val h = size.height
+            val cx = w * 0.5f
+            val cy = h * 0.55f
+
+            val stemPath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(cx - w * 0.08f, cy - h * 0.35f)
+                cubicTo(cx - w * 0.04f, cy - h * 0.48f, cx + w * 0.04f, cy - h * 0.48f, cx + w * 0.08f, cy - h * 0.35f)
+                close()
+            }
+            drawPath(stemPath, Color(0xFFC594D8))
+
+            drawCircle(
+                color = Color.White.copy(alpha = 0.95f),
+                radius = w * 0.34f,
+                center = androidx.compose.ui.geometry.Offset(cx, cy),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = w * 0.07f)
+            )
+            drawCircle(
+                color = Color.White.copy(alpha = 0.85f),
+                radius = w * 0.22f,
+                center = androidx.compose.ui.geometry.Offset(cx, cy),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = w * 0.06f)
+            )
+            drawCircle(
+                color = Color.White,
+                radius = w * 0.10f,
+                center = androidx.compose.ui.geometry.Offset(cx, cy)
+            )
+        }
+    }
+}
+
+@Composable
 fun CustomSearchAppIcon(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
@@ -3320,6 +4256,9 @@ fun SearchAppColorfulIcon(
         }
         normalized.equals("Bing", ignoreCase = true) -> {
             BingOfficialAppIcon(modifier = modifier)
+        }
+        normalized.contains("Tor", ignoreCase = true) -> {
+            TorOfficialAppIcon(modifier = modifier)
         }
         normalized.equals("Custom", ignoreCase = true) || normalized.isBlank() -> {
             CustomSearchAppIcon(modifier = modifier)
@@ -3742,15 +4681,34 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var searchEngine by rememberStringPreference(prefs, "search.engine", "Google")
                 var customEngineName by rememberStringPreference(prefs, "custom_search_engine_name", "Custom")
                 val effectiveSearchEngineName = if (searchEngine == "Custom") customEngineName else searchEngine
+                var showTorDialog by remember { mutableStateOf(false) }
+
                 SettingsDropdownRow(
                     title = "Primary Search App",
                     subtitle = effectiveSearchEngineName,
                     icon = Icons.Outlined.Search,
-                    options = listOf("Google", "DuckDuckGo", "Bing", "Custom"),
+                    options = listOf("Google", "DuckDuckGo", "Bing", "Tor Project", "Custom"),
                     selectedOption = searchEngine,
-                    onOptionSelected = { searchEngine = it },
+                    onOptionSelected = { selected ->
+                        if (selected == "Tor Project") {
+                            val pm = context.packageManager
+                            val isTorInstalled = pm.getLaunchIntentForPackage("org.torproject.torbrowser") != null ||
+                                pm.getLaunchIntentForPackage("org.torproject.torbrowser_alpha") != null
+                            if (!isTorInstalled) {
+                                showTorDialog = true
+                                return@SettingsDropdownRow
+                            }
+                        }
+                        searchEngine = selected
+                    },
                     showDivider = searchEngine != "Custom"
                 )
+
+                if (showTorDialog) {
+                    TorBrowserInstallDialog(
+                        onDismiss = { showTorDialog = false }
+                    )
+                }
                 if (searchEngine == "Custom") {
                     var customUrl by rememberStringPreference(prefs, "custom_search_engine_url", "https://duckduckgo.com/?q=%s")
                     Row(
@@ -5030,19 +5988,6 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             smartClipboard = false
                         }
                     },
-                    showDivider = true
-                )
-
-                var vibrationEnabled by rememberBooleanPreference(prefs, "vibration_enabled", true)
-                SettingsRowToggle(
-                    title = "Vibration",
-                    subtitle = "Haptic Vibration Across the Entire App.",
-                    icon = Icons.Outlined.Vibration,
-                    isChecked = vibrationEnabled,
-                    onCheckedChange = { 
-                        vibrationEnabled = it 
-                        com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).isHapticEnabled = it
-                    },
                     showDivider = false
                 )
             }
@@ -5293,9 +6238,11 @@ fun SettingsRowToggle(
                         if (onClick != null) {
                             onClick()
                         } else {
-                            val next = !isChecked
-                            sensoryEngine.toggle(view, next)
-                            onCheckedChange(next)
+                            if (SettingsDebouncer.canClick()) {
+                                val next = !isChecked
+                                sensoryEngine.toggle(view, next)
+                                onCheckedChange(next)
+                            }
                         }
                     }
                 )
@@ -5339,12 +6286,12 @@ fun SettingsRowToggle(
             }
             Switch(
                 checked = isChecked,
-                onCheckedChange = if (onClick != null) {
-                    { next ->
+                onCheckedChange = { next ->
+                    if (SettingsDebouncer.canClick()) {
                         sensoryEngine.toggle(view, next)
                         onCheckedChange(next)
                     }
-                } else null,
+                },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = MaterialTheme.colorScheme.primary,
                     checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
@@ -5728,7 +6675,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
-                    androidx.compose.material3.TextButton(onClick = {
+                    TextButton(onClick = {
                         hapticEngine.performPredictiveBackHaptic(view)
                         if (isSystem) {
                             sysSubtheme = "System"
@@ -5804,7 +6751,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }) {
                         Text("Reset", color = MaterialTheme.colorScheme.onSurface)
                     }
-                    androidx.compose.material3.TextButton(onClick = {
+                    TextButton(onClick = {
                         hapticEngine.performPredictiveBackHaptic(view)
                         if (isSystem) {
                             val sysColorInt = android.graphics.Color.HSVToColor(
@@ -5872,13 +6819,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .padding(padding)
         ) {
             // Live Preview Card (Pinned at the top for real-time visual feedback)
-            Text(
-                text = if (isSystem) "Preview System search bar widget" else "Preview Material Design search bar widget",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp)
-            )
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -5919,8 +6859,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
 
                     val isCustomTheme = localSubtheme == "Custom"
-
-                    val waveColor = MaterialTheme.colorScheme.primary
+                    val waveColor = if (isCustomTheme) {
+                        accentColor
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
 
                     GeminiCornerSwipeWaveLayer(
                         colorPrimary = waveColor,
@@ -7100,7 +8043,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         )
                     },
                     confirmButton = {
-                        androidx.compose.material3.TextButton(onClick = {
+                        TextButton(onClick = {
                             try {
                                 val color = android.graphics.Color.parseColor(if (tempHexInput.startsWith("#")) tempHexInput else "#$tempHexInput")
                                 val hsv = FloatArray(3)
@@ -7114,7 +8057,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }) { Text("Save") }
                     },
                     dismissButton = {
-                        androidx.compose.material3.TextButton(onClick = { showHexInput = false }) { Text("Cancel") }
+                        TextButton(onClick = { showHexInput = false }) { Text("Cancel") }
                     }
                 )
             }
@@ -7131,7 +8074,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         )
                     },
                     confirmButton = {
-                        androidx.compose.material3.TextButton(onClick = {
+                        TextButton(onClick = {
                             prefs.edit()
                                 .putString("${showCustomUrlDialogFor}_custom_type", "url")
                                 .putString("${showCustomUrlDialogFor}_custom_value", customInputValue)
@@ -7146,7 +8089,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }) { Text("Save") }
                     },
                     dismissButton = {
-                        androidx.compose.material3.TextButton(onClick = { showCustomUrlDialogFor = null }) { Text("Cancel") }
+                        TextButton(onClick = { showCustomUrlDialogFor = null }) { Text("Cancel") }
                     }
                 )
             }
@@ -7163,7 +8106,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         )
                     },
                     confirmButton = {
-                        androidx.compose.material3.TextButton(onClick = {
+                        TextButton(onClick = {
                             prefs.edit()
                                 .putString("${showCustomAppDialogFor}_custom_type", "app")
                                 .putString("${showCustomAppDialogFor}_custom_value", customInputValue)
@@ -7178,7 +8121,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }) { Text("Save") }
                     },
                     dismissButton = {
-                        androidx.compose.material3.TextButton(onClick = { showCustomAppDialogFor = null }) { Text("Cancel") }
+                        TextButton(onClick = { showCustomAppDialogFor = null }) { Text("Cancel") }
                     }
                 )
             }
@@ -9016,6 +9959,12 @@ fun BackupRestoreScreen(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
         if (uri != null && activity != null) {
+            try {
+                activity.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Throwable) {}
             viewModel?.exportBackup(
                 
                 uri = uri,
@@ -9034,6 +9983,12 @@ fun BackupRestoreScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null && activity != null) {
+            try {
+                activity.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Throwable) {}
             val inspectResult = viewModel?.inspectBackupEnvelope(uri)
             if (inspectResult == null || inspectResult.isFailure) {
                 val errorMsg = inspectResult?.exceptionOrNull()?.localizedMessage
@@ -9212,7 +10167,7 @@ fun BackupRestoreScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
                 Text(
-                    "Optional passphrase for backup encryption. If left blank, backup restores automatically and portably across app updates and devices.",
+                    "Optional Passphrase for Backup Encryption. If Left Blank, Backup Restores Automatically and Portably Across App Updates and Devices.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
@@ -9425,104 +10380,104 @@ fun BackupRestoreScreen(
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                val shaderSrc = """
-                    uniform shader content;
-                    vec4 main(vec2 coords) {
-                        vec4 color = content.eval(coords);
-                        float maxVal = max(color.r, max(color.g, color.b));
-                        if (maxVal < 0.16) {
-                            return vec4(0.0, 0.0, 0.0, 0.0);
-                        }
-                        if (maxVal < 0.28) {
-                            float t = (maxVal - 0.16) / 0.12;
-                            return color * t;
-                        }
-                        return color;
-                    }
-                """.trimIndent()
+                val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+                val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "BugdroidFeetShadowTransition")
+                val pulseScale by infiniteTransition.animateFloat(
+                    initialValue = 0.94f,
+                    targetValue = 1.06f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                    ),
+                    label = "shadowPulseScale"
+                )
+                val pulseAlpha by infiniteTransition.animateFloat(
+                    initialValue = 0.85f,
+                    targetValue = 1.0f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                    ),
+                    label = "shadowPulseAlpha"
+                )
+                val swayOffset by infiniteTransition.animateFloat(
+                    initialValue = -1.5f,
+                    targetValue = 1.5f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(2800, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                    ),
+                    label = "shadowSwayOffset"
+                )
 
-                val cachedVideoRenderEffect = remember(shaderSrc) {
-                    if (android.os.Build.VERSION.SDK_INT >= 33) {
-                        val shader = android.graphics.RuntimeShader(shaderSrc)
-                        val frameworkEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content")
-                        frameworkEffect.asComposeRenderEffect()
-                    } else null
+                val contactShadowColor = if (isDark) {
+                    androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.70f * pulseAlpha)
+                } else {
+                    androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.38f * pulseAlpha)
+                }
+                val ambientShadowColor = if (isDark) {
+                    androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.32f * pulseAlpha)
+                } else {
+                    androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.16f * pulseAlpha)
                 }
 
-                androidx.compose.ui.viewinterop.AndroidView(
-                    factory = { ctx ->
-                        android.view.TextureView(ctx).apply {
-                            val adjustAspectRatio: (android.view.TextureView) -> Unit = { tv ->
-                                val vw = tv.width
-                                val vh = tv.height
-                                if (vw > 0 && vh > 0) {
-                                    val matrix = android.graphics.Matrix()
-                                    val videoAspect = 16f / 9f
-                                    val viewAspect = vw.toFloat() / vh.toFloat()
-                                    var scaleX = 1f
-                                    var scaleY = 1f
-                                    if (viewAspect > videoAspect) {
-                                        scaleY = (vw.toFloat() / (16f / 9f)) / vh.toFloat()
-                                    } else {
-                                        scaleX = (vh.toFloat() * (16f / 9f)) / vw.toFloat()
-                                    }
-
-                                    // Scale factor: 1.05f to make bugdroid significantly larger and prominent in the frame
-                                    scaleX *= 1.05f
-                                    scaleY *= 1.05f
-
-                                    matrix.setScale(scaleX, scaleY, vw / 2f, vh / 2f)
-                                    tv.setTransform(matrix)
-                                }
-                            }
-
-                            var currentSurface: android.view.Surface? = null
-
-                            surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
-                                override fun onSurfaceTextureAvailable(
-                                    surfaceTexture: android.graphics.SurfaceTexture,
-                                    width: Int,
-                                    height: Int
-                                ) {
-                                    val surface = android.view.Surface(surfaceTexture)
-                                    currentSurface = surface
-                                    backupExoPlayer?.setVideoSurface(surface)
-                                    adjustAspectRatio(this@apply)
-                                }
-
-                                override fun onSurfaceTextureSizeChanged(
-                                    surfaceTexture: android.graphics.SurfaceTexture,
-                                    width: Int,
-                                    height: Int
-                                ) {
-                                    adjustAspectRatio(this@apply)
-                                }
-
-                                override fun onSurfaceTextureDestroyed(
-                                    surfaceTexture: android.graphics.SurfaceTexture
-                                ): Boolean {
-                                    currentSurface?.let {
-                                        backupExoPlayer?.clearVideoSurface(it)
-                                        it.release()
-                                    }
-                                    currentSurface = null
-                                    return true
-                                }
-
-                                override fun onSurfaceTextureUpdated(
-                                    surfaceTexture: android.graphics.SurfaceTexture
-                                ) {}
-                            }
-                        }
-                    },
+                androidx.compose.foundation.Canvas(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(340.dp)
-                        .graphicsLayer {
-                            renderEffect = cachedVideoRenderEffect
-                        }
+                ) {
+                    val centerX = size.width / 2f + swayOffset.dp.toPx()
+                    val groundY = 292.dp.toPx()
+
+                    // Ambient ground diffusion shadow
+                    val ambientWidth = 110.dp.toPx() * pulseScale
+                    val ambientHeight = 22.dp.toPx() * pulseScale
+                    drawOval(
+                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(ambientShadowColor, androidx.compose.ui.graphics.Color.Transparent),
+                            center = androidx.compose.ui.geometry.Offset(centerX, groundY),
+                            radius = ambientWidth / 2f
+                        ),
+                        topLeft = androidx.compose.ui.geometry.Offset(centerX - ambientWidth / 2f, groundY - ambientHeight / 2f),
+                        size = androidx.compose.ui.geometry.Size(ambientWidth, ambientHeight)
+                    )
+
+                    // Left foot contact shadow (grounded directly beneath left foot)
+                    val leftFootCenterX = centerX - 28.dp.toPx()
+                    val footWidth = 36.dp.toPx() * pulseScale
+                    val footHeight = 12.dp.toPx() * pulseScale
+                    drawOval(
+                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(contactShadowColor, androidx.compose.ui.graphics.Color.Transparent),
+                            center = androidx.compose.ui.geometry.Offset(leftFootCenterX, groundY),
+                            radius = footWidth / 2f
+                        ),
+                        topLeft = androidx.compose.ui.geometry.Offset(leftFootCenterX - footWidth / 2f, groundY - footHeight / 2f),
+                        size = androidx.compose.ui.geometry.Size(footWidth, footHeight)
+                    )
+
+                    // Right foot contact shadow (grounded directly beneath right foot)
+                    val rightFootCenterX = centerX + 24.dp.toPx()
+                    drawOval(
+                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(contactShadowColor, androidx.compose.ui.graphics.Color.Transparent),
+                            center = androidx.compose.ui.geometry.Offset(rightFootCenterX, groundY),
+                            radius = footWidth / 2f
+                        ),
+                        topLeft = androidx.compose.ui.geometry.Offset(rightFootCenterX - footWidth / 2f, groundY - footHeight / 2f),
+                        size = androidx.compose.ui.geometry.Size(footWidth, footHeight)
+                    )
+                }
+
+                BugdroidPlayer(
+                    player = backupExoPlayer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(340.dp),
+                    scaleFactor = 1.0f
                 )
             }
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }

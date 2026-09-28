@@ -96,10 +96,22 @@ fun IntelligentSearchTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        shapes = Shapes,
-        content = content
-    )
+    val predictiveHapticFeedback = androidx.compose.runtime.remember(context, view) {
+        object : androidx.compose.ui.hapticfeedback.HapticFeedback {
+            override fun performHapticFeedback(hapticFeedbackType: androidx.compose.ui.hapticfeedback.HapticFeedbackType) {
+                com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            }
+        }
+    }
+
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalHapticFeedback provides predictiveHapticFeedback
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            shapes = Shapes,
+            content = content
+        )
+    }
 }

@@ -131,16 +131,32 @@ class SearchBangManager @Inject constructor(
                 description = "Search Songs and Artists on Spotify."
             )
         )
-
-        private val PREFIX_BANG_PATTERN = Pattern.compile("^(![a-zA-Z0-9_-]+)\\s*(.*)$")
     }
 
+    init {
+        context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+            .registerOnSharedPreferenceChangeListener { _, key ->
+                if (key == "web_shortcut_trigger_symbol" || key == "custom_bangs_json" || key == "disabled_web_shortcuts") {
+                    cachedTriggerSymbol = null
+                    cachedSyncBangs = null
+                }
+            }
+    }
+
+    @Volatile
+    private var cachedTriggerSymbol: String? = null
+
     fun getTriggerSymbol(): String {
+        val cached = cachedTriggerSymbol
+        if (cached != null) return cached
         val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-        return prefs.getString("web_shortcut_trigger_symbol", "!")?.ifBlank { "!" } ?: "!"
+        val symbol = prefs.getString("web_shortcut_trigger_symbol", "!")?.ifBlank { "!" } ?: "!"
+        cachedTriggerSymbol = symbol
+        return symbol
     }
 
     val bangsFlow: Flow<List<SearchBang>> = settingsManager.settingsFlow.map { settings ->
+        cachedTriggerSymbol = null
         val trigger = getTriggerSymbol()
         val customBangs = parseCustomBangs(settings.customBangsJson)
         val disabled = settings.disabledWebShortcuts
@@ -151,7 +167,9 @@ class SearchBangManager @Inject constructor(
                 bang
             }
         }
-        (builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase() !in disabled } + customBangs).distinctBy { it.displayPrefix }
+        val res = (customBangs + builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase(java.util.Locale.ROOT) !in disabled }).distinctBy { it.displayPrefix }
+        cachedSyncBangs = res
+        res
     }
 
     @Volatile
@@ -176,7 +194,7 @@ class SearchBangManager @Inject constructor(
                 bang
             }
         }
-        val result = (builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase() !in disabled } + customBangs).distinctBy { it.displayPrefix }
+        val result = (customBangs + builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase(java.util.Locale.ROOT) !in disabled }).distinctBy { it.displayPrefix }
         cachedSyncBangs = result
         return result
     }
@@ -186,20 +204,22 @@ class SearchBangManager @Inject constructor(
         if (trimmed.isEmpty()) return null
         val triggerSymbol = getTriggerSymbol()
 
-        // Match against all available bangs
+        // Fast-path: Bangs strictly require the active trigger symbol or universal fallback '!'
+        if (!trimmed.contains(triggerSymbol) && !trimmed.contains("!")) {
+            return null
+        }
+
+        // Match against all available bangs without collection allocation
         for (bang in availableBangs) {
             val bare = bang.prefix.trimStart { !it.isLetterOrDigit() }
-            val candidatePrefixes = mutableSetOf(
-                bang.displayPrefix,
-                bang.prefix.lowercase()
-            )
-            if (bare.isNotBlank()) {
-                candidatePrefixes.add("$triggerSymbol$bare".lowercase())
-                candidatePrefixes.add("!$bare".lowercase())
-            }
+            val p0 = bang.displayPrefix
+            val p1 = bang.prefix.lowercase()
+            val p2 = if (bare.isNotBlank()) "$triggerSymbol$bare".lowercase() else null
+            val p3 = if (bare.isNotBlank()) "!$bare".lowercase() else null
 
-            for (p in candidatePrefixes) {
-                if (p.isBlank()) continue
+            val candidates = arrayOf(p0, p1, p2, p3)
+            for (p in candidates) {
+                if (p.isNullOrBlank()) continue
                 // Prefix check: query starts with "$p " or equals "$p"
                 if (trimmed.equals(p, ignoreCase = true)) {
                     return ParsedBangQuery(
@@ -279,8 +299,14 @@ class SearchBangManager @Inject constructor(
                     putExtra("query", query)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-                if (pkgSearchIntent.resolveActivity(pm) != null) {
-                    return pkgSearchIntent
+                val resolved = pkgSearchIntent.resolveActivity(pm)
+                if (resolved != null) {
+                    try {
+                        val activityInfo = pm.getActivityInfo(resolved, 0)
+                        if (activityInfo.exported) {
+                            return pkgSearchIntent
+                        }
+                    } catch (_: Exception) {}
                 }
             }
         }

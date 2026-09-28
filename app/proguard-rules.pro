@@ -54,3 +54,28 @@
 
 # Coroutines
 -dontwarn kotlinx.coroutines.**
+
+# Assume Log.isLoggable returns false in release builds for dead-branch elimination
+-assumevalues class android.util.Log {
+    boolean isLoggable(java.lang.String, int) return false;
+}
+
+# Android Framework & Internal Reflection Targets
+-dontwarn com.android.internal.os.PowerProfile
+-keepclassmembers class com.android.internal.os.PowerProfile {
+    public <init>(android.content.Context);
+    public double getBatteryCapacity();
+}
+
+# Surface & Frame Pacing Reflection
+-keep class androidx.graphics.surface.** { *; }
+-dontwarn androidx.graphics.surface.**
+
+# Material 3 Dynamic Colors
+-keep class com.google.android.material.color.DynamicColors { *; }
+
+# Hilt & Architecture Components
+-keepclassmembers class * extends androidx.lifecycle.ViewModel {
+    <init>(...);
+}
+

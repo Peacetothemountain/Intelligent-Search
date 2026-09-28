@@ -45,7 +45,7 @@ class NativeAppPredictionProvider @Inject constructor(
 
         // 2. High-fidelity dynamic recents from UsageStatsManager
         try {
-            val recents = SystemDataProvider.getRecentApps(context)
+            val recents = SystemDataProvider.getRecentApps(context, fallbackToAll = false)
             if (recents.isNotEmpty()) {
                 return@withContext recents.take(8)
             }

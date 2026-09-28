@@ -34,16 +34,16 @@ function Clean-DeviceScreen {
     $g.DrawImage($srcBmp, 0, 0, $srcBmp.Width, $srcBmp.Height)
     
     if ($cleanStatusBar) {
-        # Clean status bar area: y from 0 to 175
+        # Hardware status bar is 0..200px. Fill 0..196 with header background color
         $brush = New-Object System.Drawing.SolidBrush($statusBarBgColor)
-        $g.FillRectangle($brush, 0, 0, $srcBmp.Width, 175)
+        $g.FillRectangle($brush, 0, 0, $srcBmp.Width, 196)
         
-        # Smooth blend between y=165 and y=190
-        for ($i = 0; $i -lt 25; $i++) {
-            $alpha = [int](255 * (1.0 - ($i / 25.0)))
+        # Smooth 10px alpha blend from 196 to 206
+        for ($i = 0; $i -lt 10; $i++) {
+            $alpha = [int](255 * (1.0 - ($i / 10.0)))
             $blendColor = [System.Drawing.Color]::FromArgb($alpha, $statusBarBgColor.R, $statusBarBgColor.G, $statusBarBgColor.B)
             $blendBrush = New-Object System.Drawing.SolidBrush($blendColor)
-            $g.FillRectangle($blendBrush, 0, (165 + $i), $srcBmp.Width, 1)
+            $g.FillRectangle($blendBrush, 0, (196 + $i), $srcBmp.Width, 1)
             $blendBrush.Dispose()
         }
         $brush.Dispose()
@@ -63,7 +63,9 @@ function Render-PlayStoreCard {
         [string]$badgeText,
         [string]$titleText,
         [string]$subtitleText,
-        [System.Drawing.Bitmap]$hollowFrame
+        [System.Drawing.Bitmap]$hollowFrame,
+        [System.Drawing.Bitmap]$camOverlay,
+        [float]$scale
     )
     
     $canvasW = 1440
@@ -86,7 +88,7 @@ function Render-PlayStoreCard {
     $g.FillRectangle($bgBrush, 0, 0, $canvasW, $canvasH)
     $bgBrush.Dispose()
     
-    # Ambient glow behind Header & Phone
+    # Ambient top glow behind Header & Phone
     $glowPath = New-Object System.Drawing.Drawing2D.GraphicsPath
     $glowPath.AddEllipse(-200, -100, 1840, 1800)
     $pbg = New-Object System.Drawing.Drawing2D.PathGradientBrush($glowPath)
@@ -97,7 +99,7 @@ function Render-PlayStoreCard {
     $pbg.Dispose()
     $glowPath.Dispose()
     
-    # Secondary bottom glow
+    # Secondary subtle bottom glow
     $glowPath2 = New-Object System.Drawing.Drawing2D.GraphicsPath
     $glowPath2.AddEllipse(100, 1800, 1240, 1400)
     $pbg2 = New-Object System.Drawing.Drawing2D.PathGradientBrush($glowPath2)
@@ -150,59 +152,53 @@ function Render-PlayStoreCard {
     $subBrush.Dispose()
     $sf.Dispose()
     
-    # 3. Authentic Google Pixel 11 Pro XL Composite Device
-    $phoneX = 131.0
-    $phoneY = 460.0
-    $fw = 1178.0
-    $fh = 2515.0
+    # 3. Authentic Google Pixel 11 Pro XL Composite Geometry
+    $screenW = 1080.0
+    $screenH = 964.0 * $scale # 2399.0
+    $screenX = 180.0
+    $screenY = 520.0
+    $screenRadius = 49.4 * $scale # 122.9 px
     
-    # Multi-layered ambient drop shadow around device
-    for ($step = 1; $step -le 4; $step++) {
-        $sInflate = $step * 14.0
-        $sOffsetY = $step * 12.0
-        $sAlpha = [int](40 / $step)
-        $shadowPath = Create-RoundedRectanglePath -x ($phoneX - $sInflate) -y ($phoneY - $sInflate + $sOffsetY) -width ($fw + ($sInflate * 2.0)) -height ($fh + ($sInflate * 2.0)) -radius (75.0 + $sInflate)
+    $phoneX = $screenX - (19.0 * $scale) # 132.72
+    $phoneY = $screenY - (20.0 * $scale) # 470.23
+    $phoneW = 475.0 * $scale # 1182.0
+    $phoneH = 1005.0 * $scale # 2501.0
+    $phoneRadius = 65.0 * $scale # 161.75 px
+    
+    # Multi-layered ambient drop shadow behind chassis
+    for ($step = 1; $step -le 5; $step++) {
+        $sInflate = $step * 12.0
+        $sOffsetY = $step * 10.0
+        $sAlpha = [int](35 / $step)
+        $shadowPath = Create-RoundedRectanglePath -x ($phoneX - $sInflate) -y ($phoneY - $sInflate + $sOffsetY) -width ($phoneW + ($sInflate * 2.0)) -height ($phoneH + ($sInflate * 2.0)) -radius ($phoneRadius + $sInflate)
         $sBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb($sAlpha, 0, 0, 0))
         $g.FillPath($sBrush, $shadowPath)
         $sBrush.Dispose()
         $shadowPath.Dispose()
     }
     
-    # Screen cutout path inside the authentic frame
-    $screenCutout = Create-RoundedRectanglePath -x ($phoneX + 35.0) -y ($phoneY + 42.0) -width 1108.0 -height 2418.0 -radius 55.0
-    
-    # Load raw screen and clean status bar if needed
+    # 4. Clean and Draw the Raw App Screen with true Pixel 11 Pro XL corner radius
     $rawBmp = [System.Drawing.Bitmap]::FromFile($inputImagePath)
     $screenBmp = Clean-DeviceScreen -srcBmp $rawBmp -statusBarBgColor $statusBarBgColor -cleanStatusBar $cleanStatusBar
     $rawBmp.Dispose()
     
+    $screenPath = Create-RoundedRectanglePath -x $screenX -y $screenY -width $screenW -height $screenH -radius $screenRadius
     $st = $g.Save()
-    $g.SetClip($screenCutout, [System.Drawing.Drawing2D.CombineMode]::Replace)
-    $g.DrawImage($screenBmp, ($phoneX + 35.0), ($phoneY + 42.0), 1108.0, 2418.0)
+    $g.SetClip($screenPath, [System.Drawing.Drawing2D.CombineMode]::Replace)
+    $g.DrawImage($screenBmp, [float]$screenX, [float]$screenY, [float]$screenW, [float]$screenH)
     $g.Restore($st)
-    $screenCutout.Dispose()
+    $screenPath.Dispose()
     $screenBmp.Dispose()
     
-    # Draw authentic hollow Pixel 11 Pro XL frame over screen
-    $g.DrawImage($hollowFrame, [float]$phoneX, [float]$phoneY, [float]$fw, [float]$fh)
+    # 5. Draw authentic Pixel 11 Pro XL hollow frame over the screen
+    $g.DrawImage($hollowFrame, [float]$phoneX, [float]$phoneY, [float]$phoneW, [float]$phoneH)
     
-    # Pixel 11 Pro XL front camera punch hole
-    $camCX = $phoneX + 589.0
-    $camCY = $phoneY + 125.0
-    $camDiam = 64.0
-    $camRad = $camDiam / 2.0
-    
-    $camRimBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 12, 14, 18))
-    $g.FillEllipse($camRimBrush, ($camCX - $camRad - 2.0), ($camCY - $camRad - 2.0), ($camDiam + 4.0), ($camDiam + 4.0))
-    $camRimBrush.Dispose()
-    
-    $camLensBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 2, 3, 5))
-    $g.FillEllipse($camLensBrush, ($camCX - $camRad), ($camCY - $camRad), $camDiam, $camDiam)
-    $camLensBrush.Dispose()
-    
-    $camSpecBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(100, 70, 95, 160))
-    $g.FillEllipse($camSpecBrush, ($camCX - 12.0), ($camCY - 14.0), 14.0, 14.0)
-    $camSpecBrush.Dispose()
+    # 6. Draw authentic camera punch hole overlay from Google Store render
+    $camBoxW = 40.0 * $scale
+    $camBoxH = 40.0 * $scale
+    $camX = $phoneX + (236.5 * $scale) - ($camBoxW / 2.0)
+    $camY = $phoneY + (51.0 * $scale) - ($camBoxH / 2.0)
+    $g.DrawImage($camOverlay, [float]$camX, [float]$camY, [float]$camBoxW, [float]$camBoxH)
     
     $badgeFont.Dispose()
     $titleFont.Dispose()
@@ -212,20 +208,25 @@ function Render-PlayStoreCard {
     return $canvas
 }
 
-# --- Main Generation Routine ---
+# --- Main Execution Routine ---
 
-$hollowFramePath = "F:\Intelligent-Search\pixel_11_pro_xl_frame_hollow.png"
-if (-not (Test-Path $hollowFramePath)) {
-    throw "Hollow Pixel 11 Pro XL frame not found at: $hollowFramePath"
+$scale = 1080.0 / 434.0
+$hollowFramePath = "F:\Intelligent-Search\pixel_11_pro_xl_frame_perfect.png"
+$camOverlayPath = "F:\Intelligent-Search\pixel_11_pro_xl_camera_perfect.png"
+
+if (-not (Test-Path $hollowFramePath) -or -not (Test-Path $camOverlayPath)) {
+    throw "Required assets missing. Please run test_frame_builder.ps1 first."
 }
+
 $hollowFrame = [System.Drawing.Bitmap]::FromFile($hollowFramePath)
+$camOverlay = [System.Drawing.Bitmap]::FromFile($camOverlayPath)
 
 # Target Directories
 $downloadsRoot = "C:\Users\caref\Downloads"
 $downloadsFolder = "C:\Users\caref\Downloads\PlayStore_Screenshots"
 $docsFolder = "F:\Intelligent-Search\docs\images"
 
-foreach ($dir in @($downloadsFolder, $docsFolder)) {
+foreach ($dir in @($downloadsRoot, $downloadsFolder, $docsFolder)) {
     if (-not (Test-Path $dir)) {
         [System.IO.Directory]::CreateDirectory($dir) | Out-Null
     }
@@ -292,7 +293,7 @@ $cards = @(
         Filename = "06_Universal_Hardware_Security.png"
         LegacyFilename = "06_Hardware_Security_Titan_M3.png"
         StatusBg = [System.Drawing.Color]::FromArgb(255, 11, 9, 12)
-        CleanStatus = $false # Already clean custom dialog render
+        CleanStatus = $false # Already clean custom compose dialog
         Accent = [System.Drawing.Color]::FromArgb(255, 146, 211, 245)
         Glow = [System.Drawing.Color]::FromArgb(255, 26, 136, 201)
         Badge = "CHIP-LEVEL ENCRYPTION"
@@ -334,33 +335,38 @@ foreach ($card in $cards) {
         -badgeText $card.Badge `
         -titleText $card.Title `
         -subtitleText $card.Subtitle `
-        -hollowFrame $hollowFrame
+        -hollowFrame $hollowFrame `
+        -camOverlay $camOverlay `
+        -scale $scale
 
     # 1. Save directly to Downloads root
     $dlRootPath = Join-Path $downloadsRoot $card.Filename
     $canvas.Save($dlRootPath, [System.Drawing.Imaging.ImageFormat]::Png)
-    Write-Host ("Saved to: {0}" -f $dlRootPath)
+    Write-Host ("Saved to Downloads root: {0}" -f $dlRootPath)
 
     # 2. Save to Downloads\PlayStore_Screenshots
     $dlSubPath = Join-Path $downloadsFolder $card.Filename
     $canvas.Save($dlSubPath, [System.Drawing.Imaging.ImageFormat]::Png)
-    Write-Host ("Saved to: {0}" -f $dlSubPath)
+    Write-Host ("Saved to Downloads\PlayStore_Screenshots: {0}" -f $dlSubPath)
 
     # 3. Save to docs\images
     $docsPath = Join-Path $docsFolder $card.Filename
     $canvas.Save($docsPath, [System.Drawing.Imaging.ImageFormat]::Png)
-    Write-Host ("Saved to: {0}" -f $docsPath)
+    Write-Host ("Saved to docs\images: {0}" -f $docsPath)
 
-    # If slide 6, also overwrite legacy filename in docs/images and downloads
+    # If slide 6, also overwrite legacy filename for full backward compatibility
     if ($card.LegacyFilename) {
         $legacyDocs = Join-Path $docsFolder $card.LegacyFilename
         $canvas.Save($legacyDocs, [System.Drawing.Imaging.ImageFormat]::Png)
         $legacyDl = Join-Path $downloadsRoot $card.LegacyFilename
         $canvas.Save($legacyDl, [System.Drawing.Imaging.ImageFormat]::Png)
+        $legacySub = Join-Path $downloadsFolder $card.LegacyFilename
+        $canvas.Save($legacySub, [System.Drawing.Imaging.ImageFormat]::Png)
     }
 
     $canvas.Dispose()
 }
 
 $hollowFrame.Dispose()
+$camOverlay.Dispose()
 Write-Host "All 8 Pixel 11 Pro XL showcase screenshots successfully generated and placed in Downloads and docs!"

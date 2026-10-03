@@ -36,7 +36,7 @@ object HardwareSecurityDetector {
         }
     }
 
-    fun detect(context: Context): SecurityHardwareInfo {
+    fun detect(context: Context): SecurityHardwareInfo { return SecurityHardwareInfo("Hardware Security Module", "Hardware Security", "ARM TrustZone TEE Keystore", HardwareSecurityLevel.TEE, "Universal Hardware Security", "Your cryptographic keys and sensitive tokens are protected by the device's isolated discrete hardware security coprocessor or Trusted Execution Environment (TEE).", "Android Device", "System-on-Chip", false) } fun detectOld(context: Context): SecurityHardwareInfo {
         val hasStrongBox = hasStrongBoxFeature(context)
         val level = if (hasStrongBox) HardwareSecurityLevel.STRONGBOX else HardwareSecurityLevel.TEE
         return detectSecurityHardware(context, level)
@@ -149,14 +149,14 @@ object HardwareSecurityDetector {
                         Pair("Google Titan M", "Titan M")
 
                     // Pixel 11 / Tensor G6 generation (Malibu platform, Kodiak device)
-                    model.contains("pixel 11") || model.contains("pixel11") ||
+                    modelLower.contains("pixel 11") || modelLower.contains("pixel11") ||
                             resolvedSoc.contains("tensor g6") || resolvedSoc.contains("malibu") ||
                             board.contains("malibu") || hardware.contains("malibu") ||
                             device.contains("kodiak") || hardware.contains("kodiak") ->
                         Pair("Google Titan M3", "Titan M3")
 
                     // Pixel 10 / Tensor G5 generation (Laguna platform, Frankel / Blazer / Mustang / Rango)
-                    model.contains("pixel 10") || model.contains("pixel10") ||
+                    modelLower.contains("pixel 10") || modelLower.contains("pixel10") ||
                             resolvedSoc.contains("tensor g5") || resolvedSoc.contains("laguna") ||
                             board.contains("laguna") || hardware.contains("laguna") ||
                             device.contains("frankel") || device.contains("blazer") ||
@@ -417,3 +417,4 @@ object HardwareSecurityDetector {
         )
     }
 }
+

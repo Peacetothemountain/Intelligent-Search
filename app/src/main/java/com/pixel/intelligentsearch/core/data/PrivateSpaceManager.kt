@@ -6,15 +6,21 @@ import android.os.UserHandle
 import com.pixel.intelligentsearch.core.profile.MultiProfileManager
 import com.pixel.intelligentsearch.core.profile.ProfileDescriptor
 
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
+
 data class ProfileContainerState(
     val hasPrivateSpace: Boolean,
     val isPrivateSpaceLocked: Boolean,
     val activeProfilesCount: Int
 )
 
-class PrivateSpaceManager(private val context: Context) {
-
-    private val multiProfileManager = MultiProfileManager(context)
+@Singleton
+class PrivateSpaceManager @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val multiProfileManager: MultiProfileManager
+) {
 
     fun getProfileContainerState(): ProfileContainerState {
         val profiles = multiProfileManager.refreshProfiles()

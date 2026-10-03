@@ -364,7 +364,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         val useMaterialYouIcons = (effectiveIconTheme != "System G Icon") || isPillLight || (subthemeStr == "Custom")
 
                         val showVoice = if (hasSaved) prefs.getBoolean("widget_system_show_voice", true) else true
-                        val showGIcon = if (hasSaved) prefs.getBoolean("widget_system_show_g_icon", true) else true
+                        val showGIcon = if (hasSaved) prefs.getBoolean("widget_system_show_g_icon", false) else false
 
                         val rawShortcut1 = if (hasSaved) prefs.getString("widget_system_shortcut_1", "Google Lens") ?: "Google Lens" else "Google Lens"
                         val rawShortcut2 = if (hasSaved) prefs.getString("widget_system_shortcut_2", "None") ?: "None" else "None"
@@ -570,7 +570,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         val useMaterialYouIcons = true
 
                         val showVoice = if (hasSaved) prefs.getBoolean("widget_material_show_voice", true) else true
-                        val showGIcon = if (hasSaved) prefs.getBoolean("widget_material_show_g_icon", true) else true
+                        val showGIcon = if (hasSaved) prefs.getBoolean("widget_material_show_g_icon", false) else false
                         val actionIconStr = if (hasSaved) prefs.getString("widget_material_action_icon", "Search") ?: "Search" else "Search"
 
                         val rawShortcut1 = if (hasSaved) prefs.getString("widget_material_shortcut_1", "Google Lens") ?: "Google Lens" else "Google Lens"
@@ -759,9 +759,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     }
 
                     val slotCode = SLOT_SHORTCUT_0 + i
-                    val targetIntent = item.third.apply {
-                        data = Uri.parse("widget://slot/$appWidgetId/$slotCode")
-                    }
+                    val targetIntent = Intent(item.third)
                     val pi = PendingIntent.getActivity(
                         context,
                         getWidgetRequestCode(appWidgetId, slotCode),
@@ -784,11 +782,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             } else {
                 Intent("android.search.action.GLOBAL_SEARCH").apply {
                     setPackage("com.google.android.googlequicksearchbox")
-                    data = Uri.parse("widget://pill_global/$appWidgetId")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 }.takeIf { context.packageManager.resolveActivity(it, 0) != null }
                     ?: Intent(Intent.ACTION_WEB_SEARCH).apply {
-                        data = Uri.parse("widget://pill_web/$appWidgetId")
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
             }
@@ -803,9 +799,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_g_logo, mainPI)
 
             // Tap action button inside search pill
-            val actionIntent = getVoiceActionIntent(context).apply {
-                data = Uri.parse("widget://action/$appWidgetId")
-            }
+            val actionIntent = Intent(getVoiceActionIntent(context))
             val actionPI = PendingIntent.getActivity(
                 context,
                 getWidgetRequestCode(appWidgetId, SLOT_ACTION),
@@ -819,13 +813,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_sound_search, View.GONE)
             } else {
                 views.setViewVisibility(R.id.widget_sound_search, View.VISIBLE)
-                val circleActionIntent = when (actionIconStr) {
+                val circleActionIntent = Intent(when (actionIconStr) {
                     "Assistant", "Voice", "Gemini" -> getVoiceActionIntent(context)
                     "Now Playing" -> getNowPlayingIntent(context)
                     else -> getVoiceActionIntent(context)
-                }.apply {
-                    data = Uri.parse("widget://circle/$appWidgetId")
-                }
+                })
 
                 val circleActionPI = PendingIntent.getActivity(
                     context,

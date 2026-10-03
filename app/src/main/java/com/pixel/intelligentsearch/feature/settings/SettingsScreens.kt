@@ -9958,24 +9958,35 @@ fun BackupRestoreScreen(
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
+        android.util.Log.d("BackupRestoreScreen", "exportLauncher callback: uri=$uri, activity=$activity, viewModel=$viewModel")
         if (uri != null && activity != null) {
             try {
                 activity.contentResolver.takePersistableUriPermission(
                     uri,
                     Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
-            } catch (_: Throwable) {}
-            viewModel?.exportBackup(
-                
+            } catch (e: Throwable) {
+                android.util.Log.d("BackupRestoreScreen", "takePersistableUriPermission: ${e.message}")
+            }
+            if (viewModel == null) {
+                android.util.Log.e("BackupRestoreScreen", "viewModel is NULL in exportLauncher!")
+                safeShowToast("Error: Settings manager is not available")
+                return@rememberLauncherForActivityResult
+            }
+            viewModel.exportBackup(
                 uri = uri,
                 passphrase = passphrase.ifBlank { null },
                 onSuccess = {
+                    android.util.Log.d("BackupRestoreScreen", "exportBackup onSuccess callback")
                     safeShowToast(if (passphrase.isBlank()) "Backup exported (no passphrase: not securely encrypted)" else "Encrypted backup exported successfully!")
                 },
                 onError = { err ->
+                    android.util.Log.e("BackupRestoreScreen", "exportBackup onError: $err")
                     safeShowToast("Export error: $err")
                 }
             )
+        } else {
+            android.util.Log.w("BackupRestoreScreen", "exportLauncher: uri or activity was null (uri=$uri, activity=$activity)")
         }
     }
 

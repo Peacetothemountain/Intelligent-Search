@@ -164,15 +164,17 @@ class GlobalSearchProvider : ContentProvider() {
 
         // 5. Dynamic Autocomplete Suggestions & Web Search for Pixel Launcher
         val prefs = context?.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val suggestionsEnabled = prefs?.getBoolean("search.web.suggestions", true) ?: true
         val engine = prefs?.getString("search.engine", "Google") ?: "Google"
         val customUrl = prefs?.getString("custom_search_engine_url", "") ?: ""
 
         val isTorEngine = engine == "Tor Project" || engine == "Tor Browser"
+        val isCustomEngine = engine == "Custom"
         val providerName = when {
             isTorEngine -> "Tor"
             engine == "DuckDuckGo" -> "DuckDuckGo"
             engine == "Bing" -> "Bing"
-            engine == "Custom" -> if (customUrl.isNotBlank()) "Web" else "Web"
+            isCustomEngine -> if (customUrl.isNotBlank()) "Web" else "Web"
             else -> "Google"
         }
 
@@ -182,7 +184,7 @@ class GlobalSearchProvider : ContentProvider() {
                 isTorEngine -> "https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q=$encoded"
                 engine == "DuckDuckGo" -> "https://duckduckgo.com/?q=$encoded"
                 engine == "Bing" -> "https://www.bing.com/search?q=$encoded"
-                engine == "Custom" -> {
+                isCustomEngine -> {
                     if (customUrl.isNotBlank()) {
                         val rawUrl = if (customUrl.contains("%s")) {
                             customUrl.replace("%s", encoded)
@@ -200,8 +202,8 @@ class GlobalSearchProvider : ContentProvider() {
             }
         }
 
-        // Check in-memory cache first (< 0.1ms). For Tor engine, suppress remote clearnet suggestions completely.
-        val suggestions = if (isTorEngine) {
+        // Check in-memory cache first (< 0.1ms). For Tor, Custom engines, or when web suggestions are disabled, suppress remote suggestions completely.
+        val suggestions = if (isTorEngine || isCustomEngine || !suggestionsEnabled) {
             emptyList()
         } else {
             val cached = WebSearchProvider.getCachedSuggestions(queryTerm, engine)

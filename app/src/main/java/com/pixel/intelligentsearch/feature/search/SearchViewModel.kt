@@ -70,7 +70,10 @@ class SearchViewModel @Inject constructor(
     private val bangManager: com.pixel.intelligentsearch.core.bangs.SearchBangManager,
     private val unifiedSearchCoordinator: com.pixel.intelligentsearch.core.search.UnifiedSearchCoordinator,
     private val corpusIndexManager: com.pixel.intelligentsearch.core.search.CorpusIndexManager,
-    private val nativeAppPredictionProvider: com.pixel.intelligentsearch.core.system.NativeAppPredictionProvider
+    private val nativeAppPredictionProvider: com.pixel.intelligentsearch.core.system.NativeAppPredictionProvider,
+    private val multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager,
+    private val privateSpaceManager: com.pixel.intelligentsearch.core.data.PrivateSpaceManager,
+    private val systemToggleManager: com.pixel.intelligentsearch.core.system.SystemToggleManager
 ) : ViewModel() {
     
     private val settingsState = settingsManager.settingsFlow
@@ -91,12 +94,9 @@ class SearchViewModel @Inject constructor(
     private val localInferenceEngine = com.pixel.intelligentsearch.core.local.LocalInferenceEngine(context)
     private val adpfThermalManager = com.pixel.intelligentsearch.core.performance.ADPFThermalManager.getInstance(context)
     private val appSearchEngine = com.pixel.intelligentsearch.core.data.AppSearchEngine(context)
-    private val privateSpaceManager = com.pixel.intelligentsearch.core.data.PrivateSpaceManager(context)
-    private val multiProfileManager = com.pixel.intelligentsearch.core.profile.MultiProfileManager(context)
     private val directBootManager = com.pixel.intelligentsearch.core.system.DirectBootManager(context)
     private val pixelEcosystemSync = com.pixel.intelligentsearch.core.ecosystem.PixelEcosystemSync(context)
     private val nexusLauncherBridge = com.pixel.intelligentsearch.core.data.NexusLauncherBridge(context)
-    private val systemToggleManager = com.pixel.intelligentsearch.core.system.SystemToggleManager(context)
     private val customPrefs by lazy { context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE) }
 
     init {

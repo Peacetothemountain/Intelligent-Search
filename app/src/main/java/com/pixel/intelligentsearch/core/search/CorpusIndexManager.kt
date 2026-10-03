@@ -47,6 +47,7 @@ class CorpusIndexManager @Inject constructor(
 
     private val _isIndexReady = MutableStateFlow(false)
     val isIndexReady: StateFlow<Boolean> = _isIndexReady.asStateFlow()
+    private val isInitialized = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private var contactsObserver: ContentObserver? = null
     private var packageReceiver: BroadcastReceiver? = null
@@ -54,7 +55,11 @@ class CorpusIndexManager @Inject constructor(
     /**
      * Bootstraps eager background indexing of all corpuses.
      */
-    fun initialize() {
+    fun initialize(force: Boolean = false) {
+        if (!force && isInitialized.getAndSet(true)) {
+            return
+        }
+        isInitialized.set(true)
         scope.launch {
             try {
                 val startMs = System.currentTimeMillis()
@@ -78,6 +83,7 @@ class CorpusIndexManager @Inject constructor(
                 // Register live system listeners
                 registerObservers()
             } catch (e: Exception) {
+                isInitialized.set(false)
                 Log.e(TAG, "Error during corpus indexing initialization", e)
             }
         }

@@ -36,7 +36,7 @@ object HardwareSecurityDetector {
         }
     }
 
-    fun detect(context: Context): SecurityHardwareInfo { return SecurityHardwareInfo("Hardware Security Module", "Hardware Security", "ARM TrustZone TEE Keystore", HardwareSecurityLevel.TEE, "Universal Hardware Security", "Your cryptographic keys and sensitive tokens are protected by the device's isolated discrete hardware security coprocessor or Trusted Execution Environment (TEE).", "Android Device", "System-on-Chip", false) } fun detectOld(context: Context): SecurityHardwareInfo {
+    fun detect(context: Context): SecurityHardwareInfo {
         val hasStrongBox = hasStrongBoxFeature(context)
         val level = if (hasStrongBox) HardwareSecurityLevel.STRONGBOX else HardwareSecurityLevel.TEE
         return detectSecurityHardware(context, level)

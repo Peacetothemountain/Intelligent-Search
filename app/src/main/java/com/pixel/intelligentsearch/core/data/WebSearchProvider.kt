@@ -13,7 +13,7 @@ object WebSearchProvider {
 
     fun getCachedSuggestions(query: String, engine: String = "Google"): List<String>? {
         val trimmed = query.trim().lowercase()
-        if (trimmed.isBlank()) return null
+        if (trimmed.isBlank() || engine == "Tor Project" || engine == "Tor Browser" || engine == "Custom") return null
         val cacheKey = "$engine:$trimmed"
         return synchronized(suggestionCache) { suggestionCache.get(cacheKey) }
     }
@@ -21,7 +21,7 @@ object WebSearchProvider {
     fun getWebSuggestionsSync(query: String, engine: String = "Google", timeoutMs: Int = 600): List<String> {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return emptyList()
-        if (engine == "Tor Project" || engine == "Tor Browser") return emptyList()
+        if (engine == "Tor Project" || engine == "Tor Browser" || engine == "Custom") return emptyList()
 
         val cacheKey = "$engine:${trimmed.lowercase()}"
         synchronized(suggestionCache) {

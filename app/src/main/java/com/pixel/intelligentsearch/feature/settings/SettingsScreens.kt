@@ -2676,23 +2676,13 @@ fun MainSettingsScreen(
             val coroutineScope = rememberCoroutineScope()
             val secureRepo = remember { com.pixel.intelligentsearch.core.security.SecureSettingsRepository(context) }
             val attestationVerifier = remember { com.pixel.intelligentsearch.core.security.KeyAttestationVerifier(context) }
-            val hardwareLevel by androidx.compose.runtime.produceState(initialValue = com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX) {
+            val hardwareLevel by androidx.compose.runtime.produceState(initialValue = if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)) com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX else com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE) {
                 value = withContext(Dispatchers.IO) {
                     secureRepo.getHardwareSecurityLevel()
                 }
             }
             val hardwareInfo = remember(hardwareLevel) {
-                com.pixel.intelligentsearch.core.security.SecurityHardwareInfo(
-                    chipName = "Hardware Security Enclave",
-                    shortChipName = "Security Chip",
-                    teeName = "Trusted Execution Environment (TEE)",
-                    securityLevel = com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX,
-                    title = "Hardware-Backed Security Active",
-                    description = "Your device utilizes a dedicated hardware security chip alongside a Trusted Execution Environment (TEE).",
-                    deviceDisplayName = "Device Hardware Security",
-                    socDisplayName = "Encrypted SoC",
-                    isStrongBox = true
-                )
+                com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detectSecurityHardware(context, hardwareLevel)
             }
             val attestationResult by androidx.compose.runtime.produceState<com.pixel.intelligentsearch.core.security.AttestationResult?>(initialValue = null) {
                 value = withContext(Dispatchers.IO) {
@@ -2849,7 +2839,7 @@ fun MainSettingsScreen(
                                                 text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): " + when {
                                                     attestationResult == null -> "Verifying..."
                                                     attestationResult?.isHardwareAttested == true -> "Verified ✓"
-                                                    else -> "Attested"
+                                                    else -> "Not verified"
                                                 },
                                                 style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.Bold,
@@ -6462,7 +6452,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         mutableStateOf(prefs.getInt("widget_system_background_transparency", if (sysSaved) prefs.getInt("widget.background.transparency", 0) else 0).toFloat())
     }
     var sysShowGIcon by remember {
-        mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
+        mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_g_icon", prefs.getBoolean("widget_show_g_icon", false)) else false)
     }
     var sysShowVoice by remember {
         mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_voice", prefs.getBoolean("widget_show_voice", true)) else true)
@@ -6508,7 +6498,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         mutableStateOf(prefs.getString("widget_material_action_icon", if (matSaved) prefs.getString("widget_action_icon", "Search") else "Search") ?: "Search")
     }
     var matShowGIcon by remember {
-        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
+        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_g_icon", prefs.getBoolean("widget_show_g_icon", false)) else false)
     }
     var matShowVoice by remember {
         mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_voice", prefs.getBoolean("widget_show_voice", true)) else true)
@@ -6695,7 +6685,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             sysLightness = 100f
                             sysColorOpacity = 100f
                             sysTransparency = 0f
-                            sysShowGIcon = true
+                            sysShowGIcon = false
                             sysShowVoice = true
                             sysShortcut1 = "Google Lens"
                             sysShortcut2 = "None"
@@ -6730,7 +6720,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             matTransparency = 28f
                             matLockBlack = true
                             matActionIcon = "Search"
-                            matShowGIcon = true
+                            matShowGIcon = false
                             matShowVoice = true
                             matShortcut1 = "Google Lens"
                             matShortcut2 = "None"
@@ -9980,7 +9970,7 @@ fun BackupRestoreScreen(
                 uri = uri,
                 passphrase = passphrase.ifBlank { null },
                 onSuccess = {
-                    safeShowToast("Encrypted backup exported successfully!")
+                    safeShowToast(if (passphrase.isBlank()) "Backup exported (no passphrase: not securely encrypted)" else "Encrypted backup exported successfully!")
                 },
                 onError = { err ->
                     safeShowToast("Export error: $err")
@@ -10177,7 +10167,7 @@ fun BackupRestoreScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
                 Text(
-                    "Optional Passphrase for Backup Encryption. If Left Blank, Backup Restores Automatically and Portably Across App Updates and Devices.",
+                    "Set a passphrase to securely encrypt your backup. If left blank, the backup restores automatically on any device, but it is not securely encrypted: anyone with the file can read it.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)

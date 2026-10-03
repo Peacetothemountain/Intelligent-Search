@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import com.pixel.intelligentsearch.core.bangs.SearchBangManager
 import com.pixel.intelligentsearch.core.data.HistoryDao
 import com.pixel.intelligentsearch.core.data.HistoryEntity
@@ -40,7 +41,7 @@ class BackupManager @Inject constructor(
 
     suspend fun createBackupPayload(): BackupContentPayload = withContext(Dispatchers.IO) {
         val currentSettings = settingsManager.settingsFlow.first()
-        val historyList = historyDao.getSearchHistory().map { it.query }
+        val historyList = runCatching { historyDao.getSearchHistory().map { it.query } }.getOrDefault(emptyList())
         val customBangs = searchBangManager.parseCustomBangs(currentSettings.customBangsJson)
 
         // 1. DataStore settings map for backward compatibility
@@ -149,13 +150,18 @@ class BackupManager @Inject constructor(
     ) {
         withContext(Dispatchers.IO) {
             try {
+                Log.d("BackupManager", "exportToFile started: uri=$uri, hasPassphrase=${!passphrase.isNullOrBlank()}")
                 val payload = createBackupPayload()
+                Log.d("BackupManager", "payload created: schemaVersion=${payload.schemaVersion}, historyCount=${payload.searchHistory.size}")
                 val plainJson = serializePayload(payload)
+                Log.d("BackupManager", "plainJson length=${plainJson.length}")
 
                 val isHwBacked = strongBoxSecurityManager.isStrongBoxSupported()
                 val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
+                Log.d("BackupManager", "hwInfo: chip=${hwInfo.chipName}, isHwBacked=$isHwBacked")
 
                 val envelope = if (!passphrase.isNullOrBlank()) {
+                    Log.d("BackupManager", "Encrypting with user passphrase")
                     val salt = BackupCryptoEngine.generateRandomSalt()
                     val iv = BackupCryptoEngine.generateRandomIv()
                     val key = BackupCryptoEngine.deriveKeyFromPassphrase(passphrase.toCharArray(), salt)
@@ -172,6 +178,7 @@ class BackupManager @Inject constructor(
                         payloadSha256 = sha
                     )
                 } else {
+                    Log.d("BackupManager", "Encrypting with portable default key")
                     val key = BackupCryptoEngine.getPortableDefaultKey()
                     val iv = BackupCryptoEngine.generateRandomIv()
                     val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
@@ -189,15 +196,60 @@ class BackupManager @Inject constructor(
                 }
 
                 val envelopeJson = serializeEnvelope(envelope)
-                context.contentResolver.openOutputStream(uri, "w")?.use { os ->
-                    os.write(envelopeJson.toByteArray(Charsets.UTF_8))
-                    os.flush()
-                } ?: throw IllegalArgumentException("Could not open destination file for writing")
+                val bytes = envelopeJson.toByteArray(Charsets.UTF_8)
+                Log.d("BackupManager", "envelopeJson length=${envelopeJson.length}, bytes=${bytes.size}")
+
+                var writeSuccess = false
+                // Method 1: Try openFileDescriptor with rwt / sync
+                try {
+                    val pfd = context.contentResolver.openFileDescriptor(uri, "rwt")
+                        ?: context.contentResolver.openFileDescriptor(uri, "wt")
+                        ?: context.contentResolver.openFileDescriptor(uri, "w")
+                    if (pfd != null) {
+                        pfd.use { fd ->
+                            java.io.FileOutputStream(fd.fileDescriptor).use { fos ->
+                                fos.write(bytes)
+                                fos.flush()
+                                try { fd.fileDescriptor.sync() } catch (_: Throwable) {}
+                            }
+                        }
+                        writeSuccess = true
+                        Log.d("BackupManager", "Wrote ${bytes.size} bytes via ParcelFileDescriptor")
+                    }
+                } catch (e: Throwable) {
+                    Log.w("BackupManager", "openFileDescriptor write failed, falling back to openOutputStream", e)
+                }
+
+                // Method 2: Fallback to openOutputStream if PFD failed
+                if (!writeSuccess) {
+                    val os = context.contentResolver.openOutputStream(uri, "wt")
+                        ?: context.contentResolver.openOutputStream(uri, "w")
+                        ?: throw IllegalArgumentException("Could not open destination file for writing")
+                    os.use { stream ->
+                        stream.write(bytes)
+                        stream.flush()
+                    }
+                    Log.d("BackupManager", "Wrote ${bytes.size} bytes via openOutputStream")
+                }
+
+                // Verify file size on disk immediately
+                try {
+                    val pfd = context.contentResolver.openFileDescriptor(uri, "r")
+                    if (pfd != null) {
+                        val statSize = pfd.statSize
+                        pfd.close()
+                        Log.d("BackupManager", "Post-write verification statSize = $statSize bytes")
+                    }
+                } catch (e: Throwable) {
+                    Log.w("BackupManager", "Post-write statSize check warning", e)
+                }
 
                 withContext(Dispatchers.Main) {
+                    Log.d("BackupManager", "exportToFile completed successfully, invoking onSuccess")
                     onSuccess()
                 }
             } catch (e: Throwable) {
+                Log.e("BackupManager", "exportToFile FAILED with exception", e)
                 withContext(Dispatchers.Main) {
                     onError(e.localizedMessage ?: "Failed to export backup")
                 }

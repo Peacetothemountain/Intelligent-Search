@@ -63,8 +63,6 @@ function Render-PlayStoreCard {
         [string]$badgeText,
         [string]$titleText,
         [string]$subtitleText,
-        [System.Drawing.Bitmap]$hollowFrame,
-        [System.Drawing.Bitmap]$camOverlay,
         [float]$scale
     )
     
@@ -191,14 +189,36 @@ function Render-PlayStoreCard {
     $screenBmp.Dispose()
     
     # 5. Draw authentic Pixel 11 Pro XL hollow frame over the screen
-    $g.DrawImage($hollowFrame, [float]$phoneX, [float]$phoneY, [float]$phoneW, [float]$phoneH)
+    # Draw a pristine, mathematically perfect vector frame instead of a blurry upscaled bitmap
+    $frameThickness = 19.0 * $scale # ~47.3px
+    $framePath = Create-RoundedRectanglePath -x $phoneX -y $phoneY -width $phoneW -height $phoneH -radius $phoneRadius
     
-    # 6. Draw authentic camera punch hole overlay from Google Store render
+    # Outer metallic edge
+    $metalPen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(255, 170, 175, 180), 3.0)
+    $g.DrawPath($metalPen, $framePath)
+    $metalPen.Dispose()
+    
+    # Inner bezel mask (draws a thick border from the outer edge to the screen edge)
+    $bezelPen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(255, 12, 12, 12), $frameThickness)
+    $bezelPen.Alignment = [System.Drawing.Drawing2D.PenAlignment]::Inset
+    $g.DrawPath($bezelPen, $framePath)
+    $bezelPen.Dispose()
+    $framePath.Dispose()
+    
+    # 6. Draw authentic camera punch hole overlay (perfect vector circle)
     $camBoxW = 40.0 * $scale
     $camBoxH = 40.0 * $scale
-    $camX = $phoneX + (236.5 * $scale) - ($camBoxW / 2.0)
-    $camY = $phoneY + (51.0 * $scale) - ($camBoxH / 2.0)
-    $g.DrawImage($camOverlay, [float]$camX, [float]$camY, [float]$camBoxW, [float]$camBoxH)
+    $camX = $phoneX + ($phoneW / 2.0) - ($camBoxW / 2.0)
+    $camY = $phoneY + (19.0 * $scale) + (11.0 * $scale) # Bezel + top padding
+    
+    $camBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 8, 8, 8))
+    $g.FillEllipse($camBrush, [float]$camX, [float]$camY, [float]$camBoxW, [float]$camBoxH)
+    $camBrush.Dispose()
+    
+    # Tiny lens reflection
+    $lensBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(40, 255, 255, 255))
+    $g.FillEllipse($lensBrush, [float]($camX + ($camBoxW * 0.6)), [float]($camY + ($camBoxH * 0.2)), [float]($camBoxW * 0.2), [float]($camBoxH * 0.2))
+    $lensBrush.Dispose()
     
     $badgeFont.Dispose()
     $titleFont.Dispose()
@@ -211,15 +231,7 @@ function Render-PlayStoreCard {
 # --- Main Execution Routine ---
 
 $scale = 1080.0 / 434.0
-$hollowFramePath = "F:\Intelligent-Search\pixel_11_pro_xl_frame_perfect.png"
-$camOverlayPath = "F:\Intelligent-Search\pixel_11_pro_xl_camera_perfect.png"
 
-if (-not (Test-Path $hollowFramePath) -or -not (Test-Path $camOverlayPath)) {
-    throw "Required assets missing. Please run test_frame_builder.ps1 first."
-}
-
-$hollowFrame = [System.Drawing.Bitmap]::FromFile($hollowFramePath)
-$camOverlay = [System.Drawing.Bitmap]::FromFile($camOverlayPath)
 
 # Target Directories
 $downloadsRoot = "C:\Users\caref\Downloads"
@@ -335,8 +347,6 @@ foreach ($card in $cards) {
         -badgeText $card.Badge `
         -titleText $card.Title `
         -subtitleText $card.Subtitle `
-        -hollowFrame $hollowFrame `
-        -camOverlay $camOverlay `
         -scale $scale
 
     # 1. Save directly to Downloads root
@@ -367,6 +377,4 @@ foreach ($card in $cards) {
     $canvas.Dispose()
 }
 
-$hollowFrame.Dispose()
-$camOverlay.Dispose()
 Write-Host "All 8 Pixel 11 Pro XL showcase screenshots successfully generated and placed in Downloads and docs!"

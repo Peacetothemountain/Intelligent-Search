@@ -32,9 +32,11 @@ abstract class IntelligentSearchDatabase : RoomDatabase() {
                     .addCallback(object : Callback() {
                         override fun onOpen(db: SupportSQLiteDatabase) {
                             super.onOpen(db)
-                            db.execSQL("PRAGMA synchronous = NORMAL")
-                            db.execSQL("PRAGMA temp_store = MEMORY")
-                            db.execSQL("PRAGMA busy_timeout = 3000")
+                            try {
+                                db.execSQL("PRAGMA synchronous = NORMAL")
+                                db.execSQL("PRAGMA temp_store = MEMORY")
+                                db.query("PRAGMA busy_timeout = 3000").close()
+                            } catch (_: Throwable) {}
                         }
                     })
                     .build()

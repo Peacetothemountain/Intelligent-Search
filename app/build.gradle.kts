@@ -15,8 +15,8 @@ android {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
         targetSdk = 37
-        versionCode = 106
-        versionName = "9.1"
+        versionCode = 110
+        versionName = "9.1.2"
         ndk {
             // CRITICAL: Must support arm64-v8a, armeabi-v7a, x86_64, and x86 to retain Google Play compatibility for 2,159+ devices.
             abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86"))
@@ -160,5 +160,8 @@ dependencies {
   // Graphics Shapes for Material Morph Animations
   implementation(libs.androidx.graphics.shapes)
 }
+
+
+
 
 

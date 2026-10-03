@@ -161,6 +161,13 @@ dependencies {
   implementation(libs.androidx.graphics.shapes)
 }
 
+tasks.register<Zip>("packageNativeDebugSymbols") {
+    archiveFileName.set("native-debug-symbols.zip")
+    destinationDirectory.set(file("${layout.buildDirectory.get()}/outputs/native-debug-symbols/release"))
+    from("${layout.buildDirectory.get()}/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib")
+    dependsOn("mergeReleaseNativeLibs")
+}
+
 
 
 

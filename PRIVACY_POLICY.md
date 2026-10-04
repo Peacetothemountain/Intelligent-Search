@@ -15,6 +15,7 @@ Intelligent Search performs search queries, fuzzy taxonomy matching, contacts in
 - **Zero Data Collection**: No search history, query logs, contacts, calendar events, app usage statistics, or user metrics are ever uploaded, transmitted, sold, or shared with external servers or third parties.
 - **Search History Storage**: Search history is stored exclusively in an encrypted local SQLite database (`IntelligentSearchDatabase`) managed via Android Room on your physical device. Users can clear or disable search history at any time via **Settings -> Search Sources -> Web -> Search History**.
 - **Calendar & Contacts Access**: Calendar and contacts permissions (`READ_CALENDAR`, `READ_CONTACTS`) are queried strictly on-demand for local search display and are never stored outside the active search session.
+- **Files & Media Access via System Pickers**: When local file or media search is enabled, user-selected directories and media files are accessed strictly on-device through the Android Storage Access Framework (SAF) and Android Photo Picker system pickers. Intelligent Search does not declare or request broad storage permissions (such as `READ_MEDIA_IMAGES` or `READ_MEDIA_VIDEO`), ensuring granular user control and zero data exfiltration.
 
 ## 3. Web Search & External Engines
 When performing web searches or fetching autocomplete web suggestions:

@@ -3455,21 +3455,6 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 )
                 var showContactsRationaleDialog by remember { mutableStateOf(false) }
                 var showContactsSettingsDialog by remember { mutableStateOf(false) }
-                var showFilesRationaleDialog by remember { mutableStateOf(false) }
-                var showFilesSettingsDialog by remember { mutableStateOf(false) }
-
-                val filePermissions = remember {
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                        arrayOf(
-                            android.Manifest.permission.READ_MEDIA_IMAGES,
-                            android.Manifest.permission.READ_MEDIA_VIDEO,
-                            android.Manifest.permission.READ_MEDIA_AUDIO
-                        )
-                    } else {
-                        arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-                    }
-                }
-
                 var searchContacts by rememberBooleanPreference(prefs, "search.contacts", false)
                 var searchFiles by rememberBooleanPreference(prefs, "search.files", false)
 
@@ -3482,12 +3467,6 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                                 searchContacts = hasContacts
                                 prefs.edit().putBoolean("search.contacts", hasContacts).apply()
                                 viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, hasContacts)
-                            }
-                            val hasFiles = filePermissions.any { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
-                            if (searchFiles != hasFiles) {
-                                searchFiles = hasFiles
-                                prefs.edit().putBoolean("search.files", hasFiles).apply()
-                                viewModel?.updateSetting(SettingsManager.SEARCH_FILES, hasFiles)
                             }
                         }
                     }
@@ -3609,106 +3588,17 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                     showDivider = true
                 )
                 
-                val filesPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
-                    val granted = results.values.any { it }
-                    if (granted) {
-                        searchFiles = true
-                        prefs.edit().putBoolean("search.files", true).apply()
-                        viewModel?.updateSetting(SettingsManager.SEARCH_FILES, true)
-                        Toast.makeText(context, "Files search enabled", Toast.LENGTH_SHORT).show()
-                    } else {
-                        searchFiles = false
-                        prefs.edit().putBoolean("search.files", false).apply()
-                        viewModel?.updateSetting(SettingsManager.SEARCH_FILES, false)
-                        showFilesSettingsDialog = true
-                    }
-                }
-
-                if (showFilesRationaleDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showFilesRationaleDialog = false },
-                        title = { Text("Allow Files & Media Access?", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-                        text = {
-                            Text(
-                                "Intelligent Search needs file and media permissions to find and open files, photos, audio, videos, and documents directly from the search bar.",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        },
-                        confirmButton = {
-                            TextButton(
-                                onClick = {
-                                    showFilesRationaleDialog = false
-                                    filesPermissionLauncher.launch(filePermissions)
-                                }
-                            ) {
-                                Text("Allow", style = MaterialTheme.typography.labelLarge)
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(
-                                onClick = {
-                                    showFilesRationaleDialog = false
-                                    searchFiles = false
-                                }
-                            ) {
-                                Text("Not Now", style = MaterialTheme.typography.labelLarge)
-                            }
-                        }
-                    )
-                }
-
-                if (showFilesSettingsDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showFilesSettingsDialog = false },
-                        title = { Text("Files Permission Required", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-                        text = {
-                            Text(
-                                "File access permission is required to search files on your device. Please enable file and media access in Android App Settings.",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        },
-                        confirmButton = {
-                            TextButton(
-                                onClick = {
-                                    showFilesSettingsDialog = false
-                                    try {
-                                        val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                            data = android.net.Uri.fromParts("package", context.packageName, null)
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                        context.startActivity(intent)
-                                    } catch (_: Throwable) {}
-                                }
-                            ) {
-                                Text("Open Settings", style = MaterialTheme.typography.labelLarge)
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showFilesSettingsDialog = false }) {
-                                Text("Cancel", style = MaterialTheme.typography.labelLarge)
-                            }
-                        }
-                    )
-                }
-
                 SettingsRowToggle(
                     title = "Files",
-                    subtitle = "Search Local Files.",
+                    subtitle = "Search Local Files & Media via System Pickers.",
                     icon = Icons.Outlined.Folder,
                     isChecked = searchFiles,
                     onCheckedChange = { isChecked -> 
+                        searchFiles = isChecked
+                        prefs.edit().putBoolean("search.files", isChecked).apply()
+                        viewModel?.updateSetting(SettingsManager.SEARCH_FILES, isChecked)
                         if (isChecked) {
-                            if (filePermissions.any { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) {
-                                searchFiles = true
-                                prefs.edit().putBoolean("search.files", true).apply()
-                                viewModel?.updateSetting(SettingsManager.SEARCH_FILES, true)
-                            } else {
-                                showFilesRationaleDialog = true
-                            }
-                        } else {
-                            searchFiles = false
-                            prefs.edit().putBoolean("search.files", false).apply()
-                            viewModel?.updateSetting(SettingsManager.SEARCH_FILES, false)
+                            Toast.makeText(context, "Files search enabled", Toast.LENGTH_SHORT).show()
                         }
                     },
                     onClick = { 
@@ -5753,8 +5643,31 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Throwable) {}
             Toast.makeText(context, "Directory selected: ${uri.lastPathSegment}", Toast.LENGTH_SHORT).show()
             prefs.edit().putString("search.files.uri", uri.toString()).apply()
+        }
+    }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            for (uri in uris) {
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Throwable) {}
+            }
+            Toast.makeText(context, "${uris.size} media items selected via Photo Picker", Toast.LENGTH_SHORT).show()
+            prefs.edit().putInt("search.files.photo_count", uris.size).apply()
         }
     }
 
@@ -5773,12 +5686,25 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         ) {
             SettingsCard {
                 val currentFileUri = prefs.getString("search.files.uri", null)
-                val fileUriSubtitle = if (currentFileUri.isNullOrBlank()) "None Selected." else currentFileUri
+                val fileUriSubtitle = if (currentFileUri.isNullOrBlank()) "None Selected (Uses System Directory Picker)." else currentFileUri
                 SettingsRow(
                     title = "Select Indexing Directory",
                     subtitle = fileUriSubtitle,
                     icon = Icons.Outlined.FolderOpen,
                     onClick = { launcher.launch(null) },
+                    showDivider = true
+                )
+                val photoCount = prefs.getInt("search.files.photo_count", 0)
+                val photoSubtitle = if (photoCount > 0) "$photoCount media items selected" else "Select photos & videos via Android Photo Picker"
+                SettingsRow(
+                    title = "System Photo Picker",
+                    subtitle = photoSubtitle,
+                    icon = Icons.Outlined.Image,
+                    onClick = {
+                        photoPickerLauncher.launch(
+                            androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                        )
+                    },
                     showDivider = true
                 )
                 var hiddenFiles by rememberBooleanPreference(prefs, "search.files.hidden.files", false)

@@ -3107,6 +3107,25 @@ fun MainSettingsScreen(
                     subtitle = "Import, Export, and Restore Backup App Data.",
                     icon = Icons.Outlined.Shield,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.BackupRestore) },
+                    showDivider = true
+                )
+                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                SettingsRow(
+                    title = "Privacy Policy",
+                    subtitle = "On-Device Privacy Architecture & Policy.",
+                    icon = Icons.Outlined.Policy,
+                    onClick = {
+                        try {
+                            uriHandler.openUri("https://github.com/Peacetothemountain/Intelligent-Search/blob/main/PRIVACY_POLICY.md")
+                        } catch (_: Throwable) {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/Peacetothemountain/Intelligent-Search/blob/main/PRIVACY_POLICY.md")).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Throwable) {}
+                        }
+                    },
                     showDivider = isDebugUnlocked
                 )
                 

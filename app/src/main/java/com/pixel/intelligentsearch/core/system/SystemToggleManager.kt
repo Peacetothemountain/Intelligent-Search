@@ -38,7 +38,7 @@ import javax.inject.Singleton
 
 @Singleton
 class SystemToggleManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) {
 
     companion object {
@@ -267,27 +267,8 @@ class SystemToggleManager @Inject constructor(
         }
     }
 
-    @SuppressLint("MissingPermission")
     fun getBluetoothStatusText(enabled: Boolean): String {
-        if (!enabled) return "Bluetooth is off"
-        try {
-            if (bluetoothAdapter != null) {
-                if (bluetoothManager != null) {
-                    val connectedGatt = bluetoothManager.getConnectedDevices(BluetoothProfile.GATT)
-                    if (connectedGatt.isNotEmpty()) {
-                        return "Connected to ${connectedGatt.first().name ?: "Device"}"
-                    }
-                }
-                val bonded = bluetoothAdapter.bondedDevices
-                val firstConnected = bonded?.firstOrNull { it.bondState == BluetoothDevice.BOND_BONDED }
-                if (firstConnected != null) {
-                    return "Paired with ${firstConnected.name ?: "Device"}"
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Error fetching bluetooth status text", e)
-        }
-        return "Bluetooth is on • Ready to connect"
+        return if (enabled) "Bluetooth is on" else "Bluetooth is off"
     }
 
     fun openBluetoothSettings() {

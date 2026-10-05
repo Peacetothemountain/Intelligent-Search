@@ -71,7 +71,8 @@ object SearchScoringEngine {
         metadata: ScoringMetadata,
         currentTimeMs: Long = System.currentTimeMillis(),
         domainWeightMultiplier: Float = 1.0f,
-        precomputedQueryMetaphone: DoubleMetaphone.MetaphoneResult? = null
+        precomputedQueryMetaphone: DoubleMetaphone.MetaphoneResult? = null,
+        precomputedTargetMetaphone: DoubleMetaphone.MetaphoneResult? = null
     ): ScoreBreakdown {
         val q = query.trim().lowercase()
         val title = targetTitle.trim().lowercase()
@@ -82,7 +83,7 @@ object SearchScoringEngine {
         }
 
         // 1. Text & Structural Match Scoring
-        val matchScore = computeMatchScore(q, title, rawTitle, precomputedQueryMetaphone)
+        val matchScore = computeMatchScore(q, title, rawTitle, precomputedQueryMetaphone, precomputedTargetMetaphone)
 
         // 2. Frequency Scoring (Logarithmic compression)
         val frequencyScore = if (metadata.launchCount > 0) {
@@ -116,7 +117,8 @@ object SearchScoringEngine {
         query: String, 
         title: String, 
         rawTitle: String = title, 
-        precomputedQueryMetaphone: DoubleMetaphone.MetaphoneResult? = null
+        precomputedQueryMetaphone: DoubleMetaphone.MetaphoneResult? = null,
+        precomputedTargetMetaphone: DoubleMetaphone.MetaphoneResult? = null
     ): Float {
         // A. Exact Match
         if (title == query) {
@@ -146,7 +148,7 @@ object SearchScoringEngine {
 
         // E. Phonetic Match via Double Metaphone
         val queryMetaphone = precomputedQueryMetaphone ?: DoubleMetaphone.encode(query)
-        val titleMetaphone = DoubleMetaphone.encode(title)
+        val titleMetaphone = precomputedTargetMetaphone ?: DoubleMetaphone.encode(title)
         if (queryMetaphone.matches(titleMetaphone)) {
             return SCORE_PHONETIC_MATCH
         }

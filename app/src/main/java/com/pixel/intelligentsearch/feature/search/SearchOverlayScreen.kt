@@ -157,7 +157,7 @@ fun AppGridItem(app: AppItem, onClick: () -> Unit) {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = app.name,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 12.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -824,32 +824,89 @@ fun SearchOverlayScreen(
 
     val domainMatchPriorities = remember(appWeight, contactWeight, fileWeight) {
         listOf(
-            "contacts" to contactWeight,
             "apps" to appWeight,
+            "contacts" to contactWeight,
             "files" to fileWeight
         ).sortedByDescending { it.second }
     }
 
     val bestMatch = remember(uiState.query, uiState.contacts, visibleApps, uiState.files, settingsState.searchApps, settingsState.searchContacts, settingsState.searchFiles, domainMatchPriorities) {
-        if (uiState.query.isEmpty()) return@remember null
+        val q = uiState.query.trim()
+        if (q.isEmpty()) return@remember null
+
+        // Tier 1: Exact matches across domains in user-configured priority order
         for ((domain, _) in domainMatchPriorities) {
             when (domain) {
-                "contacts" -> {
-                    if (settingsState.searchContacts) {
-                        val contactMatch = uiState.contacts.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
-                        if (contactMatch != null) return@remember contactMatch
-                    }
-                }
                 "apps" -> {
                     if (settingsState.searchApps) {
-                        val appMatch = visibleApps.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
-                        if (appMatch != null) return@remember appMatch
+                        val exactApp = visibleApps.firstOrNull { it.name.equals(q, ignoreCase = true) }
+                        if (exactApp != null) return@remember exactApp
+                    }
+                }
+                "contacts" -> {
+                    if (settingsState.searchContacts) {
+                        val exactContact = uiState.contacts.firstOrNull { it.name.equals(q, ignoreCase = true) }
+                        if (exactContact != null) return@remember exactContact
                     }
                 }
                 "files" -> {
                     if (settingsState.searchFiles) {
-                        val fileMatch = uiState.files.firstOrNull { it.name.startsWith(uiState.query, ignoreCase = true) }
+                        val exactFile = uiState.files.firstOrNull { it.name.equals(q, ignoreCase = true) }
+                        if (exactFile != null) return@remember exactFile
+                    }
+                }
+            }
+        }
+
+        // Tier 2: Prefix matches across domains in priority order
+        for ((domain, _) in domainMatchPriorities) {
+            when (domain) {
+                "apps" -> {
+                    if (settingsState.searchApps) {
+                        val appMatch = visibleApps.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
+                        if (appMatch != null) return@remember appMatch
+                    }
+                }
+                "contacts" -> {
+                    if (settingsState.searchContacts) {
+                        val contactMatch = uiState.contacts.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
+                        if (contactMatch != null) return@remember contactMatch
+                    }
+                }
+                "files" -> {
+                    if (settingsState.searchFiles) {
+                        val fileMatch = uiState.files.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
                         if (fileMatch != null) return@remember fileMatch
+                    }
+                }
+            }
+        }
+
+        // Tier 3: Word-boundary prefix matches (e.g. "notes" matching "Keep Notes")
+        for ((domain, _) in domainMatchPriorities) {
+            when (domain) {
+                "apps" -> {
+                    if (settingsState.searchApps) {
+                        val wordMatch = visibleApps.firstOrNull { app ->
+                            app.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
+                        }
+                        if (wordMatch != null) return@remember wordMatch
+                    }
+                }
+                "contacts" -> {
+                    if (settingsState.searchContacts) {
+                        val wordMatch = uiState.contacts.firstOrNull { c ->
+                            c.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
+                        }
+                        if (wordMatch != null) return@remember wordMatch
+                    }
+                }
+                "files" -> {
+                    if (settingsState.searchFiles) {
+                        val wordMatch = uiState.files.firstOrNull { f ->
+                            f.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
+                        }
+                        if (wordMatch != null) return@remember wordMatch
                     }
                 }
             }
@@ -1040,12 +1097,12 @@ fun SearchOverlayScreen(
                                     builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent))
                                     builder.append(bestMatchText.substring(0, minOf(uiState.query.length, bestMatchText.length)))
                                     builder.pop()
-                                    builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Gray))
+                                    builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f)))
                                     builder.append(bestMatchText.substring(uiState.query.length))
                                     builder.pop()
                                     Text(
                                         text = builder.toAnnotatedString(),
-                                        fontSize = 18.sp,
+                                        fontSize = 20.sp,
                                         fontFamily = GoogleSansFlex,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -1505,138 +1562,275 @@ fun SearchOverlayScreen(
             }
 
             if (bestMatch != null) {
-                item(key = "top_hit_label") {
-                    Text("Top Hit", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp, fontFamily = GoogleSansFlex, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-                }
-                item(key = "top_hit_content") {
-                    when (val match = bestMatch) {
-                        is ContactItem -> {
+                item(key = "best_match_hero_card") {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            // Header: Expressive "BEST MATCH" Pill & "Press ↵ to Open" Action Hint
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .bouncyClickable {
-                                        hasStartedTyping = false
-                                        focusManager.clearFocus(force = true)
-                                        keyboardController?.hide()
-                                        val intent = if (settingsState.contactDirectCall) {
-                                            Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
-                                        } else {
-                                            Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {
-                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            }
-                                        }
-                                        launchSafeIntent(context, intent)
-                                    }
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape), contentAlignment = Alignment.Center) {
-                                    Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .background(
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "BEST MATCH",
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = GoogleSansFlex,
+                                        letterSpacing = 0.5.sp
+                                    )
                                 }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column {
-                                    Text(match.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
-                                    Text(match.phoneNumber, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .background(
+                                            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.70f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "Press ↵ to open",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        fontFamily = GoogleSansFlex
+                                    )
                                 }
-                            }
-                        }
-                        is AppItem -> {
-                            val appIconState = remember(match.packageName) { mutableStateOf<AppIconResult?>(null) }
-                            LaunchedEffect(match.packageName) {
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                    val icon = getThemedAppIcon(context, match.packageName)
-                                    appIconState.value = icon
-                                }
-                            }
-                            val fallbackBitmap = remember(match.packageName) {
-                                runCatching { match.icon.toBitmap().asImageBitmap() }.getOrNull()
                             }
 
-                            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                Column {
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            when (val match = bestMatch) {
+                                is ContactItem -> {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth().bouncyClickable { performAppLaunch(match.packageName) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .bouncyClickable {
+                                                hasStartedTyping = false
+                                                focusManager.clearFocus(force = true)
+                                                keyboardController?.hide()
+                                                val intent = if (settingsState.contactDirectCall) {
+                                                    Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
+                                                } else {
+                                                    Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {
+                                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                    }
+                                                }
+                                                launchSafeIntent(context, intent)
+                                            }
+                                            .padding(vertical = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        val appIcon = appIconState.value
-                                        if (appIcon != null) {
-                                            Image(
-                                                bitmap = appIcon.bitmap,
+                                        Box(
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Person,
                                                 contentDescription = null,
-                                                modifier = Modifier.size(48.dp),
-                                                colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.size(24.dp)
                                             )
-                                        } else if (fallbackBitmap != null) {
-                                            Image(bitmap = fallbackBitmap, contentDescription = null, modifier = Modifier.size(48.dp))
                                         }
                                         Spacer(modifier = Modifier.width(16.dp))
-                                        Column {
-                                            Text(match.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontFamily = GoogleSansFlex, fontWeight = FontWeight.Medium)
-                                            Text("App", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontFamily = GoogleSansFlex)
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                match.name,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 18.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontFamily = GoogleSansFlex
+                                            )
+                                            Text(
+                                                match.phoneNumber,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                fontSize = 13.sp,
+                                                fontFamily = GoogleSansFlex
+                                            )
+                                        }
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                            contentDescription = "Open",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                                is AppItem -> {
+                                    val appIconState = remember(match.packageName) { mutableStateOf<AppIconResult?>(null) }
+                                    LaunchedEffect(match.packageName) {
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                            val icon = getThemedAppIcon(context, match.packageName)
+                                            appIconState.value = icon
                                         }
                                     }
-                                    if (match.actions.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(12.dp))
+                                    val fallbackBitmap = remember(match.packageName) {
+                                        runCatching { match.icon.toBitmap().asImageBitmap() }.getOrNull()
+                                    }
+
+                                    Column {
                                         Row(
-                                            modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .bouncyClickable { performAppLaunch(match.packageName) }
+                                                .padding(vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            match.actions.forEach { action ->
-                                                AssistChip(
-                                                    onClick = {
-                                                        hasStartedTyping = false
-                                                        val intent = Intent(action.action)
-                                                        if (action.dataUri != null) intent.data = android.net.Uri.parse(action.dataUri)
-                                                        intent.setPackage(match.packageName)
-                                                        try {
-                                                            launchSafeIntent(context, intent)
-                                                        } catch (e: Exception) {
-                                                            intent.setPackage(null)
-                                                            launchSafeIntent(context, intent)
-                                                        }
-                                                    },
-                                                    label = { Text(action.title, color = MaterialTheme.colorScheme.onPrimaryContainer, fontFamily = GoogleSansFlex) },
-                                                    colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.primaryContainer, labelColor = MaterialTheme.colorScheme.onPrimaryContainer),
-                                                    border = null,
-                                                    shape = RoundedCornerShape(32.dp)
+                                            val appIcon = appIconState.value
+                                            if (appIcon != null) {
+                                                Image(
+                                                    bitmap = appIcon.bitmap,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(52.dp),
+                                                    colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
+                                                )
+                                            } else if (fallbackBitmap != null) {
+                                                Image(bitmap = fallbackBitmap, contentDescription = null, modifier = Modifier.size(52.dp))
+                                            }
+                                            Spacer(modifier = Modifier.width(16.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    match.name,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    fontSize = 20.sp,
+                                                    fontFamily = GoogleSansFlex,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    "Application",
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    fontSize = 13.sp,
+                                                    fontFamily = GoogleSansFlex
+                                                )
+                                            }
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                                contentDescription = "Open",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        if (match.actions.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.height(10.dp))
+                                            Row(
+                                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                match.actions.forEach { action ->
+                                                    AssistChip(
+                                                        onClick = {
+                                                            hasStartedTyping = false
+                                                            val intent = Intent(action.action)
+                                                            if (action.dataUri != null) intent.data = android.net.Uri.parse(action.dataUri)
+                                                            intent.setPackage(match.packageName)
+                                                            try {
+                                                                launchSafeIntent(context, intent)
+                                                            } catch (e: Exception) {
+                                                                intent.setPackage(null)
+                                                                launchSafeIntent(context, intent)
+                                                            }
+                                                        },
+                                                        label = { Text(action.title, color = MaterialTheme.colorScheme.onPrimaryContainer, fontFamily = GoogleSansFlex) },
+                                                        colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.primaryContainer, labelColor = MaterialTheme.colorScheme.onPrimaryContainer),
+                                                        border = null,
+                                                        shape = RoundedCornerShape(16.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                is FileItem -> {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .bouncyClickable {
+                                                hasStartedTyping = false
+                                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                    setDataAndType(Uri.parse(match.uri), match.mimeType)
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                    setPackage("com.google.android.apps.nbu.files")
+                                                }
+                                                try {
+                                                    launchSafeIntent(context, intent)
+                                                } catch(e: Exception) {
+                                                    intent.setPackage(null)
+                                                    launchSafeIntent(context, intent)
+                                                }
+                                            }
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (settingsState.filesThumbnails) {
+                                            FileIconThumbnail(match.uri, match.mimeType)
+                                        } else {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(48.dp)
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
                                         }
-                                    }
-                                }
-                            }
-                        }
-                        is FileItem -> {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .bouncyClickable {
-                                        hasStartedTyping = false
-                                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                                            setDataAndType(Uri.parse(match.uri), match.mimeType)
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            setPackage("com.google.android.apps.nbu.files")
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                match.name,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 16.sp,
+                                                fontFamily = GoogleSansFlex,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                "Local Document",
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                fontSize = 12.sp,
+                                                fontFamily = GoogleSansFlex
+                                            )
                                         }
-                                        try {
-                                            launchSafeIntent(context, intent)
-                                        } catch(e: Exception) {
-                                            intent.setPackage(null)
-                                            launchSafeIntent(context, intent)
-                                        }
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                            contentDescription = "Open",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
                                     }
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (settingsState.filesThumbnails) {
-                                    FileIconThumbnail(match.uri, match.mimeType)
-                                } else {
-                                    Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                                        Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column {
-                                    Text(match.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }

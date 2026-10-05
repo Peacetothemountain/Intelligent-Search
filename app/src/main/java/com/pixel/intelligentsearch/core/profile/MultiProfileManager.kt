@@ -40,7 +40,7 @@ data class ProfileDescriptor(
 
 @Singleton
 class MultiProfileManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext context: Context
 ) {
 
     companion object {
@@ -50,8 +50,9 @@ class MultiProfileManager @Inject constructor(
         private const val USER_TYPE_CLONE = "android.os.usertype.profile.CLONE"
     }
 
-    private val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
-    private val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? LauncherApps
+    private val appContext = context.applicationContext ?: context
+    private val userManager = appContext.getSystemService(Context.USER_SERVICE) as? UserManager
+    private val launcherApps = appContext.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? LauncherApps
 
     private val _profilesState = MutableStateFlow<List<ProfileDescriptor>>(emptyList())
     val profilesState: StateFlow<List<ProfileDescriptor>> = _profilesState.asStateFlow()
@@ -227,7 +228,7 @@ class MultiProfileManager @Inject constructor(
                     // Obtain platform-badged icon for this specific profile
                     val originalIcon: Drawable = activity.getBadgedIcon(0)
                     val badgedIcon = try {
-                        context.packageManager.getUserBadgedIcon(originalIcon, desc.userHandle)
+                        appContext.packageManager.getUserBadgedIcon(originalIcon, desc.userHandle)
                     } catch (_: Throwable) {
                         originalIcon
                     }
@@ -320,7 +321,7 @@ class MultiProfileManager @Inject constructor(
         }
 
         // Fallback to standard package manager for personal profile
-        val pm = context.packageManager
+        val pm = appContext.packageManager
         val launchIntent = pm.getLaunchIntentForPackage(packageName)?.apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             sourceBounds?.let { bounds -> this.sourceBounds = bounds }
@@ -330,7 +331,7 @@ class MultiProfileManager @Inject constructor(
                 if (activity != null) {
                     activity.startActivity(launchIntent, opts)
                 } else {
-                    context.startActivity(launchIntent, opts)
+                    appContext.startActivity(launchIntent, opts)
                 }
                 return true
             } catch (e: Exception) {
@@ -361,7 +362,7 @@ class MultiProfileManager @Inject constructor(
                 if (activity != null) {
                     activity.startActivity(explicitIntent, opts)
                 } else {
-                    context.startActivity(explicitIntent, opts)
+                    appContext.startActivity(explicitIntent, opts)
                 }
                 return true
             }

@@ -319,7 +319,10 @@ class SearchViewModel @Inject constructor(
 
         searchJob?.cancel()
         searchJob = viewModelScope.launch(Dispatchers.Default) {
-            if (verboseLogging) android.util.Log.d("SearchDebug", "Local query started: $newQuery")
+            val isDebuggable = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+            if (isDebuggable && verboseLogging) {
+                android.util.Log.d("SearchDebug", "Local query started (len: ${newQuery.length})")
+            }
             val startTime = System.currentTimeMillis()
 
             if (forceSearchError) {

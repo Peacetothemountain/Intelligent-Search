@@ -150,18 +150,13 @@ class BackupManager @Inject constructor(
     ) {
         withContext(Dispatchers.IO) {
             try {
-                Log.d("BackupManager", "exportToFile started: uri=$uri, hasPassphrase=${!passphrase.isNullOrBlank()}")
                 val payload = createBackupPayload()
-                Log.d("BackupManager", "payload created: schemaVersion=${payload.schemaVersion}, historyCount=${payload.searchHistory.size}")
                 val plainJson = serializePayload(payload)
-                Log.d("BackupManager", "plainJson length=${plainJson.length}")
 
                 val isHwBacked = strongBoxSecurityManager.isStrongBoxSupported()
                 val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
-                Log.d("BackupManager", "hwInfo: chip=${hwInfo.chipName}, isHwBacked=$isHwBacked")
 
                 val envelope = if (!passphrase.isNullOrBlank()) {
-                    Log.d("BackupManager", "Encrypting with user passphrase")
                     val salt = BackupCryptoEngine.generateRandomSalt()
                     val iv = BackupCryptoEngine.generateRandomIv()
                     val key = BackupCryptoEngine.deriveKeyFromPassphrase(passphrase.toCharArray(), salt)
@@ -178,14 +173,13 @@ class BackupManager @Inject constructor(
                         payloadSha256 = sha
                     )
                 } else {
-                    Log.d("BackupManager", "Encrypting with portable default key")
                     val key = BackupCryptoEngine.getPortableDefaultKey()
                     val iv = BackupCryptoEngine.generateRandomIv()
                     val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
                     val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
 
                     EncryptedBackupEnvelope(
-                        isHardwareBacked = isHwBacked,
+                        isHardwareBacked = false,
                         hardwareChip = hwInfo.chipName,
                         deviceModel = hwInfo.deviceDisplayName,
                         kdf = null,
@@ -197,7 +191,6 @@ class BackupManager @Inject constructor(
 
                 val envelopeJson = serializeEnvelope(envelope)
                 val bytes = envelopeJson.toByteArray(Charsets.UTF_8)
-                Log.d("BackupManager", "envelopeJson length=${envelopeJson.length}, bytes=${bytes.size}")
 
                 var writeSuccess = false
                 // Method 1: Try openFileDescriptor with rwt / sync
@@ -214,7 +207,6 @@ class BackupManager @Inject constructor(
                             }
                         }
                         writeSuccess = true
-                        Log.d("BackupManager", "Wrote ${bytes.size} bytes via ParcelFileDescriptor")
                     }
                 } catch (e: Throwable) {
                     Log.w("BackupManager", "openFileDescriptor write failed, falling back to openOutputStream", e)
@@ -229,27 +221,21 @@ class BackupManager @Inject constructor(
                         stream.write(bytes)
                         stream.flush()
                     }
-                    Log.d("BackupManager", "Wrote ${bytes.size} bytes via openOutputStream")
                 }
 
                 // Verify file size on disk immediately
                 try {
                     val pfd = context.contentResolver.openFileDescriptor(uri, "r")
                     if (pfd != null) {
-                        val statSize = pfd.statSize
                         pfd.close()
-                        Log.d("BackupManager", "Post-write verification statSize = $statSize bytes")
                     }
-                } catch (e: Throwable) {
-                    Log.w("BackupManager", "Post-write statSize check warning", e)
-                }
+                } catch (_: Throwable) {}
 
                 withContext(Dispatchers.Main) {
-                    Log.d("BackupManager", "exportToFile completed successfully, invoking onSuccess")
                     onSuccess()
                 }
             } catch (e: Throwable) {
-                Log.e("BackupManager", "exportToFile FAILED with exception", e)
+                Log.e("BackupManager", "exportToFile failed", e)
                 withContext(Dispatchers.Main) {
                     onError(e.localizedMessage ?: "Failed to export backup")
                 }

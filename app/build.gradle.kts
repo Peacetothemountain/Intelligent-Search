@@ -15,8 +15,8 @@ android {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
         targetSdk = 37
-        versionCode = 110
-        versionName = "9.1.2"
+        versionCode = 112
+        versionName = "9.1.4"
         ndk {
             // CRITICAL: Must support arm64-v8a, armeabi-v7a, x86_64, and x86 to retain Google Play compatibility for 2,159+ devices.
             abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86"))
@@ -159,6 +159,13 @@ dependencies {
 
   // Graphics Shapes for Material Morph Animations
   implementation(libs.androidx.graphics.shapes)
+}
+
+tasks.register<Zip>("packageNativeDebugSymbols") {
+    archiveFileName.set("native-debug-symbols.zip")
+    destinationDirectory.set(file("${layout.buildDirectory.get()}/outputs/native-debug-symbols/release"))
+    from("${layout.buildDirectory.get()}/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib")
+    dependsOn("mergeReleaseNativeLibs")
 }
 
 

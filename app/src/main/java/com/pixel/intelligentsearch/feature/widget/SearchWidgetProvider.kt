@@ -364,7 +364,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         val useMaterialYouIcons = (effectiveIconTheme != "System G Icon") || isPillLight || (subthemeStr == "Custom")
 
                         val showVoice = if (hasSaved) prefs.getBoolean("widget_system_show_voice", true) else true
-                        val showGIcon = if (hasSaved) prefs.getBoolean("widget_system_show_g_icon", false) else false
+                        val showGIcon = if (hasSaved) prefs.getBoolean("widget_system_show_g_icon", true) else true
 
                         val rawShortcut1 = if (hasSaved) prefs.getString("widget_system_shortcut_1", "Google Lens") ?: "Google Lens" else "Google Lens"
                         val rawShortcut2 = if (hasSaved) prefs.getString("widget_system_shortcut_2", "None") ?: "None" else "None"
@@ -570,7 +570,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         val useMaterialYouIcons = true
 
                         val showVoice = if (hasSaved) prefs.getBoolean("widget_material_show_voice", true) else true
-                        val showGIcon = if (hasSaved) prefs.getBoolean("widget_material_show_g_icon", false) else false
+                        val showGIcon = if (hasSaved) prefs.getBoolean("widget_material_show_g_icon", true) else true
                         val actionIconStr = if (hasSaved) prefs.getString("widget_material_action_icon", "Search") ?: "Search" else "Search"
 
                         val rawShortcut1 = if (hasSaved) prefs.getString("widget_material_shortcut_1", "Google Lens") ?: "Google Lens" else "Google Lens"

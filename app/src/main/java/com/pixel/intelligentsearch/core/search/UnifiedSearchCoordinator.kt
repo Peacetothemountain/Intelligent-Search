@@ -28,7 +28,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class UnifiedSearchCoordinator @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     val systemActionRouter: SystemActionRouter
 ) {
     data class RankedSearchResult(
@@ -44,7 +44,8 @@ class UnifiedSearchCoordinator @Inject constructor(
         val subtitle: String? = null,
         val domain: SearchScoringEngine.EntityDomain,
         val payload: Any,
-        val metadata: SearchScoringEngine.ScoringMetadata = SearchScoringEngine.ScoringMetadata()
+        val metadata: SearchScoringEngine.ScoringMetadata = SearchScoringEngine.ScoringMetadata(),
+        val precomputedMetaphone: DoubleMetaphone.MetaphoneResult? = null
     ) {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -84,6 +85,38 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val phoneticIndex = ConcurrentHashMap<String, MutableSet<SearchItem>>()
     private val itemRegistry = ConcurrentHashMap<String, SearchItem>()
 
+    private val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+    @Volatile private var cachedAppWeightMul: Float = 0.5f
+    @Volatile private var cachedContactWeightMul: Float = 0.5f
+    @Volatile private var cachedFileWeightMul: Float = 0.5f
+
+    private val prefChangeListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        when (key) {
+            "search_weight_apps" -> updateAppWeight()
+            "search_weight_contacts" -> updateContactWeight()
+            "search_weight_files" -> updateFileWeight()
+        }
+    }
+
+    init {
+        updateAppWeight()
+        updateContactWeight()
+        updateFileWeight()
+        prefs.registerOnSharedPreferenceChangeListener(prefChangeListener)
+    }
+
+    private fun updateAppWeight() {
+        cachedAppWeightMul = (prefs.getInt("search_weight_apps", 50) / 100f).coerceAtLeast(0.01f)
+    }
+
+    private fun updateContactWeight() {
+        cachedContactWeightMul = (prefs.getInt("search_weight_contacts", 50) / 100f).coerceAtLeast(0.01f)
+    }
+
+    private fun updateFileWeight() {
+        cachedFileWeightMul = (prefs.getInt("search_weight_files", 50) / 100f).coerceAtLeast(0.01f)
+    }
+
     // ---------------------------------------------------------------------------------------------
     // INGESTION & INDEXING API
     // ---------------------------------------------------------------------------------------------
@@ -99,13 +132,15 @@ class UnifiedSearchCoordinator @Inject constructor(
             isPinned = isPinned,
             domain = SearchScoringEngine.EntityDomain.APPLICATION
         )
+        val metaphone = DoubleMetaphone.encode(app.name)
         val searchItem = SearchItem(
             id = entityId,
             title = app.name,
             subtitle = app.packageName,
             domain = SearchScoringEngine.EntityDomain.APPLICATION,
             payload = app,
-            metadata = metadata
+            metadata = metadata,
+            precomputedMetaphone = metaphone
         )
         itemRegistry[searchItem.id] = searchItem
 
@@ -128,7 +163,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
 
         // Index phonetic codes
-        val metaphone = DoubleMetaphone.encode(app.name)
         if (metaphone.primary.isNotEmpty()) {
             phoneticIndex.getOrPut(metaphone.primary) { ConcurrentHashMap.newKeySet() }.add(searchItem)
         }
@@ -147,13 +181,15 @@ class UnifiedSearchCoordinator @Inject constructor(
             isPinned = false,
             domain = SearchScoringEngine.EntityDomain.CONTACT
         )
+        val nameMetaphone = DoubleMetaphone.encode(contact.name)
         val searchItem = SearchItem(
             id = "contact:${contact.lookupUri}",
             title = contact.name,
             subtitle = contact.phoneNumber,
             domain = SearchScoringEngine.EntityDomain.CONTACT,
             payload = contact,
-            metadata = metadata
+            metadata = metadata,
+            precomputedMetaphone = nameMetaphone
         )
         itemRegistry[searchItem.id] = searchItem
 
@@ -179,7 +215,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
 
         // Index full name phonetics
-        val nameMetaphone = DoubleMetaphone.encode(contact.name)
         if (nameMetaphone.primary.isNotEmpty()) {
             phoneticIndex.getOrPut(nameMetaphone.primary) { ConcurrentHashMap.newKeySet() }.add(searchItem)
         }
@@ -192,13 +227,15 @@ class UnifiedSearchCoordinator @Inject constructor(
         val metadata = SearchScoringEngine.ScoringMetadata(
             domain = SearchScoringEngine.EntityDomain.APP_SHORTCUT
         )
+        val metaphone = DoubleMetaphone.encode(shortcut.shortLabel)
         val searchItem = SearchItem(
             id = "shortcut:${shortcut.packageName}/${shortcut.id}",
             title = shortcut.shortLabel,
             subtitle = shortcut.longLabel,
             domain = SearchScoringEngine.EntityDomain.APP_SHORTCUT,
             payload = shortcut,
-            metadata = metadata
+            metadata = metadata,
+            precomputedMetaphone = metaphone
         )
         itemRegistry[searchItem.id] = searchItem
 
@@ -216,13 +253,15 @@ class UnifiedSearchCoordinator @Inject constructor(
             lastUsedTimestampMs = modifiedMs,
             domain = SearchScoringEngine.EntityDomain.FILE
         )
+        val metaphone = DoubleMetaphone.encode(file.name)
         val searchItem = SearchItem(
             id = "file:${file.path}",
             title = file.name,
             subtitle = file.path,
             domain = SearchScoringEngine.EntityDomain.FILE,
             payload = file,
-            metadata = metadata
+            metadata = metadata,
+            precomputedMetaphone = metaphone
         )
         itemRegistry[searchItem.id] = searchItem
 
@@ -239,13 +278,15 @@ class UnifiedSearchCoordinator @Inject constructor(
             val metadata = SearchScoringEngine.ScoringMetadata(
                 domain = SearchScoringEngine.EntityDomain.APPLICATION
             )
+            val metaphone = DoubleMetaphone.encode(app.name)
             val searchItem = SearchItem(
                 id = entityId,
                 title = app.name,
                 subtitle = app.packageName,
                 domain = SearchScoringEngine.EntityDomain.APPLICATION,
                 payload = app,
-                metadata = metadata
+                metadata = metadata,
+                precomputedMetaphone = metaphone
             )
             itemRegistry[searchItem.id] = searchItem
 
@@ -265,7 +306,6 @@ class UnifiedSearchCoordinator @Inject constructor(
                 pairs.add(w to searchItem)
             }
 
-            val metaphone = DoubleMetaphone.encode(app.name)
             if (metaphone.primary.isNotEmpty()) {
                 phoneticIndex.getOrPut(metaphone.primary) { ConcurrentHashMap.newKeySet() }.add(searchItem)
             }
@@ -344,7 +384,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 metadata = item.metadata,
                 currentTimeMs = now,
                 domainWeightMultiplier = 1.0f,
-                precomputedQueryMetaphone = queryMetaphone
+                precomputedQueryMetaphone = queryMetaphone,
+                precomputedTargetMetaphone = item.precomputedMetaphone
             )
             if (score.totalScore > 0f) {
                 scoredApps.add(ScoredCandidate(item.payload as AppItem, score.totalScore))
@@ -392,7 +433,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 metadata = item.metadata,
                 currentTimeMs = now,
                 domainWeightMultiplier = 1.0f,
-                precomputedQueryMetaphone = queryMetaphone
+                precomputedQueryMetaphone = queryMetaphone,
+                precomputedTargetMetaphone = item.precomputedMetaphone
             )
             if (score.totalScore > 0f) {
                 scoredApps.add(ScoredCandidate(item.payload as AppItem, score.totalScore))
@@ -435,7 +477,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 metadata = item.metadata,
                 currentTimeMs = now,
                 domainWeightMultiplier = 1.0f,
-                precomputedQueryMetaphone = queryMetaphone
+                precomputedQueryMetaphone = queryMetaphone,
+                precomputedTargetMetaphone = item.precomputedMetaphone
             )
             if (score.totalScore > 0f) {
                 scoredContacts.add(ScoredCandidate(item.payload as ContactItem, score.totalScore))
@@ -474,7 +517,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 metadata = item.metadata,
                 currentTimeMs = now,
                 domainWeightMultiplier = 1.0f,
-                precomputedQueryMetaphone = queryMetaphone
+                precomputedQueryMetaphone = queryMetaphone,
+                precomputedTargetMetaphone = item.precomputedMetaphone
             )
             if (score.totalScore > 0f) {
                 scoredShortcuts.add(ScoredCandidate(item.payload as AppShortcutItem, score.totalScore))
@@ -513,7 +557,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 metadata = item.metadata,
                 currentTimeMs = now,
                 domainWeightMultiplier = 1.0f,
-                precomputedQueryMetaphone = queryMetaphone
+                precomputedQueryMetaphone = queryMetaphone,
+                precomputedTargetMetaphone = item.precomputedMetaphone
             )
             if (score.totalScore > 0f) {
                 scoredFiles.add(ScoredCandidate(item.payload as FileItem, score.totalScore))
@@ -615,10 +660,9 @@ class UnifiedSearchCoordinator @Inject constructor(
 
         // 7. Multi-Factor Relevance Scoring Matrix
         val now = System.currentTimeMillis()
-        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-        val appWeightMul = (prefs.getInt("search_weight_apps", 50) / 100f).coerceAtLeast(0.01f)
-        val contactWeightMul = (prefs.getInt("search_weight_contacts", 50) / 100f).coerceAtLeast(0.01f)
-        val fileWeightMul = (prefs.getInt("search_weight_files", 50) / 100f).coerceAtLeast(0.01f)
+        val appWeightMul = cachedAppWeightMul
+        val contactWeightMul = cachedContactWeightMul
+        val fileWeightMul = cachedFileWeightMul
 
         val rankedResults = ArrayList<RankedSearchResult>(candidates.size)
         for (item in candidates) {
@@ -634,7 +678,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 metadata = item.metadata,
                 currentTimeMs = now,
                 domainWeightMultiplier = domainMul,
-                precomputedQueryMetaphone = queryMetaphone
+                precomputedQueryMetaphone = queryMetaphone,
+                precomputedTargetMetaphone = item.precomputedMetaphone
             )
             if (scoreBreakdown.totalScore > 0f) {
                 rankedResults.add(RankedSearchResult(item, scoreBreakdown))

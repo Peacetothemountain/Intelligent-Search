@@ -105,6 +105,17 @@ object SystemDataProvider {
     @Volatile
     private var cachedApps: List<AppItem>? = null
 
+    @Volatile
+    private var multiProfileManagerInstance: com.pixel.intelligentsearch.core.profile.MultiProfileManager? = null
+
+    private fun getMultiProfileManager(context: Context): com.pixel.intelligentsearch.core.profile.MultiProfileManager {
+        return multiProfileManagerInstance ?: synchronized(this) {
+            multiProfileManagerInstance ?: com.pixel.intelligentsearch.core.profile.MultiProfileManager(context.applicationContext ?: context).also {
+                multiProfileManagerInstance = it
+            }
+        }
+    }
+
     fun invalidateAppsCache() {
         cachedApps = null
     }
@@ -158,7 +169,7 @@ object SystemDataProvider {
         }
 
         try {
-            val multiProfileManager = com.pixel.intelligentsearch.core.profile.MultiProfileManager(context)
+            val multiProfileManager = getMultiProfileManager(context)
             val profileApps = multiProfileManager.getAllProfileApps(forceRefresh)
             for (app in profileApps) {
                 val key = if (app.profileType != ProfileType.PERSONAL) "${app.packageName}_${app.userHandle}" else app.packageName

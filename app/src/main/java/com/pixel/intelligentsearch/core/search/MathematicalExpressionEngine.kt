@@ -153,90 +153,95 @@ object MathematicalExpressionEngine {
 
         // Factor = Unary (+, -)* Primary (!)* (^ Factor)?
         private fun parseFactor(): Double {
-            var sign = 1.0
-            while (true) {
-                if (eat('+'.code)) continue
-                if (eat('-'.code)) {
-                    sign = -sign
-                    continue
+            if (++depth > 40) throw IllegalArgumentException("Expression recursion limit exceeded")
+            try {
+                var sign = 1.0
+                while (true) {
+                    if (eat('+'.code)) continue
+                    if (eat('-'.code)) {
+                        sign = -sign
+                        continue
+                    }
+                    break
                 }
-                break
-            }
 
-            var x: Double
-            val startPos = pos
+                var x: Double
+                val startPos = pos
 
-            if (eat('('.code)) {
-                x = parseExpression()
-                eat(')'.code)
-            } else if (ch in '0'.code..'9'.code || ch == '.'.code) {
-                while (ch in '0'.code..'9'.code || ch == '.'.code) nextChar()
-                // Check for scientific notation (e.g. 1e6)
-                if (ch == 'e'.code || ch == 'E'.code) {
-                    nextChar()
-                    if (ch == '+'.code || ch == '-'.code) nextChar()
-                    while (ch in '0'.code..'9'.code) nextChar()
-                }
-                x = str.substring(startPos, pos).toDouble()
-            } else if (ch in 'a'.code..'z'.code || ch in 'A'.code..'Z'.code) {
-                while (ch in 'a'.code..'z'.code || ch in 'A'.code..'Z'.code || ch in '0'.code..'9'.code) nextChar()
-                val func = str.substring(startPos, pos).lowercase(Locale.ROOT)
+                if (eat('('.code)) {
+                    x = parseExpression()
+                    eat(')'.code)
+                } else if (ch in '0'.code..'9'.code || ch == '.'.code) {
+                    while (ch in '0'.code..'9'.code || ch == '.'.code) nextChar()
+                    // Check for scientific notation (e.g. 1e6)
+                    if (ch == 'e'.code || ch == 'E'.code) {
+                        nextChar()
+                        if (ch == '+'.code || ch == '-'.code) nextChar()
+                        while (ch in '0'.code..'9'.code) nextChar()
+                    }
+                    x = str.substring(startPos, pos).toDouble()
+                } else if (ch in 'a'.code..'z'.code || ch in 'A'.code..'Z'.code) {
+                    while (ch in 'a'.code..'z'.code || ch in 'A'.code..'Z'.code || ch in '0'.code..'9'.code) nextChar()
+                    val func = str.substring(startPos, pos).lowercase(Locale.ROOT)
 
-                x = when (func) {
-                    "pi" -> Math.PI
-                    "e" -> Math.E
-                    "phi" -> 1.618033988749895
-                    "tau" -> Math.PI * 2.0
-                    else -> {
-                        // Function call with argument in parentheses: func(arg)
-                        if (!eat('('.code)) throw IllegalArgumentException("Expected ( after function $func")
-                        val arg = parseExpression()
-                        eat(')'.code)
+                    x = when (func) {
+                        "pi" -> Math.PI
+                        "e" -> Math.E
+                        "phi" -> 1.618033988749895
+                        "tau" -> Math.PI * 2.0
+                        else -> {
+                            // Function call with argument in parentheses: func(arg)
+                            if (!eat('('.code)) throw IllegalArgumentException("Expected ( after function $func")
+                            val arg = parseExpression()
+                            eat(')'.code)
 
-                        when (func) {
-                            "sqrt" -> sqrt(arg)
-                            "cbrt" -> cbrt(arg)
-                            "sin" -> sin(arg)
-                            "cos" -> cos(arg)
-                            "tan" -> tan(arg)
-                            "asin" -> asin(arg)
-                            "acos" -> acos(arg)
-                            "atan" -> atan(arg)
-                            "sinh" -> sinh(arg)
-                            "cosh" -> cosh(arg)
-                            "tanh" -> tanh(arg)
-                            "ln" -> ln(arg)
-                            "log", "log10" -> log10(arg)
-                            "log2" -> ln(arg) / ln(2.0)
-                            "abs" -> abs(arg)
-                            "round" -> round(arg)
-                            "floor" -> floor(arg)
-                            "ceil" -> ceil(arg)
-                            "rad" -> Math.toRadians(arg)
-                            "deg" -> Math.toDegrees(arg)
-                            else -> throw IllegalArgumentException("Unknown function: $func")
+                            when (func) {
+                                "sqrt" -> sqrt(arg)
+                                "cbrt" -> cbrt(arg)
+                                "sin" -> sin(arg)
+                                "cos" -> cos(arg)
+                                "tan" -> tan(arg)
+                                "asin" -> asin(arg)
+                                "acos" -> acos(arg)
+                                "atan" -> atan(arg)
+                                "sinh" -> sinh(arg)
+                                "cosh" -> cosh(arg)
+                                "tanh" -> tanh(arg)
+                                "ln" -> ln(arg)
+                                "log", "log10" -> log10(arg)
+                                "log2" -> ln(arg) / ln(2.0)
+                                "abs" -> abs(arg)
+                                "round" -> round(arg)
+                                "floor" -> floor(arg)
+                                "ceil" -> ceil(arg)
+                                "rad" -> Math.toRadians(arg)
+                                "deg" -> Math.toDegrees(arg)
+                                else -> throw IllegalArgumentException("Unknown function: $func")
+                            }
                         }
                     }
+                } else {
+                    throw IllegalArgumentException("Unexpected char: " + ch.toChar())
                 }
-            } else {
-                throw IllegalArgumentException("Unexpected char: " + ch.toChar())
-            }
 
-            // Factorial operator has higher binding precedence than exponentiation: e.g. 3!^2 = 6^2 = 36
-            while (eat('!'.code)) {
-                val n = x.toLong()
-                if (x < 0 || x != n.toDouble() || n > 20) throw IllegalArgumentException("Factorial out of range")
-                var fact = 1L
-                for (i in 2..n) fact *= i
-                x = fact.toDouble()
-            }
+                // Factorial operator has higher binding precedence than exponentiation: e.g. 3!^2 = 6^2 = 36
+                while (eat('!'.code)) {
+                    val n = x.toLong()
+                    if (x < 0 || x != n.toDouble() || n > 20) throw IllegalArgumentException("Factorial out of range")
+                    var fact = 1L
+                    for (i in 2..n) fact *= i
+                    x = fact.toDouble()
+                }
 
-            // Exponentiation
-            if (eat('^'.code)) {
-                x = x.pow(parseFactor())
-            }
+                // Exponentiation
+                if (eat('^'.code)) {
+                    x = x.pow(parseFactor())
+                }
 
-            return sign * x
+                return sign * x
+            } finally {
+                depth--
+            }
         }
     }
 

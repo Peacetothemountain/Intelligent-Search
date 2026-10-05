@@ -168,9 +168,6 @@ class KeyAttestationVerifier(private val context: Context) {
                             }
                         }
                     }
-                    if (!isRootVerified && rootSubject.contains("Google", ignoreCase = true)) {
-                        isRootVerified = true
-                    }
                 } catch (e: Exception) {
                     Log.w(TAG, "Root certificate verification failed", e)
                 }
@@ -195,8 +192,8 @@ class KeyAttestationVerifier(private val context: Context) {
                 attestationChallenge = String(challenge),
                 certificateCount = certChain.size,
                 issuerName = leafCert?.issuerX500Principal?.name ?: "Unknown",
-                verifiedBootState = parsedExtension?.verifiedBootState ?: "VERIFIED",
-                deviceLocked = parsedExtension?.deviceLocked ?: true,
+                verifiedBootState = parsedExtension?.verifiedBootState ?: "UNVERIFIED",
+                deviceLocked = parsedExtension?.deviceLocked ?: false,
                 attestationSecurityLevel = parsedExtension?.attestationSecurityLevel ?: hardwareSecurityLevel,
                 keymasterSecurityLevel = parsedExtension?.keymasterSecurityLevel ?: hardwareSecurityLevel,
                 osVersion = parsedExtension?.osVersion ?: 0,
@@ -212,12 +209,12 @@ class KeyAttestationVerifier(private val context: Context) {
             Log.e(TAG, "Hardware attestation failed: ${e.message}", e)
             AttestationResult(
                 isHardwareAttested = false,
-                securityLevel = if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)) HardwareSecurityLevel.STRONGBOX else HardwareSecurityLevel.TEE,
+                securityLevel = HardwareSecurityLevel.SOFTWARE,
                 attestationChallenge = String(challenge),
                 certificateCount = 0,
-                issuerName = "Fallback/TEE",
+                issuerName = "Unverified",
                 verifiedBootState = "UNVERIFIED",
-                deviceLocked = true,
+                deviceLocked = false,
                 isRootVerified = false
             )
         } finally {

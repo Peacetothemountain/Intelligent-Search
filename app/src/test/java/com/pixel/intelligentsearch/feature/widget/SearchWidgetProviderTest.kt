@@ -72,6 +72,47 @@ class SearchWidgetProviderTest {
         assertFalse(resultSystem)
     }
 
+    private fun createMockPrefs(map: Map<String, Any>): android.content.SharedPreferences {
+        val handler = java.lang.reflect.InvocationHandler { _, method, args ->
+            when (method.name) {
+                "getBoolean" -> map[args[0] as String] as? Boolean ?: (args[1] as Boolean)
+                "getString" -> map[args[0] as String] as? String ?: (args[1] as? String)
+                "getInt" -> map[args[0] as String] as? Int ?: (args[1] as Int)
+                "contains" -> map.containsKey(args[0] as String)
+                else -> null
+            }
+        }
+        return java.lang.reflect.Proxy.newProxyInstance(
+            android.content.SharedPreferences::class.java.classLoader,
+            arrayOf(android.content.SharedPreferences::class.java),
+            handler
+        ) as android.content.SharedPreferences
+    }
+
+    @Test
+    fun testHasSavedSystemDesign_detectsCustomColorIntAndSubtheme() {
+        val emptyPrefs = createMockPrefs(emptyMap())
+        assertFalse(SearchWidgetProvider.hasSavedSystemDesign(emptyPrefs))
+
+        val customColorPrefs = createMockPrefs(mapOf("widget_system_custom_color_int" to 0xFF123456.toInt()))
+        assertTrue(SearchWidgetProvider.hasSavedSystemDesign(customColorPrefs))
+
+        val subthemePrefs = createMockPrefs(mapOf("widget_system_subtheme" to "Custom"))
+        assertTrue(SearchWidgetProvider.hasSavedSystemDesign(subthemePrefs))
+    }
+
+    @Test
+    fun testHasSavedMaterialDesign_detectsCustomColorIntAndSubtheme() {
+        val emptyPrefs = createMockPrefs(emptyMap())
+        assertFalse(SearchWidgetProvider.hasSavedMaterialDesign(emptyPrefs))
+
+        val customColorPrefs = createMockPrefs(mapOf("widget_material_custom_color_int" to 0xFF654321.toInt()))
+        assertTrue(SearchWidgetProvider.hasSavedMaterialDesign(customColorPrefs))
+
+        val subthemePrefs = createMockPrefs(mapOf("widget_material_subtheme" to "Custom"))
+        assertTrue(SearchWidgetProvider.hasSavedMaterialDesign(subthemePrefs))
+    }
+
     @Test
     fun testDynamicThemeDetector_themeStateEnumIntegrity() {
         val states = com.pixel.intelligentsearch.core.theme.DynamicThemeDetector.ThemeState.values()

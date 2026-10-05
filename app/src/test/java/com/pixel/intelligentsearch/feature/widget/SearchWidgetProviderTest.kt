@@ -9,9 +9,9 @@ import org.junit.Test
 class SearchWidgetProviderTest {
 
     @Test
-    fun testForcedIsMaterial_defaultsToFalseForSystemWidget() {
+    fun testForcedIsMaterial_defaultsToNullForSystemWidget() {
         val systemProvider = SearchWidgetProvider()
-        assertEquals(false, systemProvider.forcedIsMaterial)
+        assertEquals(null, systemProvider.forcedIsMaterial)
     }
 
     @Test
@@ -21,24 +21,32 @@ class SearchWidgetProviderTest {
     }
 
     @Test
-    fun testResolveIsMaterialYou_forcedFalseOverridesSavedMaterialThemeStyle() {
-        // Even if SharedPreferences has "Material You (Minimal)" or "Material Design",
-        // placing the System Search Bar (forcedIsMaterial = false) must return false
-        val result = SearchWidgetProvider.resolveIsMaterialYou(
+    fun testResolveIsMaterialYou_defaultSearchEngineAdaptsToCustomizedThemeStyle() {
+        // When SearchWidgetProvider (default search engine app bar) runs with forcedIsMaterial = null,
+        // it dynamically respects the customized widget theme style!
+        val resultMaterial = SearchWidgetProvider.resolveIsMaterialYou(
             appWidgetManager = null,
             appWidgetId = 101,
-            forcedIsMaterial = false,
+            forcedIsMaterial = null,
             widgetThemeStyle = "Material You (Minimal)"
         )
-        assertFalse("System search bar must not transform into Material You", result)
+        assertTrue("Default search engine bar must switch to Material You when chosen in widget customization", resultMaterial)
+
+        val resultSystem = SearchWidgetProvider.resolveIsMaterialYou(
+            appWidgetManager = null,
+            appWidgetId = 102,
+            forcedIsMaterial = null,
+            widgetThemeStyle = "System Default"
+        )
+        assertFalse("Default search engine bar must switch to System Default when chosen in widget customization", resultSystem)
     }
 
     @Test
     fun testResolveIsMaterialYou_forcedTrueOverridesSavedSystemThemeStyle() {
-        // Placing the Material Search Bar (forcedIsMaterial = true) must return true
+        // Placing the dedicated Material Search Bar (forcedIsMaterial = true) must return true
         val result = SearchWidgetProvider.resolveIsMaterialYou(
             appWidgetManager = null,
-            appWidgetId = 102,
+            appWidgetId = 103,
             forcedIsMaterial = true,
             widgetThemeStyle = "System Default"
         )
@@ -49,7 +57,7 @@ class SearchWidgetProviderTest {
     fun testResolveIsMaterialYou_fallbackWhenForcedIsNull() {
         val resultMaterial = SearchWidgetProvider.resolveIsMaterialYou(
             appWidgetManager = null,
-            appWidgetId = 103,
+            appWidgetId = 104,
             forcedIsMaterial = null,
             widgetThemeStyle = "Material You (Minimal)"
         )
@@ -57,7 +65,7 @@ class SearchWidgetProviderTest {
 
         val resultSystem = SearchWidgetProvider.resolveIsMaterialYou(
             appWidgetManager = null,
-            appWidgetId = 104,
+            appWidgetId = 105,
             forcedIsMaterial = null,
             widgetThemeStyle = "System Default"
         )

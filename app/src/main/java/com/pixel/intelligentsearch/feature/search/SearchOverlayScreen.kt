@@ -2576,12 +2576,20 @@ fun SearchOverlayScreen(
                         scaleX = predictiveScale
                         scaleY = predictiveScale
 
-                        translationX = 0f
+                        val maxShiftPx = 48.dp.toPx()
+                        translationX = if (predictiveBackEdge == BackEventCompat.EDGE_LEFT) {
+                            backProg * maxShiftPx
+                        } else {
+                            -backProg * maxShiftPx
+                        }
 
-                        transformOrigin = TransformOrigin(0.5f, 0.5f)
+                        transformOrigin = TransformOrigin(
+                            if (predictiveBackEdge == BackEventCompat.EDGE_LEFT) 0.05f else 0.95f,
+                            0.5f
+                        )
                         alpha = (progress * (1f - backProg * 0.25f)).coerceIn(0f, 1f)
                     }
-                    .clip(RoundedCornerShape(24.dp))
+                    .clip(RoundedCornerShape(androidx.compose.ui.unit.lerp(24.dp, 32.dp, predictiveBackProgress.value.coerceIn(0f, 1f))))
                     .then(
                         if (settingsState.bottomSearch) {
                             Modifier

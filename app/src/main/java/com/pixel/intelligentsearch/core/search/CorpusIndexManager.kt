@@ -15,7 +15,9 @@ import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,7 +37,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class CorpusIndexManager @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val searchCoordinator: UnifiedSearchCoordinator
 ) {
     companion object {
@@ -51,6 +53,7 @@ class CorpusIndexManager @Inject constructor(
 
     private var contactsObserver: ContentObserver? = null
     private var packageReceiver: BroadcastReceiver? = null
+    private var contactsDebounceJob: Job? = null
 
     /**
      * Bootstraps eager background indexing of all corpuses.
@@ -64,8 +67,8 @@ class CorpusIndexManager @Inject constructor(
             try {
                 val startMs = System.currentTimeMillis()
 
-                // 1. Eagerly index applications
-                reindexAppsInternal()
+                // 1. Eagerly index applications (avoid forced cache invalidation on initial cold launch)
+                reindexAppsInternal(forceRefresh = force)
 
                 // 2. Eagerly index app shortcuts
                 reindexShortcutsInternal()
@@ -89,9 +92,9 @@ class CorpusIndexManager @Inject constructor(
         }
     }
 
-    fun reindexApps() {
+    fun reindexApps(forceRefresh: Boolean = true) {
         scope.launch {
-            reindexAppsInternal()
+            reindexAppsInternal(forceRefresh)
         }
     }
 
@@ -113,10 +116,12 @@ class CorpusIndexManager @Inject constructor(
         }
     }
 
-    private suspend fun reindexAppsInternal() {
+    private suspend fun reindexAppsInternal(forceRefresh: Boolean = false) {
         try {
-            SystemDataProvider.invalidateAppsCache()
-            val apps = SystemDataProvider.getAllApps(context, forceRefresh = true)
+            if (forceRefresh) {
+                SystemDataProvider.invalidateAppsCache()
+            }
+            val apps = SystemDataProvider.getAllApps(context, forceRefresh = forceRefresh)
             for (app in apps) {
                 searchCoordinator.indexApp(app)
             }
@@ -159,13 +164,17 @@ class CorpusIndexManager @Inject constructor(
     }
 
     private fun registerObservers() {
-        // Register ContentObserver for Contacts changes
+        // Register ContentObserver for Contacts changes with 1000ms conflated debounce
         try {
             if (contactsObserver == null) {
                 contactsObserver = object : ContentObserver(mainHandler) {
                     override fun onChange(selfChange: Boolean, uri: Uri?) {
                         super.onChange(selfChange, uri)
-                        reindexContacts()
+                        contactsDebounceJob?.cancel()
+                        contactsDebounceJob = scope.launch {
+                            delay(1000L)
+                            reindexContactsInternal()
+                        }
                     }
                 }
                 context.contentResolver.registerContentObserver(
@@ -183,8 +192,17 @@ class CorpusIndexManager @Inject constructor(
             if (packageReceiver == null) {
                 packageReceiver = object : BroadcastReceiver() {
                     override fun onReceive(context: Context?, intent: Intent?) {
-                        reindexApps()
-                        reindexShortcuts()
+                        val pkg = intent?.data?.schemeSpecificPart
+                        val isReplacing = intent?.getBooleanExtra(Intent.EXTRA_REPLACING, false) ?: false
+                        if (intent?.action == Intent.ACTION_PACKAGE_REMOVED && !isReplacing) {
+                            if (!pkg.isNullOrBlank()) {
+                                searchCoordinator.removePackage(pkg)
+                                SystemDataProvider.invalidateAppsCache()
+                            }
+                        } else {
+                            reindexApps(forceRefresh = true)
+                            reindexShortcuts()
+                        }
                     }
                 }
                 val filter = IntentFilter().apply {
@@ -197,6 +215,30 @@ class CorpusIndexManager @Inject constructor(
             }
         } catch (e: Exception) {
             Log.w(TAG, "Could not register package BroadcastReceiver", e)
+        }
+    }
+
+    /**
+     * Unregisters active system listeners and cancels background debounce jobs.
+     */
+    fun cleanup() {
+        contactsDebounceJob?.cancel()
+        contactsDebounceJob = null
+        try {
+            contactsObserver?.let {
+                context.contentResolver.unregisterContentObserver(it)
+                contactsObserver = null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to unregister contacts observer", e)
+        }
+        try {
+            packageReceiver?.let {
+                context.unregisterReceiver(it)
+                packageReceiver = null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to unregister package receiver", e)
         }
     }
 }

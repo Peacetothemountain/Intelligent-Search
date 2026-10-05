@@ -1738,7 +1738,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 topProcesses = mSnap.processes
             } catch (_: Throwable) {}
 
-            kotlinx.coroutines.delay(1000)
+            kotlinx.coroutines.delay(2500)
         }
     }
 
@@ -1822,7 +1822,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
                         ) {
                             Text(
-                                text = batteryHealth,
+                                text = if (batteryHealth.isNotBlank() && batteryHealth != "Unknown") batteryHealth else "Hardware reporting unavailable",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,

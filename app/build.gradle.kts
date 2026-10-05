@@ -38,11 +38,15 @@ android {
                 file("F:/release.keystore").exists() -> file("F:/release.keystore")
                 else -> null
             }
-            if (targetStore != null && targetStore.exists()) {
+            val storePass = localProperties.getProperty("RELEASE_STORE_PASSWORD") ?: System.getenv("RELEASE_STORE_PASSWORD")
+            val keyAliasProp = localProperties.getProperty("RELEASE_KEY_ALIAS") ?: System.getenv("RELEASE_KEY_ALIAS")
+            val keyPass = localProperties.getProperty("RELEASE_KEY_PASSWORD") ?: System.getenv("RELEASE_KEY_PASSWORD")
+
+            if (targetStore != null && targetStore.exists() && !storePass.isNullOrBlank() && !keyAliasProp.isNullOrBlank() && !keyPass.isNullOrBlank()) {
                 storeFile = targetStore
-                storePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD") ?: "password"
-                keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS") ?: "release"
-                keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD") ?: "password"
+                storePassword = storePass
+                keyAlias = keyAliasProp
+                keyPassword = keyPass
             }
         }
     }
@@ -53,7 +57,8 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             val relConfig = signingConfigs.getByName("release")
-            signingConfig = if (relConfig.storeFile != null && relConfig.storeFile!!.exists()) relConfig else signingConfigs.getByName("debug")
+            // Strict security: Never silently sign release APKs with debug keys
+            signingConfig = if (relConfig.storeFile != null && relConfig.storeFile!!.exists()) relConfig else null
             ndk {
                 debugSymbolLevel = "FULL"
             }

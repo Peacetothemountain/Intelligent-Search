@@ -88,13 +88,22 @@ class SystemToggleManager @Inject constructor(
     private val _isLocationEnabled = MutableStateFlow(checkLocationEnabled())
     val isLocationEnabled: StateFlow<Boolean> = _isLocationEnabled.asStateFlow()
 
+    private var torchCallback: CameraManager.TorchCallback? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var toggleReceiver: BroadcastReceiver? = null
+
     init {
+        registerListenersSafely()
+    }
+
+    fun registerListenersSafely() {
         setupCameraTorch()
         setupWifiCallback()
         setupBroadcastReceivers()
     }
 
     private fun setupCameraTorch() {
+        if (torchCallback != null) return
         try {
             cameraManager?.let { cm ->
                 for (id in cm.cameraIdList) {
@@ -113,7 +122,7 @@ class SystemToggleManager @Inject constructor(
                     primaryCameraId = cm.cameraIdList[0]
                 }
 
-                cm.registerTorchCallback(object : CameraManager.TorchCallback() {
+                val callback = object : CameraManager.TorchCallback() {
                     override fun onTorchModeChanged(cameraId: String, enabled: Boolean) {
                         if (cameraId == primaryCameraId) {
                             _isFlashlightOn.value = enabled
@@ -125,7 +134,9 @@ class SystemToggleManager @Inject constructor(
                             _isFlashlightOn.value = false
                         }
                     }
-                }, null)
+                }
+                cm.registerTorchCallback(callback, null)
+                torchCallback = callback
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to initialize camera torch callback", e)
@@ -133,13 +144,14 @@ class SystemToggleManager @Inject constructor(
     }
 
     private fun setupWifiCallback() {
+        if (networkCallback != null) return
         try {
             val cm = connectivityManager ?: return
             val request = NetworkRequest.Builder()
                 .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
                 .build()
 
-            cm.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
+            val callback = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
                     _isWifiConnected.value = true
                     updateWifiInfo()
@@ -153,7 +165,9 @@ class SystemToggleManager @Inject constructor(
                 override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
                     updateWifiInfo()
                 }
-            })
+            }
+            cm.registerNetworkCallback(request, callback)
+            networkCallback = callback
         } catch (e: Exception) {
             Log.w(TAG, "Failed to register network callback", e)
         }
@@ -161,6 +175,7 @@ class SystemToggleManager @Inject constructor(
     }
 
     private fun setupBroadcastReceivers() {
+        if (toggleReceiver != null) return
         val filter = IntentFilter().apply {
             addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
             addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)
@@ -198,8 +213,38 @@ class SystemToggleManager @Inject constructor(
             } else {
                 context.registerReceiver(receiver, filter)
             }
+            toggleReceiver = receiver
         } catch (e: Exception) {
             Log.w(TAG, "Failed to register system toggle broadcast receiver", e)
+        }
+    }
+
+    fun unregisterListeners() {
+        try {
+            torchCallback?.let {
+                cameraManager?.unregisterTorchCallback(it)
+                torchCallback = null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to unregister torch callback", e)
+        }
+
+        try {
+            networkCallback?.let {
+                connectivityManager?.unregisterNetworkCallback(it)
+                networkCallback = null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to unregister network callback", e)
+        }
+
+        try {
+            toggleReceiver?.let {
+                context.unregisterReceiver(it)
+                toggleReceiver = null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to unregister toggle receiver", e)
         }
     }
 

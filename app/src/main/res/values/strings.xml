@@ -3,4 +3,6 @@
     <string name="app_name">Intelligent Search</string>
     <string name="search_settings_desc">Enter Intelligent Search Settings</string>
     <string name="widget_search_description">Search phone and web</string>
+    <string name="widget_system_search_bar">System search bar</string>
+    <string name="widget_material_search_bar">Material Design search bar</string>
 </resources>

@@ -160,7 +160,7 @@
 
         <receiver
             android:name="com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider"
-            android:label="Widget selection preview System search bar"
+            android:label="@string/widget_system_search_bar"
             android:directBootAware="true"
             android:exported="true">
             <intent-filter>
@@ -177,7 +177,7 @@
 
         <receiver
             android:name="com.pixel.intelligentsearch.feature.widget.SearchWidgetMaterialProvider"
-            android:label="Widget selection preview Material Design search bar"
+            android:label="@string/widget_material_search_bar"
             android:directBootAware="true"
             android:exported="true">
             <intent-filter>

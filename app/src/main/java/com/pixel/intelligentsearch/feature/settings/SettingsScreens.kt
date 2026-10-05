@@ -881,17 +881,14 @@ fun SettingsScreensHub(
             }
         }
 
-        var isNavTransitioning by remember { mutableStateOf(false) }
-
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
             val currentEntry = navController.currentBackStackEntry
-            val isResumed = currentEntry?.lifecycle?.currentState == androidx.lifecycle.Lifecycle.State.RESUMED
+            val isStarted = currentEntry?.lifecycle?.currentState?.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) == true
             val currentRoute = currentEntry?.destination?.route
             val targetRouteName = route::class.qualifiedName ?: route::class.simpleName ?: ""
 
-            if (isResumed && !isNavTransitioning && (currentRoute == null || !currentRoute.endsWith(targetRouteName))) {
+            if (isStarted && (currentRoute == null || !currentRoute.endsWith(targetRouteName))) {
                 SettingsDebouncer.recordClick()
-                isNavTransitioning = true
                 navController.navigate(route) {
                     launchSingleTop = true
                     restoreState = true
@@ -936,18 +933,11 @@ fun SettingsScreensHub(
         val hasSubScreensInNavHost = navController.previousBackStackEntry != null
         val isAtRootMain = (currentRoute == null || currentRoute.contains("main", ignoreCase = true)) && !hasSubScreensInNavHost
 
-        LaunchedEffect(currentBackStackEntry) {
-            isNavTransitioning = true
-            kotlinx.coroutines.delay(320L)
-            isNavTransitioning = false
-        }
-
         val onBack: () -> Unit = {
             val currentEntry = navController.currentBackStackEntry
-            val isResumed = currentEntry?.lifecycle?.currentState == androidx.lifecycle.Lifecycle.State.RESUMED
-            if (isResumed && !isNavTransitioning) {
+            val isStarted = currentEntry?.lifecycle?.currentState?.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) == true
+            if (isStarted) {
                 SettingsDebouncer.recordClick()
-                isNavTransitioning = true
                 if (navController.previousBackStackEntry != null) {
                     navController.popBackStack()
                 } else {
@@ -957,10 +947,12 @@ fun SettingsScreensHub(
         }
 
         val exitBackProgress = remember { Animatable(0f) }
+        var predictiveBackSwipeEdge by remember { mutableIntStateOf(androidx.activity.BackEventCompat.EDGE_LEFT) }
 
         androidx.activity.compose.PredictiveBackHandler(enabled = isAtRootMain) { progressFlow ->
             try {
                 progressFlow.collect { backEvent ->
+                    predictiveBackSwipeEdge = backEvent.swipeEdge
                     exitBackProgress.snapTo(backEvent.progress)
                 }
                 exitBackProgress.snapTo(0f)
@@ -995,10 +987,20 @@ fun SettingsScreensHub(
                 .graphicsLayer {
                     val p = exitBackProgress.value
                     if (p > 0f) {
-                        scaleX = 1f - (p * 0.08f)
-                        scaleY = 1f - (p * 0.08f)
+                        val predictiveScale = 1f - (p * 0.08f)
+                        scaleX = predictiveScale
+                        scaleY = predictiveScale
+                        val maxShiftPx = 48.dp.toPx()
+                        translationX = if (predictiveBackSwipeEdge == androidx.activity.BackEventCompat.EDGE_LEFT) {
+                            p * maxShiftPx
+                        } else {
+                            -p * maxShiftPx
+                        }
                         alpha = (1f - p * 0.25f).coerceIn(0f, 1f)
-                        transformOrigin = TransformOrigin(0.5f, 0.5f)
+                        transformOrigin = TransformOrigin(
+                            if (predictiveBackSwipeEdge == androidx.activity.BackEventCompat.EDGE_LEFT) 0.05f else 0.95f,
+                            0.5f
+                        )
                     }
                 }
                 .background(MaterialTheme.colorScheme.background)
@@ -1023,22 +1025,6 @@ fun SettingsScreensHub(
                     .fillMaxSize()
                     .then(if (showTutorial) Modifier.blur(24.dp) else Modifier)
             ) {
-                if (isNavTransitioning) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .zIndex(99999f)
-                            .pointerInput(Unit) {
-                                awaitPointerEventScope {
-                                    while (true) {
-                                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                                        event.changes.forEach { it.consume() }
-                                    }
-                                }
-                            }
-                    )
-                }
-
                 NavHost(
                     navController = navController,
                     startDestination = startRoute,
@@ -1047,47 +1033,35 @@ fun SettingsScreensHub(
                             androidx.compose.animation.EnterTransition.None
                         } else {
                             slideInHorizontally(
-                                initialOffsetX = { (it * 0.22f).toInt() },
-                                animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                                initialOffsetX = { (it * 0.25f).toInt() },
+                                animationSpec = spring(dampingRatio = 0.86f, stiffness = 380f)
                             ) + fadeIn(
-                                animationSpec = tween(durationMillis = 240, easing = LinearOutSlowInEasing)
-                            ) + scaleIn(
-                                initialScale = 0.94f,
-                                animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                                animationSpec = tween(durationMillis = 260, easing = LinearOutSlowInEasing)
                             )
                         }
                     },
                     exitTransition = {
                         slideOutHorizontally(
                             targetOffsetX = { -(it * 0.10f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            animationSpec = spring(dampingRatio = 0.86f, stiffness = 380f)
                         ) + fadeOut(
-                            animationSpec = tween(durationMillis = 180, easing = FastOutLinearInEasing)
-                        ) + scaleOut(
-                            targetScale = 0.96f,
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            animationSpec = tween(durationMillis = 200, easing = FastOutLinearInEasing)
                         )
                     },
                     popEnterTransition = {
                         slideInHorizontally(
                             initialOffsetX = { -(it * 0.10f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            animationSpec = spring(dampingRatio = 0.86f, stiffness = 380f)
                         ) + fadeIn(
-                            animationSpec = tween(durationMillis = 240, easing = LinearOutSlowInEasing)
-                        ) + scaleIn(
-                            initialScale = 0.96f,
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            animationSpec = tween(durationMillis = 260, easing = LinearOutSlowInEasing)
                         )
                     },
                     popExitTransition = {
                         slideOutHorizontally(
-                            targetOffsetX = { (it * 0.22f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            targetOffsetX = { (it * 0.25f).toInt() },
+                            animationSpec = spring(dampingRatio = 0.86f, stiffness = 380f)
                         ) + fadeOut(
-                            animationSpec = tween(durationMillis = 180, easing = FastOutLinearInEasing)
-                        ) + scaleOut(
-                            targetScale = 0.94f,
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            animationSpec = tween(durationMillis = 200, easing = FastOutLinearInEasing)
                         )
                     }
                 ) {

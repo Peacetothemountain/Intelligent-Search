@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 @AndroidEntryPoint
 open class SearchWidgetProvider : AppWidgetProvider() {
 
-    open val forcedIsMaterial: Boolean? = null
+    open val forcedIsMaterial: Boolean? = false
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
@@ -119,32 +119,29 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         fun resolveIsMaterialYou(
-            appWidgetManager: AppWidgetManager,
+            appWidgetManager: AppWidgetManager?,
             appWidgetId: Int,
             forcedIsMaterial: Boolean?,
             widgetThemeStyle: String?
         ): Boolean {
-            if (widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design") {
-                return true
-            }
-            if (widgetThemeStyle == "System Default" || widgetThemeStyle == "System") {
-                if (forcedIsMaterial == true) return true
-                return false
-            }
-
-            val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
-            val hostCategory = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1) ?: -1
-            val isSearchbox = (hostCategory and AppWidgetProviderInfo.WIDGET_CATEGORY_SEARCHBOX) != 0
-
-            if (isSearchbox) {
-                return widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
-            }
-
             if (forcedIsMaterial != null) {
                 return forcedIsMaterial
             }
 
-            return false
+            val providerClassName = try {
+                appWidgetManager?.getAppWidgetInfo(appWidgetId)?.provider?.className
+            } catch (_: Throwable) {
+                null
+            }
+
+            if (providerClassName == SearchWidgetMaterialProvider::class.java.name) {
+                return true
+            }
+            if (providerClassName == SearchWidgetProvider::class.java.name) {
+                return false
+            }
+
+            return widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
         }
 
         // Slot identifiers for bit-shifted unique request codes
@@ -222,6 +219,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             if (appWidgetIds != null && appWidgetIds.isNotEmpty()) {
                                 val forcedIsMaterial = when(providerClass) {
                                     SearchWidgetMaterialProvider::class.java -> true
+                                    SearchWidgetProvider::class.java -> false
                                     else -> null
                                 }
                                 updateWidgetsSync(context, appWidgetManager, appWidgetIds, forcedIsMaterial)

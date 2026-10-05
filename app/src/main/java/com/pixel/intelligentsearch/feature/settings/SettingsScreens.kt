@@ -13,6 +13,7 @@ import androidx.graphics.shapes.toPath
 import androidx.graphics.shapes.CornerRounding
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
+import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.feature.widget.SearchTileService
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
@@ -6369,12 +6370,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val isSystem = localThemeStyle == "System Default"
 
     // System Design state
+    val isDynamicActive = remember(context) { DynamicThemeDetector.isDynamicColorActive(context) }
+    val defaultSysIcon = if (isDynamicActive) "Material G Icon" else "System G Icon"
     val sysSaved = prefs.getBoolean("widget_system_design_saved", false)
     var sysSubtheme by remember {
         mutableStateOf(prefs.getString("widget_system_subtheme", if (sysSaved) prefs.getString("widget_subtheme", "System") else "System") ?: "System")
     }
     var sysMaterialGIconTheme by remember {
-        mutableStateOf(prefs.getString("widget_system_material_g_icon", if (sysSaved) prefs.getString("widget_material_g_icon", "System G Icon") else "System G Icon") ?: "System G Icon")
+        mutableStateOf(prefs.getString("widget_system_material_g_icon", if (sysSaved) prefs.getString("widget_material_g_icon", defaultSysIcon) else defaultSysIcon) ?: defaultSysIcon)
     }
     var sysHue by remember {
         mutableStateOf(prefs.getInt("widget_system_custom_hue", if (sysSaved) prefs.getInt("widget_custom_hue", 277) else 277).toFloat())
@@ -6432,7 +6435,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         mutableStateOf(prefs.getInt("widget_material_background_transparency", if (matSaved) prefs.getInt("widget.background.transparency", 28) else 28).toFloat())
     }
     var matLockBlack by remember {
-        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_lock_black", true) else true)
+        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_lock_black", false) else false)
     }
     var matActionIcon by remember {
         mutableStateOf(prefs.getString("widget_material_action_icon", if (matSaved) prefs.getString("widget_action_icon", "Search") else "Search") ?: "Search")
@@ -6619,7 +6622,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         hapticEngine.performPredictiveBackHaptic(view)
                         if (isSystem) {
                             sysSubtheme = "System"
-                            sysMaterialGIconTheme = "System G Icon"
+                            sysMaterialGIconTheme = if (DynamicThemeDetector.isDynamicColorActive(context)) "Material G Icon" else "System G Icon"
                             sysHue = 277f
                             sysSaturation = 51f
                             sysLightness = 100f
@@ -6658,7 +6661,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             matLightness = 100f
                             matColorOpacity = 100f
                             matTransparency = 28f
-                            matLockBlack = true
+                            matLockBlack = false
                             matActionIcon = "Search"
                             matShowGIcon = true
                             matShowVoice = true
@@ -6827,15 +6830,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     } else androidx.compose.ui.graphics.Color.Transparent
                     
-                    val effectiveGIconTheme = if (localSubtheme == "Custom" || previewIsMaterialYou) {
-                        localMaterialGIconTheme
-                    } else {
-                        "System G Icon"
-                    }
+                    val effectiveGIconTheme = localMaterialGIconTheme
 
                     val customLuminance = (0.299 * accentColor.red + 0.587 * accentColor.green + 0.114 * accentColor.blue)
                     val isPreviewPillLight = if (previewIsMaterialYou) {
-                        !localLockBlack && (customLuminance > 0.5f)
+                        if (localSubtheme == "Custom") (!localLockBlack && (customLuminance > 0.5f)) else (!androidx.compose.foundation.isSystemInDarkTheme() && !localLockBlack)
                     } else {
                         when (localSubtheme) {
                             "Light" -> true
@@ -6866,14 +6865,22 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             }
                             baseColor.copy(alpha = containerAlpha)
                         } else {
-                            accentColor.copy(alpha = effectiveColorAlpha)
+                            if (localSubtheme == "Custom") {
+                                accentColor.copy(alpha = effectiveColorAlpha)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = containerAlpha)
+                            }
                         }
                     } else {
                         when (localSubtheme) {
                             "Light" -> androidx.compose.ui.graphics.Color(0xFFF8F9FA).copy(alpha = containerAlpha)
                             "Dark" -> androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = containerAlpha)
                             "Custom" -> accentColor.copy(alpha = effectiveColorAlpha)
-                            else -> if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = containerAlpha) else androidx.compose.ui.graphics.Color(0xFFF8F9FA).copy(alpha = containerAlpha)
+                            else -> if (DynamicThemeDetector.isDynamicColorActive(context)) {
+                                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = containerAlpha)
+                            } else {
+                                if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = containerAlpha) else androidx.compose.ui.graphics.Color(0xFFF8F9FA).copy(alpha = containerAlpha)
+                            }
                         }
                     }
                     

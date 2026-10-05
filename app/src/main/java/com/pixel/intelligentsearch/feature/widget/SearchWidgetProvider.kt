@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.core.graphics.PathParser
 import androidx.core.os.UserManagerCompat
 import com.pixel.intelligentsearch.R
+import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -251,8 +252,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
             }
 
+            val widgetColors = DynamicThemeDetector.resolveWidgetColors(context, isDark)
             val dynamicScheme = try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (widgetColors.isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
                 } else null
             } catch (e: Throwable) {
@@ -325,7 +327,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             "Light" -> 0xFFF1F3F4.toInt()
                             "Dark" -> 0xFF303134.toInt()
                             "Custom" -> actualCustomColor
-                            else -> if (isDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
+                            else -> widgetColors.surfaceContainer
                         }
                         val pillAlphaInt = if (subthemeStr == "Custom") effectiveColorAlphaInt else containerAlphaInt
 
@@ -334,7 +336,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         val effectiveIconTheme = if (hasSaved) {
                             prefs.getString("widget_system_material_g_icon", if (subthemeStr == "Custom") "Material G Icon" else "System G Icon") ?: "System G Icon"
                         } else {
-                            "System G Icon"
+                            if (widgetColors.isDynamicActive) "Material G Icon" else "System G Icon"
                         }
 
                         val gIconRes = when (effectiveIconTheme) {
@@ -353,10 +355,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             )
                             Triple(m3Colors.primary, m3Colors.secondary, m3Colors.tertiary)
                         } else {
-                            val p = dynamicScheme?.primary?.toArgb() ?: (if (isDark) 0xFF8AB4F8.toInt() else 0xFF1973E8.toInt())
-                            val s = dynamicScheme?.secondary?.toArgb() ?: (if (isDark) 0xFFBDC1C6.toInt() else 0xFF5F6368.toInt())
-                            val t = dynamicScheme?.tertiary?.toArgb() ?: (if (isDark) 0xFF81C995.toInt() else 0xFF188038.toInt())
-                            Triple(p, s, t)
+                            Triple(widgetColors.primary, widgetColors.secondary, widgetColors.tertiary)
                         }
 
                         val useMaterialYouIcons = (effectiveIconTheme != "System G Icon") || isPillLight || (subthemeStr == "Custom")
@@ -479,9 +478,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         } else 1.0f
 
                         val lockBlack = if (hasSaved) {
-                            prefs.getBoolean("widget_material_lock_black", true)
+                            prefs.getBoolean("widget_material_lock_black", false)
                         } else {
-                            true
+                            false
                         }
 
                         val transparency = if (hasSaved) {
@@ -502,16 +501,14 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
                         val rimColor = when (subthemeStr) {
                             "Custom" -> actualCustomColor
-                            "Material" -> dynamicScheme?.primaryContainer?.toArgb()
-                                ?: (if (isDark) context.getColor(android.R.color.system_accent1_800) else context.getColor(android.R.color.system_accent1_200))
-                            else -> dynamicScheme?.primary?.toArgb()
-                                ?: (if (isDark) context.getColor(android.R.color.system_accent1_800) else context.getColor(android.R.color.system_accent1_200))
+                            "Material" -> widgetColors.primaryContainer
+                            else -> widgetColors.primary
                         }
 
                         val pillColor = if (lockBlack) {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_neutral1_900) else 0xFF121212.toInt()
                         } else {
-                            actualCustomColor
+                            if (subthemeStr == "Custom") actualCustomColor else widgetColors.surfaceContainer
                         }
 
                         val circleColor = pillColor
@@ -535,7 +532,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             android.graphics.Color.blue(circleColor)
                         )
 
-                        val isPillLight = !lockBlack && (customColorLuminance > 0.5)
+                        val isPillLight = if (subthemeStr == "Custom") (!lockBlack && (customColorLuminance > 0.5)) else (!isDark && !lockBlack)
 
                         val effectiveIconTheme = if (hasSaved) {
                             prefs.getString("widget_material_material_g_icon", prefs.getString("widget_material_g_icon", "Material G Icon")) ?: "Material G Icon"
@@ -559,10 +556,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             )
                             Triple(m3Colors.primary, m3Colors.secondary, m3Colors.tertiary)
                         } else {
-                            val p = dynamicScheme?.primary?.toArgb() ?: (if (isDark) 0xFF8AB4F8.toInt() else 0xFF1973E8.toInt())
-                            val s = dynamicScheme?.secondary?.toArgb() ?: (if (isDark) 0xFFBDC1C6.toInt() else 0xFF5F6368.toInt())
-                            val t = dynamicScheme?.tertiary?.toArgb() ?: (if (isDark) 0xFF81C995.toInt() else 0xFF188038.toInt())
-                            Triple(p, s, t)
+                            Triple(widgetColors.primary, widgetColors.secondary, widgetColors.tertiary)
                         }
 
                         val useMaterialYouIcons = true

@@ -3107,25 +3107,6 @@ fun MainSettingsScreen(
                     subtitle = "Import, Export, and Restore Backup App Data.",
                     icon = Icons.Outlined.Shield,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.BackupRestore) },
-                    showDivider = true
-                )
-                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                SettingsRow(
-                    title = "Privacy Policy",
-                    subtitle = "On-Device Privacy Architecture & Policy.",
-                    icon = Icons.Outlined.Policy,
-                    onClick = {
-                        try {
-                            uriHandler.openUri("https://github.com/Peacetothemountain/Intelligent-Search/blob/main/PRIVACY_POLICY.md")
-                        } catch (_: Throwable) {
-                            try {
-                                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/Peacetothemountain/Intelligent-Search/blob/main/PRIVACY_POLICY.md")).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                context.startActivity(intent)
-                            } catch (_: Throwable) {}
-                        }
-                    },
                     showDivider = isDebugUnlocked
                 )
                 
@@ -6397,7 +6378,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         mutableStateOf(prefs.getInt("widget_system_background_transparency", if (sysSaved) prefs.getInt("widget.background.transparency", 0) else 0).toFloat())
     }
     var sysShowGIcon by remember {
-        mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_g_icon", prefs.getBoolean("widget_show_g_icon", false)) else false)
+        mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
     }
     var sysShowVoice by remember {
         mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_voice", prefs.getBoolean("widget_show_voice", true)) else true)
@@ -6443,7 +6424,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         mutableStateOf(prefs.getString("widget_material_action_icon", if (matSaved) prefs.getString("widget_action_icon", "Search") else "Search") ?: "Search")
     }
     var matShowGIcon by remember {
-        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_g_icon", prefs.getBoolean("widget_show_g_icon", false)) else false)
+        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
     }
     var matShowVoice by remember {
         mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_voice", prefs.getBoolean("widget_show_voice", true)) else true)
@@ -6630,7 +6611,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             sysLightness = 100f
                             sysColorOpacity = 100f
                             sysTransparency = 0f
-                            sysShowGIcon = false
+                            sysShowGIcon = true
                             sysShowVoice = true
                             sysShortcut1 = "Google Lens"
                             sysShortcut2 = "None"
@@ -6665,7 +6646,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             matTransparency = 28f
                             matLockBlack = true
                             matActionIcon = "Search"
-                            matShowGIcon = false
+                            matShowGIcon = true
                             matShowVoice = true
                             matShortcut1 = "Google Lens"
                             matShortcut2 = "None"

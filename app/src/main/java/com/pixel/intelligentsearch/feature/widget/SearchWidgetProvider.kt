@@ -35,7 +35,7 @@ import kotlinx.coroutines.launch
 @AndroidEntryPoint
 open class SearchWidgetProvider : AppWidgetProvider() {
 
-    open val forcedIsMaterial: Boolean? = false
+    open val forcedIsMaterial: Boolean? = null
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
@@ -138,9 +138,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             if (providerClassName == SearchWidgetMaterialProvider::class.java.name) {
                 return true
             }
-            if (providerClassName == SearchWidgetProvider::class.java.name) {
-                return false
-            }
 
             return widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
         }
@@ -220,7 +217,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             if (appWidgetIds != null && appWidgetIds.isNotEmpty()) {
                                 val forcedIsMaterial = when(providerClass) {
                                     SearchWidgetMaterialProvider::class.java -> true
-                                    SearchWidgetProvider::class.java -> false
                                     else -> null
                                 }
                                 updateWidgetsSync(context, appWidgetManager, appWidgetIds, forcedIsMaterial)

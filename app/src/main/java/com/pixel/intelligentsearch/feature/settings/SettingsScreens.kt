@@ -882,17 +882,8 @@ fun SettingsScreensHub(
         }
 
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
-            val currentEntry = navController.currentBackStackEntry
-            val isStarted = currentEntry?.lifecycle?.currentState?.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) == true
-            val currentRoute = currentEntry?.destination?.route
-            val targetRouteName = route::class.qualifiedName ?: route::class.simpleName ?: ""
-
-            if (isStarted && (currentRoute == null || !currentRoute.endsWith(targetRouteName))) {
-                SettingsDebouncer.recordClick()
-                navController.navigate(route) {
-                    launchSingleTop = true
-                    restoreState = true
-                }
+            navController.navigate(route) {
+                launchSingleTop = true
             }
         }
 
@@ -934,15 +925,10 @@ fun SettingsScreensHub(
         val isAtRootMain = (currentRoute == null || currentRoute.contains("main", ignoreCase = true)) && !hasSubScreensInNavHost
 
         val onBack: () -> Unit = {
-            val currentEntry = navController.currentBackStackEntry
-            val isStarted = currentEntry?.lifecycle?.currentState?.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) == true
-            if (isStarted) {
-                SettingsDebouncer.recordClick()
-                if (navController.previousBackStackEntry != null) {
-                    navController.popBackStack()
-                } else {
-                    handleExitBack()
-                }
+            if (navController.previousBackStackEntry != null) {
+                navController.popBackStack()
+            } else {
+                handleExitBack()
             }
         }
 
@@ -1034,34 +1020,34 @@ fun SettingsScreensHub(
                         } else {
                             slideInHorizontally(
                                 initialOffsetX = { (it * 0.25f).toInt() },
-                                animationSpec = spring(dampingRatio = 0.86f, stiffness = 380f)
+                                animationSpec = tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing)
                             ) + fadeIn(
-                                animationSpec = tween(durationMillis = 260, easing = LinearOutSlowInEasing)
+                                animationSpec = tween(durationMillis = 240, easing = androidx.compose.animation.core.LinearOutSlowInEasing)
                             )
                         }
                     },
                     exitTransition = {
                         slideOutHorizontally(
                             targetOffsetX = { -(it * 0.10f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.86f, stiffness = 380f)
+                            animationSpec = tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing)
                         ) + fadeOut(
-                            animationSpec = tween(durationMillis = 200, easing = FastOutLinearInEasing)
+                            animationSpec = tween(durationMillis = 200, easing = androidx.compose.animation.core.FastOutLinearInEasing)
                         )
                     },
                     popEnterTransition = {
                         slideInHorizontally(
                             initialOffsetX = { -(it * 0.10f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.86f, stiffness = 380f)
+                            animationSpec = tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing)
                         ) + fadeIn(
-                            animationSpec = tween(durationMillis = 260, easing = LinearOutSlowInEasing)
+                            animationSpec = tween(durationMillis = 240, easing = androidx.compose.animation.core.LinearOutSlowInEasing)
                         )
                     },
                     popExitTransition = {
                         slideOutHorizontally(
                             targetOffsetX = { (it * 0.25f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.86f, stiffness = 380f)
+                            animationSpec = tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing)
                         ) + fadeOut(
-                            animationSpec = tween(durationMillis = 200, easing = FastOutLinearInEasing)
+                            animationSpec = tween(durationMillis = 200, easing = androidx.compose.animation.core.FastOutLinearInEasing)
                         )
                     }
                 ) {

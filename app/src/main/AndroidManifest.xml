@@ -120,7 +120,7 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
-            android:exported="true" />
+            android:exported="false" />
 
         <activity
             android:name="com.pixel.intelligentsearch.feature.settings.SettingsActivity"

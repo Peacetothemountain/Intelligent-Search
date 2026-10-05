@@ -1015,7 +1015,7 @@ fun SearchOverlayScreen(
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_search_lens_expressive),
-                    contentDescription = "Google",
+                    contentDescription = "Search",
                     modifier = Modifier.size(28.dp)
                 )
                 Spacer(modifier = Modifier.width(16.dp))

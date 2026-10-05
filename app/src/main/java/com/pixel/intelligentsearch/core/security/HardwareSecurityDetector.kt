@@ -187,14 +187,14 @@ object HardwareSecurityDetector {
                             deviceLower.contains("redfin") || deviceLower.contains("barbet") ->
                         Pair("Google Titan M", "Titan M")
 
-                    else -> if (hasStrongBoxFeature) {
-                        Pair("Google Titan M3", "Titan M3")
+                    else -> if (hasStrongBoxFeature || effectiveLevel == HardwareSecurityLevel.STRONGBOX) {
+                        Pair("Google Titan Security Module", "Titan Security")
                     } else {
-                        Pair("Google Titan M2", "Titan M2")
+                        Pair("Google Trusty Keystore", "Trusty TEE")
                     }
                 }
 
-                val pixelTee = if (pixelChip == "Google Titan M3") {
+                val pixelTee = if (pixelChip.contains("Titan M3")) {
                     "Google Trusty TEE (Post-Quantum Secure)"
                 } else {
                     "Google Trusty TEE"
@@ -206,10 +206,7 @@ object HardwareSecurityDetector {
             mfgLower.contains("samsung") || brandLower.contains("samsung") -> {
                 val hasKnoxVault = effectiveLevel == HardwareSecurityLevel.STRONGBOX ||
                         hasStrongBoxFeature ||
-                        propKnoxVault.isNotBlank() ||
-                        modelLower.contains("s2") || modelLower.contains("s1") || modelLower.contains("z") ||
-                        modelLower.contains("fold") || modelLower.contains("flip") || modelLower.contains("a5") ||
-                        modelLower.contains("a35") || modelLower.contains("a55") || modelLower.contains("a56")
+                        propKnoxVault.isNotBlank()
 
                 if (hasKnoxVault) {
                     Triple("Samsung Knox Vault (EAL6+)", "Knox Vault", "Samsung Knox TEE (TEEGRIS / Kinibi)")

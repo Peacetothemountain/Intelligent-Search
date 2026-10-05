@@ -2850,12 +2850,14 @@ fun MainSettingsScreen(
                                             Text(
                                                 text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): " + when {
                                                     attestationResult == null -> "Verifying..."
-                                                    attestationResult?.isHardwareAttested == true -> "Verified ✓"
-                                                    else -> "Not verified"
+                                                    attestationResult?.isHardwareAttested == true -> "Hardware Verified ✓"
+                                                    attestationResult?.securityLevel == com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> "StrongBox Verified ✓"
+                                                    attestationResult?.securityLevel == com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE -> "TEE Backed (TrustZone)"
+                                                    else -> "Software Backed"
                                                 },
                                                 style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (attestationResult?.isHardwareAttested == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                                color = if (attestationResult?.isHardwareAttested == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                             Text(
                                                 text = "Certificate Chain Depth: ${attestationResult?.certificateCount ?: "..."} certificates",

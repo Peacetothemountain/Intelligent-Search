@@ -487,7 +487,7 @@ object SystemDataProvider {
             } else {
                 String.format(java.util.Locale.getDefault(), "%.2f", result)
             }
-        } catch (e: Exception) {
+        } catch (_: Throwable) {
             null
         }
     }
@@ -496,6 +496,7 @@ object SystemDataProvider {
         return object : Any() {
             var pos = -1
             var ch = 0
+            var depth = 0
 
             fun nextChar() {
                 ch = if (++pos < str.length) str[pos].code else -1
@@ -536,21 +537,26 @@ object SystemDataProvider {
             }
 
             fun parseFactor(): Double {
-                if (eat('+'.code)) return parseFactor() // unary plus
-                if (eat('-'.code)) return -parseFactor() // unary minus
-                var x: Double
-                val startPos = pos
-                if (eat('('.code)) { // parentheses
-                    x = parseExpression()
-                    eat(')'.code)
-                } else if (ch >= '0'.code && ch <= '9'.code || ch == '.'.code) { // numbers
-                    while (ch >= '0'.code && ch <= '9'.code || ch == '.'.code) nextChar()
-                    x = str.substring(startPos, pos).toDouble()
-                } else {
-                    throw RuntimeException("Unexpected: " + ch.toChar())
+                if (++depth > 40) throw IllegalArgumentException("Recursion limit exceeded")
+                try {
+                    if (eat('+'.code)) return parseFactor() // unary plus
+                    if (eat('-'.code)) return -parseFactor() // unary minus
+                    var x: Double
+                    val startPos = pos
+                    if (eat('('.code)) { // parentheses
+                        x = parseExpression()
+                        eat(')'.code)
+                    } else if (ch >= '0'.code && ch <= '9'.code || ch == '.'.code) { // numbers
+                        while (ch >= '0'.code && ch <= '9'.code || ch == '.'.code) nextChar()
+                        x = str.substring(startPos, pos).toDouble()
+                    } else {
+                        throw RuntimeException("Unexpected: " + ch.toChar())
+                    }
+                    if (eat('^'.code)) x = Math.pow(x, parseFactor()) // exponentiation
+                    return x
+                } finally {
+                    depth--
                 }
-                if (eat('^'.code)) x = Math.pow(x, parseFactor()) // exponentiation
-                return x
             }
         }.parse()
     }

@@ -759,7 +759,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     }
 
                     val slotCode = SLOT_SHORTCUT_0 + i
-                    val targetIntent = Intent(item.third)
+                    val targetIntent = Intent(item.third).apply {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            identifier = "widget_${appWidgetId}_slot_$slotCode"
+                        }
+                    }
                     val pi = PendingIntent.getActivity(
                         context,
                         getWidgetRequestCode(appWidgetId, slotCode),
@@ -776,7 +780,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val enableSearchOverlay = prefs.getBoolean("search_overlay_enabled", true)
             val mainIntent = if (enableSearchOverlay) {
                 Intent(context, WidgetActivity::class.java).apply {
-                    data = Uri.parse("widget://pill/$appWidgetId")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        identifier = "widget_${appWidgetId}_slot_pill"
+                    } else {
+                        data = Uri.parse("widget://pill/$appWidgetId")
+                    }
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
             } else {
@@ -799,7 +807,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_g_logo, mainPI)
 
             // Tap action button inside search pill
-            val actionIntent = Intent(getVoiceActionIntent(context))
+            val actionIntent = Intent(getVoiceActionIntent(context)).apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    identifier = "widget_${appWidgetId}_slot_action"
+                }
+            }
             val actionPI = PendingIntent.getActivity(
                 context,
                 getWidgetRequestCode(appWidgetId, SLOT_ACTION),
@@ -817,7 +829,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     "Assistant", "Voice", "Gemini" -> getVoiceActionIntent(context)
                     "Now Playing" -> getNowPlayingIntent(context)
                     else -> getVoiceActionIntent(context)
-                })
+                }).apply {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        identifier = "widget_${appWidgetId}_slot_circle"
+                    }
+                }
 
                 val circleActionPI = PendingIntent.getActivity(
                     context,

@@ -65,6 +65,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.IntelligentSearch">
 
+        <!-- Declare default searchable activity for system search integration -->
+        <meta-data
+            android:name="android.app.default_searchable"
+            android:value=".feature.search.SearchActivity" />
+
         <!-- Launcher activity override for Serif uppercase "I" brand icon in application drawer -->
         <activity
             android:name="com.pixel.intelligentsearch.MainActivity"
@@ -95,6 +100,7 @@
                 <action android:name="android.intent.action.SEARCH" />
                 <action android:name="android.intent.action.WEB_SEARCH" />
                 <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.search.action.GLOBAL_SEARCH" />

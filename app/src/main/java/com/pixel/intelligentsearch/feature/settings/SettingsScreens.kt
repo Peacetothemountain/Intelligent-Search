@@ -2751,12 +2751,50 @@ fun MainSettingsScreen(
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Text(
-                                        "After QPR2, users are able to change the Default Search Engine App. Please check system settings to select Intelligent Search as your default search engine, which natively activates Intelligent Search as the home search widget.",
+                                        "Android 17 QPR2 and newer introduced the Search Engine Role, allowing you to select Intelligent Search directly as your Default Search Engine App for your home screen and Pixel Launcher.",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
+                                    if (com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.CheckCircle,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                                Text(
+                                                    "Intelligent Search is your active Default Search Engine.",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        Button(
+                                            onClick = {
+                                                com.pixel.intelligentsearch.core.system.SearchRoleManager.openSearchRoleOrSettings(context)
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("Set as Default Search Engine")
+                                        }
+                                    }
                                     Text(
-                                        "If you're running an older version of Android, you can still configure it manually via ADB:",
+                                        "You can also select Intelligent Search under Android Settings > Apps > Default apps > Search engine app.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        "For older Android builds prior to QPR2, the previous manual ADB configuration remains supported:",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
@@ -2774,7 +2812,7 @@ fun MainSettingsScreen(
                                         )
                                     }
                                     Text(
-                                        "*Please be advised: configuring the default search engine on Android 17 QPR2 and newer will not affect At a Glance sports and finance integrations; however, configuring via ADB command will still bypass these integrations.",
+                                        "*Please be advised: configuring the default search engine natively on Android 17 QPR2 and newer preserves At a Glance integrations seamlessly.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -2888,23 +2926,10 @@ fun MainSettingsScreen(
                                     Text("Security Info")
                                 }
                                 TextButton(onClick = {
-                                    try {
-                                        val intent = Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {
-                                        try {
-                                            val intent = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
-                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            }
-                                            context.startActivity(intent)
-                                        } catch (_: Exception) {
-                                            Toast.makeText(context, "Unable to open Settings", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
+                                    com.pixel.intelligentsearch.core.system.SearchRoleManager.openSearchRoleOrSettings(context)
                                 }) {
-                                    Text("Default Apps")
+                                    val isHeld = com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)
+                                    Text(if (isHeld) "Active Default ✓" else "Set Default")
                                 }
                                 TextButton(onClick = {
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
@@ -3009,6 +3034,19 @@ fun MainSettingsScreen(
             }
 
             SettingsCard {
+                SettingsRow(
+                    title = "Default Search Engine",
+                    subtitle = if (com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)) {
+                        "Active Default Search Engine ✓"
+                    } else {
+                        "Set as Default Search Engine in Android Settings."
+                    },
+                    icon = Icons.Outlined.Search,
+                    onClick = {
+                        com.pixel.intelligentsearch.core.system.SearchRoleManager.openSearchRoleOrSettings(context)
+                    },
+                    showDivider = true,
+                )
                 SettingsRow(
                     title = "Default Digital Assistant",
                     subtitle = "Manage Android Assistant Settings.",

@@ -65,6 +65,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.IntelligentSearch">
 
+        <!-- Declare default searchable activity for system search integration -->
+        <meta-data
+            android:name="android.app.default_searchable"
+            android:value=".feature.search.SearchActivity" />
+
         <!-- Launcher activity override for Serif uppercase "I" brand icon in application drawer -->
         <activity
             android:name="com.pixel.intelligentsearch.MainActivity"
@@ -95,6 +100,7 @@
                 <action android:name="android.intent.action.SEARCH" />
                 <action android:name="android.intent.action.WEB_SEARCH" />
                 <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.search.action.GLOBAL_SEARCH" />
@@ -120,7 +126,7 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
-            android:exported="true" />
+            android:exported="false" />
 
         <activity
             android:name="com.pixel.intelligentsearch.feature.settings.SettingsActivity"
@@ -160,7 +166,7 @@
 
         <receiver
             android:name="com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider"
-            android:label="Widget selection preview System search bar"
+            android:label="@string/widget_system_search_bar"
             android:directBootAware="true"
             android:exported="true">
             <intent-filter>
@@ -177,7 +183,7 @@
 
         <receiver
             android:name="com.pixel.intelligentsearch.feature.widget.SearchWidgetMaterialProvider"
-            android:label="Widget selection preview Material Design search bar"
+            android:label="@string/widget_material_search_bar"
             android:directBootAware="true"
             android:exported="true">
             <intent-filter>

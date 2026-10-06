@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.core.graphics.PathParser
 import androidx.core.os.UserManagerCompat
 import com.pixel.intelligentsearch.R
+import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -107,11 +108,16 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         private val widgetScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         fun hasSavedSystemDesign(prefs: SharedPreferences): Boolean {
-            return prefs.getBoolean("widget_system_design_saved", false)
+            return prefs.getBoolean("widget_system_design_saved", false) ||
+                   prefs.contains("widget_system_subtheme") ||
+                   prefs.contains("widget_system_custom_color_int") ||
+                   prefs.contains("widget_custom_hue")
         }
 
         fun hasSavedMaterialDesign(prefs: SharedPreferences): Boolean {
-            return prefs.getBoolean("widget_material_design_saved", false)
+            return prefs.getBoolean("widget_material_design_saved", false) ||
+                   prefs.contains("widget_material_subtheme") ||
+                   prefs.contains("widget_material_custom_color_int")
         }
 
         fun hasSavedDesign(prefs: SharedPreferences): Boolean {
@@ -119,32 +125,51 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         fun resolveIsMaterialYou(
-            appWidgetManager: AppWidgetManager,
+            appWidgetManager: AppWidgetManager?,
             appWidgetId: Int,
             forcedIsMaterial: Boolean?,
-            widgetThemeStyle: String?
+            widgetThemeStyle: String?,
+            options: Bundle? = null
         ): Boolean {
-            if (widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design") {
-                return true
-            }
-            if (widgetThemeStyle == "System Default" || widgetThemeStyle == "System") {
-                if (forcedIsMaterial == true) return true
-                return false
-            }
-
-            val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
-            val hostCategory = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1) ?: -1
-            val isSearchbox = (hostCategory and AppWidgetProviderInfo.WIDGET_CATEGORY_SEARCHBOX) != 0
-
-            if (isSearchbox) {
-                return widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
-            }
-
             if (forcedIsMaterial != null) {
                 return forcedIsMaterial
             }
 
-            return false
+            val providerClassName = try {
+                appWidgetManager?.getAppWidgetInfo(appWidgetId)?.provider?.className
+            } catch (_: Throwable) {
+                null
+            }
+
+            // 1. Dedicated Material Search Bar from widget selector is ALWAYS Material
+            if (providerClassName == SearchWidgetMaterialProvider::class.java.name) {
+                return true
+            }
+
+            // 2. Identify if this widget is the dedicated SearchBox (Default search engine / ADB bar)
+            val widgetOpts = options ?: try {
+                appWidgetManager?.getAppWidgetOptions(appWidgetId)
+            } catch (_: Throwable) {
+                null
+            }
+            val hostCat = widgetOpts?.getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1) ?: -1
+            val isSearchBox = hostCat > 0 && ((hostCat and AppWidgetProviderInfo.WIDGET_CATEGORY_SEARCHBOX) != 0)
+
+            if (isSearchBox) {
+                // The search bar set on Pixel via ADB or Default search provider
+                // is handled SEPARATE outside of the widget selector:
+                // It dynamically follows the user's choice in Widget Customization!
+                return widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
+            }
+
+            // 3. Regular home screen widget from Android Widget Selector (SearchWidgetProvider):
+            // The user explicitly picked "System Search Bar" from the widget selector, so it remains System!
+            if (providerClassName == SearchWidgetProvider::class.java.name) {
+                return false
+            }
+
+            // 4. Fallback when neither provider info nor host category is available (e.g. unit tests):
+            return widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
         }
 
         // Slot identifiers for bit-shifted unique request codes
@@ -253,8 +278,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
             }
 
+            val widgetColors = DynamicThemeDetector.resolveWidgetColors(context, isDark)
             val dynamicScheme = try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (widgetColors.isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
                 } else null
             } catch (e: Throwable) {
@@ -266,14 +292,14 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
             for (appWidgetId in appWidgetIds) {
                 try {
+                    val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
                     val isMaterialYou = resolveIsMaterialYou(
                         appWidgetManager = appWidgetManager,
                         appWidgetId = appWidgetId,
                         forcedIsMaterial = forcedIsMaterial,
-                        widgetThemeStyle = widgetThemeStyle
+                        widgetThemeStyle = widgetThemeStyle,
+                        options = options
                     )
-
-                    val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
                     val minW = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH) ?: -1
                     val minH = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT) ?: -1
                     val maxW = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH) ?: -1
@@ -317,17 +343,24 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         val containerAlphaInt = (containerAlpha * 255).toInt().coerceIn(0, 255)
                         val effectiveColorAlphaInt = (customColorOpacity.coerceIn(0f, 1f) * containerAlpha * 255).toInt().coerceIn(0, 255)
 
-                        val actualCustomColor = android.graphics.Color.HSVToColor(
-                            (customColorOpacity.coerceIn(0f, 1f) * 255).toInt().coerceIn(0, 255),
-                            floatArrayOf(customHue, customSat, customLightness)
-                        )
+                        val actualCustomColor = if (hasSaved && prefs.contains("widget_system_custom_color_int")) {
+                            prefs.getInt("widget_system_custom_color_int", android.graphics.Color.HSVToColor(
+                                (customColorOpacity.coerceIn(0f, 1f) * 255).toInt().coerceIn(0, 255),
+                                floatArrayOf(customHue, customSat, customLightness)
+                            ))
+                        } else {
+                            android.graphics.Color.HSVToColor(
+                                (customColorOpacity.coerceIn(0f, 1f) * 255).toInt().coerceIn(0, 255),
+                                floatArrayOf(customHue, customSat, customLightness)
+                            )
+                        }
                         val customColorLuminance = (0.299 * android.graphics.Color.red(actualCustomColor) + 0.587 * android.graphics.Color.green(actualCustomColor) + 0.114 * android.graphics.Color.blue(actualCustomColor)) / 255
 
                         val pillColor = when (subthemeStr) {
                             "Light" -> 0xFFF1F3F4.toInt()
                             "Dark" -> 0xFF303134.toInt()
                             "Custom" -> actualCustomColor
-                            else -> if (isDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
+                            else -> widgetColors.surfaceContainer
                         }
                         val pillAlphaInt = if (subthemeStr == "Custom") effectiveColorAlphaInt else containerAlphaInt
 
@@ -336,7 +369,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         val effectiveIconTheme = if (hasSaved) {
                             prefs.getString("widget_system_material_g_icon", if (subthemeStr == "Custom") "Material G Icon" else "System G Icon") ?: "System G Icon"
                         } else {
-                            "System G Icon"
+                            if (widgetColors.isDynamicActive) "Material G Icon" else "System G Icon"
                         }
 
                         val gIconRes = when (effectiveIconTheme) {
@@ -355,10 +388,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             )
                             Triple(m3Colors.primary, m3Colors.secondary, m3Colors.tertiary)
                         } else {
-                            val p = dynamicScheme?.primary?.toArgb() ?: (if (isDark) 0xFF8AB4F8.toInt() else 0xFF1973E8.toInt())
-                            val s = dynamicScheme?.secondary?.toArgb() ?: (if (isDark) 0xFFBDC1C6.toInt() else 0xFF5F6368.toInt())
-                            val t = dynamicScheme?.tertiary?.toArgb() ?: (if (isDark) 0xFF81C995.toInt() else 0xFF188038.toInt())
-                            Triple(p, s, t)
+                            Triple(widgetColors.primary, widgetColors.secondary, widgetColors.tertiary)
                         }
 
                         val useMaterialYouIcons = (effectiveIconTheme != "System G Icon") || isPillLight || (subthemeStr == "Custom")
@@ -481,9 +511,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         } else 1.0f
 
                         val lockBlack = if (hasSaved) {
-                            prefs.getBoolean("widget_material_lock_black", true)
+                            prefs.getBoolean("widget_material_lock_black", false)
                         } else {
-                            true
+                            false
                         }
 
                         val transparency = if (hasSaved) {
@@ -496,24 +526,29 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         val containerAlphaInt = (containerAlpha * 255).toInt().coerceIn(0, 255)
                         val effectiveColorAlphaInt = (customColorOpacity.coerceIn(0f, 1f) * containerAlpha * 255).toInt().coerceIn(0, 255)
 
-                        val actualCustomColor = android.graphics.Color.HSVToColor(
-                            (customColorOpacity.coerceIn(0f, 1f) * 255).toInt().coerceIn(0, 255),
-                            floatArrayOf(customHue, customSat, customLightness)
-                        )
+                        val actualCustomColor = if (hasSaved && prefs.contains("widget_material_custom_color_int")) {
+                            prefs.getInt("widget_material_custom_color_int", android.graphics.Color.HSVToColor(
+                                (customColorOpacity.coerceIn(0f, 1f) * 255).toInt().coerceIn(0, 255),
+                                floatArrayOf(customHue, customSat, customLightness)
+                            ))
+                        } else {
+                            android.graphics.Color.HSVToColor(
+                                (customColorOpacity.coerceIn(0f, 1f) * 255).toInt().coerceIn(0, 255),
+                                floatArrayOf(customHue, customSat, customLightness)
+                            )
+                        }
                         val customColorLuminance = (0.299 * android.graphics.Color.red(actualCustomColor) + 0.587 * android.graphics.Color.green(actualCustomColor) + 0.114 * android.graphics.Color.blue(actualCustomColor)) / 255
 
                         val rimColor = when (subthemeStr) {
                             "Custom" -> actualCustomColor
-                            "Material" -> dynamicScheme?.primaryContainer?.toArgb()
-                                ?: (if (isDark) context.getColor(android.R.color.system_accent1_800) else context.getColor(android.R.color.system_accent1_200))
-                            else -> dynamicScheme?.primary?.toArgb()
-                                ?: (if (isDark) context.getColor(android.R.color.system_accent1_800) else context.getColor(android.R.color.system_accent1_200))
+                            "Material" -> widgetColors.primaryContainer
+                            else -> widgetColors.primary
                         }
 
                         val pillColor = if (lockBlack) {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getColor(android.R.color.system_neutral1_900) else 0xFF121212.toInt()
                         } else {
-                            actualCustomColor
+                            if (subthemeStr == "Custom") actualCustomColor else widgetColors.surfaceContainer
                         }
 
                         val circleColor = pillColor
@@ -537,7 +572,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             android.graphics.Color.blue(circleColor)
                         )
 
-                        val isPillLight = !lockBlack && (customColorLuminance > 0.5)
+                        val isPillLight = if (subthemeStr == "Custom") (!lockBlack && (customColorLuminance > 0.5)) else (!isDark && !lockBlack)
 
                         val effectiveIconTheme = if (hasSaved) {
                             prefs.getString("widget_material_material_g_icon", prefs.getString("widget_material_g_icon", "Material G Icon")) ?: "Material G Icon"
@@ -561,10 +596,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             )
                             Triple(m3Colors.primary, m3Colors.secondary, m3Colors.tertiary)
                         } else {
-                            val p = dynamicScheme?.primary?.toArgb() ?: (if (isDark) 0xFF8AB4F8.toInt() else 0xFF1973E8.toInt())
-                            val s = dynamicScheme?.secondary?.toArgb() ?: (if (isDark) 0xFFBDC1C6.toInt() else 0xFF5F6368.toInt())
-                            val t = dynamicScheme?.tertiary?.toArgb() ?: (if (isDark) 0xFF81C995.toInt() else 0xFF188038.toInt())
-                            Triple(p, s, t)
+                            Triple(widgetColors.primary, widgetColors.secondary, widgetColors.tertiary)
                         }
 
                         val useMaterialYouIcons = true
@@ -759,7 +791,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     }
 
                     val slotCode = SLOT_SHORTCUT_0 + i
-                    val targetIntent = Intent(item.third)
+                    val targetIntent = Intent(item.third).apply {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            identifier = "widget_${appWidgetId}_slot_$slotCode"
+                        }
+                    }
                     val pi = PendingIntent.getActivity(
                         context,
                         getWidgetRequestCode(appWidgetId, slotCode),
@@ -776,7 +812,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val enableSearchOverlay = prefs.getBoolean("search_overlay_enabled", true)
             val mainIntent = if (enableSearchOverlay) {
                 Intent(context, WidgetActivity::class.java).apply {
-                    data = Uri.parse("widget://pill/$appWidgetId")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        identifier = "widget_${appWidgetId}_slot_pill"
+                    } else {
+                        data = Uri.parse("widget://pill/$appWidgetId")
+                    }
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
             } else {
@@ -799,7 +839,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_g_logo, mainPI)
 
             // Tap action button inside search pill
-            val actionIntent = Intent(getVoiceActionIntent(context))
+            val actionIntent = Intent(getVoiceActionIntent(context)).apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    identifier = "widget_${appWidgetId}_slot_action"
+                }
+            }
             val actionPI = PendingIntent.getActivity(
                 context,
                 getWidgetRequestCode(appWidgetId, SLOT_ACTION),
@@ -817,7 +861,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     "Assistant", "Voice", "Gemini" -> getVoiceActionIntent(context)
                     "Now Playing" -> getNowPlayingIntent(context)
                     else -> getVoiceActionIntent(context)
-                })
+                }).apply {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        identifier = "widget_${appWidgetId}_slot_circle"
+                    }
+                }
 
                 val circleActionPI = PendingIntent.getActivity(
                     context,

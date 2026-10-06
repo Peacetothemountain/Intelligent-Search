@@ -21,21 +21,15 @@ import android.os.SystemClock
 import com.pixel.intelligentsearch.core.haptics.PixelHapticType
 import com.pixel.intelligentsearch.core.haptics.TactileSonicEngine
 
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.DisposableEffect
-
 /**
  * Global debouncer for settings clicks and navigation events.
- * Prevents double-taps and touch leakage across screen transitions.
+ * Prevents rapid accidental double-taps while preserving instant touch response.
  */
 object SettingsDebouncer {
     @Volatile
     private var lastClickTime = 0L
 
-    fun canClick(cooldownMs: Long = 350L): Boolean {
+    fun canClick(cooldownMs: Long = 180L): Boolean {
         val now = SystemClock.uptimeMillis()
         if (now - lastClickTime < cooldownMs) {
             return false
@@ -75,31 +69,12 @@ fun Modifier.bouncyClickable(
     val view = LocalView.current
     val sensoryEngine = remember(context) { TactileSonicEngine.get(context) }
 
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var resumedTimestamp by remember { mutableLongStateOf(0L) }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                resumedTimestamp = SystemClock.uptimeMillis()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        if (lifecycleOwner.lifecycle.currentState == Lifecycle.State.RESUMED) {
-            resumedTimestamp = SystemClock.uptimeMillis()
-        }
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnLongClick by rememberUpdatedState(onLongClick)
 
-    val clickAction = remember(view, sensoryEngine, suppressClickHaptic, customClickHaptic, lifecycleOwner) {
+    val clickAction = remember(view, sensoryEngine, suppressClickHaptic, customClickHaptic) {
         {
-            val isResumed = lifecycleOwner.lifecycle.currentState == Lifecycle.State.RESUMED
-            val hasSettled = (SystemClock.uptimeMillis() - resumedTimestamp) >= 180L
-            if (isResumed && hasSettled && SettingsDebouncer.canClick()) {
+            if (SettingsDebouncer.canClick(180L)) {
                 if (!suppressClickHaptic) {
                     if (customClickHaptic != null) {
                         sensoryEngine.hapticEngine.performHaptic(view, customClickHaptic)
@@ -112,15 +87,12 @@ fun Modifier.bouncyClickable(
         }
     }
 
-    val longClickAction: (() -> Unit)? = remember(view, sensoryEngine, onLongClick != null, lifecycleOwner) {
+    val longClickAction: (() -> Unit)? = remember(view, sensoryEngine, onLongClick != null) {
         if (onLongClick != null) {
             {
-                val isResumed = lifecycleOwner.lifecycle.currentState == Lifecycle.State.RESUMED
-                val hasSettled = (SystemClock.uptimeMillis() - resumedTimestamp) >= 180L
-                if (isResumed && hasSettled && SettingsDebouncer.canClick()) {
+                if (SettingsDebouncer.canClick(180L)) {
                     sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                     currentOnLongClick?.invoke()
-                    Unit
                 }
             }
         } else null
@@ -169,43 +141,22 @@ fun Modifier.expressiveRowClickable(
     val view = LocalView.current
     val sensoryEngine = remember(context) { TactileSonicEngine.get(context) }
 
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var resumedTimestamp by remember { mutableLongStateOf(0L) }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                resumedTimestamp = SystemClock.uptimeMillis()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        if (lifecycleOwner.lifecycle.currentState == Lifecycle.State.RESUMED) {
-            resumedTimestamp = SystemClock.uptimeMillis()
-        }
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnLongClick by rememberUpdatedState(onLongClick)
 
-    val clickAction = remember(view, sensoryEngine, lifecycleOwner) {
+    val clickAction = remember(view, sensoryEngine) {
         {
-            val isResumed = lifecycleOwner.lifecycle.currentState == Lifecycle.State.RESUMED
-            val hasSettled = (SystemClock.uptimeMillis() - resumedTimestamp) >= 180L
-            if (isResumed && hasSettled && SettingsDebouncer.canClick()) {
+            if (SettingsDebouncer.canClick(180L)) {
                 sensoryEngine.click(view)
                 currentOnClick()
             }
         }
     }
 
-    val longClickAction: (() -> Unit)? = remember(view, sensoryEngine, onLongClick != null, lifecycleOwner) {
+    val longClickAction: (() -> Unit)? = remember(view, sensoryEngine, onLongClick != null) {
         if (onLongClick != null) {
             {
-                val isResumed = lifecycleOwner.lifecycle.currentState == Lifecycle.State.RESUMED
-                val hasSettled = (SystemClock.uptimeMillis() - resumedTimestamp) >= 180L
-                if (isResumed && hasSettled && SettingsDebouncer.canClick()) {
+                if (SettingsDebouncer.canClick(180L)) {
                     sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                     currentOnLongClick?.invoke()
                 }
@@ -228,4 +179,3 @@ fun Modifier.expressiveRowClickable(
             onClick = clickAction
         )
 }
-

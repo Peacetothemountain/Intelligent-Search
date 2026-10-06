@@ -13,6 +13,7 @@ import androidx.graphics.shapes.toPath
 import androidx.graphics.shapes.CornerRounding
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
+import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.feature.widget.SearchTileService
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
@@ -881,21 +882,9 @@ fun SettingsScreensHub(
             }
         }
 
-        var isNavTransitioning by remember { mutableStateOf(false) }
-
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
-            val currentEntry = navController.currentBackStackEntry
-            val isResumed = currentEntry?.lifecycle?.currentState == androidx.lifecycle.Lifecycle.State.RESUMED
-            val currentRoute = currentEntry?.destination?.route
-            val targetRouteName = route::class.qualifiedName ?: route::class.simpleName ?: ""
-
-            if (isResumed && !isNavTransitioning && (currentRoute == null || !currentRoute.endsWith(targetRouteName))) {
-                SettingsDebouncer.recordClick()
-                isNavTransitioning = true
-                navController.navigate(route) {
-                    launchSingleTop = true
-                    restoreState = true
-                }
+            navController.navigate(route) {
+                launchSingleTop = true
             }
         }
 
@@ -936,31 +925,21 @@ fun SettingsScreensHub(
         val hasSubScreensInNavHost = navController.previousBackStackEntry != null
         val isAtRootMain = (currentRoute == null || currentRoute.contains("main", ignoreCase = true)) && !hasSubScreensInNavHost
 
-        LaunchedEffect(currentBackStackEntry) {
-            isNavTransitioning = true
-            kotlinx.coroutines.delay(320L)
-            isNavTransitioning = false
-        }
-
         val onBack: () -> Unit = {
-            val currentEntry = navController.currentBackStackEntry
-            val isResumed = currentEntry?.lifecycle?.currentState == androidx.lifecycle.Lifecycle.State.RESUMED
-            if (isResumed && !isNavTransitioning) {
-                SettingsDebouncer.recordClick()
-                isNavTransitioning = true
-                if (navController.previousBackStackEntry != null) {
-                    navController.popBackStack()
-                } else {
-                    handleExitBack()
-                }
+            if (navController.previousBackStackEntry != null) {
+                navController.popBackStack()
+            } else {
+                handleExitBack()
             }
         }
 
         val exitBackProgress = remember { Animatable(0f) }
+        var predictiveBackSwipeEdge by remember { mutableIntStateOf(androidx.activity.BackEventCompat.EDGE_LEFT) }
 
         androidx.activity.compose.PredictiveBackHandler(enabled = isAtRootMain) { progressFlow ->
             try {
                 progressFlow.collect { backEvent ->
+                    predictiveBackSwipeEdge = backEvent.swipeEdge
                     exitBackProgress.snapTo(backEvent.progress)
                 }
                 exitBackProgress.snapTo(0f)
@@ -995,10 +974,20 @@ fun SettingsScreensHub(
                 .graphicsLayer {
                     val p = exitBackProgress.value
                     if (p > 0f) {
-                        scaleX = 1f - (p * 0.08f)
-                        scaleY = 1f - (p * 0.08f)
+                        val predictiveScale = 1f - (p * 0.08f)
+                        scaleX = predictiveScale
+                        scaleY = predictiveScale
+                        val maxShiftPx = 48.dp.toPx()
+                        translationX = if (predictiveBackSwipeEdge == androidx.activity.BackEventCompat.EDGE_LEFT) {
+                            p * maxShiftPx
+                        } else {
+                            -p * maxShiftPx
+                        }
                         alpha = (1f - p * 0.25f).coerceIn(0f, 1f)
-                        transformOrigin = TransformOrigin(0.5f, 0.5f)
+                        transformOrigin = TransformOrigin(
+                            if (predictiveBackSwipeEdge == androidx.activity.BackEventCompat.EDGE_LEFT) 0.05f else 0.95f,
+                            0.5f
+                        )
                     }
                 }
                 .background(MaterialTheme.colorScheme.background)
@@ -1023,22 +1012,6 @@ fun SettingsScreensHub(
                     .fillMaxSize()
                     .then(if (showTutorial) Modifier.blur(24.dp) else Modifier)
             ) {
-                if (isNavTransitioning) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .zIndex(99999f)
-                            .pointerInput(Unit) {
-                                awaitPointerEventScope {
-                                    while (true) {
-                                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                                        event.changes.forEach { it.consume() }
-                                    }
-                                }
-                            }
-                    )
-                }
-
                 NavHost(
                     navController = navController,
                     startDestination = startRoute,
@@ -1047,47 +1020,35 @@ fun SettingsScreensHub(
                             androidx.compose.animation.EnterTransition.None
                         } else {
                             slideInHorizontally(
-                                initialOffsetX = { (it * 0.22f).toInt() },
-                                animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                                initialOffsetX = { (it * 0.25f).toInt() },
+                                animationSpec = tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing)
                             ) + fadeIn(
-                                animationSpec = tween(durationMillis = 240, easing = LinearOutSlowInEasing)
-                            ) + scaleIn(
-                                initialScale = 0.94f,
-                                animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                                animationSpec = tween(durationMillis = 240, easing = androidx.compose.animation.core.LinearOutSlowInEasing)
                             )
                         }
                     },
                     exitTransition = {
                         slideOutHorizontally(
                             targetOffsetX = { -(it * 0.10f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            animationSpec = tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing)
                         ) + fadeOut(
-                            animationSpec = tween(durationMillis = 180, easing = FastOutLinearInEasing)
-                        ) + scaleOut(
-                            targetScale = 0.96f,
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            animationSpec = tween(durationMillis = 200, easing = androidx.compose.animation.core.FastOutLinearInEasing)
                         )
                     },
                     popEnterTransition = {
                         slideInHorizontally(
                             initialOffsetX = { -(it * 0.10f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            animationSpec = tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing)
                         ) + fadeIn(
-                            animationSpec = tween(durationMillis = 240, easing = LinearOutSlowInEasing)
-                        ) + scaleIn(
-                            initialScale = 0.96f,
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            animationSpec = tween(durationMillis = 240, easing = androidx.compose.animation.core.LinearOutSlowInEasing)
                         )
                     },
                     popExitTransition = {
                         slideOutHorizontally(
-                            targetOffsetX = { (it * 0.22f).toInt() },
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            targetOffsetX = { (it * 0.25f).toInt() },
+                            animationSpec = tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing)
                         ) + fadeOut(
-                            animationSpec = tween(durationMillis = 180, easing = FastOutLinearInEasing)
-                        ) + scaleOut(
-                            targetScale = 0.94f,
-                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                            animationSpec = tween(durationMillis = 200, easing = androidx.compose.animation.core.FastOutLinearInEasing)
                         )
                     }
                 ) {
@@ -1778,7 +1739,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 topProcesses = mSnap.processes
             } catch (_: Throwable) {}
 
-            kotlinx.coroutines.delay(1000)
+            kotlinx.coroutines.delay(2500)
         }
     }
 
@@ -1862,7 +1823,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
                         ) {
                             Text(
-                                text = batteryHealth,
+                                text = if (batteryHealth.isNotBlank() && batteryHealth != "Unknown") batteryHealth else "Hardware reporting unavailable",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -2790,12 +2751,50 @@ fun MainSettingsScreen(
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Text(
-                                        "After QPR2, users are able to change the Default Search Engine App. Please check system settings to select Intelligent Search as your default search engine, which natively activates Intelligent Search as the home search widget.",
+                                        "Android 17 QPR2 and newer introduced the Search Engine Role, allowing you to select Intelligent Search directly as your Default Search Engine App for your home screen and Pixel Launcher.",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
+                                    if (com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.CheckCircle,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                                Text(
+                                                    "Intelligent Search is your active Default Search Engine.",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        Button(
+                                            onClick = {
+                                                com.pixel.intelligentsearch.core.system.SearchRoleManager.openSearchRoleOrSettings(context)
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("Set as Default Search Engine")
+                                        }
+                                    }
                                     Text(
-                                        "If you're running an older version of Android, you can still configure it manually via ADB:",
+                                        "You can also select Intelligent Search under Android Settings > Apps > Default apps > Search engine app.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        "For older Android builds prior to QPR2, the previous manual ADB configuration remains supported:",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
@@ -2813,7 +2812,7 @@ fun MainSettingsScreen(
                                         )
                                     }
                                     Text(
-                                        "*Please be advised: configuring the default search engine on Android 17 QPR2 and newer will not affect At a Glance sports and finance integrations; however, configuring via ADB command will still bypass these integrations.",
+                                        "*Please be advised: configuring the default search engine natively on Android 17 QPR2 and newer preserves At a Glance integrations seamlessly.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -2890,12 +2889,14 @@ fun MainSettingsScreen(
                                             Text(
                                                 text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): " + when {
                                                     attestationResult == null -> "Verifying..."
-                                                    attestationResult?.isHardwareAttested == true -> "Verified ✓"
-                                                    else -> "Not verified"
+                                                    attestationResult?.isHardwareAttested == true -> "Hardware Verified ✓"
+                                                    attestationResult?.securityLevel == com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> "StrongBox Verified ✓"
+                                                    attestationResult?.securityLevel == com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE -> "TEE Backed (TrustZone)"
+                                                    else -> "Software Backed"
                                                 },
                                                 style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (attestationResult?.isHardwareAttested == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                                color = if (attestationResult?.isHardwareAttested == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                             Text(
                                                 text = "Certificate Chain Depth: ${attestationResult?.certificateCount ?: "..."} certificates",
@@ -2925,23 +2926,10 @@ fun MainSettingsScreen(
                                     Text("Security Info")
                                 }
                                 TextButton(onClick = {
-                                    try {
-                                        val intent = Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {
-                                        try {
-                                            val intent = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
-                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            }
-                                            context.startActivity(intent)
-                                        } catch (_: Exception) {
-                                            Toast.makeText(context, "Unable to open Settings", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
+                                    com.pixel.intelligentsearch.core.system.SearchRoleManager.openSearchRoleOrSettings(context)
                                 }) {
-                                    Text("Default Apps")
+                                    val isHeld = com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)
+                                    Text(if (isHeld) "Active Default ✓" else "Set Default")
                                 }
                                 TextButton(onClick = {
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
@@ -3046,6 +3034,19 @@ fun MainSettingsScreen(
             }
 
             SettingsCard {
+                SettingsRow(
+                    title = "Default Search Engine",
+                    subtitle = if (com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)) {
+                        "Active Default Search Engine ✓"
+                    } else {
+                        "Set as Default Search Engine in Android Settings."
+                    },
+                    icon = Icons.Outlined.Search,
+                    onClick = {
+                        com.pixel.intelligentsearch.core.system.SearchRoleManager.openSearchRoleOrSettings(context)
+                    },
+                    showDivider = true,
+                )
                 SettingsRow(
                     title = "Default Digital Assistant",
                     subtitle = "Manage Android Assistant Settings.",
@@ -6407,12 +6408,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val isSystem = localThemeStyle == "System Default"
 
     // System Design state
+    val isDynamicActive = remember(context) { DynamicThemeDetector.isDynamicColorActive(context) }
+    val defaultSysIcon = if (isDynamicActive) "Material G Icon" else "System G Icon"
     val sysSaved = prefs.getBoolean("widget_system_design_saved", false)
     var sysSubtheme by remember {
         mutableStateOf(prefs.getString("widget_system_subtheme", if (sysSaved) prefs.getString("widget_subtheme", "System") else "System") ?: "System")
     }
     var sysMaterialGIconTheme by remember {
-        mutableStateOf(prefs.getString("widget_system_material_g_icon", if (sysSaved) prefs.getString("widget_material_g_icon", "System G Icon") else "System G Icon") ?: "System G Icon")
+        mutableStateOf(prefs.getString("widget_system_material_g_icon", if (sysSaved) prefs.getString("widget_material_g_icon", defaultSysIcon) else defaultSysIcon) ?: defaultSysIcon)
     }
     var sysHue by remember {
         mutableStateOf(prefs.getInt("widget_system_custom_hue", if (sysSaved) prefs.getInt("widget_custom_hue", 277) else 277).toFloat())
@@ -6470,7 +6473,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         mutableStateOf(prefs.getInt("widget_material_background_transparency", if (matSaved) prefs.getInt("widget.background.transparency", 28) else 28).toFloat())
     }
     var matLockBlack by remember {
-        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_lock_black", true) else true)
+        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_lock_black", false) else false)
     }
     var matActionIcon by remember {
         mutableStateOf(prefs.getString("widget_material_action_icon", if (matSaved) prefs.getString("widget_action_icon", "Search") else "Search") ?: "Search")
@@ -6657,7 +6660,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         hapticEngine.performPredictiveBackHaptic(view)
                         if (isSystem) {
                             sysSubtheme = "System"
-                            sysMaterialGIconTheme = "System G Icon"
+                            sysMaterialGIconTheme = if (DynamicThemeDetector.isDynamicColorActive(context)) "Material G Icon" else "System G Icon"
                             sysHue = 277f
                             sysSaturation = 51f
                             sysLightness = 100f
@@ -6696,7 +6699,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             matLightness = 100f
                             matColorOpacity = 100f
                             matTransparency = 28f
-                            matLockBlack = true
+                            matLockBlack = false
                             matActionIcon = "Search"
                             matShowGIcon = true
                             matShowVoice = true
@@ -6865,15 +6868,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     } else androidx.compose.ui.graphics.Color.Transparent
                     
-                    val effectiveGIconTheme = if (localSubtheme == "Custom" || previewIsMaterialYou) {
-                        localMaterialGIconTheme
-                    } else {
-                        "System G Icon"
-                    }
+                    val effectiveGIconTheme = localMaterialGIconTheme
 
                     val customLuminance = (0.299 * accentColor.red + 0.587 * accentColor.green + 0.114 * accentColor.blue)
                     val isPreviewPillLight = if (previewIsMaterialYou) {
-                        !localLockBlack && (customLuminance > 0.5f)
+                        if (localSubtheme == "Custom") (!localLockBlack && (customLuminance > 0.5f)) else (!androidx.compose.foundation.isSystemInDarkTheme() && !localLockBlack)
                     } else {
                         when (localSubtheme) {
                             "Light" -> true
@@ -6904,14 +6903,22 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             }
                             baseColor.copy(alpha = containerAlpha)
                         } else {
-                            accentColor.copy(alpha = effectiveColorAlpha)
+                            if (localSubtheme == "Custom") {
+                                accentColor.copy(alpha = effectiveColorAlpha)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = containerAlpha)
+                            }
                         }
                     } else {
                         when (localSubtheme) {
                             "Light" -> androidx.compose.ui.graphics.Color(0xFFF8F9FA).copy(alpha = containerAlpha)
                             "Dark" -> androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = containerAlpha)
                             "Custom" -> accentColor.copy(alpha = effectiveColorAlpha)
-                            else -> if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = containerAlpha) else androidx.compose.ui.graphics.Color(0xFFF8F9FA).copy(alpha = containerAlpha)
+                            else -> if (DynamicThemeDetector.isDynamicColorActive(context)) {
+                                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = containerAlpha)
+                            } else {
+                                if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = containerAlpha) else androidx.compose.ui.graphics.Color(0xFFF8F9FA).copy(alpha = containerAlpha)
+                            }
                         }
                     }
                     

@@ -172,6 +172,21 @@ class BackupManager @Inject constructor(
                         encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
                         payloadSha256 = sha
                     )
+                } else if (isHwBacked) {
+                    val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
+                    val iv = BackupCryptoEngine.generateRandomIv()
+                    val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
+                    val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
+
+                    EncryptedBackupEnvelope(
+                        isHardwareBacked = true,
+                        hardwareChip = hwInfo.chipName,
+                        deviceModel = hwInfo.deviceDisplayName,
+                        kdf = null,
+                        cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
+                        encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
+                        payloadSha256 = sha
+                    )
                 } else {
                     val key = BackupCryptoEngine.getPortableDefaultKey()
                     val iv = BackupCryptoEngine.generateRandomIv()
@@ -297,22 +312,26 @@ class BackupManager @Inject constructor(
                     } catch (e: Throwable) {
                         throw SecurityException("Failed to decrypt: ${e.message ?: "Invalid passphrase"}")
                     }
+                } else if (envelope.isHardwareBacked) {
+                    try {
+                        val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
+                        BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                    } catch (e: Throwable) {
+                        // Fallback to portable default key for legacy envelopes
+                        try {
+                            val key = BackupCryptoEngine.getPortableDefaultKey()
+                            BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                        } catch (_: Throwable) {
+                            throw SecurityException("Device KeyStore key unavailable. This backup was bound to hardware keys that were reset.")
+                        }
+                    }
                 } else {
-                    // Try portable default key first (standard for all portable non-passphrase backups)
+                    // Standard portable non-passphrase backup
                     try {
                         val key = BackupCryptoEngine.getPortableDefaultKey()
                         BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
                     } catch (e: Throwable) {
-                        if (envelope.isHardwareBacked) {
-                            try {
-                                val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
-                                BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
-                            } catch (_: Throwable) {
-                                throw SecurityException("Device KeyStore key unavailable. This backup was bound to hardware keys that were reset.")
-                            }
-                        } else {
-                            throw SecurityException("Failed to decrypt backup. The file may be corrupt or encrypted with an incompatible key.")
-                        }
+                        throw SecurityException("Failed to decrypt backup. The file may be corrupt or encrypted with an incompatible key.")
                     }
                 }
 

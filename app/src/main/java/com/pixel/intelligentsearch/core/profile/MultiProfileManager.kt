@@ -94,13 +94,33 @@ class MultiProfileManager @Inject constructor(
         }
     }
 
+    private var isCallbackRegistered = false
+
     init {
-        try {
-            launcherApps?.registerCallback(launcherCallback, Handler(Looper.getMainLooper()))
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to register LauncherApps callback", e)
-        }
+        registerCallbackSafely()
         refreshProfiles()
+    }
+
+    fun registerCallbackSafely() {
+        if (!isCallbackRegistered) {
+            try {
+                launcherApps?.registerCallback(launcherCallback, Handler(Looper.getMainLooper()))
+                isCallbackRegistered = true
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to register LauncherApps callback", e)
+            }
+        }
+    }
+
+    fun unregisterCallback() {
+        if (isCallbackRegistered) {
+            try {
+                launcherApps?.unregisterCallback(launcherCallback)
+                isCallbackRegistered = false
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to unregister LauncherApps callback", e)
+            }
+        }
     }
 
     fun refreshProfiles(): List<ProfileDescriptor> {

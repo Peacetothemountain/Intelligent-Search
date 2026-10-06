@@ -102,7 +102,6 @@ class SearchViewModel @Inject constructor(
     init {
         adpfThermalManager.applyTopAppThreadPriority()
         corpusIndexManager.initialize()
-        loadInitialData()
 
         // Tier 2: Debounced Remote Web Suggestions (80ms human-pause debounce)
         viewModelScope.launch {
@@ -244,7 +243,6 @@ class SearchViewModel @Inject constructor(
 
     fun onQueryChanged(newQuery: String) {
         _uiState.update { it.copy(query = newQuery) }
-        pixelEcosystemSync.broadcastSearchStateToWearOS(newQuery)
         
         if (newQuery.isBlank()) {
             _remoteSearchQueryFlow.value = ""

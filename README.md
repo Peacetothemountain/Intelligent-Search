@@ -17,44 +17,15 @@
 [![Version Code](https://img.shields.io/badge/Version-v8.1%20(81)-blue?style=for-the-badge)](https://github.com/Peacetothemountain/Intelligent-Search/releases)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge&logo=apache)](LICENSE)
 
-<br/>
 
-[<img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="80">](https://groups.google.com/g/intelligentsearch)
+## 🚀 Join on Google Play
 
-*Click the badge above to join the Google Group and get instant access to the Closed Beta track.*
+Join Intelligent Search now on Google Play
 
----
+### How to join:
 
-</div>
-
-## 🚀 Join the Google Play Closed Beta Test
-
-Want early access to test new release builds of **Intelligent Search** on your device? You can join the **Google Play Store Closed Beta Track**!
-
-### How to Join the Beta:
-
-1. **Step 1: Join the Beta Google Group**  
-   Click the button below and tap **"Join Group"** with your Google Account to get instant, automated beta testing access:
+Visit https://play.google.com/store/apps/details?id=com.pixel.intelligentsearch and download
    
-   <div align="center">
-   
-   [<img src="https://img.shields.io/badge/Join%20Closed%20Beta-Google%20Group-3DDC84?style=for-the-badge&logo=google&logoColor=white" alt="Join Closed Beta">](https://groups.google.com/g/intelligentsearch)
-   
-   </div>
-
-2. **Step 2: Download on Google Play**  
-   Once you've joined the group, click the link below to download and install **Intelligent Search** directly from the Google Play Store:  
-   👉 **[Download Intelligent Search on Google Play Store](https://play.google.com/store/apps/details?id=com.pixel.intelligentsearch)**
-
-> [!IMPORTANT]
-> **🔒 Closed Beta Privacy & Non-Spam Guarantee**  
-> Your email address is collected **exclusively** for the purpose of registering your Google Account for Google Play Store Closed Beta testing permissions.  
-> - **Zero Marketing Emails**: We will **never** send promotional emails, newsletters, or marketing communications.  
-> - **Zero Third-Party Sharing**: We will **never** sell, share, or transfer your email address to any third party.  
-> - **Single Purpose**: Your email address is strictly used to populate the Google Play Console closed testing list so your Google Play Store account can download beta builds.
-
----
-
 ## 🌟 Overview
 
 **Intelligent Search** is a fast, highly customizable search application designed to bring authentic Google Pixel Search Bar styling and system-wide search overlays to any Android device. Engineered with modern Jetpack Compose, AGSL GPU shaders, dynamic Material You color systems, and RenderThread layer compositing, Intelligent Search delivers instant access to installed apps, system settings, contact shortcuts, web search engines, and device media.

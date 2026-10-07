@@ -426,6 +426,25 @@ fun SearchOverlayScreen(
     val settingsState by settingsViewModel.settingsState.collectAsStateWithLifecycle()
     
     val prefs = remember(context) { context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE) }
+    var appWeight by remember { mutableIntStateOf(prefs.getInt("search_weight_apps", 50)) }
+    var webWeight by remember { mutableIntStateOf(prefs.getInt("search_weight_web", 50)) }
+    var contactWeight by remember { mutableIntStateOf(prefs.getInt("search_weight_contacts", 50)) }
+    var fileWeight by remember { mutableIntStateOf(prefs.getInt("search_weight_files", 50)) }
+
+    DisposableEffect(prefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            when (key) {
+                "search_weight_apps" -> appWeight = prefs.getInt("search_weight_apps", 50)
+                "search_weight_web" -> webWeight = prefs.getInt("search_weight_web", 50)
+                "search_weight_contacts" -> contactWeight = prefs.getInt("search_weight_contacts", 50)
+                "search_weight_files" -> fileWeight = prefs.getInt("search_weight_files", 50)
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
     val suggestionsEnabled = remember(prefs) { prefs.getBoolean("search.web.suggestions", true) }
     val searchProviderName = remember(settingsState.searchEngine, settingsState.customSearchEngineUrl) {
         when (settingsState.searchEngine) {
@@ -747,7 +766,12 @@ fun SearchOverlayScreen(
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 hasStartedTyping = false
                 isKeyboardDismissedByUser = false
-                if (settingsState.searchContacts) {
+                appWeight = prefs.getInt("search_weight_apps", 50)
+                webWeight = prefs.getInt("search_weight_web", 50)
+                contactWeight = prefs.getInt("search_weight_contacts", 50)
+                fileWeight = prefs.getInt("search_weight_files", 50)
+                val isContactsEnabled = settingsState.searchContacts || prefs.getBoolean("search.contacts", false) || prefs.getBoolean("search_contacts", false)
+                if (isContactsEnabled) {
                     viewModel.refreshContacts()
                 }
                 val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
@@ -820,10 +844,9 @@ fun SearchOverlayScreen(
         uiState.filteredApps.filter { !settingsState.hiddenApps.contains(it.packageName) }.distinctBy { it.packageName }
     }
 
-    val appWeight = remember(prefs) { prefs.getInt("search_weight_apps", 50) }
-    val webWeight = remember(prefs) { prefs.getInt("search_weight_web", 50) }
-    val contactWeight = remember(prefs) { prefs.getInt("search_weight_contacts", 50) }
-    val fileWeight = remember(prefs) { prefs.getInt("search_weight_files", 50) }
+    val isAppsEnabled = settingsState.searchApps || prefs.getBoolean("search.apps", true) || prefs.getBoolean("search_apps", true)
+    val isContactsEnabled = settingsState.searchContacts || prefs.getBoolean("search.contacts", false) || prefs.getBoolean("search_contacts", false)
+    val isFilesEnabled = settingsState.searchFiles || prefs.getBoolean("search.files", false) || prefs.getBoolean("search_files", false)
 
     val domainMatchPriorities = remember(appWeight, contactWeight, fileWeight) {
         listOf(
@@ -833,7 +856,7 @@ fun SearchOverlayScreen(
         ).sortedByDescending { it.second }
     }
 
-    val bestMatch = remember(uiState.query, uiState.contacts, visibleApps, uiState.files, settingsState.searchApps, settingsState.searchContacts, settingsState.searchFiles, domainMatchPriorities) {
+    val bestMatch = remember(uiState.query, uiState.contacts, visibleApps, uiState.files, isAppsEnabled, isContactsEnabled, isFilesEnabled, domainMatchPriorities) {
         val q = uiState.query.trim()
         if (q.isEmpty()) return@remember null
 
@@ -841,19 +864,19 @@ fun SearchOverlayScreen(
         for ((domain, _) in domainMatchPriorities) {
             when (domain) {
                 "apps" -> {
-                    if (settingsState.searchApps) {
+                    if (isAppsEnabled) {
                         val exactApp = visibleApps.firstOrNull { it.name.equals(q, ignoreCase = true) }
                         if (exactApp != null) return@remember exactApp
                     }
                 }
                 "contacts" -> {
-                    if (settingsState.searchContacts) {
+                    if (isContactsEnabled) {
                         val exactContact = uiState.contacts.firstOrNull { it.name.equals(q, ignoreCase = true) }
                         if (exactContact != null) return@remember exactContact
                     }
                 }
                 "files" -> {
-                    if (settingsState.searchFiles) {
+                    if (isFilesEnabled) {
                         val exactFile = uiState.files.firstOrNull { it.name.equals(q, ignoreCase = true) }
                         if (exactFile != null) return@remember exactFile
                     }
@@ -865,19 +888,19 @@ fun SearchOverlayScreen(
         for ((domain, _) in domainMatchPriorities) {
             when (domain) {
                 "apps" -> {
-                    if (settingsState.searchApps) {
+                    if (isAppsEnabled) {
                         val appMatch = visibleApps.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
                         if (appMatch != null) return@remember appMatch
                     }
                 }
                 "contacts" -> {
-                    if (settingsState.searchContacts) {
+                    if (isContactsEnabled) {
                         val contactMatch = uiState.contacts.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
                         if (contactMatch != null) return@remember contactMatch
                     }
                 }
                 "files" -> {
-                    if (settingsState.searchFiles) {
+                    if (isFilesEnabled) {
                         val fileMatch = uiState.files.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
                         if (fileMatch != null) return@remember fileMatch
                     }
@@ -889,7 +912,7 @@ fun SearchOverlayScreen(
         for ((domain, _) in domainMatchPriorities) {
             when (domain) {
                 "apps" -> {
-                    if (settingsState.searchApps) {
+                    if (isAppsEnabled) {
                         val wordMatch = visibleApps.firstOrNull { app ->
                             app.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
                         }
@@ -897,7 +920,7 @@ fun SearchOverlayScreen(
                     }
                 }
                 "contacts" -> {
-                    if (settingsState.searchContacts) {
+                    if (isContactsEnabled) {
                         val wordMatch = uiState.contacts.firstOrNull { c ->
                             c.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
                         }
@@ -905,7 +928,7 @@ fun SearchOverlayScreen(
                     }
                 }
                 "files" -> {
-                    if (settingsState.searchFiles) {
+                    if (isFilesEnabled) {
                         val wordMatch = uiState.files.firstOrNull { f ->
                             f.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
                         }
@@ -1647,7 +1670,8 @@ fun SearchOverlayScreen(
                                                 hasStartedTyping = false
                                                 focusManager.clearFocus(force = true)
                                                 keyboardController?.hide()
-                                                val intent = if (settingsState.contactDirectCall && match.phoneNumber.isNotBlank()) {
+                                                val isDirectCall = settingsState.contactDirectCall || prefs.getBoolean("contact_direct_call", false) || prefs.getBoolean("contact.direct.call", false)
+                                                val intent = if (isDirectCall && match.phoneNumber.isNotBlank()) {
                                                     Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                                 } else if (match.lookupUri.isNotBlank()) {
                                                     Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {
@@ -1692,9 +1716,10 @@ fun SearchOverlayScreen(
                                                 fontFamily = GoogleSansFlex
                                             )
                                         }
+                                        val isDirectCall = settingsState.contactDirectCall || prefs.getBoolean("contact_direct_call", false) || prefs.getBoolean("contact.direct.call", false)
                                         Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                            contentDescription = "Open",
+                                            imageVector = if (isDirectCall) Icons.Default.Call else Icons.AutoMirrored.Filled.ArrowForward,
+                                            contentDescription = if (isDirectCall) "Call" else "Open",
                                             tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.size(20.dp)
                                         )
@@ -2282,7 +2307,9 @@ fun SearchOverlayScreen(
             for (sec in sortedResultSections) {
                 when (sec) {
                     "apps" -> {
-                        if (showApps && settingsState.searchApps && filteredApps.isNotEmpty()) {
+                        val isAppsEnabled = settingsState.searchApps || prefs.getBoolean("search.apps", true) || prefs.getBoolean("search_apps", true)
+                        val displayApps = if (filteredApps.isNotEmpty()) filteredApps else visibleApps
+                        if (showApps && isAppsEnabled && displayApps.isNotEmpty()) {
                             item(key = "apps_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                             item(key = "apps_row") {
                                 LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
@@ -2295,7 +2322,7 @@ fun SearchOverlayScreen(
                                             }
                                         }
                                     }
-                                    items(filteredApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }) { app ->
+                                    items(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }) { app ->
                                         AppGridItem(app) { performAppLaunch(app.packageName) }
                                     }
                                 }
@@ -2400,15 +2427,18 @@ fun SearchOverlayScreen(
                         }
                     }
                     "contacts" -> {
-                        if (showPeople && settingsState.searchContacts && filteredContacts.isNotEmpty()) {
+                        val isContactsEnabled = settingsState.searchContacts || prefs.getBoolean("search.contacts", false) || prefs.getBoolean("search_contacts", false)
+                        val displayContacts = if (filteredContacts.isNotEmpty()) filteredContacts else uiState.contacts
+                        if (showPeople && isContactsEnabled && displayContacts.isNotEmpty()) {
                             item(key = "contacts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                            itemsIndexed(filteredContacts, key = { index, contact -> "contact_${index}_${contact.lookupUri.ifBlank { contact.phoneNumber }}" }) { _, contact ->
+                            itemsIndexed(displayContacts, key = { index, contact -> "contact_${index}_${contact.lookupUri.ifBlank { contact.phoneNumber }}_${contact.name}" }) { _, contact ->
+                                val isDirectCall = settingsState.contactDirectCall || prefs.getBoolean("contact_direct_call", false) || prefs.getBoolean("contact.direct.call", false)
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .expressiveRowClickable {
                                             hasStartedTyping = false
-                                            val intent = if (settingsState.contactDirectCall && contact.phoneNumber.isNotBlank()) {
+                                            val intent = if (isDirectCall && contact.phoneNumber.isNotBlank()) {
                                                 Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
                                             } else if (contact.lookupUri.isNotBlank()) {
                                                 Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri)).apply {
@@ -2428,18 +2458,30 @@ fun SearchOverlayScreen(
                                         Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     Spacer(modifier = Modifier.width(16.dp))
-                                    Column {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(contact.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
                                         Text(contact.phoneNumber, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            if (contact.phoneNumber.isNotBlank()) {
+                                                hasStartedTyping = false
+                                                launchSafeIntent(context, Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}")))
+                                            }
+                                        }
+                                    ) {
+                                        Icon(imageVector = Icons.Default.Call, contentDescription = "Call", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                                     }
                                 }
                             }
                         }
                     }
                     "files" -> {
-                        if (showFiles && settingsState.searchFiles && filteredFiles.isNotEmpty()) {
+                        val isFilesEnabled = settingsState.searchFiles || prefs.getBoolean("search.files", false) || prefs.getBoolean("search_files", false)
+                        val displayFiles = if (filteredFiles.isNotEmpty()) filteredFiles else uiState.files
+                        if (showFiles && isFilesEnabled && displayFiles.isNotEmpty()) {
                             item(key = "files_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                            itemsIndexed(filteredFiles, key = { index, file -> "file_${index}_${file.uri}" }) { _, file ->
+                            itemsIndexed(displayFiles, key = { index, file -> "file_${index}_${file.uri}" }) { _, file ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()

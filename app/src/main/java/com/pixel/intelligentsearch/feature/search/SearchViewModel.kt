@@ -79,8 +79,8 @@ class SearchViewModel @Inject constructor(
     private val settingsState = settingsManager.settingsFlow
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = IntelligentSearchSettings()
+            started = SharingStarted.Eagerly,
+            initialValue = settingsManager.getInitialSettings()
         )
 
     private val _uiState = MutableStateFlow(SearchUiState())
@@ -393,7 +393,11 @@ class SearchViewModel @Inject constructor(
                 else -> null
             }
 
-            val resolvedApps = if (settings.searchApps) {
+            val isAppsSearchEnabled = settings.searchApps ||
+                customPrefs.getBoolean("search.apps", true) ||
+                customPrefs.getBoolean("search_apps", true)
+
+            val resolvedApps = if (isAppsSearchEnabled) {
                 if (unifiedResults.apps.isNotEmpty()) {
                     unifiedResults.apps
                 } else {
@@ -408,7 +412,11 @@ class SearchViewModel @Inject constructor(
                 null -> if (settings.searchCalculator) SystemDataProvider.evaluateMath(newQuery) else null
             }
 
-            val localContacts = if (settings.searchContacts) {
+            val isContactsSearchEnabled = settings.searchContacts || 
+                customPrefs.getBoolean("search.contacts", false) || 
+                customPrefs.getBoolean("search_contacts", false)
+
+            val localContacts = if (isContactsSearchEnabled) {
                 val memoryContacts = if (unifiedResults.contacts.isNotEmpty()) {
                     unifiedResults.contacts.take(settings.contactResultsCount)
                 } else {
@@ -429,7 +437,11 @@ class SearchViewModel @Inject constructor(
                 }
             } else emptyList()
 
-            val localFiles = if (settings.searchFiles) {
+            val isFilesSearchEnabled = settings.searchFiles || 
+                customPrefs.getBoolean("search.files", false) || 
+                customPrefs.getBoolean("search_files", false)
+
+            val localFiles = if (isFilesSearchEnabled) {
                 if (unifiedResults.files.isNotEmpty()) {
                     unifiedResults.files.take(settings.fileResultsCount)
                 } else {

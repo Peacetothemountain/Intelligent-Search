@@ -2,14 +2,6 @@
 
 ## Supported Versions
 
-The following versions of Intelligent Search currently receive security updates and privacy patches:
-
-| Version | Supported          |
-| ------- | ------------------ |
-| v8.x    | :white_check_mark: |
-| v7.x    | :white_check_mark: |
-| < v7.0  | :x:                |
-
 ## Reporting a Vulnerability
 
 NG Designs takes application security and user privacy seriously. If you discover a security vulnerability or privacy bug in Intelligent Search, please follow these reporting guidelines:

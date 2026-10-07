@@ -328,6 +328,17 @@ class UnifiedSearchCoordinator @Inject constructor(
         itemRegistry.clear()
     }
 
+    /**
+     * Clears only contact entities from in-memory indices before re-indexing.
+     */
+    fun clearContacts() {
+        contactRadixTree.clear()
+        phoneticIndex.values.forEach { set ->
+            set.removeIf { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
+        }
+        itemRegistry.entries.removeIf { it.value.domain == SearchScoringEngine.EntityDomain.CONTACT }
+    }
+
     // ---------------------------------------------------------------------------------------------
     // HIGH-PERFORMANCE SEARCH PIPELINES (< 2ms Tier 0 / < 5ms Full)
     // ---------------------------------------------------------------------------------------------

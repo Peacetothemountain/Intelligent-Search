@@ -3646,9 +3646,6 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                         searchFiles = isChecked
                         prefs.edit().putBoolean("search.files", isChecked).apply()
                         viewModel?.updateSetting(SettingsManager.SEARCH_FILES, isChecked)
-                        if (isChecked) {
-                            Toast.makeText(context, "Files search enabled", Toast.LENGTH_SHORT).show()
-                        }
                     },
                     onClick = { 
                         if (searchFiles) {

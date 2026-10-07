@@ -19,6 +19,32 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class SettingsActivity : AppCompatActivity() {
+    companion object {
+        private const val ROLE_SEARCH_ENGINE = "android.app.role.SEARCH_ENGINE"
+    }
+
+    private val requestRoleLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val roleManager = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            getSystemService(android.app.role.RoleManager::class.java)
+        } else null
+        val isHeld = roleManager?.isRoleHeld(ROLE_SEARCH_ENGINE) == true
+        android.util.Log.d("SettingsActivity", "ROLE_SEARCH_ENGINE request result: ${result.resultCode}, isHeld: $isHeld")
+    }
+
+    fun requestSearchEngineRole() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            val roleManager = getSystemService(android.app.role.RoleManager::class.java)
+            if (roleManager != null && roleManager.isRoleAvailable(ROLE_SEARCH_ENGINE)) {
+                if (!roleManager.isRoleHeld(ROLE_SEARCH_ENGINE)) {
+                    val intent = roleManager.createRequestRoleIntent(ROLE_SEARCH_ENGINE)
+                    requestRoleLauncher.launch(intent)
+                }
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         if (resources.configuration.smallestScreenWidthDp < 600) {
             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -38,6 +64,17 @@ class SettingsActivity : AppCompatActivity() {
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         super.onCreate(savedInstanceState)
+
+        // Android 17 QPR2 native ROLE_SEARCH_ENGINE request
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            val roleManager = getSystemService(android.app.role.RoleManager::class.java)
+            if (roleManager != null && roleManager.isRoleAvailable(ROLE_SEARCH_ENGINE)) {
+                if (!roleManager.isRoleHeld(ROLE_SEARCH_ENGINE)) {
+                    val intent = roleManager.createRequestRoleIntent(ROLE_SEARCH_ENGINE)
+                    requestRoleLauncher.launch(intent)
+                }
+            }
+        }
         
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(

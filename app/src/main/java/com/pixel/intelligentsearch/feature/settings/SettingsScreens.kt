@@ -1767,16 +1767,16 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(176.dp),
+                .heightIn(min = 176.dp),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceContainerLow,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1784,6 +1784,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
+                        modifier = Modifier.weight(1f, fill = false),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -1797,9 +1798,12 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             text = "Battery Health",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
+                    Spacer(modifier = Modifier.width(6.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -1827,7 +1831,9 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -1836,7 +1842,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(86.dp),
+                        .heightIn(min = 86.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1845,7 +1851,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     Box(
                         modifier = Modifier
                             .weight(1.2f)
-                            .fillMaxHeight()
+                            .height(86.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                         contentAlignment = Alignment.Center
@@ -1885,9 +1891,8 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
 
                     Column(
                         modifier = Modifier
-                            .weight(1.1f)
-                            .fillMaxHeight(),
-                        verticalArrangement = Arrangement.SpaceEvenly
+                            .weight(1.1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
                             text = chargingRateStr,
@@ -1912,7 +1917,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             style = MaterialTheme.typography.labelSmall,
                             fontSize = 9.5.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
@@ -2037,16 +2042,16 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(176.dp),
+                .heightIn(min = 176.dp),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceContainerLow,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2054,6 +2059,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
+                        modifier = Modifier.weight(1f, fill = false),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -2067,9 +2073,12 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             text = "System RAM",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.secondary
+                            color = MaterialTheme.colorScheme.secondary,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
+                    Spacer(modifier = Modifier.width(6.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -2111,7 +2120,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(86.dp),
+                        .heightIn(min = 86.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -2128,7 +2137,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     Box(
                         modifier = Modifier
                             .weight(1.25f)
-                            .fillMaxHeight()
+                            .height(86.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                         contentAlignment = Alignment.Center
@@ -2320,9 +2329,8 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     // RIGHT: RAM Usage Breakdown showing what apps/processes are using RAM
                     Column(
                         modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
-                        verticalArrangement = Arrangement.SpaceBetween
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
                             text = "Memory Breakdown",
@@ -2720,8 +2728,12 @@ fun MainSettingsScreen(
                                 else -> "Battery & System Diagnostics"
                             },
                             style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f, fill = false),
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             repeat(3) { pageIndex ->
                                 val isSelected = pagerState.currentPage == pageIndex
@@ -2736,11 +2748,15 @@ fun MainSettingsScreen(
                     }
                 },
                 text = {
+                    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+                    val pagerHeight = remember(configuration.screenHeightDp) {
+                        (configuration.screenHeightDp * 0.54f).coerceIn(368f, 480f).dp
+                    }
                     androidx.compose.foundation.pager.HorizontalPager(
                         state = pagerState,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(368.dp)
+                            .height(pagerHeight)
                     ) { page ->
                         when (page) {
                             0 -> {
@@ -2751,12 +2767,15 @@ fun MainSettingsScreen(
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Text(
-                                        "Android 17 QPR2 and newer introduced the Search Engine Role, allowing you to select Intelligent Search directly as your Default Search Engine App for your home screen and Pixel Launcher.",
+                                        "After QPR2, users are able to change the Default Search Engine App. Please check system settings to select Intelligent Search as your default search engine, which natively activates Intelligent Search as the home search widget.",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     if (com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)) {
                                         Surface(
+                                            onClick = {
+                                                com.pixel.intelligentsearch.core.system.SearchRoleManager.openDefaultSearchEngineSettings(context)
+                                            },
                                             shape = RoundedCornerShape(12.dp),
                                             color = MaterialTheme.colorScheme.primaryContainer,
                                             modifier = Modifier.fillMaxWidth()
@@ -2781,7 +2800,7 @@ fun MainSettingsScreen(
                                     } else {
                                         Button(
                                             onClick = {
-                                                com.pixel.intelligentsearch.core.system.SearchRoleManager.openSearchRoleOrSettings(context)
+                                                com.pixel.intelligentsearch.core.system.SearchRoleManager.openDefaultSearchEngineSettings(context)
                                             },
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
@@ -2789,12 +2808,7 @@ fun MainSettingsScreen(
                                         }
                                     }
                                     Text(
-                                        "You can also select Intelligent Search under Android Settings > Apps > Default apps > Search engine app.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        "For older Android builds prior to QPR2, the previous manual ADB configuration remains supported:",
+                                        "If you're running an older version of Android, you can still configure it manually via ADB:",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
@@ -2812,7 +2826,7 @@ fun MainSettingsScreen(
                                         )
                                     }
                                     Text(
-                                        "*Please be advised: configuring the default search engine natively on Android 17 QPR2 and newer preserves At a Glance integrations seamlessly.",
+                                        "*Please be advised: configuring the default search engine on Android 17 QPR2 and newer will not affect At a Glance sports and finance integrations; however, configuring via ADB command will still bypass these integrations.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -2916,20 +2930,15 @@ fun MainSettingsScreen(
                 confirmButton = {
                     when (pagerState.currentPage) {
                         0 -> {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                            androidx.compose.foundation.layout.FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 TextButton(onClick = {
                                     coroutineScope.launch { pagerState.animateScrollToPage(1) }
                                 }) {
                                     Text("Security Info")
-                                }
-                                TextButton(onClick = {
-                                    com.pixel.intelligentsearch.core.system.SearchRoleManager.openSearchRoleOrSettings(context)
-                                }) {
-                                    val isHeld = com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)
-                                    Text(if (isHeld) "Active Default ✓" else "Set Default")
                                 }
                                 TextButton(onClick = {
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
@@ -3034,19 +3043,6 @@ fun MainSettingsScreen(
             }
 
             SettingsCard {
-                SettingsRow(
-                    title = "Default Search Engine",
-                    subtitle = if (com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)) {
-                        "Active Default Search Engine ✓"
-                    } else {
-                        "Set as Default Search Engine in Android Settings."
-                    },
-                    icon = Icons.Outlined.Search,
-                    onClick = {
-                        com.pixel.intelligentsearch.core.system.SearchRoleManager.openSearchRoleOrSettings(context)
-                    },
-                    showDivider = true,
-                )
                 SettingsRow(
                     title = "Default Digital Assistant",
                     subtitle = "Manage Android Assistant Settings.",

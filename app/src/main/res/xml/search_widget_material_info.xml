@@ -13,4 +13,5 @@
     android:previewLayout="@layout/widget_search"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen|keyguard|searchbox"
+    android:widgetFeatures="reconfigurable|configuration_optional"
     android:description="@string/widget_search_description" />

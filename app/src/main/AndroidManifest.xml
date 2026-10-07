@@ -49,6 +49,9 @@
         <package android:name="com.google.android.apps.books" />
         <package android:name="com.google.android.apps.labs.language.tailwind" />
         <package android:name="com.google.android.apps.pixel.nowplaying" />
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+        </intent>
     </queries>
 
     <application
@@ -88,7 +91,7 @@
             android:name="com.pixel.intelligentsearch.feature.search.SearchActivity"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
-            android:label="Search"
+            android:label="@string/app_name"
             android:theme="@style/Theme.IntelligentSearch.Overlay.Launcher"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
@@ -97,8 +100,11 @@
             android:directBootAware="true"
             android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.SEARCH" />
                 <action android:name="android.intent.action.WEB_SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEARCH" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
             </intent-filter>

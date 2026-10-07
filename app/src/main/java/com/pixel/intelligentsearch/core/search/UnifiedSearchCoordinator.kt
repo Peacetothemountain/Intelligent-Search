@@ -86,9 +86,9 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val itemRegistry = ConcurrentHashMap<String, SearchItem>()
 
     private val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-    @Volatile private var cachedAppWeightMul: Float = 0.5f
-    @Volatile private var cachedContactWeightMul: Float = 0.5f
-    @Volatile private var cachedFileWeightMul: Float = 0.5f
+    @Volatile private var cachedAppWeightMul: Float = 1.0f
+    @Volatile private var cachedContactWeightMul: Float = 1.0f
+    @Volatile private var cachedFileWeightMul: Float = 1.0f
 
     private val prefChangeListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         when (key) {
@@ -106,15 +106,15 @@ class UnifiedSearchCoordinator @Inject constructor(
     }
 
     private fun updateAppWeight() {
-        cachedAppWeightMul = (prefs.getInt("search_weight_apps", 50) / 100f).coerceAtLeast(0.01f)
+        cachedAppWeightMul = (prefs.getInt("search_weight_apps", 50) / 50f).coerceAtLeast(0.01f)
     }
 
     private fun updateContactWeight() {
-        cachedContactWeightMul = (prefs.getInt("search_weight_contacts", 50) / 100f).coerceAtLeast(0.01f)
+        cachedContactWeightMul = (prefs.getInt("search_weight_contacts", 50) / 50f).coerceAtLeast(0.01f)
     }
 
     private fun updateFileWeight() {
-        cachedFileWeightMul = (prefs.getInt("search_weight_files", 50) / 100f).coerceAtLeast(0.01f)
+        cachedFileWeightMul = (prefs.getInt("search_weight_files", 50) / 50f).coerceAtLeast(0.01f)
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -443,7 +443,7 @@ class UnifiedSearchCoordinator @Inject constructor(
                 targetTitle = item.title,
                 metadata = item.metadata,
                 currentTimeMs = now,
-                domainWeightMultiplier = 1.0f,
+                domainWeightMultiplier = cachedAppWeightMul,
                 precomputedQueryMetaphone = queryMetaphone,
                 precomputedTargetMetaphone = item.precomputedMetaphone
             )
@@ -487,7 +487,7 @@ class UnifiedSearchCoordinator @Inject constructor(
                 targetTitle = item.title,
                 metadata = item.metadata,
                 currentTimeMs = now,
-                domainWeightMultiplier = 1.0f,
+                domainWeightMultiplier = cachedContactWeightMul,
                 precomputedQueryMetaphone = queryMetaphone,
                 precomputedTargetMetaphone = item.precomputedMetaphone
             )
@@ -567,7 +567,7 @@ class UnifiedSearchCoordinator @Inject constructor(
                 targetTitle = item.title,
                 metadata = item.metadata,
                 currentTimeMs = now,
-                domainWeightMultiplier = 1.0f,
+                domainWeightMultiplier = cachedFileWeightMul,
                 precomputedQueryMetaphone = queryMetaphone,
                 precomputedTargetMetaphone = item.precomputedMetaphone
             )

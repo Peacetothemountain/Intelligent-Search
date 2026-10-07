@@ -30,7 +30,8 @@ class SettingsViewModel @Inject constructor(
     private val bangManager: SearchBangManager,
     private val backupManager: BackupManager,
     private val iconEngine: UniversalIconEngine,
-    private val strongBoxSecurityManager: com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager
+    private val strongBoxSecurityManager: com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager,
+    private val corpusIndexManager: com.pixel.intelligentsearch.core.search.CorpusIndexManager
 ) : ViewModel() {
 
     val settingsState: StateFlow<IntelligentSearchSettings> = settingsManager.settingsFlow
@@ -64,7 +65,14 @@ class SettingsViewModel @Inject constructor(
     fun <T> updateSetting(key: Preferences.Key<T>, value: T) {
         viewModelScope.launch {
             settingsManager.updateSetting(key, value)
+            if (key == SettingsManager.SEARCH_CONTACTS && value == true) {
+                corpusIndexManager.reindexContacts()
+            }
         }
+    }
+
+    fun reindexContacts() {
+        corpusIndexManager.reindexContacts()
     }
 
     fun clearSearchHistory() {

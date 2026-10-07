@@ -747,6 +747,9 @@ fun SearchOverlayScreen(
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 hasStartedTyping = false
                 isKeyboardDismissedByUser = false
+                if (settingsState.searchContacts) {
+                    viewModel.refreshContacts()
+                }
                 val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
                 if (forceTut) {
                     TutorialManager.resetForForceTutorial(prefs)
@@ -1059,8 +1062,16 @@ fun SearchOverlayScreen(
                                 if (bestMatch != null) {
                                     when (bestMatch) {
                                         is ContactItem -> {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri)).apply {
-                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            val intent = if (settingsState.contactDirectCall && bestMatch.phoneNumber.isNotBlank()) {
+                                                Intent(Intent.ACTION_DIAL, Uri.parse("tel:${bestMatch.phoneNumber}"))
+                                            } else if (bestMatch.lookupUri.isNotBlank()) {
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri)).apply {
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                            } else if (bestMatch.phoneNumber.isNotBlank()) {
+                                                Intent(Intent.ACTION_DIAL, Uri.parse("tel:${bestMatch.phoneNumber}"))
+                                            } else {
+                                                Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
                                             }
                                             launchSafeIntent(context, intent)
                                         }
@@ -1636,12 +1647,16 @@ fun SearchOverlayScreen(
                                                 hasStartedTyping = false
                                                 focusManager.clearFocus(force = true)
                                                 keyboardController?.hide()
-                                                val intent = if (settingsState.contactDirectCall) {
+                                                val intent = if (settingsState.contactDirectCall && match.phoneNumber.isNotBlank()) {
                                                     Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
-                                                } else {
+                                                } else if (match.lookupUri.isNotBlank()) {
                                                     Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {
                                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                                     }
+                                                } else if (match.phoneNumber.isNotBlank()) {
+                                                    Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
+                                                } else {
+                                                    Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
                                                 }
                                                 launchSafeIntent(context, intent)
                                             }
@@ -2393,12 +2408,16 @@ fun SearchOverlayScreen(
                                         .fillMaxWidth()
                                         .expressiveRowClickable {
                                             hasStartedTyping = false
-                                            val intent = if (settingsState.contactDirectCall) {
+                                            val intent = if (settingsState.contactDirectCall && contact.phoneNumber.isNotBlank()) {
                                                 Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
-                                            } else {
+                                            } else if (contact.lookupUri.isNotBlank()) {
                                                 Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri)).apply {
                                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                                 }
+                                            } else if (contact.phoneNumber.isNotBlank()) {
+                                                Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
+                                            } else {
+                                                Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
                                             }
                                             launchSafeIntent(context, intent)
                                         }

@@ -102,6 +102,9 @@ class SearchViewModel @Inject constructor(
     init {
         adpfThermalManager.applyTopAppThreadPriority()
         corpusIndexManager.initialize()
+        if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            corpusIndexManager.reindexContacts()
+        }
 
         // Tier 2: Debounced Remote Web Suggestions (80ms human-pause debounce)
         viewModelScope.launch {
@@ -162,7 +165,14 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    fun refreshContacts() {
+        if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            corpusIndexManager.reindexContacts()
+        }
+    }
+
     fun loadInitialData() {
+        refreshContacts()
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val appsDeferred = async { SystemDataProvider.getAllApps(context) }
@@ -399,10 +409,23 @@ class SearchViewModel @Inject constructor(
             }
 
             val localContacts = if (settings.searchContacts) {
-                if (unifiedResults.contacts.isNotEmpty()) {
+                val memoryContacts = if (unifiedResults.contacts.isNotEmpty()) {
                     unifiedResults.contacts.take(settings.contactResultsCount)
                 } else {
                     unifiedSearchCoordinator.searchContacts(newQuery, settings.contactResultsCount)
+                }
+                if (memoryContacts.isNotEmpty()) {
+                    memoryContacts
+                } else if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    val direct = SystemDataProvider.getContacts(context, newQuery).take(settings.contactResultsCount)
+                    if (direct.isNotEmpty()) {
+                        viewModelScope.launch(Dispatchers.IO) {
+                            corpusIndexManager.reindexContacts()
+                        }
+                    }
+                    direct
+                } else {
+                    emptyList()
                 }
             } else emptyList()
 

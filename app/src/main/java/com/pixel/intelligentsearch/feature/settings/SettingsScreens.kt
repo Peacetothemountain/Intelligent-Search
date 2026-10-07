@@ -3516,6 +3516,11 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                                 searchContacts = hasContacts
                                 prefs.edit().putBoolean("search.contacts", hasContacts).apply()
                                 viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, hasContacts)
+                                if (hasContacts) {
+                                    viewModel?.reindexContacts()
+                                }
+                            } else if (hasContacts && searchContacts) {
+                                viewModel?.reindexContacts()
                             }
                         }
                     }
@@ -3531,7 +3536,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                         searchContacts = true
                         prefs.edit().putBoolean("search.contacts", true).apply()
                         viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, true)
-                        Toast.makeText(context, "Contacts search enabled", Toast.LENGTH_SHORT).show()
+                        viewModel?.reindexContacts()
                     } else {
                         searchContacts = false
                         prefs.edit().putBoolean("search.contacts", false).apply()
@@ -3618,6 +3623,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                                 searchContacts = true
                                 prefs.edit().putBoolean("search.contacts", true).apply()
                                 viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, true)
+                                viewModel?.reindexContacts()
                             } else {
                                 showContactsRationaleDialog = true
                             }

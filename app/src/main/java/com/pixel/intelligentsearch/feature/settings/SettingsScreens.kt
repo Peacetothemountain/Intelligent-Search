@@ -32,6 +32,7 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.view.HapticFeedbackConstants
+import androidx.compose.ui.graphics.toArgb
 
 import android.os.Build
 import android.os.VibrationEffect
@@ -1311,7 +1312,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
         val actMgr = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
         val memInfo = android.app.ActivityManager.MemoryInfo()
         actMgr?.getMemoryInfo(memInfo)
-        val totGb = memInfo.totalMem.toDouble() / (1024.0 * 1024.0 * 1024.0)
+        val totGb = memInfo.totalMem.toDouble() / 1_000_000_000.0
         when {
             totGb <= 4.5 -> 4
             totGb <= 6.5 -> 6
@@ -1615,14 +1616,20 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
 
                     var procTotalKb = -1L
                     var procAvailKb = -1L
+                    var procMemFreeKb = 0L
                     var procBuffersKb = 0L
                     var procCachedKb = 0L
                     var procSwapTotalKb = 0L
                     var procSwapFreeKb = 0L
                     var procAnonPagesKb = 0L
+                    var procInactiveAnonKb = 0L
+                    var procActiveAnonKb = 0L
+                    var procKReclaimableKb = 0L
                     var procSlabKb = 0L
                     var procKernelStackKb = 0L
                     var procPageTablesKb = 0L
+                    var procZramKb = 0L
+                    var procShmemKb = 0L
 
                     try {
                         val memInfoFile = java.io.File("/proc/meminfo")
@@ -1631,27 +1638,54 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 reader.forEachLine { l ->
                                     when {
                                         l.startsWith("MemTotal:") -> procTotalKb = l.substringAfter("MemTotal:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: -1L
+                                        l.startsWith("MemFree:") -> procMemFreeKb = l.substringAfter("MemFree:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
                                         l.startsWith("MemAvailable:") -> procAvailKb = l.substringAfter("MemAvailable:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: -1L
                                         l.startsWith("Buffers:") -> procBuffersKb = l.substringAfter("Buffers:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
                                         l.startsWith("Cached:") -> procCachedKb = l.substringAfter("Cached:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
                                         l.startsWith("SwapTotal:") -> procSwapTotalKb = l.substringAfter("SwapTotal:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
                                         l.startsWith("SwapFree:") -> procSwapFreeKb = l.substringAfter("SwapFree:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
                                         l.startsWith("AnonPages:") -> procAnonPagesKb = l.substringAfter("AnonPages:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                        l.startsWith("Inactive(anon):") -> procInactiveAnonKb = l.substringAfter("Inactive(anon):").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                        l.startsWith("Active(anon):") -> procActiveAnonKb = l.substringAfter("Active(anon):").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                        l.startsWith("KReclaimable:") -> procKReclaimableKb = l.substringAfter("KReclaimable:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
                                         l.startsWith("Slab:") -> procSlabKb = l.substringAfter("Slab:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
                                         l.startsWith("KernelStack:") -> procKernelStackKb = l.substringAfter("KernelStack:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
                                         l.startsWith("PageTables:") -> procPageTablesKb = l.substringAfter("PageTables:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                        l.startsWith("Zram:") -> procZramKb = l.substringAfter("Zram:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
+                                        l.startsWith("Shmem:") -> procShmemKb = l.substringAfter("Shmem:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
                                     }
                                 }
                             }
                         }
-                        if (procTotalKb > 0) totalBytes = procTotalKb * 1024L
-                        if (procAvailKb > 0) availBytes = procAvailKb * 1024L
                     } catch (_: Throwable) {}
 
-                    val usedBytes = (totalBytes - availBytes).coerceAtLeast(0L)
-                    val calculatedPct = if (totalBytes > 0) ((usedBytes.toDouble() / totalBytes) * 100).toInt().coerceIn(0, 100) else 0
+                    if (procTotalKb > 0) totalBytes = procTotalKb * 1024L
 
-                    val totGb = totalBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
+                    // Modern Android Runtime (Android 14-17 / Canary QPR3) True RAM Accounting:
+                    // In Android Settings, "Free RAM" comprises:
+                    // 1. Raw MemFree
+                    // 2. Cached Kernel pages (Buffers + Cached + KReclaimable - Shmem)
+                    // 3. Cached background applications (Inactive Anon + background swap) which the OS evicts on demand.
+                    // "Used RAM" is Total RAM minus this true available headroom.
+                    val kernelReclaimableKb = (procMemFreeKb + procCachedKb + procBuffersKb + procKReclaimableKb - procShmemKb).coerceAtLeast(0L)
+                    val cachedAppsKb = procInactiveAnonKb + if (procZramKb > 0) (procZramKb * 0.9).toLong() else (((procSwapTotalKb - procSwapFreeKb).coerceAtLeast(0L)) * 0.25).toLong()
+
+                    val trueAvailableKb = if (kernelReclaimableKb > 0) {
+                        (kernelReclaimableKb + cachedAppsKb).coerceAtMost(if (procTotalKb > 0) procTotalKb else Long.MAX_VALUE)
+                    } else {
+                        // Fallback if /proc/meminfo is inaccessible: ActivityManager availMem only contains kernel free/cache.
+                        (memInfo.availMem / 1024L) + (memInfo.totalMem / 1024L * 0.14).toLong()
+                    }
+
+                    val trueAvailBytes = trueAvailableKb * 1024L
+                    val trueUsedBytes = (totalBytes - trueAvailBytes).coerceAtLeast(0L)
+                    val calculatedPct = if (totalBytes > 0) ((trueUsedBytes.toDouble() / totalBytes) * 100).toInt().coerceIn(0, 100) else 0
+
+                    // Android System Settings uses decimal gigabytes (10^9) for marketing specs & memory settings display
+                    val totGb = totalBytes.toDouble() / 1_000_000_000.0
+                    val usdGb = trueUsedBytes.toDouble() / 1_000_000_000.0
+                    val avlGb = trueAvailBytes.toDouble() / 1_000_000_000.0
+
                     val physGb = when {
                         totGb <= 4.5 -> 4
                         totGb <= 6.5 -> 6
@@ -1660,18 +1694,16 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         totGb <= 16.8 -> 16
                         else -> 24
                     }
-                    val usdGb = usedBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
-                    val avlGb = availBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
 
                     val swapUsedKb = (procSwapTotalKb - procSwapFreeKb).coerceAtLeast(0L)
-                    val zRamUsedGb = swapUsedKb.toDouble() / (1024.0 * 1024.0)
-                    val zRamTotGb = procSwapTotalKb.toDouble() / (1024.0 * 1024.0)
-                    val cacheGb = (procBuffersKb + procCachedKb).toDouble() / (1024.0 * 1024.0)
+                    val zRamUsedGb = swapUsedKb.toDouble() / 1_000_000_000.0
+                    val zRamTotGb = procSwapTotalKb.toDouble() / 1_000_000_000.0
+                    val cacheGb = (procBuffersKb + procCachedKb + procKReclaimableKb).toDouble() / 1_000_000_000.0
 
                     val isLow = memInfo.lowMemory
                     val threshMb = (memInfo.threshold / (1024L * 1024L)).toInt()
 
-                    val freePct = if (totalBytes > 0) ((availBytes.toDouble() / totalBytes) * 100).toInt() else 30
+                    val freePct = if (totalBytes > 0) ((trueAvailBytes.toDouble() / totalBytes) * 100).toInt() else 30
                     val pressure = when {
                         isLow || freePct < 15 -> "Critical"
                         freePct < 25 -> "High Load"
@@ -1682,8 +1714,8 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     val rt = Runtime.getRuntime()
                     val myHeapMb = ((rt.totalMemory() - rt.freeMemory()) + android.os.Debug.getNativeHeapAllocatedSize()) / (1024f * 1024f)
 
-                    val activeAppsMb = (procAnonPagesKb / 1024f).coerceAtLeast(0f)
-                    val sysCacheMb = (procCachedKb + procBuffersKb) / 1024f
+                    val activeAppsMb = (procActiveAnonKb.takeIf { it > 0 } ?: (procAnonPagesKb - procInactiveAnonKb).coerceAtLeast(0L)) / 1024f
+                    val sysCacheMb = (procCachedKb + procBuffersKb + procKReclaimableKb) / 1024f
                     val kernelMb = (procSlabKb + procKernelStackKb + procPageTablesKb) / 1024f
 
                     val topProcessesList = listOf(
@@ -6425,6 +6457,18 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var sysMaterialGIconTheme by remember {
         mutableStateOf(prefs.getString("widget_system_material_g_icon", if (sysSaved) prefs.getString("widget_material_g_icon", defaultSysIcon) else defaultSysIcon) ?: defaultSysIcon)
     }
+    var sysCustomGIconColor by remember {
+        mutableIntStateOf(prefs.getInt("widget_system_custom_g_icon_color", prefs.getInt("widget_custom_g_icon_color", 0xFF4285F4.toInt())))
+    }
+    var sysCustomShortcutsColor by remember {
+        mutableIntStateOf(prefs.getInt("widget_system_custom_shortcuts_color", prefs.getInt("widget_custom_shortcuts_color", 0xFF34A853.toInt())))
+    }
+    var sysCustomActionColor by remember {
+        mutableIntStateOf(prefs.getInt("widget_system_custom_action_icon_color", prefs.getInt("widget_custom_action_icon_color", 0xFFEA4335.toInt())))
+    }
+    var sysCustomSyncColors by remember {
+        mutableStateOf(prefs.getBoolean("widget_system_custom_sync_colors", prefs.getBoolean("widget_custom_sync_colors", true)))
+    }
     var sysHue by remember {
         mutableStateOf(prefs.getInt("widget_system_custom_hue", if (sysSaved) prefs.getInt("widget_custom_hue", 277) else 277).toFloat())
     }
@@ -6464,6 +6508,18 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
     var matMaterialGIconTheme by remember {
         mutableStateOf(prefs.getString("widget_material_material_g_icon", if (matSaved) prefs.getString("widget_material_g_icon", "Material G Icon") else "Material G Icon") ?: "Material G Icon")
+    }
+    var matCustomGIconColor by remember {
+        mutableIntStateOf(prefs.getInt("widget_material_custom_g_icon_color", prefs.getInt("widget_custom_g_icon_color", 0xFF4285F4.toInt())))
+    }
+    var matCustomShortcutsColor by remember {
+        mutableIntStateOf(prefs.getInt("widget_material_custom_shortcuts_color", prefs.getInt("widget_custom_shortcuts_color", 0xFF34A853.toInt())))
+    }
+    var matCustomActionColor by remember {
+        mutableIntStateOf(prefs.getInt("widget_material_custom_action_icon_color", prefs.getInt("widget_custom_action_icon_color", 0xFFEA4335.toInt())))
+    }
+    var matCustomSyncColors by remember {
+        mutableStateOf(prefs.getBoolean("widget_material_custom_sync_colors", prefs.getBoolean("widget_custom_sync_colors", true)))
     }
     var matHue by remember {
         mutableStateOf(prefs.getInt("widget_material_custom_hue", if (matSaved) prefs.getInt("widget_custom_hue", 277) else 277).toFloat())
@@ -6521,6 +6577,43 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             override fun component2(): (String) -> Unit = { value = it }
         }
     }
+    var localCustomGIconColor by remember(isSystem) {
+        object : MutableState<Int> {
+            override var value: Int
+                get() = if (isSystem) sysCustomGIconColor else matCustomGIconColor
+                set(v) { if (isSystem) sysCustomGIconColor = v else matCustomGIconColor = v }
+            override fun component1(): Int = value
+            override fun component2(): (Int) -> Unit = { value = it }
+        }
+    }
+    var localCustomShortcutsColor by remember(isSystem) {
+        object : MutableState<Int> {
+            override var value: Int
+                get() = if (isSystem) sysCustomShortcutsColor else matCustomShortcutsColor
+                set(v) { if (isSystem) sysCustomShortcutsColor = v else matCustomShortcutsColor = v }
+            override fun component1(): Int = value
+            override fun component2(): (Int) -> Unit = { value = it }
+        }
+    }
+    var localCustomActionColor by remember(isSystem) {
+        object : MutableState<Int> {
+            override var value: Int
+                get() = if (isSystem) sysCustomActionColor else matCustomActionColor
+                set(v) { if (isSystem) sysCustomActionColor = v else matCustomActionColor = v }
+            override fun component1(): Int = value
+            override fun component2(): (Int) -> Unit = { value = it }
+        }
+    }
+    var localCustomSyncColors by remember(isSystem) {
+        object : MutableState<Boolean> {
+            override var value: Boolean
+                get() = if (isSystem) sysCustomSyncColors else matCustomSyncColors
+                set(v) { if (isSystem) sysCustomSyncColors = v else matCustomSyncColors = v }
+            override fun component1(): Boolean = value
+            override fun component2(): (Boolean) -> Unit = { value = it }
+        }
+    }
+    var activeCustomColorTarget by remember(isSystem) { mutableStateOf("G Icon") }
     var localHue by remember(isSystem) {
         object : MutableState<Float> {
             override var value: Float
@@ -6669,6 +6762,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         if (isSystem) {
                             sysSubtheme = "System"
                             sysMaterialGIconTheme = if (DynamicThemeDetector.isDynamicColorActive(context)) "Material G Icon" else "System G Icon"
+                            sysCustomGIconColor = 0xFF4285F4.toInt()
+                            sysCustomShortcutsColor = 0xFF34A853.toInt()
+                            sysCustomActionColor = 0xFFEA4335.toInt()
+                            sysCustomSyncColors = true
                             sysHue = 277f
                             sysSaturation = 51f
                             sysLightness = 100f
@@ -6684,6 +6781,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .putBoolean("widget_system_design_saved", false)
                                 .remove("widget_system_subtheme")
                                 .remove("widget_system_material_g_icon")
+                                .remove("widget_system_custom_g_icon_color")
+                                .remove("widget_system_custom_shortcuts_color")
+                                .remove("widget_system_custom_action_icon_color")
+                                .remove("widget_system_custom_sync_colors")
+                                .remove("widget_custom_g_icon_color")
+                                .remove("widget_custom_shortcuts_color")
+                                .remove("widget_custom_action_icon_color")
+                                .remove("widget_custom_sync_colors")
                                 .remove("widget_system_custom_hue")
                                 .remove("widget_system_custom_saturation")
                                 .remove("widget_system_custom_lightness")
@@ -6702,6 +6807,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         } else {
                             matSubtheme = "Material"
                             matMaterialGIconTheme = "Material G Icon"
+                            matCustomGIconColor = 0xFF4285F4.toInt()
+                            matCustomShortcutsColor = 0xFF34A853.toInt()
+                            matCustomActionColor = 0xFFEA4335.toInt()
+                            matCustomSyncColors = true
                             matHue = 277f
                             matSaturation = 51f
                             matLightness = 100f
@@ -6719,6 +6828,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .putBoolean("widget_material_design_saved", false)
                                 .remove("widget_material_subtheme")
                                 .remove("widget_material_material_g_icon")
+                                .remove("widget_material_custom_g_icon_color")
+                                .remove("widget_material_custom_shortcuts_color")
+                                .remove("widget_material_custom_action_icon_color")
+                                .remove("widget_material_custom_sync_colors")
+                                .remove("widget_custom_g_icon_color")
+                                .remove("widget_custom_shortcuts_color")
+                                .remove("widget_custom_action_icon_color")
+                                .remove("widget_custom_sync_colors")
                                 .remove("widget_material_custom_hue")
                                 .remove("widget_material_custom_saturation")
                                 .remove("widget_material_custom_lightness")
@@ -6751,6 +6868,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .putBoolean("widget_system_design_saved", true)
                                 .putString("widget_system_subtheme", sysSubtheme)
                                 .putString("widget_system_material_g_icon", sysMaterialGIconTheme)
+                                .putInt("widget_system_custom_g_icon_color", sysCustomGIconColor)
+                                .putInt("widget_system_custom_shortcuts_color", sysCustomShortcutsColor)
+                                .putInt("widget_system_custom_action_icon_color", sysCustomActionColor)
+                                .putBoolean("widget_system_custom_sync_colors", sysCustomSyncColors)
+                                .putInt("widget_custom_g_icon_color", sysCustomGIconColor)
+                                .putInt("widget_custom_shortcuts_color", sysCustomShortcutsColor)
+                                .putInt("widget_custom_action_icon_color", sysCustomActionColor)
+                                .putBoolean("widget_custom_sync_colors", sysCustomSyncColors)
                                 .putInt("widget_system_custom_hue", sysHue.toInt())
                                 .putInt("widget_system_custom_saturation", sysSaturation.toInt())
                                 .putInt("widget_system_custom_lightness", sysLightness.toInt())
@@ -6776,6 +6901,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .putBoolean("widget_material_design_saved", true)
                                 .putString("widget_material_subtheme", matSubtheme)
                                 .putString("widget_material_material_g_icon", matMaterialGIconTheme)
+                                .putInt("widget_material_custom_g_icon_color", matCustomGIconColor)
+                                .putInt("widget_material_custom_shortcuts_color", matCustomShortcutsColor)
+                                .putInt("widget_material_custom_action_icon_color", matCustomActionColor)
+                                .putBoolean("widget_material_custom_sync_colors", matCustomSyncColors)
+                                .putInt("widget_custom_g_icon_color", matCustomGIconColor)
+                                .putInt("widget_custom_shortcuts_color", matCustomShortcutsColor)
+                                .putInt("widget_custom_action_icon_color", matCustomActionColor)
+                                .putBoolean("widget_custom_sync_colors", matCustomSyncColors)
                                 .putInt("widget_material_custom_hue", matHue.toInt())
                                 .putInt("widget_material_custom_saturation", matSaturation.toInt())
                                 .putInt("widget_material_custom_lightness", matLightness.toInt())
@@ -6978,22 +7111,24 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                             if (localShowGIcon) {
                                 val isAccented = effectiveGIconTheme == "Accented G Icon"
+                                val isCustom = effectiveGIconTheme == "Custom G Icon"
                                 val useOriginalGIcon = effectiveGIconTheme == "System G Icon"
+                                val customGColorObj = androidx.compose.ui.graphics.Color(localCustomGIconColor)
                                 ComposeGIcon(
                                     modifier = Modifier.size(24.dp),
-                                    primaryColor = gPrimary,
-                                    secondaryColor = gSecondary,
-                                    tertiaryColor = gTertiary,
-                                    isAccented = isAccented,
-                                    accentColor = gPrimary,
-                                    fallbackTint = androidx.compose.ui.graphics.Color.Unspecified,
+                                    primaryColor = if (isCustom) customGColorObj else gPrimary,
+                                    secondaryColor = if (isCustom) customGColorObj else gSecondary,
+                                    tertiaryColor = if (isCustom) customGColorObj else gTertiary,
+                                    isAccented = isAccented || isCustom,
+                                    accentColor = if (isCustom) customGColorObj else gPrimary,
+                                    fallbackTint = if (isCustom) customGColorObj else androidx.compose.ui.graphics.Color.Unspecified,
                                     useOriginalColors = useOriginalGIcon
                                 )
                             }
                             
                             Spacer(Modifier.weight(1f))
                             
-                            val useMaterialYouIcons = previewIsMaterialYou || effectiveGIconTheme == "Material G Icon" || isPreviewPillLight
+                            val useMaterialYouIcons = previewIsMaterialYou || effectiveGIconTheme == "Material G Icon" || effectiveGIconTheme == "Custom G Icon" || isPreviewPillLight
                             val slotOrder = localSlotOrderStr.split(",").filter { it.isNotBlank() }
                             val previewActiveItems = mutableListOf<Triple<String, Int, Boolean>>()
                             slotOrder.forEach { key ->
@@ -7028,6 +7163,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 }
                                 val isMaterial = effectiveGIconTheme == "Material G Icon"
                                 val (scPrimary, scSecondary, scTertiary) = when (effectiveGIconTheme) {
+                                    "Custom G Icon" -> {
+                                        val customScColorObj = androidx.compose.ui.graphics.Color(localCustomShortcutsColor)
+                                        Triple(customScColorObj, customScColorObj, customScColorObj)
+                                    }
                                     "Accented G Icon" -> Triple(gPrimary, gPrimary, gPrimary)
                                     "Material G Icon" -> Triple(gPrimary, gSecondary, gTertiary)
                                     else -> { // System G Icon
@@ -7057,6 +7196,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 contentAlignment = Alignment.Center
                             ) {
                                 val (actPrimary, actSecondary, actTertiary) = when (effectiveGIconTheme) {
+                                    "Custom G Icon" -> {
+                                        val customActColorObj = androidx.compose.ui.graphics.Color(localCustomActionColor)
+                                        Triple(customActColorObj, customActColorObj, customActColorObj)
+                                    }
                                     "Accented G Icon" -> Triple(gPrimary, gPrimary, gPrimary)
                                     "Material G Icon" -> Triple(gPrimary, gSecondary, gTertiary)
                                     else -> { // System G Icon
@@ -7353,31 +7496,412 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
 
                         val isMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
-                        if (localSubtheme == "Custom" || isMaterialYou) {
-                            Text("G ICON STYLE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
-                            // Material G Icon Row
+                        Text("G ICON STYLE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
+                        // G Icon Row with Custom G Icon button right beside Accented G Icon
+                        SettingsCard {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp)
+                                    .padding(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val opts = listOf("System G Icon", "Material G Icon", "Accented G Icon", "Custom G Icon")
+                                opts.forEach { opt ->
+                                    val isSel = localMaterialGIconTheme == opt
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(if (isSel) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+                                            .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
+                                                hapticEngine.performPredictiveBackHaptic(view)
+                                                localMaterialGIconTheme = opt
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        val label = when (opt) {
+                                            "System G Icon" -> "System"
+                                            "Material G Icon" -> "Material"
+                                            "Accented G Icon" -> "Accented"
+                                            "Custom G Icon" -> "Custom"
+                                            else -> opt
+                                        }
+                                        Text(
+                                            "$label\nG Icon",
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            lineHeight = 13.sp,
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                            color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (localMaterialGIconTheme == "Custom G Icon") {
+                            Text("CUSTOM WIDGET COLORS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
                             SettingsCard {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(56.dp)
-                                        .padding(4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    val opts = listOf("System G Icon", "Material G Icon", "Accented G Icon")
-                                    opts.forEach { opt ->
-                                        val isSel = localMaterialGIconTheme == opt
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    // Sync All Colors Switch Row
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text("Sync All Colors", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                            Text(
+                                                "Set G icon, shortcuts, and action icon to the same color",
+                                                fontSize = 13.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        androidx.compose.material3.Switch(
+                                            checked = localCustomSyncColors,
+                                            onCheckedChange = { synced ->
+                                                localCustomSyncColors = synced
+                                                if (synced) {
+                                                    localCustomShortcutsColor = localCustomGIconColor
+                                                    localCustomActionColor = localCustomGIconColor
+                                                }
+                                            },
+                                            thumbContent = if (localCustomSyncColors) {
+                                                {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(androidx.compose.material3.SwitchDefaults.IconSize)
+                                                    )
+                                                }
+                                            } else null,
+                                            colors = androidx.compose.material3.SwitchDefaults.colors(
+                                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                                                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                                            )
+                                        )
+                                    }
+
+                                    // Target element selector when Sync All is disabled
+                                    if (!localCustomSyncColors) {
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Text(
+                                            "CUSTOMIZE ELEMENT",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(48.dp)
+                                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
+                                                .padding(4.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            val targets = listOf(
+                                                Triple("G Icon", localCustomGIconColor, "G Icon"),
+                                                Triple("Shortcuts", localCustomShortcutsColor, "Shortcuts"),
+                                                Triple("Action Icon", localCustomActionColor, "Action Icon")
+                                            )
+                                            targets.forEach { (targetKey, targetColor, label) ->
+                                                val isTargetSel = activeCustomColorTarget == targetKey
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight()
+                                                        .clip(RoundedCornerShape(20.dp))
+                                                        .background(if (isTargetSel) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+                                                        .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
+                                                            hapticEngine.performPredictiveBackHaptic(view)
+                                                            activeCustomColorTarget = targetKey
+                                                        },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(12.dp)
+                                                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                                                .background(androidx.compose.ui.graphics.Color(targetColor))
+                                                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), androidx.compose.foundation.shape.CircleShape)
+                                                        )
+                                                        Text(
+                                                            label,
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            fontWeight = if (isTargetSel) FontWeight.Bold else FontWeight.Normal,
+                                                            color = if (isTargetSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    val activeColor = when {
+                                        localCustomSyncColors -> localCustomGIconColor
+                                        activeCustomColorTarget == "G Icon" -> localCustomGIconColor
+                                        activeCustomColorTarget == "Shortcuts" -> localCustomShortcutsColor
+                                        else -> localCustomActionColor
+                                    }
+                                    val activeColorObj = androidx.compose.ui.graphics.Color(activeColor)
+                                    val hexString = String.format("#%06X", (0xFFFFFF and activeColor))
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
                                         Box(
                                             modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxHeight()
+                                                .size(36.dp)
                                                 .clip(androidx.compose.foundation.shape.CircleShape)
-                                                .background(if (isSel) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
-                                                .bouncyClickable(shape = androidx.compose.foundation.shape.CircleShape) { localMaterialGIconTheme = opt },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(opt, style = MaterialTheme.typography.labelSmall, color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+                                                .background(activeColorObj)
+                                                .border(2.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape)
+                                        )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                if (localCustomSyncColors) "All Elements Color" else "$activeCustomColorTarget Color",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                hexString,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    Text(
+                                        "QUICK PRESETS",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    val swatches = listOf(
+                                        0xFF4285F4.toInt(), // Google Blue
+                                        0xFFEA4335.toInt(), // Google Red
+                                        0xFFFBBC05.toInt(), // Google Yellow
+                                        0xFF34A853.toInt(), // Google Green
+                                        MaterialTheme.colorScheme.primary.toArgb(), // Dynamic Accent
+                                        0xFFA855F7.toInt(), // Purple
+                                        0xFF06B6D4.toInt(), // Cyan
+                                        0xFFF97316.toInt(), // Orange
+                                        0xFFEC4899.toInt(), // Pink
+                                        0xFF84CC16.toInt(), // Lime
+                                        0xFFFFFFFF.toInt(), // White
+                                        0xFF1F1F1F.toInt()  // Slate Dark
+                                    )
+
+                                    val updateTargetColor: (Int) -> Unit = { newColor ->
+                                        if (localCustomSyncColors) {
+                                            localCustomGIconColor = newColor
+                                            localCustomShortcutsColor = newColor
+                                            localCustomActionColor = newColor
+                                        } else {
+                                            when (activeCustomColorTarget) {
+                                                "G Icon" -> localCustomGIconColor = newColor
+                                                "Shortcuts" -> localCustomShortcutsColor = newColor
+                                                else -> localCustomActionColor = newColor
+                                            }
+                                        }
+                                    }
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        swatches.forEach { swatchColor ->
+                                            val isSwatchSel = (activeColor and 0xFFFFFF) == (swatchColor and 0xFFFFFF)
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(38.dp)
+                                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                                    .background(androidx.compose.ui.graphics.Color(swatchColor))
+                                                    .border(
+                                                        width = if (isSwatchSel) 3.dp else 1.dp,
+                                                        color = if (isSwatchSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                                        shape = androidx.compose.foundation.shape.CircleShape
+                                                    )
+                                                    .bouncyClickable(shape = androidx.compose.foundation.shape.CircleShape) {
+                                                        hapticEngine.performPredictiveBackHaptic(view)
+                                                        updateTargetColor(swatchColor)
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (isSwatchSel) {
+                                                    val lum = (0.299 * ((swatchColor shr 16) and 0xFF) + 0.587 * ((swatchColor shr 8) and 0xFF) + 0.114 * (swatchColor and 0xFF)) / 255.0
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = "Selected",
+                                                        tint = if (lum > 0.5) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(20.dp))
+
+                                    Text(
+                                        "FINE TUNE COLOR",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    val curHsv = remember(activeColor) {
+                                        val h = FloatArray(3)
+                                        android.graphics.Color.colorToHSV(activeColor, h)
+                                        h
+                                    }
+                                    var customHueState by remember(activeCustomColorTarget, localCustomSyncColors, isSystem) { mutableStateOf(curHsv[0]) }
+                                    var customSatState by remember(activeCustomColorTarget, localCustomSyncColors, isSystem) { mutableStateOf(curHsv[1] * 100f) }
+                                    var customValState by remember(activeCustomColorTarget, localCustomSyncColors, isSystem) { mutableStateOf(curHsv[2] * 100f) }
+
+                                    LaunchedEffect(activeColor) {
+                                        val h = FloatArray(3)
+                                        android.graphics.Color.colorToHSV(activeColor, h)
+                                        if (h[1] > 0.01f) {
+                                            customHueState = h[0]
+                                        }
+                                        customSatState = h[1] * 100f
+                                        customValState = h[2] * 100f
+                                    }
+
+                                    val recalculateCustomHsv: (Float, Float, Float) -> Unit = { h, s, v ->
+                                        val newCol = android.graphics.Color.HSVToColor(floatArrayOf(h, (s / 100f).coerceIn(0f, 1f), (v / 100f).coerceIn(0f, 1f)))
+                                        updateTargetColor(newCol)
+                                    }
+
+                                    // Hue Slider
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                        Icon(Icons.Default.Palette, contentDescription = "Hue", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("Hue", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                Spacer(modifier = Modifier.weight(1f))
+                                                Text("${customHueState.toInt()}°", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            Box(modifier = Modifier.fillMaxWidth().height(14.dp).padding(top = 6.dp).background(
+                                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                    colors = listOf(
+                                                        androidx.compose.ui.graphics.Color.Red,
+                                                        androidx.compose.ui.graphics.Color.Yellow,
+                                                        androidx.compose.ui.graphics.Color.Green,
+                                                        androidx.compose.ui.graphics.Color.Cyan,
+                                                        androidx.compose.ui.graphics.Color.Blue,
+                                                        androidx.compose.ui.graphics.Color.Magenta,
+                                                        androidx.compose.ui.graphics.Color.Red
+                                                    )
+                                                ),
+                                                shape = RoundedCornerShape(7.dp)
+                                            )) {
+                                                Android17Slider(
+                                                    showTrack = false,
+                                                    value = customHueState,
+                                                    onValueChange = { 
+                                                        customHueState = it
+                                                        recalculateCustomHsv(it, customSatState, customValState)
+                                                    },
+                                                    valueRange = 0f..360f,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    // Saturation Slider
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                        Icon(Icons.Default.WaterDrop, contentDescription = "Saturation", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("Saturation", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                Spacer(modifier = Modifier.weight(1f))
+                                                Text("${customSatState.toInt()}%", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            Box(modifier = Modifier.fillMaxWidth().height(14.dp).padding(top = 6.dp).background(
+                                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                    colors = listOf(
+                                                        androidx.compose.ui.graphics.Color.White,
+                                                        androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(customHueState, 1f, 1f)))
+                                                    )
+                                                ),
+                                                shape = RoundedCornerShape(7.dp)
+                                            )) {
+                                                Android17Slider(
+                                                    showTrack = false,
+                                                    value = customSatState,
+                                                    onValueChange = { 
+                                                        customSatState = it
+                                                        recalculateCustomHsv(customHueState, it, customValState)
+                                                    },
+                                                    valueRange = 0f..100f,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    // Brightness / Value Slider
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                        Icon(Icons.Outlined.BrightnessMedium, contentDescription = "Brightness", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("Brightness", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                Spacer(modifier = Modifier.weight(1f))
+                                                Text("${customValState.toInt()}%", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            Box(modifier = Modifier.fillMaxWidth().height(14.dp).padding(top = 6.dp).background(
+                                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                    colors = listOf(
+                                                        androidx.compose.ui.graphics.Color.Black,
+                                                        androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(customHueState, (customSatState / 100f).coerceIn(0f, 1f), 1f)))
+                                                    )
+                                                ),
+                                                shape = RoundedCornerShape(7.dp)
+                                            )) {
+                                                Android17Slider(
+                                                    showTrack = false,
+                                                    value = customValState,
+                                                    onValueChange = { 
+                                                        customValState = it
+                                                        recalculateCustomHsv(customHueState, customSatState, it)
+                                                    },
+                                                    valueRange = 0f..100f,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                            }
                                         }
                                     }
                                 }

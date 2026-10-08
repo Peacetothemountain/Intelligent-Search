@@ -376,6 +376,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             "System G Icon" -> R.drawable.ic_g_logo_colored
                             "Material G Icon" -> R.drawable.ic_g_logo
                             "Accented G Icon" -> R.drawable.ic_g_logo
+                            "Custom G Icon" -> R.drawable.ic_g_logo
                             else -> R.drawable.ic_g_logo_colored
                         }
 
@@ -584,6 +585,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             "System G Icon" -> R.drawable.ic_g_logo_colored
                             "Material G Icon" -> R.drawable.ic_g_logo
                             "Accented G Icon" -> R.drawable.ic_g_logo
+                            "Custom G Icon" -> R.drawable.ic_g_logo
                             else -> R.drawable.ic_g_logo
                         }
 
@@ -732,7 +734,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
             views.setInt(R.id.widget_sound_background, "setImageAlpha", circleAlphaInt)
 
-            bindGIcon(views, showGIcon, gIconRes, themePColor, themeSColor, themeTColor, effectiveIconTheme, context)
+            bindGIcon(views, showGIcon, gIconRes, themePColor, themeSColor, themeTColor, effectiveIconTheme, context, prefs)
 
             val viewIdTargets = listOf(
                 R.id.widget_voice_search,
@@ -748,6 +750,12 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     views.setViewVisibility(targetViewId, View.VISIBLE)
 
                     when (effectiveIconTheme) {
+                        "Custom G Icon" -> {
+                            val customScColor = prefs.getInt("widget_custom_shortcuts_color", themePColor)
+                            views.setImageViewResource(targetViewId, item.second)
+                            views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(customScColor))
+                            views.setInt(targetViewId, "setImageAlpha", 255)
+                        }
                         "Accented G Icon" -> {
                             views.setImageViewResource(targetViewId, item.second)
                             views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(themePColor))
@@ -882,6 +890,12 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 }
 
                 when (effectiveIconTheme) {
+                    "Custom G Icon" -> {
+                        val customActColor = prefs.getInt("widget_custom_action_icon_color", themePColor)
+                        views.setImageViewResource(R.id.widget_sound_icon, circleActionIconRes)
+                        views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(customActColor))
+                        views.setInt(R.id.widget_sound_icon, "setImageAlpha", 255)
+                    }
                     "Accented G Icon" -> {
                         views.setImageViewResource(R.id.widget_sound_icon, circleActionIconRes)
                         views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(themePColor))
@@ -1122,11 +1136,16 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             sColor: Int,
             tColor: Int,
             materialGIconTheme: String,
-            context: Context
+            context: Context,
+            prefs: SharedPreferences? = null
         ) {
             views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
             views.setInt(R.id.widget_g_logo, "setImageAlpha", 255)
-            if (materialGIconTheme == "Material G Icon") {
+            if (materialGIconTheme == "Custom G Icon") {
+                val customGColor = prefs?.getInt("widget_custom_g_icon_color", pColor) ?: pColor
+                views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo)
+                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(customGColor))
+            } else if (materialGIconTheme == "Material G Icon") {
                 val bitmap = createCustomMaterialGBitmap(pColor, sColor, tColor, context)
                 views.setImageViewBitmap(R.id.widget_g_logo, bitmap)
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)

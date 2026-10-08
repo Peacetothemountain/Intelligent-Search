@@ -121,7 +121,14 @@ open class MainActivity : AppCompatActivity() {
             }
         }
 
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = androidx.activity.SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = androidx.activity.SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+            window.isStatusBarContrastEnforced = false
+        }
         // Intentionally NOT setShowWhenLocked(true): the overlay surfaces contacts, files and
         // history, so Android must require device unlock before it is shown from the keyguard.
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)

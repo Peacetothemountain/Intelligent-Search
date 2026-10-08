@@ -210,8 +210,12 @@ fun ExpressiveWavySlider(
 
                 val stepPx = 4f
                 var x = 0f
+                val taperDistance = (28.dp.toPx()).coerceAtLeast(1f)
                 while (x < thumbX) {
-                    val waveOffset = sin((x * frequency - phase).toDouble()).toFloat() * amplitudePx
+                    val startTaper = (x / taperDistance).coerceIn(0f, 1f)
+                    val endTaper = ((thumbX - x) / taperDistance).coerceIn(0f, 1f)
+                    val envelope = startTaper * endTaper
+                    val waveOffset = sin((x * frequency - phase).toDouble()).toFloat() * amplitudePx * envelope
                     reusablePath.lineTo(x, centerY + waveOffset)
                     x += stepPx
                 }

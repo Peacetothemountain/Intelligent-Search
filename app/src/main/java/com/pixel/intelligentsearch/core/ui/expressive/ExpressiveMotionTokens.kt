@@ -14,6 +14,23 @@ object ExpressiveMotionTokens {
     const val PRESS_SCALE_SEARCH_BAR = 0.98f
 
     /**
+     * Critically damped spring animation specification without overshoot.
+     * Essential for container transforms, card expansions, and elevations to prevent ZP11 shadow jitter.
+     */
+    fun <T> criticallyDampedSpring() = spring<T>(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = 700f
+    )
+
+    /**
+     * Snappy spring animation specification for rapid touch micro-interactions.
+     */
+    fun <T> snappySpring() = spring<T>(
+        dampingRatio = 0.82f,
+        stiffness = 850f
+    )
+
+    /**
      * Snappy spring animation specification for expressive shape morphing.
      * Completes in ~180-220ms with natural tactile elasticity.
      */
@@ -23,12 +40,12 @@ object ExpressiveMotionTokens {
     )
 
     /**
-     * Bouncy spring animation specification for playful, organic tactile motion.
+     * Bouncy spring animation specification for playful, organic tactile motion with controlled overshoot.
      * Tuned for high refresh rate displays with zero lag.
      */
     fun <T> bouncySpring() = spring<T>(
-        dampingRatio = 0.74f,
-        stiffness = 420f
+        dampingRatio = 0.68f,
+        stiffness = 460f
     )
 
     /**

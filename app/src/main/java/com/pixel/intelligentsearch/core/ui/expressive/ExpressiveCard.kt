@@ -67,7 +67,7 @@ fun ExpressiveCard(
 
     val currentElevation by animateDpAsState(
         targetValue = if (isPressed) pressedElevation else idleElevation,
-        animationSpec = ExpressiveMotionTokens.bouncySpring(),
+        animationSpec = ExpressiveMotionTokens.criticallyDampedSpring(),
         label = "card_elevation"
     )
 

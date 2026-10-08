@@ -1005,6 +1005,13 @@ fun SearchOverlayScreen(
                 }
             }
             
+            val searchBarCornerRadius by androidx.compose.animation.core.animateDpAsState(
+                targetValue = if (textFieldValue.text.isNotEmpty()) 20.dp else 28.dp,
+                animationSpec = com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens.morphSpring(),
+                label = "search_pill_shape_morph"
+            )
+            val searchBarShape = RoundedCornerShape(searchBarCornerRadius)
+            
             Row(
                 modifier = Modifier
                     .tutorialTarget(1, prefs)
@@ -1013,13 +1020,13 @@ fun SearchOverlayScreen(
                     .border(
                         1.dp,
                         MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f),
-                        RoundedCornerShape(percent = 50)
+                        searchBarShape
                     )
                     .background(
                         MaterialTheme.colorScheme.surfaceContainerHigh.copy(
                             alpha = (settingsState.pillOpacity / 100f).coerceIn(0f, 1f)
                         ),
-                        RoundedCornerShape(percent = 50)
+                        searchBarShape
                     )
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },

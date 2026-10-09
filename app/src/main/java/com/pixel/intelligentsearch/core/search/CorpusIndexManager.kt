@@ -143,10 +143,12 @@ class CorpusIndexManager @Inject constructor(
 
     private suspend fun reindexContactsInternal() {
         try {
+            searchCoordinator.clearContacts()
             val contacts = SystemDataProvider.getAllContacts(context)
             for (contact in contacts) {
                 searchCoordinator.indexContact(contact)
             }
+            Log.d(TAG, "Indexed ${contacts.size} contacts into memory")
         } catch (e: Exception) {
             Log.e(TAG, "Failed indexing contacts", e)
         }

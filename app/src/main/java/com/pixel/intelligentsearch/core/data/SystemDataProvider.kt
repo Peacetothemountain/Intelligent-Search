@@ -307,6 +307,9 @@ object SystemDataProvider {
         }
 
         try {
+            val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_FILTER_URI.buildUpon()
+                .appendPath(query)
+                .build()
             val projection = arrayOf(
                 ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
                 ContactsContract.CommonDataKinds.Phone.NUMBER,
@@ -314,14 +317,11 @@ object SystemDataProvider {
                 ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY
             )
 
-            val selection = "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?"
-            val selectionArgs = arrayOf("%$query%")
-
             context.contentResolver.query(
-                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                uri,
                 projection,
-                selection,
-                selectionArgs,
+                null,
+                null,
                 ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
             )?.use { cursor ->
                 val nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
@@ -329,18 +329,33 @@ object SystemDataProvider {
                 val lookupKeyIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY)
                 val idIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
 
-                while (cursor.moveToNext() && contacts.size < 10) {
+                while (cursor.moveToNext() && contacts.size < 15) {
                     val name = if (nameIndex >= 0) cursor.getString(nameIndex) ?: "" else ""
                     val number = if (numberIndex >= 0) cursor.getString(numberIndex) ?: "" else ""
                     val lookupKey = if (lookupKeyIndex >= 0) cursor.getString(lookupKeyIndex) ?: "" else ""
                     val id = if (idIndex >= 0) cursor.getLong(idIndex) else 0L
-                    
+
                     val lookupUri = ContactsContract.Contacts.getLookupUri(id, lookupKey)?.toString() ?: ""
-                    
-                    contacts.add(ContactItem(name, number, lookupUri))
+
+                    if (name.isNotBlank() || number.isNotBlank()) {
+                        contacts.add(ContactItem(name, number, lookupUri))
+                    }
                 }
             }
         } catch (_: Throwable) {}
+
+        if (contacts.isEmpty()) {
+            try {
+                val all = getAllContacts(context)
+                val q = query.trim()
+                val qDigits = q.filter { it.isDigit() }
+                return@withContext all.filter { c ->
+                    c.name.contains(q, ignoreCase = true) ||
+                    (qDigits.length >= 3 && c.phoneNumber.filter { it.isDigit() }.contains(qDigits))
+                }.take(15)
+            } catch (_: Throwable) {}
+        }
+
         contacts.distinctBy { it.phoneNumber }
     }
 

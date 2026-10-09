@@ -189,11 +189,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         // Memory cache for generated vector bitmaps
         private val bitmapCache = LruCache<String, Bitmap>(32)
 
-        // Pre-parsed Vector Paths for 0-allocation high performance rendering
-        private val PATH_G_1 by lazy { PathParser.createPathFromPathData("M22.56,12.25C22.56,11.47 22.49,10.72 22.36,10L12,10L12,14.26L17.92,14.26C17.66,15.63 16.88,16.79 15.71,17.57L15.71,20.34L19.28,20.34C21.36,18.42 22.56,15.6 22.56,12.25Z") }
-        private val PATH_G_2 by lazy { PathParser.createPathFromPathData("M12,23C14.97,23 17.46,22.02 19.28,20.34L15.71,17.57C14.73,18.23 13.48,18.63 12,18.63C9.14,18.63 6.71,16.7 5.84,14.1L2.18,14.1L2.18,16.94C3.99,20.53 7.7,23 12,23Z") }
-        private val PATH_G_3 by lazy { PathParser.createPathFromPathData("M5.84,14.09C5.62,13.43 5.5,12.73 5.5,12C5.5,11.27 5.62,10.57 5.84,9.91L5.84,7.07L2.18,7.07C1.43,8.55 1,10.22 1,12C1,13.78 1.43,15.45 2.18,16.93L5.84,14.09Z") }
-        private val PATH_G_4 by lazy { PathParser.createPathFromPathData("M12,5.38C13.62,5.38 15.06,5.94 16.21,7.02L19.36,3.87C17.45,2.09 14.97,1 12,1C7.7,1 3.99,3.47 2.18,7.07L5.84,9.91C6.71,7.31 9.14,5.38 12,5.38Z") }
+        private val PATH_G_MAIN by lazy { PathParser.createPathFromPathData("M12,18.63C15.23,18.63 17.45,16.79 17.92,14.26L20,12L22.409,14.26C21.604,19.462 17.649,23 12,23C5.92,23 1,18.08 1,12C1,5.92 5.92,1 12,1C14.97,1 17.45,2.09 19.36,3.87L16.21,7.02C15.06,5.94 13.62,5.38 12,5.38C8.41,5.38 5.49,8.43 5.49,12.01C5.49,15.59 8.41,18.63 12,18.63Z") }
+        private val PATH_G_COVER by lazy { PathParser.createPathFromPathData("M12,14.26V10H22.36C22.49,10.72 22.56,11.47 22.56,12.25C22.56,12.943 22.509,13.614 22.409,14.26H17.92H12Z") }
+
 
         private val PATH_MIC_1 by lazy { PathParser.createPathFromPathData("M12,15c1.66,0 2.99,-1.34 2.99,-3L15,5c0,-1.66 -1.34,-3 -3,-3S9,3.34 9,5v7c0,1.66 1.34,3 3,3z") }
         private val PATH_MIC_2 by lazy { PathParser.createPathFromPathData("M11,18.92h2V22h-2z") }
@@ -376,6 +374,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             "System G Icon" -> R.drawable.ic_g_logo_colored
                             "Material G Icon" -> R.drawable.ic_g_logo
                             "Accented G Icon" -> R.drawable.ic_g_logo
+                            "Custom G Icon" -> R.drawable.ic_g_logo
                             else -> R.drawable.ic_g_logo_colored
                         }
 
@@ -584,6 +583,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             "System G Icon" -> R.drawable.ic_g_logo_colored
                             "Material G Icon" -> R.drawable.ic_g_logo
                             "Accented G Icon" -> R.drawable.ic_g_logo
+                            "Custom G Icon" -> R.drawable.ic_g_logo
                             else -> R.drawable.ic_g_logo
                         }
 
@@ -732,7 +732,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             views.setColorStateList(R.id.widget_sound_background, "setImageTintList", android.content.res.ColorStateList.valueOf(circleColorOpaque))
             views.setInt(R.id.widget_sound_background, "setImageAlpha", circleAlphaInt)
 
-            bindGIcon(views, showGIcon, gIconRes, themePColor, themeSColor, themeTColor, effectiveIconTheme, context)
+            bindGIcon(views, showGIcon, gIconRes, themePColor, themeSColor, themeTColor, effectiveIconTheme, context, prefs)
 
             val viewIdTargets = listOf(
                 R.id.widget_voice_search,
@@ -748,6 +748,23 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     views.setViewVisibility(targetViewId, View.VISIBLE)
 
                     when (effectiveIconTheme) {
+                        "Custom G Icon" -> {
+                            val isSync = prefs.getBoolean("widget_custom_sync_colors", false)
+                            val customScColor = if (isSync) {
+                                prefs.getInt("widget_custom_g_icon_color", themePColor)
+                            } else {
+                                when (item.first) {
+                                    "mic" -> prefs.getInt("widget_custom_mic_color", prefs.getInt("widget_custom_shortcuts_color", themePColor))
+                                    "shortcut1" -> prefs.getInt("widget_custom_shortcut1_color", prefs.getInt("widget_custom_shortcuts_color", themePColor))
+                                    "shortcut2" -> prefs.getInt("widget_custom_shortcut2_color", prefs.getInt("widget_custom_shortcuts_color", themePColor))
+                                    "shortcut3" -> prefs.getInt("widget_custom_shortcut3_color", prefs.getInt("widget_custom_shortcuts_color", themePColor))
+                                    else -> prefs.getInt("widget_custom_shortcuts_color", themePColor)
+                                }
+                            }
+                            views.setImageViewResource(targetViewId, item.second)
+                            views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(customScColor))
+                            views.setInt(targetViewId, "setImageAlpha", 255)
+                        }
                         "Accented G Icon" -> {
                             views.setImageViewResource(targetViewId, item.second)
                             views.setColorStateList(targetViewId, "setImageTintList", android.content.res.ColorStateList.valueOf(themePColor))
@@ -882,6 +899,17 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 }
 
                 when (effectiveIconTheme) {
+                    "Custom G Icon" -> {
+                        val isSync = prefs.getBoolean("widget_custom_sync_colors", false)
+                        val customActColor = if (isSync) {
+                            prefs.getInt("widget_custom_g_icon_color", themePColor)
+                        } else {
+                            prefs.getInt("widget_custom_action_icon_color", themePColor)
+                        }
+                        views.setImageViewResource(R.id.widget_sound_icon, circleActionIconRes)
+                        views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(customActColor))
+                        views.setInt(R.id.widget_sound_icon, "setImageAlpha", 255)
+                    }
                     "Accented G Icon" -> {
                         views.setImageViewResource(R.id.widget_sound_icon, circleActionIconRes)
                         views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", android.content.res.ColorStateList.valueOf(themePColor))
@@ -1122,11 +1150,16 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             sColor: Int,
             tColor: Int,
             materialGIconTheme: String,
-            context: Context
+            context: Context,
+            prefs: SharedPreferences? = null
         ) {
             views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
             views.setInt(R.id.widget_g_logo, "setImageAlpha", 255)
-            if (materialGIconTheme == "Material G Icon") {
+            if (materialGIconTheme == "Custom G Icon") {
+                val customGColor = prefs?.getInt("widget_custom_g_icon_color", pColor) ?: pColor
+                views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo)
+                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", android.content.res.ColorStateList.valueOf(customGColor))
+            } else if (materialGIconTheme == "Material G Icon") {
                 val bitmap = createCustomMaterialGBitmap(pColor, sColor, tColor, context)
                 views.setImageViewBitmap(R.id.widget_g_logo, bitmap)
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
@@ -1153,14 +1186,17 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
                 val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
+                val sweepGradient = android.graphics.SweepGradient(
+                    12f, 12f,
+                    intArrayOf(pColor, sColor, tColor, pColor),
+                    floatArrayOf(0.0f, 0.33f, 0.67f, 1.0f)
+                )
+                paint.shader = sweepGradient
+                canvas.drawPath(PATH_G_MAIN, paint)
+                paint.shader = null
                 paint.color = pColor
-                canvas.drawPath(PATH_G_1, paint)
-                paint.color = sColor
-                canvas.drawPath(PATH_G_2, paint)
-                paint.color = tColor
-                canvas.drawPath(PATH_G_3, paint)
-                paint.color = pColor
-                canvas.drawPath(PATH_G_4, paint)
+                canvas.drawPath(PATH_G_COVER, paint)
+
 
                 bitmapCache.put(cacheKey, bitmap)
                 bitmap

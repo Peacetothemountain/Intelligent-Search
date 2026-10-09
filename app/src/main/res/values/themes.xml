@@ -22,6 +22,8 @@
         <item name="android:windowAnimationStyle">@null</item>
         <item name="android:windowSplashScreenBackground">@android:color/transparent</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/transparent_splash</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:enforceStatusBarContrast">false</item>
     </style>
 
     <style name="Theme.IntelligentSearch.Overlay.Widget" parent="Theme.IntelligentSearch.Overlay">

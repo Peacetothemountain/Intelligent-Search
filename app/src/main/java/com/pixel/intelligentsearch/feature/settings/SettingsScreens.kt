@@ -6416,6 +6416,9 @@ private fun WidgetCustomizationCard(content: @Composable ColumnScope.() -> Unit)
     }
 }
 
+private data class SlotPreviewItem(val slotKey: String, val label: String, val resId: Int, val isMic: Boolean)
+private data class CustomElementTarget(val key: String, val label: String, val color: Int)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
@@ -6457,23 +6460,49 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var sysMaterialGIconTheme by remember {
         mutableStateOf(prefs.getString("widget_system_material_g_icon", if (sysSaved) prefs.getString("widget_material_g_icon", defaultSysIcon) else defaultSysIcon) ?: defaultSysIcon)
     }
-    var sysCustomGIconColor by remember {
-        mutableIntStateOf(prefs.getInt("widget_system_custom_g_icon_color", prefs.getInt("widget_custom_g_icon_color", 0xFF4285F4.toInt())))
+    val defaultUserMaterialColor = MaterialTheme.colorScheme.primary.toArgb()
+    val defaultHsv = remember(defaultUserMaterialColor) {
+        val h = FloatArray(3)
+        android.graphics.Color.colorToHSV(defaultUserMaterialColor, h)
+        h
     }
-    var sysCustomShortcutsColor by remember {
-        mutableIntStateOf(prefs.getInt("widget_system_custom_shortcuts_color", prefs.getInt("widget_custom_shortcuts_color", 0xFF34A853.toInt())))
+    val defaultHue = defaultHsv[0]
+    val defaultSat = defaultHsv[1] * 100f
+    val defaultVal = defaultHsv[2] * 100f
+
+    val resolveCustomColor = { key: String, fallbackKey: String? ->
+        val saved = prefs.getInt(key, if (fallbackKey != null) prefs.getInt(fallbackKey, defaultUserMaterialColor) else defaultUserMaterialColor)
+        if (saved == 0xFF4285F4.toInt() && !prefs.contains(key)) defaultUserMaterialColor else saved
+    }
+
+    var sysCustomGIconColor by remember {
+        mutableIntStateOf(resolveCustomColor("widget_system_custom_g_icon_color", "widget_custom_g_icon_color"))
+    }
+    var sysCustomMicColor by remember {
+        mutableIntStateOf(resolveCustomColor("widget_system_custom_mic_color", "widget_custom_mic_color"))
+    }
+    var sysCustomShortcut1Color by remember {
+        mutableIntStateOf(resolveCustomColor("widget_system_custom_shortcut1_color", "widget_custom_shortcut1_color"))
+    }
+    var sysCustomShortcut2Color by remember {
+        mutableIntStateOf(resolveCustomColor("widget_system_custom_shortcut2_color", "widget_custom_shortcut2_color"))
+    }
+    var sysCustomShortcut3Color by remember {
+        mutableIntStateOf(resolveCustomColor("widget_system_custom_shortcut3_color", "widget_custom_shortcut3_color"))
     }
     var sysCustomActionColor by remember {
-        mutableIntStateOf(prefs.getInt("widget_system_custom_action_icon_color", prefs.getInt("widget_custom_action_icon_color", 0xFFEA4335.toInt())))
+        mutableIntStateOf(resolveCustomColor("widget_system_custom_action_icon_color", "widget_custom_action_icon_color"))
     }
     var sysCustomSyncColors by remember {
-        mutableStateOf(prefs.getBoolean("widget_system_custom_sync_colors", prefs.getBoolean("widget_custom_sync_colors", true)))
+        mutableStateOf(prefs.getBoolean("widget_system_custom_sync_colors", prefs.getBoolean("widget_custom_sync_colors", false)))
     }
     var sysHue by remember {
-        mutableStateOf(prefs.getInt("widget_system_custom_hue", if (sysSaved) prefs.getInt("widget_custom_hue", 277) else 277).toFloat())
+        val hVal = prefs.getInt("widget_system_custom_hue", if (sysSaved) prefs.getInt("widget_custom_hue", defaultHue.toInt()) else defaultHue.toInt())
+        mutableStateOf((if (hVal == 277 && !prefs.contains("widget_system_custom_hue")) defaultHue.toInt() else hVal).toFloat())
     }
     var sysSaturation by remember {
-        mutableStateOf(prefs.getInt("widget_system_custom_saturation", if (sysSaved) prefs.getInt("widget_custom_saturation", 51) else 51).toFloat())
+        val sVal = prefs.getInt("widget_system_custom_saturation", if (sysSaved) prefs.getInt("widget_custom_saturation", defaultSat.toInt()) else defaultSat.toInt())
+        mutableStateOf((if (sVal == 51 && !prefs.contains("widget_system_custom_saturation")) defaultSat.toInt() else sVal).toFloat())
     }
     var sysLightness by remember {
         mutableStateOf(prefs.getInt("widget_system_custom_lightness", if (sysSaved) prefs.getInt("widget_custom_lightness", 100) else 100).toFloat())
@@ -6510,22 +6539,33 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         mutableStateOf(prefs.getString("widget_material_material_g_icon", if (matSaved) prefs.getString("widget_material_g_icon", "Material G Icon") else "Material G Icon") ?: "Material G Icon")
     }
     var matCustomGIconColor by remember {
-        mutableIntStateOf(prefs.getInt("widget_material_custom_g_icon_color", prefs.getInt("widget_custom_g_icon_color", 0xFF4285F4.toInt())))
+        mutableIntStateOf(resolveCustomColor("widget_material_custom_g_icon_color", "widget_custom_g_icon_color"))
     }
-    var matCustomShortcutsColor by remember {
-        mutableIntStateOf(prefs.getInt("widget_material_custom_shortcuts_color", prefs.getInt("widget_custom_shortcuts_color", 0xFF34A853.toInt())))
+    var matCustomMicColor by remember {
+        mutableIntStateOf(resolveCustomColor("widget_material_custom_mic_color", "widget_custom_mic_color"))
+    }
+    var matCustomShortcut1Color by remember {
+        mutableIntStateOf(resolveCustomColor("widget_material_custom_shortcut1_color", "widget_custom_shortcut1_color"))
+    }
+    var matCustomShortcut2Color by remember {
+        mutableIntStateOf(resolveCustomColor("widget_material_custom_shortcut2_color", "widget_custom_shortcut2_color"))
+    }
+    var matCustomShortcut3Color by remember {
+        mutableIntStateOf(resolveCustomColor("widget_material_custom_shortcut3_color", "widget_custom_shortcut3_color"))
     }
     var matCustomActionColor by remember {
-        mutableIntStateOf(prefs.getInt("widget_material_custom_action_icon_color", prefs.getInt("widget_custom_action_icon_color", 0xFFEA4335.toInt())))
+        mutableIntStateOf(resolveCustomColor("widget_material_custom_action_icon_color", "widget_custom_action_icon_color"))
     }
     var matCustomSyncColors by remember {
-        mutableStateOf(prefs.getBoolean("widget_material_custom_sync_colors", prefs.getBoolean("widget_custom_sync_colors", true)))
+        mutableStateOf(prefs.getBoolean("widget_material_custom_sync_colors", prefs.getBoolean("widget_custom_sync_colors", false)))
     }
     var matHue by remember {
-        mutableStateOf(prefs.getInt("widget_material_custom_hue", if (matSaved) prefs.getInt("widget_custom_hue", 277) else 277).toFloat())
+        val hVal = prefs.getInt("widget_material_custom_hue", if (matSaved) prefs.getInt("widget_custom_hue", defaultHue.toInt()) else defaultHue.toInt())
+        mutableStateOf((if (hVal == 277 && !prefs.contains("widget_material_custom_hue")) defaultHue.toInt() else hVal).toFloat())
     }
     var matSaturation by remember {
-        mutableStateOf(prefs.getInt("widget_material_custom_saturation", if (matSaved) prefs.getInt("widget_custom_saturation", 51) else 51).toFloat())
+        val sVal = prefs.getInt("widget_material_custom_saturation", if (matSaved) prefs.getInt("widget_custom_saturation", defaultSat.toInt()) else defaultSat.toInt())
+        mutableStateOf((if (sVal == 51 && !prefs.contains("widget_material_custom_saturation")) defaultSat.toInt() else sVal).toFloat())
     }
     var matLightness by remember {
         mutableStateOf(prefs.getInt("widget_material_custom_lightness", if (matSaved) prefs.getInt("widget_custom_lightness", 100) else 100).toFloat())
@@ -6586,11 +6626,38 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             override fun component2(): (Int) -> Unit = { value = it }
         }
     }
-    var localCustomShortcutsColor by remember(isSystem) {
+    var localCustomMicColor by remember(isSystem) {
         object : MutableState<Int> {
             override var value: Int
-                get() = if (isSystem) sysCustomShortcutsColor else matCustomShortcutsColor
-                set(v) { if (isSystem) sysCustomShortcutsColor = v else matCustomShortcutsColor = v }
+                get() = if (isSystem) sysCustomMicColor else matCustomMicColor
+                set(v) { if (isSystem) sysCustomMicColor = v else matCustomMicColor = v }
+            override fun component1(): Int = value
+            override fun component2(): (Int) -> Unit = { value = it }
+        }
+    }
+    var localCustomShortcut1Color by remember(isSystem) {
+        object : MutableState<Int> {
+            override var value: Int
+                get() = if (isSystem) sysCustomShortcut1Color else matCustomShortcut1Color
+                set(v) { if (isSystem) sysCustomShortcut1Color = v else matCustomShortcut1Color = v }
+            override fun component1(): Int = value
+            override fun component2(): (Int) -> Unit = { value = it }
+        }
+    }
+    var localCustomShortcut2Color by remember(isSystem) {
+        object : MutableState<Int> {
+            override var value: Int
+                get() = if (isSystem) sysCustomShortcut2Color else matCustomShortcut2Color
+                set(v) { if (isSystem) sysCustomShortcut2Color = v else matCustomShortcut2Color = v }
+            override fun component1(): Int = value
+            override fun component2(): (Int) -> Unit = { value = it }
+        }
+    }
+    var localCustomShortcut3Color by remember(isSystem) {
+        object : MutableState<Int> {
+            override var value: Int
+                get() = if (isSystem) sysCustomShortcut3Color else matCustomShortcut3Color
+                set(v) { if (isSystem) sysCustomShortcut3Color = v else matCustomShortcut3Color = v }
             override fun component1(): Int = value
             override fun component2(): (Int) -> Unit = { value = it }
         }
@@ -6613,7 +6680,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             override fun component2(): (Boolean) -> Unit = { value = it }
         }
     }
-    var activeCustomColorTarget by remember(isSystem) { mutableStateOf("G Icon") }
+    var activeCustomColorTarget by remember(isSystem) { mutableStateOf("g_icon") }
+    var showCustomHexDialog by remember { mutableStateOf(false) }
+    var tempCustomHexInput by remember { mutableStateOf("") }
     var localHue by remember(isSystem) {
         object : MutableState<Float> {
             override var value: Float
@@ -6762,13 +6831,16 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         if (isSystem) {
                             sysSubtheme = "System"
                             sysMaterialGIconTheme = if (DynamicThemeDetector.isDynamicColorActive(context)) "Material G Icon" else "System G Icon"
-                            sysCustomGIconColor = 0xFF4285F4.toInt()
-                            sysCustomShortcutsColor = 0xFF34A853.toInt()
-                            sysCustomActionColor = 0xFFEA4335.toInt()
-                            sysCustomSyncColors = true
-                            sysHue = 277f
-                            sysSaturation = 51f
-                            sysLightness = 100f
+                            sysCustomGIconColor = defaultUserMaterialColor
+                            sysCustomMicColor = defaultUserMaterialColor
+                            sysCustomShortcut1Color = defaultUserMaterialColor
+                            sysCustomShortcut2Color = defaultUserMaterialColor
+                            sysCustomShortcut3Color = defaultUserMaterialColor
+                            sysCustomActionColor = defaultUserMaterialColor
+                            sysCustomSyncColors = false
+                            sysHue = defaultHue
+                            sysSaturation = defaultSat
+                            sysLightness = defaultVal
                             sysColorOpacity = 100f
                             sysTransparency = 0f
                             sysShowGIcon = true
@@ -6782,11 +6854,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .remove("widget_system_subtheme")
                                 .remove("widget_system_material_g_icon")
                                 .remove("widget_system_custom_g_icon_color")
-                                .remove("widget_system_custom_shortcuts_color")
+                                .remove("widget_system_custom_mic_color")
+                                .remove("widget_system_custom_shortcut1_color")
+                                .remove("widget_system_custom_shortcut2_color")
+                                .remove("widget_system_custom_shortcut3_color")
                                 .remove("widget_system_custom_action_icon_color")
                                 .remove("widget_system_custom_sync_colors")
                                 .remove("widget_custom_g_icon_color")
-                                .remove("widget_custom_shortcuts_color")
+                                .remove("widget_custom_mic_color")
+                                .remove("widget_custom_shortcut1_color")
+                                .remove("widget_custom_shortcut2_color")
+                                .remove("widget_custom_shortcut3_color")
                                 .remove("widget_custom_action_icon_color")
                                 .remove("widget_custom_sync_colors")
                                 .remove("widget_system_custom_hue")
@@ -6807,13 +6885,16 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         } else {
                             matSubtheme = "Material"
                             matMaterialGIconTheme = "Material G Icon"
-                            matCustomGIconColor = 0xFF4285F4.toInt()
-                            matCustomShortcutsColor = 0xFF34A853.toInt()
-                            matCustomActionColor = 0xFFEA4335.toInt()
-                            matCustomSyncColors = true
-                            matHue = 277f
-                            matSaturation = 51f
-                            matLightness = 100f
+                            matCustomGIconColor = defaultUserMaterialColor
+                            matCustomMicColor = defaultUserMaterialColor
+                            matCustomShortcut1Color = defaultUserMaterialColor
+                            matCustomShortcut2Color = defaultUserMaterialColor
+                            matCustomShortcut3Color = defaultUserMaterialColor
+                            matCustomActionColor = defaultUserMaterialColor
+                            matCustomSyncColors = false
+                            matHue = defaultHue
+                            matSaturation = defaultSat
+                            matLightness = defaultVal
                             matColorOpacity = 100f
                             matTransparency = 28f
                             matLockBlack = false
@@ -6829,11 +6910,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .remove("widget_material_subtheme")
                                 .remove("widget_material_material_g_icon")
                                 .remove("widget_material_custom_g_icon_color")
-                                .remove("widget_material_custom_shortcuts_color")
+                                .remove("widget_material_custom_mic_color")
+                                .remove("widget_material_custom_shortcut1_color")
+                                .remove("widget_material_custom_shortcut2_color")
+                                .remove("widget_material_custom_shortcut3_color")
                                 .remove("widget_material_custom_action_icon_color")
                                 .remove("widget_material_custom_sync_colors")
                                 .remove("widget_custom_g_icon_color")
-                                .remove("widget_custom_shortcuts_color")
+                                .remove("widget_custom_mic_color")
+                                .remove("widget_custom_shortcut1_color")
+                                .remove("widget_custom_shortcut2_color")
+                                .remove("widget_custom_shortcut3_color")
                                 .remove("widget_custom_action_icon_color")
                                 .remove("widget_custom_sync_colors")
                                 .remove("widget_material_custom_hue")
@@ -6869,11 +6956,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .putString("widget_system_subtheme", sysSubtheme)
                                 .putString("widget_system_material_g_icon", sysMaterialGIconTheme)
                                 .putInt("widget_system_custom_g_icon_color", sysCustomGIconColor)
-                                .putInt("widget_system_custom_shortcuts_color", sysCustomShortcutsColor)
+                                .putInt("widget_system_custom_mic_color", sysCustomMicColor)
+                                .putInt("widget_system_custom_shortcut1_color", sysCustomShortcut1Color)
+                                .putInt("widget_system_custom_shortcut2_color", sysCustomShortcut2Color)
+                                .putInt("widget_system_custom_shortcut3_color", sysCustomShortcut3Color)
                                 .putInt("widget_system_custom_action_icon_color", sysCustomActionColor)
                                 .putBoolean("widget_system_custom_sync_colors", sysCustomSyncColors)
                                 .putInt("widget_custom_g_icon_color", sysCustomGIconColor)
-                                .putInt("widget_custom_shortcuts_color", sysCustomShortcutsColor)
+                                .putInt("widget_custom_mic_color", sysCustomMicColor)
+                                .putInt("widget_custom_shortcut1_color", sysCustomShortcut1Color)
+                                .putInt("widget_custom_shortcut2_color", sysCustomShortcut2Color)
+                                .putInt("widget_custom_shortcut3_color", sysCustomShortcut3Color)
                                 .putInt("widget_custom_action_icon_color", sysCustomActionColor)
                                 .putBoolean("widget_custom_sync_colors", sysCustomSyncColors)
                                 .putInt("widget_system_custom_hue", sysHue.toInt())
@@ -6902,11 +6995,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .putString("widget_material_subtheme", matSubtheme)
                                 .putString("widget_material_material_g_icon", matMaterialGIconTheme)
                                 .putInt("widget_material_custom_g_icon_color", matCustomGIconColor)
-                                .putInt("widget_material_custom_shortcuts_color", matCustomShortcutsColor)
+                                .putInt("widget_material_custom_mic_color", matCustomMicColor)
+                                .putInt("widget_material_custom_shortcut1_color", matCustomShortcut1Color)
+                                .putInt("widget_material_custom_shortcut2_color", matCustomShortcut2Color)
+                                .putInt("widget_material_custom_shortcut3_color", matCustomShortcut3Color)
                                 .putInt("widget_material_custom_action_icon_color", matCustomActionColor)
                                 .putBoolean("widget_material_custom_sync_colors", matCustomSyncColors)
                                 .putInt("widget_custom_g_icon_color", matCustomGIconColor)
-                                .putInt("widget_custom_shortcuts_color", matCustomShortcutsColor)
+                                .putInt("widget_custom_mic_color", matCustomMicColor)
+                                .putInt("widget_custom_shortcut1_color", matCustomShortcut1Color)
+                                .putInt("widget_custom_shortcut2_color", matCustomShortcut2Color)
+                                .putInt("widget_custom_shortcut3_color", matCustomShortcut3Color)
                                 .putInt("widget_custom_action_icon_color", matCustomActionColor)
                                 .putBoolean("widget_custom_sync_colors", matCustomSyncColors)
                                 .putInt("widget_material_custom_hue", matHue.toInt())
@@ -7130,54 +7229,65 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             
                             val useMaterialYouIcons = previewIsMaterialYou || effectiveGIconTheme == "Material G Icon" || effectiveGIconTheme == "Custom G Icon" || isPreviewPillLight
                             val slotOrder = localSlotOrderStr.split(",").filter { it.isNotBlank() }
-                            val previewActiveItems = mutableListOf<Triple<String, Int, Boolean>>()
+                            val previewItemsList = mutableListOf<SlotPreviewItem>()
                             slotOrder.forEach { key ->
                                 when (key) {
                                     "mic" -> {
                                         if (localShowVoice) {
                                             val micRes = if (useMaterialYouIcons) com.pixel.intelligentsearch.R.drawable.ic_mic else com.pixel.intelligentsearch.R.drawable.ic_mic_original
-                                            previewActiveItems.add(Triple("Voice Search", micRes, true))
+                                            previewItemsList.add(SlotPreviewItem("mic", "Voice Search", micRes, true))
                                         }
                                     }
                                     "shortcut1" -> {
                                         if (localShortcut1 != "None") {
-                                            previewActiveItems.add(Triple(localShortcut1, SearchWidgetProvider.getShortcutIconRes(localShortcut1, useMaterialYouIcons), false))
+                                            previewItemsList.add(SlotPreviewItem("shortcut1", localShortcut1, SearchWidgetProvider.getShortcutIconRes(localShortcut1, useMaterialYouIcons), false))
                                         }
                                     }
                                     "shortcut2" -> {
                                         if (localShortcut2 != "None") {
-                                            previewActiveItems.add(Triple(localShortcut2, SearchWidgetProvider.getShortcutIconRes(localShortcut2, useMaterialYouIcons), false))
+                                            previewItemsList.add(SlotPreviewItem("shortcut2", localShortcut2, SearchWidgetProvider.getShortcutIconRes(localShortcut2, useMaterialYouIcons), false))
                                         }
                                     }
                                     "shortcut3" -> {
                                         if (localShortcut3 != "None") {
-                                            previewActiveItems.add(Triple(localShortcut3, SearchWidgetProvider.getShortcutIconRes(localShortcut3, useMaterialYouIcons), false))
+                                            previewItemsList.add(SlotPreviewItem("shortcut3", localShortcut3, SearchWidgetProvider.getShortcutIconRes(localShortcut3, useMaterialYouIcons), false))
                                         }
                                     }
                                 }
                             }
 
-                            previewActiveItems.forEachIndexed { idx, item ->
+                            previewItemsList.forEachIndexed { idx, item ->
                                 if (idx > 0) {
                                     Spacer(modifier = Modifier.width(16.dp))
                                 }
                                 val isMaterial = effectiveGIconTheme == "Material G Icon"
                                 val (scPrimary, scSecondary, scTertiary) = when (effectiveGIconTheme) {
                                     "Custom G Icon" -> {
-                                        val customScColorObj = androidx.compose.ui.graphics.Color(localCustomShortcutsColor)
+                                        val scColor = if (localCustomSyncColors) {
+                                            localCustomGIconColor
+                                        } else {
+                                            when (item.slotKey) {
+                                                "mic" -> localCustomMicColor
+                                                "shortcut1" -> localCustomShortcut1Color
+                                                "shortcut2" -> localCustomShortcut2Color
+                                                "shortcut3" -> localCustomShortcut3Color
+                                                else -> localCustomGIconColor
+                                            }
+                                        }
+                                        val customScColorObj = androidx.compose.ui.graphics.Color(scColor)
                                         Triple(customScColorObj, customScColorObj, customScColorObj)
                                     }
                                     "Accented G Icon" -> Triple(gPrimary, gPrimary, gPrimary)
                                     "Material G Icon" -> Triple(gPrimary, gSecondary, gTertiary)
                                     else -> { // System G Icon
                                         val sysTint = if (isPreviewPillLight) materialDarkCompose else androidx.compose.ui.graphics.Color.White
-                                        val finalTint = if (item.second == com.pixel.intelligentsearch.R.drawable.ic_mic_original) androidx.compose.ui.graphics.Color.Unspecified else sysTint
+                                        val finalTint = if (item.resId == com.pixel.intelligentsearch.R.drawable.ic_mic_original) androidx.compose.ui.graphics.Color.Unspecified else sysTint
                                         Triple(finalTint, finalTint, finalTint)
                                     }
                                 }
                                 ComposeThemedShortcutIcon(
-                                    resId = item.second,
-                                    contentDescription = item.first,
+                                    resId = item.resId,
+                                    contentDescription = item.label,
                                     primaryColor = scPrimary,
                                     secondaryColor = scSecondary,
                                     tertiaryColor = scTertiary,
@@ -7197,7 +7307,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             ) {
                                 val (actPrimary, actSecondary, actTertiary) = when (effectiveGIconTheme) {
                                     "Custom G Icon" -> {
-                                        val customActColorObj = androidx.compose.ui.graphics.Color(localCustomActionColor)
+                                        val actColor = if (localCustomSyncColors) localCustomGIconColor else localCustomActionColor
+                                        val customActColorObj = androidx.compose.ui.graphics.Color(actColor)
                                         Triple(customActColorObj, customActColorObj, customActColorObj)
                                     }
                                     "Accented G Icon" -> Triple(gPrimary, gPrimary, gPrimary)
@@ -7530,10 +7641,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             else -> opt
                                         }
                                         Text(
-                                            "$label\nG Icon",
+                                            text = label,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                            lineHeight = 13.sp,
-                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                                             color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
@@ -7542,10 +7653,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
 
                         if (localMaterialGIconTheme == "Custom G Icon") {
-                            Text("CUSTOM WIDGET COLORS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
+                            Text("CUSTOM ICON COLORS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
                             SettingsCard {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    // Sync All Colors Switch Row
+                                    // 1. Sync All Colors Switch Row
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically
@@ -7563,7 +7674,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             onCheckedChange = { synced ->
                                                 localCustomSyncColors = synced
                                                 if (synced) {
-                                                    localCustomShortcutsColor = localCustomGIconColor
+                                                    localCustomMicColor = localCustomGIconColor
+                                                    localCustomShortcut1Color = localCustomGIconColor
+                                                    localCustomShortcut2Color = localCustomGIconColor
+                                                    localCustomShortcut3Color = localCustomGIconColor
                                                     localCustomActionColor = localCustomGIconColor
                                                 }
                                             },
@@ -7585,60 +7699,135 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         )
                                     }
 
-                                    // Target element selector when Sync All is disabled
+                                    // 2. Intelligent Shortcut / Element Selector (When Sync All is disabled)
+                                    val activeElements = remember(localShowGIcon, localShowVoice, localShortcut1, localShortcut2, localShortcut3, localActionIcon, localSlotOrderStr, isMaterialYou, localCustomGIconColor, localCustomMicColor, localCustomShortcut1Color, localCustomShortcut2Color, localCustomShortcut3Color, localCustomActionColor) {
+                                        val list = mutableListOf<CustomElementTarget>()
+                                        if (localShowGIcon) {
+                                            list.add(CustomElementTarget("g_icon", "G Icon", localCustomGIconColor))
+                                        }
+                                        val slotOrder = localSlotOrderStr.split(",").filter { it.isNotBlank() }
+                                        slotOrder.forEach { key ->
+                                            when (key) {
+                                                "mic" -> if (localShowVoice) list.add(CustomElementTarget("mic", "Voice Search", localCustomMicColor))
+                                                "shortcut1" -> if (localShortcut1 != "None") list.add(CustomElementTarget("shortcut1", localShortcut1, localCustomShortcut1Color))
+                                                "shortcut2" -> if (localShortcut2 != "None") list.add(CustomElementTarget("shortcut2", localShortcut2, localCustomShortcut2Color))
+                                                "shortcut3" -> if (localShortcut3 != "None") list.add(CustomElementTarget("shortcut3", localShortcut3, localCustomShortcut3Color))
+                                            }
+                                        }
+                                        if (isMaterialYou && localActionIcon != "None") {
+                                            list.add(CustomElementTarget("action", "Action: $localActionIcon", localCustomActionColor))
+                                        }
+                                        if (list.isEmpty()) {
+                                            list.add(CustomElementTarget("g_icon", "G Icon", localCustomGIconColor))
+                                        }
+                                        list
+                                    }
+
+                                    LaunchedEffect(activeElements) {
+                                        if (activeElements.none { it.key == activeCustomColorTarget }) {
+                                            activeCustomColorTarget = activeElements.firstOrNull()?.key ?: "g_icon"
+                                        }
+                                    }
+
                                     if (!localCustomSyncColors) {
                                         Spacer(modifier = Modifier.height(16.dp))
                                         Text(
-                                            "CUSTOMIZE ELEMENT",
+                                            "SELECT ELEMENT TO CUSTOMIZE",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Spacer(modifier = Modifier.height(8.dp))
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(48.dp)
-                                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
-                                                .padding(4.dp),
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            val targets = listOf(
-                                                Triple("G Icon", localCustomGIconColor, "G Icon"),
-                                                Triple("Shortcuts", localCustomShortcutsColor, "Shortcuts"),
-                                                Triple("Action Icon", localCustomActionColor, "Action Icon")
-                                            )
-                                            targets.forEach { (targetKey, targetColor, label) ->
-                                                val isTargetSel = activeCustomColorTarget == targetKey
+
+                                        var elementDropdownExpanded by remember { mutableStateOf(false) }
+                                        val currentSelectedElement = activeElements.firstOrNull { it.key == activeCustomColorTarget } ?: activeElements.first()
+
+                                        Box(modifier = Modifier.fillMaxWidth()) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(52.dp)
+                                                    .clip(RoundedCornerShape(20.dp))
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                                    .border(
+                                                        width = 1.dp,
+                                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                                        shape = RoundedCornerShape(20.dp)
+                                                    )
+                                                    .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
+                                                        hapticEngine.performPredictiveBackHaptic(view)
+                                                        elementDropdownExpanded = true
+                                                    }
+                                                    .padding(horizontal = 16.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .weight(1f)
-                                                        .fillMaxHeight()
-                                                        .clip(RoundedCornerShape(20.dp))
-                                                        .background(if (isTargetSel) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
-                                                        .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
-                                                            hapticEngine.performPredictiveBackHaptic(view)
-                                                            activeCustomColorTarget = targetKey
-                                                        },
-                                                    contentAlignment = Alignment.Center
+                                                        .size(16.dp)
+                                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                                        .background(androidx.compose.ui.graphics.Color(currentSelectedElement.color))
+                                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape)
+                                                )
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                Text(
+                                                    text = currentSelectedElement.label,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                Icon(
+                                                    imageVector = if (elementDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                                    contentDescription = "Dropdown",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+
+                                            MaterialTheme(
+                                                shapes = MaterialTheme.shapes.copy(extraSmall = RoundedCornerShape(24.dp))
+                                            ) {
+                                                androidx.compose.material3.DropdownMenu(
+                                                    expanded = elementDropdownExpanded,
+                                                    onDismissRequest = { elementDropdownExpanded = false },
+                                                    modifier = Modifier
+                                                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(24.dp))
+                                                        .clip(RoundedCornerShape(24.dp))
                                                 ) {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                                    ) {
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .size(12.dp)
-                                                                .clip(androidx.compose.foundation.shape.CircleShape)
-                                                                .background(androidx.compose.ui.graphics.Color(targetColor))
-                                                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), androidx.compose.foundation.shape.CircleShape)
-                                                        )
-                                                        Text(
-                                                            label,
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            fontWeight = if (isTargetSel) FontWeight.Bold else FontWeight.Normal,
-                                                            color = if (isTargetSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    activeElements.forEach { element ->
+                                                        val isSelected = element.key == activeCustomColorTarget
+                                                        androidx.compose.material3.DropdownMenuItem(
+                                                            leadingIcon = {
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .size(16.dp)
+                                                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                                                        .background(androidx.compose.ui.graphics.Color(element.color))
+                                                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape)
+                                                                )
+                                                            },
+                                                            text = {
+                                                                Text(
+                                                                    text = element.label,
+                                                                    style = MaterialTheme.typography.bodyMedium,
+                                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                                                )
+                                                            },
+                                                            trailingIcon = if (isSelected) {
+                                                                {
+                                                                    Icon(
+                                                                        imageVector = Icons.Default.Check,
+                                                                        contentDescription = null,
+                                                                        tint = MaterialTheme.colorScheme.primary,
+                                                                        modifier = Modifier.size(18.dp)
+                                                                    )
+                                                                }
+                                                            } else null,
+                                                            onClick = {
+                                                                hapticEngine.performPredictiveBackHaptic(view)
+                                                                activeCustomColorTarget = element.key
+                                                                elementDropdownExpanded = false
+                                                            }
                                                         )
                                                     }
                                                 }
@@ -7646,132 +7835,39 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Spacer(modifier = Modifier.height(20.dp))
 
-                                    val activeColor = when {
-                                        localCustomSyncColors -> localCustomGIconColor
-                                        activeCustomColorTarget == "G Icon" -> localCustomGIconColor
-                                        activeCustomColorTarget == "Shortcuts" -> localCustomShortcutsColor
-                                        else -> localCustomActionColor
+                                    val (activeColor, activeLabel) = when {
+                                        localCustomSyncColors -> Pair(localCustomGIconColor, "All Icons")
+                                        activeCustomColorTarget == "g_icon" -> Pair(localCustomGIconColor, "G Icon")
+                                        activeCustomColorTarget == "mic" -> Pair(localCustomMicColor, "Voice Search")
+                                        activeCustomColorTarget == "shortcut1" -> Pair(localCustomShortcut1Color, localShortcut1)
+                                        activeCustomColorTarget == "shortcut2" -> Pair(localCustomShortcut2Color, localShortcut2)
+                                        activeCustomColorTarget == "shortcut3" -> Pair(localCustomShortcut3Color, localShortcut3)
+                                        activeCustomColorTarget == "action" -> Pair(localCustomActionColor, "Action: $localActionIcon")
+                                        else -> Pair(localCustomGIconColor, "G Icon")
                                     }
-                                    val activeColorObj = androidx.compose.ui.graphics.Color(activeColor)
-                                    val hexString = String.format("#%06X", (0xFFFFFF and activeColor))
-
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .clip(androidx.compose.foundation.shape.CircleShape)
-                                                .background(activeColorObj)
-                                                .border(2.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape)
-                                        )
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                if (localCustomSyncColors) "All Elements Color" else "$activeCustomColorTarget Color",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            Text(
-                                                hexString,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    Text(
-                                        "QUICK PRESETS",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    val swatches = listOf(
-                                        0xFF4285F4.toInt(), // Google Blue
-                                        0xFFEA4335.toInt(), // Google Red
-                                        0xFFFBBC05.toInt(), // Google Yellow
-                                        0xFF34A853.toInt(), // Google Green
-                                        MaterialTheme.colorScheme.primary.toArgb(), // Dynamic Accent
-                                        0xFFA855F7.toInt(), // Purple
-                                        0xFF06B6D4.toInt(), // Cyan
-                                        0xFFF97316.toInt(), // Orange
-                                        0xFFEC4899.toInt(), // Pink
-                                        0xFF84CC16.toInt(), // Lime
-                                        0xFFFFFFFF.toInt(), // White
-                                        0xFF1F1F1F.toInt()  // Slate Dark
-                                    )
 
                                     val updateTargetColor: (Int) -> Unit = { newColor ->
                                         if (localCustomSyncColors) {
                                             localCustomGIconColor = newColor
-                                            localCustomShortcutsColor = newColor
+                                            localCustomMicColor = newColor
+                                            localCustomShortcut1Color = newColor
+                                            localCustomShortcut2Color = newColor
+                                            localCustomShortcut3Color = newColor
                                             localCustomActionColor = newColor
                                         } else {
                                             when (activeCustomColorTarget) {
-                                                "G Icon" -> localCustomGIconColor = newColor
-                                                "Shortcuts" -> localCustomShortcutsColor = newColor
-                                                else -> localCustomActionColor = newColor
+                                                "g_icon" -> localCustomGIconColor = newColor
+                                                "mic" -> localCustomMicColor = newColor
+                                                "shortcut1" -> localCustomShortcut1Color = newColor
+                                                "shortcut2" -> localCustomShortcut2Color = newColor
+                                                "shortcut3" -> localCustomShortcut3Color = newColor
+                                                "action" -> localCustomActionColor = newColor
+                                                else -> localCustomGIconColor = newColor
                                             }
                                         }
                                     }
-
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .horizontalScroll(rememberScrollState()),
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        swatches.forEach { swatchColor ->
-                                            val isSwatchSel = (activeColor and 0xFFFFFF) == (swatchColor and 0xFFFFFF)
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(38.dp)
-                                                    .clip(androidx.compose.foundation.shape.CircleShape)
-                                                    .background(androidx.compose.ui.graphics.Color(swatchColor))
-                                                    .border(
-                                                        width = if (isSwatchSel) 3.dp else 1.dp,
-                                                        color = if (isSwatchSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                                        shape = androidx.compose.foundation.shape.CircleShape
-                                                    )
-                                                    .bouncyClickable(shape = androidx.compose.foundation.shape.CircleShape) {
-                                                        hapticEngine.performPredictiveBackHaptic(view)
-                                                        updateTargetColor(swatchColor)
-                                                    },
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                if (isSwatchSel) {
-                                                    val lum = (0.299 * ((swatchColor shr 16) and 0xFF) + 0.587 * ((swatchColor shr 8) and 0xFF) + 0.114 * (swatchColor and 0xFF)) / 255.0
-                                                    Icon(
-                                                        imageVector = Icons.Default.Check,
-                                                        contentDescription = "Selected",
-                                                        tint = if (lum > 0.5) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(20.dp))
-
-                                    Text(
-                                        "FINE TUNE COLOR",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
 
                                     val curHsv = remember(activeColor) {
                                         val h = FloatArray(3)
@@ -7797,17 +7893,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         updateTargetColor(newCol)
                                     }
 
-                                    // Hue Slider
+                                    // 3. Hue Slider (matching Color Studio)
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                                        Icon(Icons.Default.Palette, contentDescription = "Hue", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Icon(Icons.Default.Palette, contentDescription = "Hue", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                        Spacer(modifier = Modifier.width(16.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text("Hue", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                Text("Hue", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                                                 Spacer(modifier = Modifier.weight(1f))
-                                                Text("${customHueState.toInt()}°", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text("${customHueState.toInt()}°", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             }
-                                            Box(modifier = Modifier.fillMaxWidth().height(14.dp).padding(top = 6.dp).background(
+                                            Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
                                                 brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
                                                     colors = listOf(
                                                         androidx.compose.ui.graphics.Color.Red,
@@ -7819,10 +7915,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                         androidx.compose.ui.graphics.Color.Red
                                                     )
                                                 ),
-                                                shape = RoundedCornerShape(7.dp)
+                                                shape = RoundedCornerShape(8.dp)
                                             )) {
                                                 Android17Slider(
                                                     showTrack = false,
+                                                    enableHaptics = false,
                                                     value = customHueState,
                                                     onValueChange = { 
                                                         customHueState = it
@@ -7835,29 +7932,30 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Spacer(modifier = Modifier.height(24.dp))
 
-                                    // Saturation Slider
+                                    // 4. Saturation Slider (matching Color Studio)
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                                        Icon(Icons.Default.WaterDrop, contentDescription = "Saturation", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Icon(Icons.Default.WaterDrop, contentDescription = "Saturation", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                        Spacer(modifier = Modifier.width(16.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text("Saturation", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                Text("Saturation", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                                                 Spacer(modifier = Modifier.weight(1f))
-                                                Text("${customSatState.toInt()}%", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text("${customSatState.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             }
-                                            Box(modifier = Modifier.fillMaxWidth().height(14.dp).padding(top = 6.dp).background(
+                                            Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
                                                 brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
                                                     colors = listOf(
                                                         androidx.compose.ui.graphics.Color.White,
                                                         androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(customHueState, 1f, 1f)))
                                                     )
                                                 ),
-                                                shape = RoundedCornerShape(7.dp)
+                                                shape = RoundedCornerShape(8.dp)
                                             )) {
                                                 Android17Slider(
                                                     showTrack = false,
+                                                    enableHaptics = false,
                                                     value = customSatState,
                                                     onValueChange = { 
                                                         customSatState = it
@@ -7870,29 +7968,30 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Spacer(modifier = Modifier.height(24.dp))
 
-                                    // Brightness / Value Slider
+                                    // 5. Brightness Slider (matching Color Studio)
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                                        Icon(Icons.Outlined.BrightnessMedium, contentDescription = "Brightness", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Icon(Icons.Outlined.BrightnessMedium, contentDescription = "Brightness", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                        Spacer(modifier = Modifier.width(16.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text("Brightness", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                Text("Brightness", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                                                 Spacer(modifier = Modifier.weight(1f))
-                                                Text("${customValState.toInt()}%", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text("${customValState.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             }
-                                            Box(modifier = Modifier.fillMaxWidth().height(14.dp).padding(top = 6.dp).background(
+                                            Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
                                                 brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
                                                     colors = listOf(
                                                         androidx.compose.ui.graphics.Color.Black,
                                                         androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(customHueState, (customSatState / 100f).coerceIn(0f, 1f), 1f)))
                                                     )
                                                 ),
-                                                shape = RoundedCornerShape(7.dp)
+                                                shape = RoundedCornerShape(8.dp)
                                             )) {
                                                 Android17Slider(
                                                     showTrack = false,
+                                                    enableHaptics = false,
                                                     value = customValState,
                                                     onValueChange = { 
                                                         customValState = it
@@ -7903,6 +8002,46 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 )
                                             }
                                         }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(24.dp))
+
+                                    // 6. Hex Color Pill Bar (matching Color Studio)
+                                    val activeHex = String.format("#%06X", (0xFFFFFF and activeColor))
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp)
+                                            .clip(RoundedCornerShape(24.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                                            .clickable {
+                                                tempCustomHexInput = activeHex
+                                                showCustomHexDialog = true
+                                            }
+                                            .padding(horizontal = 16.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(20.dp)
+                                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                                .background(androidx.compose.ui.graphics.Color(activeColor))
+                                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, androidx.compose.foundation.shape.CircleShape)
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(
+                                            "$activeLabel  •  $activeHex",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.weight(1f))
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            contentDescription = "Edit Hex",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
                                     }
                                 }
                             }
@@ -8023,6 +8162,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         )) {
                                             Android17Slider(
                                                 showTrack = false,
+                                                enableHaptics = false,
                                                 value = localHue,
                                                 onValueChange = { 
                                                     localSubtheme = "Custom"
@@ -8058,6 +8198,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         )) {
                                             Android17Slider(
                                                 showTrack = false,
+                                                enableHaptics = false,
                                                 value = localSaturation,
                                                 onValueChange = { 
                                                     localSubtheme = "Custom"
@@ -8093,6 +8234,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         )) {
                                             Android17Slider(
                                                 value = localColorOpacity,
+                                                enableHaptics = false,
                                                 onValueChange = { 
                                                     localSubtheme = "Custom"
                                                     localColorOpacity = it 
@@ -8125,6 +8267,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         )) {
                                             Android17Slider(
                                                 value = localTransparency,
+                                                enableHaptics = false,
                                                 onValueChange = { localTransparency = it },
                                                 valueRange = 0f..100f,
                                                 modifier = Modifier.fillMaxWidth(),
@@ -8579,6 +8722,50 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 )
             }
 
+            if (showCustomHexDialog) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showCustomHexDialog = false },
+                    title = { Text("Enter Hex Color") },
+                    text = {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = tempCustomHexInput,
+                            onValueChange = { tempCustomHexInput = it },
+                            label = { Text("Hex Code (e.g. #4285F4)") },
+                            singleLine = true
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            try {
+                                val color = android.graphics.Color.parseColor(if (tempCustomHexInput.startsWith("#")) tempCustomHexInput else "#$tempCustomHexInput")
+                                if (localCustomSyncColors) {
+                                    localCustomGIconColor = color
+                                    localCustomMicColor = color
+                                    localCustomShortcut1Color = color
+                                    localCustomShortcut2Color = color
+                                    localCustomShortcut3Color = color
+                                    localCustomActionColor = color
+                                } else {
+                                    when (activeCustomColorTarget) {
+                                        "g_icon" -> localCustomGIconColor = color
+                                        "mic" -> localCustomMicColor = color
+                                        "shortcut1" -> localCustomShortcut1Color = color
+                                        "shortcut2" -> localCustomShortcut2Color = color
+                                        "shortcut3" -> localCustomShortcut3Color = color
+                                        "action" -> localCustomActionColor = color
+                                        else -> localCustomGIconColor = color
+                                    }
+                                }
+                            } catch (e: Exception) {}
+                            showCustomHexDialog = false
+                        }) { Text("Save") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showCustomHexDialog = false }) { Text("Cancel") }
+                    }
+                )
+            }
+
             if (showCustomUrlDialogFor != null) {
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { showCustomUrlDialogFor = null },
@@ -8795,25 +8982,40 @@ fun ComposeGIcon(
     }
     if (fallbackTint != androidx.compose.ui.graphics.Color.Unspecified) {
         Icon(
-            painter = androidx.compose.ui.res.painterResource(id = com.pixel.intelligentsearch.R.drawable.ic_g_logo_colored),
+            painter = androidx.compose.ui.res.painterResource(id = com.pixel.intelligentsearch.R.drawable.ic_g_logo),
             contentDescription = "G Logo",
             modifier = modifier,
             tint = fallbackTint
         )
         return
     }
+    if (isAccented) {
+        val effectiveColor = if (accentColor != androidx.compose.ui.graphics.Color.Unspecified) accentColor else primaryColor
+        Icon(
+            painter = androidx.compose.ui.res.painterResource(id = com.pixel.intelligentsearch.R.drawable.ic_g_logo),
+            contentDescription = "G Logo",
+            modifier = modifier,
+            tint = effectiveColor
+        )
+        return
+    }
+    val mainPath = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,18.63C15.23,18.63 17.45,16.79 17.92,14.26L20,12L22.409,14.26C21.604,19.462 17.649,23 12,23C5.92,23 1,18.08 1,12C1,5.92 5.92,1 12,1C14.97,1 17.45,2.09 19.36,3.87L16.21,7.02C15.06,5.94 13.62,5.38 12,5.38C8.41,5.38 5.49,8.43 5.49,12.01C5.49,15.59 8.41,18.63 12,18.63Z").toPath() }
+    val coverPath = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,14.26V10H22.36C22.49,10.72 22.56,11.47 22.56,12.25C22.56,12.943 22.509,13.614 22.409,14.26H17.92H12Z").toPath() }
     androidx.compose.foundation.Canvas(modifier = modifier) {
         val scaleX = size.width / 24f
         val scaleY = size.height / 24f
         scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
-            val pColor = if (isAccented) accentColor else primaryColor
-            val sColor = if (isAccented) accentColor else secondaryColor
-            val tColor = if (isAccented) accentColor else tertiaryColor
-
-            drawPath(androidx.compose.ui.graphics.vector.PathParser().parsePathString("M22.56,12.25C22.56,11.47 22.49,10.72 22.36,10L12,10L12,14.26L17.92,14.26C17.66,15.63 16.88,16.79 15.71,17.57L15.71,20.34L19.28,20.34C21.36,18.42 22.56,15.6 22.56,12.25Z").toPath(), color = pColor)
-            drawPath(androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,23C14.97,23 17.46,22.02 19.28,20.34L15.71,17.57C14.73,18.23 13.48,18.63 12,18.63C9.14,18.63 6.71,16.7 5.84,14.1L2.18,14.1L2.18,16.94C3.99,20.53 7.7,23 12,23Z").toPath(), color = sColor)
-            drawPath(androidx.compose.ui.graphics.vector.PathParser().parsePathString("M5.84,14.09C5.62,13.43 5.5,12.73 5.5,12C5.5,11.27 5.62,10.57 5.84,9.91L5.84,7.07L2.18,7.07C1.43,8.55 1,10.22 1,12C1,13.78 1.43,15.45 2.18,16.93L5.84,14.09Z").toPath(), color = tColor)
-            drawPath(androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,5.38C13.62,5.38 15.06,5.94 16.21,7.02L19.36,3.87C17.45,2.09 14.97,1 12,1C7.7,1 3.99,3.47 2.18,7.07L5.84,9.91C6.71,7.31 9.14,5.38 12,5.38Z").toPath(), color = pColor)
+            drawPath(
+                path = mainPath,
+                brush = androidx.compose.ui.graphics.Brush.sweepGradient(
+                    colors = listOf(primaryColor, secondaryColor, tertiaryColor, primaryColor),
+                    center = androidx.compose.ui.geometry.Offset(12f, 12f)
+                )
+            )
+            drawPath(
+                path = coverPath,
+                color = primaryColor
+            )
         }
     }
 }
@@ -8826,7 +9028,8 @@ fun Android17Slider(
     modifier: Modifier = Modifier,
     steps: Int = 0,
     showTrack: Boolean = true,
-    isSquiggly: Boolean = true
+    isSquiggly: Boolean = true,
+    enableHaptics: Boolean = false
 ) {
     val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
     
@@ -8883,7 +9086,9 @@ fun Android17Slider(
         val snapped = snapValue(rawFraction)
         if (snapped != currentValue) {
             currentOnValueChange(snapped)
-            hapticEngine.performPredictiveBackHaptic(view)
+            if (enableHaptics && steps > 0) {
+                hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
+            }
         }
     }
 

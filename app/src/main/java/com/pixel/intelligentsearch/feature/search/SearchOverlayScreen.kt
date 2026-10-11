@@ -2019,62 +2019,59 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchPreviousSearches && uiState.query.isEmpty() && distinctRecents.isNotEmpty()) {
-                val isSingleRecent = distinctRecents.size == 1
-                if (!isSingleRecent) {
-                    item(key = "recent_label", contentType = "recent_label") {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .animateItem(
-                                    placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
-                                    fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
-                                    fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
-                                )
-                                .padding(horizontal = 24.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Recent",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 13.sp,
-                                fontFamily = GoogleSansFlex,
-                                fontWeight = FontWeight.SemiBold
+                item(key = "recent_label", contentType = "recent_label") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateItem(
+                                placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
+                                fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
+                                fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
                             )
-                            if (distinctRecents.size > 7) {
-                                Surface(
-                                    onClick = {
-                                        sensoryEngine.deleteThud(view)
-                                        viewModel.clearSearchHistory()
-                                        showHistoryClearedSnackbar = true
-                                    },
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                                    border = BorderStroke(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                                    ),
-                                    modifier = Modifier.height(26.dp)
+                            .padding(horizontal = 24.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Recent",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp,
+                            fontFamily = GoogleSansFlex,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        if (distinctRecents.size > 7) {
+                            Surface(
+                                onClick = {
+                                    sensoryEngine.deleteThud(view)
+                                    viewModel.clearSearchHistory()
+                                    showHistoryClearedSnackbar = true
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                ),
+                                modifier = Modifier.height(26.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.DeleteSweep,
-                                            contentDescription = "Delete All",
-                                            tint = MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Text(
-                                            text = "Delete All",
-                                            color = MaterialTheme.colorScheme.error,
-                                            fontSize = 11.5.sp,
-                                            fontFamily = GoogleSansFlex,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Outlined.DeleteSweep,
+                                        contentDescription = "Delete All",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = "Delete All",
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontSize = 11.5.sp,
+                                        fontFamily = GoogleSansFlex,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
                                 }
                             }
                         }
@@ -2171,74 +2168,69 @@ fun SearchOverlayScreen(
                                 )
                             }
                     ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            if (isSingleRecent) {
-                                Text(
-                                    text = "Recent",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 13.sp,
-                                    fontFamily = GoogleSansFlex,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)
+                        val pillShape = RoundedCornerShape(28.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 5.dp)
+                                .background(
+                                    brush = Brush.horizontalGradient(
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f),
+                                            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.52f),
+                                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f)
+                                        )
+                                    ),
+                                    shape = pillShape
                                 )
-                            }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                                    .background(
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                        shape = RoundedCornerShape(32.dp)
-                                    )
-                                    .border(
-                                        width = 1.dp,
-                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                                        shape = RoundedCornerShape(32.dp)
-                                    )
-                                    .clip(RoundedCornerShape(32.dp))
-                                    .bouncyClickable { launchWebSearch(recentQuery) }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f),
+                                    shape = pillShape
+                                )
+                                .clip(pillShape)
+                                .bouncyClickable { launchWebSearch(recentQuery) }
+                                .padding(horizontal = 16.dp, vertical = 11.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.History,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Text(
+                                text = recentQuery,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 15.sp,
+                                fontFamily = GoogleSansFlex,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            IconButton(
+                                onClick = { viewModel.removeSearchHistory(recentQuery) },
+                                modifier = Modifier.size(32.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.History,
-                                    contentDescription = null,
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Remove",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            IconButton(
+                                onClick = { viewModel.onQueryChanged(recentQuery) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.NorthWest,
+                                    contentDescription = "Insert query",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
-                                Spacer(modifier = Modifier.width(14.dp))
-                                Text(
-                                    text = recentQuery,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 15.sp,
-                                    fontFamily = GoogleSansFlex,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.weight(1f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                IconButton(
-                                    onClick = { viewModel.removeSearchHistory(recentQuery) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Remove",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { viewModel.onQueryChanged(recentQuery) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.NorthWest,
-                                        contentDescription = "Insert query",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
                             }
                         }
                     }
@@ -2787,6 +2779,8 @@ fun SearchOverlayScreen(
             }
             
             val surfaceAlpha = if (isShowWallpaper) ((100 - isTransparency) / 100f).coerceIn(0f, 1f) else 1f
+            val shellCornerRadius = androidx.compose.ui.unit.lerp(24.dp, 32.dp, predictiveBackProgress.value.coerceIn(0f, 1f))
+            val shellShape = RoundedCornerShape(shellCornerRadius)
 
             Box(
                 modifier = Modifier
@@ -2816,19 +2810,15 @@ fun SearchOverlayScreen(
                         )
                         alpha = (progress * (1f - backProg * 0.25f)).coerceIn(0f, 1f)
                     }
-                    .clip(RoundedCornerShape(androidx.compose.ui.unit.lerp(24.dp, 32.dp, predictiveBackProgress.value.coerceIn(0f, 1f))))
+                    .clip(shellShape)
                     .then(
                         if (settingsState.bottomSearch) {
-                            val outline = MaterialTheme.colorScheme.outlineVariant
                             Modifier
                                 .background(MaterialTheme.colorScheme.surface.copy(alpha = surfaceAlpha))
                                 .border(
                                     width = 1.dp,
-                                    // Top-lit edge: depth cue from light instead of a drop shadow
-                                    brush = Brush.verticalGradient(
-                                        listOf(outline, outline.copy(alpha = outline.alpha * 0.25f))
-                                    ),
-                                    shape = RoundedCornerShape(24.dp)
+                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                    shape = shellShape
                                 )
                         } else {
                             Modifier.background(Color.Transparent)
@@ -2865,8 +2855,6 @@ fun SearchOverlayScreen(
                             alpha = a
                             translationY = (1f - a) * contentOffsetPx
                         }
-                            // Android 18 progressive blur: results dissolve as they scroll under the search bar
-                            .progressiveEdgeBlur(edge = ProgressiveBlurDirection.TopToBottom)
                         ) {
                             searchResultsContent()
                         }
@@ -2877,8 +2865,16 @@ fun SearchOverlayScreen(
                             alpha = a
                             translationY = -(1f - a) * contentOffsetPx
                         }
-                            // Android 18 progressive blur: results dissolve as they scroll under the bottom search pill
-                            .progressiveEdgeBlur(edge = ProgressiveBlurDirection.BottomToTop)
+                            // Android 18 progressive blur: only dissolves words as they are scrolled by under the bottom search pill
+                            .then(
+                                if (searchResultsListState.canScrollForward) {
+                                    Modifier.progressiveEdgeBlur(
+                                        edge = ProgressiveBlurDirection.BottomToTop,
+                                        edgeHeight = 18.dp,
+                                        maxBlur = 10.dp
+                                    )
+                                } else Modifier
+                            )
                         ) {
                             searchResultsContent()
                         }

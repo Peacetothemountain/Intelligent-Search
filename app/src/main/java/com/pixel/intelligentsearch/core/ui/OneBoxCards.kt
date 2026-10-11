@@ -36,8 +36,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -137,33 +135,15 @@ private fun ExpressiveOneBoxCard(
     val tertiaryColor = MaterialTheme.colorScheme.tertiary
     val outlineVariantColor = MaterialTheme.colorScheme.outlineVariant
 
-    // Android 18 Dual-tone chromatic lighting border
-    val chromaticBorderBrush = remember(isPressed, isClickable, animatedBorderColor, primaryColor, tertiaryColor, outlineVariantColor) {
-        if (isPressed && isClickable) {
-            Brush.linearGradient(
-                colors = listOf(
-                    resolvedPressedBorderColor,
-                    primaryColor.copy(alpha = 0.70f),
-                    tertiaryColor.copy(alpha = 0.45f)
-                ),
-                start = androidx.compose.ui.geometry.Offset.Zero,
-                end = androidx.compose.ui.geometry.Offset.Infinite
-            )
-        } else {
-            Brush.linearGradient(
-                colors = listOf(
-                    primaryColor.copy(alpha = 0.35f),
-                    tertiaryColor.copy(alpha = 0.20f),
-                    borderColor.copy(alpha = 0.25f)
-                ),
-                start = androidx.compose.ui.geometry.Offset.Zero,
-                end = androidx.compose.ui.geometry.Offset.Infinite
-            )
-        }
-    }
-
-    val resolvedBorder = remember(chromaticBorderBrush) {
-        BorderStroke(1.2.dp, chromaticBorderBrush)
+    val resolvedBorder = remember(isPressed, isClickable, animatedBorderColor, resolvedPressedBorderColor) {
+        BorderStroke(
+            1.dp,
+            if (isPressed && isClickable) {
+                resolvedPressedBorderColor.copy(alpha = 0.50f)
+            } else {
+                animatedBorderColor.copy(alpha = 0.20f)
+            }
+        )
     }
 
     val clickModifier = if (onClick != null) {
@@ -193,20 +173,6 @@ private fun ExpressiveOneBoxCard(
             }
             .background(containerColor, cardShape)
             .border(resolvedBorder, cardShape)
-            .drawWithContent {
-                drawContent()
-                // Android 18 Evolved Material You: 2.5D specular top highlight
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.12f),
-                            Color.Transparent
-                        ),
-                        startY = 0f,
-                        endY = 5.dp.toPx()
-                    )
-                )
-            }
             .then(clickModifier)
             .padding(contentPadding),
         content = content

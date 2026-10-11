@@ -103,10 +103,8 @@ open class MainActivity : AppCompatActivity() {
         }
 
         // Immediately dismiss system splash screen to avoid any black splash or flicker
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            splashScreen.setOnExitAnimationListener { splashScreenView ->
-                splashScreenView.remove()
-            }
+        splashScreen.setOnExitAnimationListener { splashScreenView ->
+            splashScreenView.remove()
         }
 
         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
@@ -127,14 +125,12 @@ open class MainActivity : AppCompatActivity() {
         val initialBlur = prefs.getInt("search.background.blur", prefs.getInt("background.blur", 50))
         if (initialShowWallpaper) {
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && initialBlur > 0) {
+            if (initialBlur > 0) {
                 window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
             }
         } else {
             window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-            }
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
         }
 
         enableEdgeToEdge(
@@ -151,13 +147,11 @@ open class MainActivity : AppCompatActivity() {
         applySoftInputMode(keyboardVisible = !isTutorial)
         super.onCreate(savedInstanceState)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            runCatching {
-                if (initialShowWallpaper && initialBlur > 0) {
-                    window.setBackgroundBlurRadius(initialBlur)
-                } else {
-                    window.setBackgroundBlurRadius(0)
-                }
+        runCatching {
+            if (initialShowWallpaper && initialBlur > 0) {
+                window.setBackgroundBlurRadius(initialBlur)
+            } else {
+                window.setBackgroundBlurRadius(0)
             }
         }
 
@@ -199,7 +193,7 @@ open class MainActivity : AppCompatActivity() {
                         }
                         val blurRadius = settingsState.backgroundBlur
                         val targetBlur = if (isWall) adpfThermalManager.getRecommendedBlurRadius(blurRadius.toFloat()).toInt() else 0
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && targetBlur != lastAppliedBlur) {
+                        if (targetBlur != lastAppliedBlur) {
                             runCatching {
                                 if (targetBlur > 0) {
                                     window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)

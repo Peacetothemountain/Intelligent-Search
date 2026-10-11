@@ -30,23 +30,16 @@ class SettingsActivity : AppCompatActivity() {
     private val requestRoleLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val roleManager = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            getSystemService(android.app.role.RoleManager::class.java)
-        } else null
+        val roleManager = getSystemService(android.app.role.RoleManager::class.java)
         val isHeld = roleManager?.isRoleHeld(ROLE_SEARCH_ENGINE) == true
         android.util.Log.d("SettingsActivity", "ROLE_SEARCH_ENGINE request result: ${result.resultCode}, isHeld: $isHeld")
     }
 
     fun requestSearchEngineRole() {
         com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this)
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            val roleManager = getSystemService(android.app.role.RoleManager::class.java)
-            if (roleManager != null && roleManager.isRoleAvailable(ROLE_SEARCH_ENGINE)) {
-                if (!roleManager.isRoleHeld(ROLE_SEARCH_ENGINE)) {
-                    val intent = roleManager.createRequestRoleIntent(ROLE_SEARCH_ENGINE)
-                    requestRoleLauncher.launch(intent)
-                }
-            }
+        val roleManager = getSystemService(android.app.role.RoleManager::class.java) ?: return
+        if (roleManager.isRoleAvailable(ROLE_SEARCH_ENGINE) && !roleManager.isRoleHeld(ROLE_SEARCH_ENGINE)) {
+            requestRoleLauncher.launch(roleManager.createRequestRoleIntent(ROLE_SEARCH_ENGINE))
         }
     }
 
@@ -56,19 +49,8 @@ class SettingsActivity : AppCompatActivity() {
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         super.onCreate(savedInstanceState)
 
-        // Ensure user_setup_search_engine bypasses QPR2 allowlist restriction
-        com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this)
-
-        // Android 17 QPR2 native ROLE_SEARCH_ENGINE request
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            val roleManager = getSystemService(android.app.role.RoleManager::class.java)
-            if (roleManager != null && roleManager.isRoleAvailable(ROLE_SEARCH_ENGINE)) {
-                if (!roleManager.isRoleHeld(ROLE_SEARCH_ENGINE)) {
-                    val intent = roleManager.createRequestRoleIntent(ROLE_SEARCH_ENGINE)
-                    requestRoleLauncher.launch(intent)
-                }
-            }
-        }
+        // Android 17 QPR2 native ROLE_SEARCH_ENGINE request (also refreshes the user_setup allowlist)
+        requestSearchEngineRole()
         
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(

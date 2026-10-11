@@ -80,7 +80,7 @@ object DynamicMeshShader {
             // Harmonic floating center vertex with dynamic orbital shift
             float2 centerPos = float2(0.5, 0.5) + float2(sin(uTime * 0.55) * 0.12, cos(uTime * 0.45) * 0.10);
             float distCenter = distance(uv, centerPos);
-            float centerInfluence = smoothstep(0.70, 0.0, distCenter) * 0.60;
+            float centerInfluence = (1.0 - smoothstep(0.0, 0.70, distCenter)) * 0.60;
             
             half4 meshColor = mix(cornerMesh, uColorCenter, half(centerInfluence));
 
@@ -125,7 +125,7 @@ object DynamicMeshShader {
             // Harmonic floating center vertex with dynamic orbital shift
             float2 centerPos = float2(0.5, 0.5) + float2(sin(uTime * 0.55) * 0.12, cos(uTime * 0.45) * 0.10);
             float distCenter = distance(uv, centerPos);
-            float centerInfluence = smoothstep(0.70, 0.0, distCenter) * 0.60;
+            float centerInfluence = (1.0 - smoothstep(0.0, 0.70, distCenter)) * 0.60;
             
             half4 meshColor = mix(cornerMesh, uColorCenter, half(centerInfluence));
 

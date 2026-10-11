@@ -34,9 +34,6 @@ abstract class IntelligentSearchDatabase : RoomDatabase() {
          */
         fun getSafeContext(context: Context): Context {
             val appContext = context.applicationContext ?: context
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-                return appContext
-            }
 
             val deContext = if (!appContext.isDeviceProtectedStorage) {
                 appContext.createDeviceProtectedStorageContext()

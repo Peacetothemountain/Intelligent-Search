@@ -66,12 +66,9 @@ class PixelHapticEngine(private val context: Context) {
         }
     }
 
-    private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    private val vibrator: Vibrator? = run {
         val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
         vibratorManager?.defaultVibrator
-    } else {
-        @Suppress("DEPRECATION")
-        context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     }
 
     /**
@@ -184,9 +181,7 @@ class PixelHapticEngine(private val context: Context) {
             }
 
             PixelHapticType.LOW_TICK -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
-                ) {
+                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)) {
                     composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, (0.85f * scale).coerceIn(0.1f, 1.0f))
                     return composition.compose()
                 } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
@@ -200,9 +195,7 @@ class PixelHapticEngine(private val context: Context) {
                 val velFactor = (abs(velocity) / 3000f).coerceIn(0f, 1f)
                 val detentScale = (0.25f + 0.45f * velFactor) * scale
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
-                ) {
+                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)) {
                     composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, detentScale)
                     return composition.compose()
                 } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
@@ -247,8 +240,7 @@ class PixelHapticEngine(private val context: Context) {
 
             PixelHapticType.TOGGLE_OFF -> {
                 // Toggle Off: Quick falling deceleration settling into a grounded detent
-                val hasLowTick = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                        isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
+                val hasLowTick = isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
 
                 if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_QUICK_FALL) && hasLowTick) {
                     composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_QUICK_FALL, 0.50f * scale)
@@ -301,8 +293,7 @@ class PixelHapticEngine(private val context: Context) {
 
             PixelHapticType.DELETE_THUD -> {
                 // Delete / Dismiss confirmation: Heavy dampening thud
-                val hasLowTick = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                        isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
+                val hasLowTick = isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
 
                 if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_THUD) && hasLowTick) {
                     composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.85f * scale)
@@ -444,9 +435,7 @@ class PixelHapticEngine(private val context: Context) {
             }
 
             PixelHapticType.SEGMENT_SWITCH -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
-                ) {
+                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)) {
                     composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.50f * scale)
                     return composition.compose()
                 } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
@@ -472,9 +461,7 @@ class PixelHapticEngine(private val context: Context) {
 
             PixelHapticType.SLIDER_DETENT -> {
                 val tickScale = (0.30f * scale).coerceIn(0.1f, 1.0f)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
-                ) {
+                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)) {
                     composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, tickScale)
                     return composition.compose()
                 } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
@@ -495,9 +482,7 @@ class PixelHapticEngine(private val context: Context) {
 
             PixelHapticType.PREDICTIVE_BACK_PROGRESS -> {
                 val progressScale = (0.20f + 0.60f * scale).coerceIn(0.1f, 1.0f)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
-                ) {
+                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)) {
                     composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, progressScale)
                     return composition.compose()
                 } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
@@ -517,11 +502,11 @@ class PixelHapticEngine(private val context: Context) {
             PixelHapticType.HEAVY_IMPACT, PixelHapticType.DELETE_THUD ->
                 HapticFeedbackConstants.LONG_PRESS
             PixelHapticType.CONFIRM ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.KEYBOARD_TAP
+                HapticFeedbackConstants.CONFIRM
             PixelHapticType.REJECT ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.REJECT else HapticFeedbackConstants.LONG_PRESS
+                HapticFeedbackConstants.REJECT
             PixelHapticType.GESTURE_THRESHOLD ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE else HapticFeedbackConstants.CLOCK_TICK
+                HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE
             PixelHapticType.REORDER_SWAP ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.DRAG_START else HapticFeedbackConstants.KEYBOARD_TAP
             PixelHapticType.TOGGLE_ON ->
@@ -559,9 +544,7 @@ class PixelHapticEngine(private val context: Context) {
 
         if (vibrator != null && vibrator.hasVibrator()) {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
-                ) {
+                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)) {
                     val composition = VibrationEffect.startComposition()
                     composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 1.0f)
                     vibrateWithAttributes(composition.compose())

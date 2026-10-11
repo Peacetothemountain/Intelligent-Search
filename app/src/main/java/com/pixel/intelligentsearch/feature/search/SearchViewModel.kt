@@ -452,7 +452,7 @@ class SearchViewModel @Inject constructor(
                         directActions.add(DirectAction("Set Alarm", String.format(java.util.Locale.getDefault(), "%02d:%02d - %s", intent.hour, intent.minute, intent.message), "alarm", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Timer -> {
-                        directActions.add(DirectAction("Set Timer", "${intent.durationSeconds}s ${intent.label}".trim(), "timer", intent.intent))
+                        directActions.add(DirectAction("Set Timer", intent.label, "timer", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Reminder -> {
                         directActions.add(DirectAction("Set Reminder", intent.task, "calendar", intent.intent))

@@ -73,7 +73,7 @@ object DynamicThemeDetector {
     var onThemeChangedCallback: ((Context) -> Unit)? = null
 
     private fun tryRegisterContentObserver(context: Context) {
-        if (isObserverRegistered || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        if (isObserverRegistered) return
         try {
             val appContext = context.applicationContext ?: context
             val cr = appContext.contentResolver ?: return
@@ -153,10 +153,7 @@ object DynamicThemeDetector {
     }
 
     private fun computeThemeState(context: Context): ThemeState {
-        // 1. Minimum OS Requirement: Monet was introduced in Android 12 (API 31)
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            return ThemeState.UNSUPPORTED
-        }
+        // Monet (API 31) is always available because it is the minSdk.
 
         // 2. Google Material Components compatibility check
         // Validates known OEM brand implementations on API 31/32 and universal support on API 33+
@@ -278,7 +275,7 @@ object DynamicThemeDetector {
                 return@synchronized lockedCached
             }
 
-            val dynamicScheme: ColorScheme? = if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val dynamicScheme: ColorScheme? = if (isDynamicActive) {
                 try {
                     if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
                 } catch (_: Throwable) {
@@ -287,7 +284,7 @@ object DynamicThemeDetector {
             } else null
 
             val p = dynamicScheme?.primary?.toArgb() ?: (
-                if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (isDynamicActive) {
                     try { context.getColor(android.R.color.system_accent1_500) } catch (_: Throwable) { if (isDark) 0xFF8AB4F8.toInt() else 0xFF1973E8.toInt() }
                 } else {
                     if (isDark) 0xFF8AB4F8.toInt() else 0xFF1973E8.toInt()
@@ -295,7 +292,7 @@ object DynamicThemeDetector {
             )
 
             val s = dynamicScheme?.secondary?.toArgb() ?: (
-                if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (isDynamicActive) {
                     try { context.getColor(android.R.color.system_accent2_500) } catch (_: Throwable) { if (isDark) 0xFFBDC1C6.toInt() else 0xFF5F6368.toInt() }
                 } else {
                     if (isDark) 0xFFBDC1C6.toInt() else 0xFF5F6368.toInt()
@@ -303,7 +300,7 @@ object DynamicThemeDetector {
             )
 
             val t = dynamicScheme?.tertiary?.toArgb() ?: (
-                if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (isDynamicActive) {
                     try { context.getColor(android.R.color.system_accent3_500) } catch (_: Throwable) { if (isDark) 0xFF81C995.toInt() else 0xFF188038.toInt() }
                 } else {
                     if (isDark) 0xFF81C995.toInt() else 0xFF188038.toInt()
@@ -311,7 +308,7 @@ object DynamicThemeDetector {
             )
 
             val primaryContainer = dynamicScheme?.primaryContainer?.toArgb() ?: (
-                if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (isDynamicActive) {
                     try {
                         if (isDark) context.getColor(android.R.color.system_accent1_800) else context.getColor(android.R.color.system_accent1_200)
                     } catch (_: Throwable) {
@@ -324,13 +321,9 @@ object DynamicThemeDetector {
 
             val surfaceContainer = if (isDynamicActive) {
                 dynamicScheme?.surfaceContainer?.toArgb() ?: (
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        try {
-                            if (isDark) context.getColor(android.R.color.system_neutral1_800) else context.getColor(android.R.color.system_neutral1_100)
-                        } catch (_: Throwable) {
-                            if (isDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
-                        }
-                    } else {
+                    try {
+                        if (isDark) context.getColor(android.R.color.system_neutral1_800) else context.getColor(android.R.color.system_neutral1_100)
+                    } catch (_: Throwable) {
                         if (isDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
                     }
                 )

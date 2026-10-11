@@ -138,7 +138,6 @@ class SearchBangManager @Inject constructor(
     }
 
     private fun getSafeContext(): Context {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return context
         val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
         val isUnlocked = userManager?.isUserUnlocked ?: true
         return if (!isUnlocked && !context.isDeviceProtectedStorage) {

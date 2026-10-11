@@ -484,7 +484,11 @@ fun SearchOverlayScreen(
         if (uiState.query.isNotEmpty()) {
             hasStartedTyping = true
         }
-        if (uiState.query != textFieldValue.text) {
+        // uiState reaches composition asynchronously, so while typing it can still hold the query from a
+        // few keystrokes ago. Adopting that stale echo overwrote the field and dropped characters; only
+        // a value that is still the ViewModel's current query (an external change such as a clear,
+        // bang chip or voice result) may replace what the user typed.
+        if (uiState.query != textFieldValue.text && uiState.query == viewModel.uiState.value.query) {
             val safeStart = textFieldValue.selection.start.coerceIn(0, uiState.query.length)
             val safeEnd = textFieldValue.selection.end.coerceIn(0, uiState.query.length)
             textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
@@ -2330,7 +2334,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchShortcuts && uiState.shortcuts.isNotEmpty()) {
-                items(uiState.shortcuts, key = { shortcut -> "shortcut_${shortcut.packageName}_${shortcut.id}" }, contentType = { "app_shortcut" }) { shortcut ->
+                items(uiState.shortcuts, key = { shortcut -> "shortcut_${shortcut.packageName}_${shortcut.id}_${shortcut.userHandle.hashCode()}" }, contentType = { "app_shortcut" }) { shortcut ->
                     Row(
                         modifier = Modifier.fillMaxWidth().expressiveRowClickable {
                             hasStartedTyping = false

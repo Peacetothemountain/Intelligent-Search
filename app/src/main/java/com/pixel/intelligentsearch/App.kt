@@ -43,11 +43,7 @@ class App : Application() {
             try {
                 val sw = StringWriter()
                 throwable.printStackTrace(PrintWriter(sw))
-                val deContext = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                    createDeviceProtectedStorageContext()
-                } else {
-                    this
-                }
+                val deContext = createDeviceProtectedStorageContext()
                 val dir = deContext.filesDir
                 val file = File(dir, "crash_log.txt")
                 file.writeText(sw.toString())

@@ -154,12 +154,7 @@ class BackupManager @Inject constructor(
         }
 
         val currentVersionCode = try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
-            } else {
-                @Suppress("DEPRECATION")
-                context.packageManager.getPackageInfo(context.packageName, 0).versionCode
-            }
+            context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
         } catch (_: Throwable) { 96 }
 
         BackupContentPayload(

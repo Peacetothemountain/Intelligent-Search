@@ -137,12 +137,8 @@ class SearchTileService : TileService() {
             defaultSubtitle
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            tile.subtitle = subtitle
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            tile.stateDescription = subtitle
-        }
+        tile.subtitle = subtitle
+        tile.stateDescription = subtitle
 
         tile.updateTile()
     }

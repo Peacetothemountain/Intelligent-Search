@@ -202,7 +202,7 @@ fun IntelligentSearchTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val isDynamicActive = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val isDynamicActive = dynamicColor
 
     val baseColorScheme = when {
         isDynamicActive -> {

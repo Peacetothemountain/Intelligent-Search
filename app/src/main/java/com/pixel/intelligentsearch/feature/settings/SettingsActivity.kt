@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
@@ -11,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.pixel.intelligentsearch.core.navigation.Route
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.settings.SettingsScreensHub
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
@@ -23,6 +25,8 @@ class SettingsActivity : AppCompatActivity() {
         private const val ROLE_SEARCH_ENGINE = "android.app.role.SEARCH_ENGINE"
     }
 
+    var isExitingToHome: Boolean = false
+
     private val requestRoleLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -34,6 +38,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     fun requestSearchEngineRole() {
+        com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             val roleManager = getSystemService(android.app.role.RoleManager::class.java)
             if (roleManager != null && roleManager.isRoleAvailable(ROLE_SEARCH_ENGINE)) {
@@ -50,6 +55,9 @@ class SettingsActivity : AppCompatActivity() {
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         super.onCreate(savedInstanceState)
+
+        // Ensure user_setup_search_engine bypasses QPR2 allowlist restriction
+        com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this)
 
         // Android 17 QPR2 native ROLE_SEARCH_ENGINE request
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
@@ -88,10 +96,18 @@ class SettingsActivity : AppCompatActivity() {
                 android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
             )
         }
-        val resultValue = android.content.Intent().putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        setResult(RESULT_OK, resultValue)
+        val isWidgetConfigure = intent.action == android.appwidget.AppWidgetManager.ACTION_APPWIDGET_CONFIGURE ||
+                appWidgetId != android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
+        if (isWidgetConfigure) {
+            val resultValue = android.content.Intent().putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            setResult(RESULT_OK, resultValue)
+        }
 
-        val screen = intent.getStringExtra("extra_screen") ?: "main"
+        val initialRoute = if (isWidgetConfigure && intent.getStringExtra("extra_screen") == null) {
+            Route.WidgetCustomization
+        } else {
+            Route.fromKey(intent.getStringExtra("extra_screen"))
+        }
         val fromSearchOverlay = intent.getBooleanExtra("FROM_SEARCH_OVERLAY", false)
 
         setContent {
@@ -129,11 +145,30 @@ class SettingsActivity : AppCompatActivity() {
                             com.pixel.intelligentsearch.feature.settings.LocalSettingsState provides settingsState
                         ) {
                             SettingsScreensHub(
-                                initialScreen = screen,
+                                initialRoute = initialRoute,
                                 fromSearchOverlay = fromSearchOverlay,
                                 prefs = prefs,
                                 onBackToLauncher = {
-                                    finish()
+                                    val isBackToOverlay = prefs.getBoolean("settings_back_to_search_overlay", true)
+                                    if (isBackToOverlay) {
+                                        if (isTaskRoot || !fromSearchOverlay) {
+                                            val searchIntent = Intent(this@SettingsActivity, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java).apply {
+                                                putExtra("FROM_BACK_SWIPE", true)
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                            }
+                                            startActivity(searchIntent)
+                                        }
+                                        finish()
+                                    } else {
+                                        isExitingToHome = true
+                                        sendBroadcast(Intent("com.pixel.intelligentsearch.DISMISS_OVERLAY").setPackage(packageName))
+                                        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                                            addCategory(Intent.CATEGORY_HOME)
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                        }
+                                        startActivity(homeIntent)
+                                        finishAffinity()
+                                    }
                                 },
                                 context = this@SettingsActivity
                             )
@@ -154,6 +189,15 @@ class SettingsActivity : AppCompatActivity() {
     }
     override fun finish() {
         super.finish()
+        if (isExitingToHome) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+            } else {
+                @Suppress("DEPRECATION")
+                overridePendingTransition(0, 0)
+            }
+            return
+        }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(
                 OVERRIDE_TRANSITION_CLOSE,

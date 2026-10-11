@@ -17,14 +17,11 @@
 }
 
 # Titan M3+ Hardware Security, Keystore & Biometrics
--keep class com.pixel.intelligentsearch.core.security.** { *; }
+-keep,allowobfuscation class com.pixel.intelligentsearch.core.security.** { *; }
 
 # Kotlin Serialization
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.SerializationKt
--keepclassmembers class * {
-    *** Companion;
-}
 -keepclasseswithmembers class * {
     kotlinx.serialization.KSerializer serializer(...);
 }
@@ -38,15 +35,18 @@
 
 # Jetpack Compose Navigation & Destinations
 -keepnames class androidx.navigation.compose.** { *; }
--keep class com.pixel.intelligentsearch.core.navigation.** { *; }
--keepnames class com.pixel.intelligentsearch.core.navigation.** { *; }
--keepclassmembers class com.pixel.intelligentsearch.core.navigation.** { *; }
+-keep,allowobfuscation class com.pixel.intelligentsearch.core.navigation.** { *; }
 -keepclasseswithmembers class com.pixel.intelligentsearch.core.navigation.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
 
 # Room Database
--keep class * extends androidx.room.RoomDatabase
+-keep class * extends androidx.room.RoomDatabase {
+    <init>();
+}
+-keep class * extends androidx.room.RoomDatabase_Impl {
+    <init>();
+}
 -dontwarn androidx.room.paging.**
 
 # Lottie Animations
@@ -78,4 +78,9 @@
 -keepclassmembers class * extends androidx.lifecycle.ViewModel {
     <init>(...);
 }
+
+# Android 14/15/16 Hidden APIs accessed safely via reflection
+-dontwarn android.content.pm.LauncherUserInfo
+-dontwarn android.os.UserProperties
+
 

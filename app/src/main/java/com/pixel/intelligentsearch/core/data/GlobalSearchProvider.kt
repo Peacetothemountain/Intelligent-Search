@@ -8,7 +8,13 @@ import android.content.Intent
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.CancellationSignal
+import android.os.Process
+import android.os.UserManager
 import android.provider.BaseColumns
+import android.util.Log
 import com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine
 import com.pixel.intelligentsearch.core.search.UnifiedSearchCoordinator
 import dagger.hilt.EntryPoint
@@ -25,12 +31,27 @@ interface GlobalSearchProviderEntryPoint {
 class GlobalSearchProvider : ContentProvider() {
 
     companion object {
+        private const val TAG = "GlobalSearchProvider"
         const val AUTHORITY = "com.pixel.intelligentsearch.globalsearch"
         val CONTENT_URI: Uri = Uri.parse("content://$AUTHORITY/search")
         private const val SEARCH_PATH = "search"
     }
 
     override fun onCreate(): Boolean = true
+
+    private fun getSafeContext(): Context? {
+        val ctx = context ?: return null
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !ctx.isDeviceProtectedStorage) {
+            val userManager = ctx.getSystemService(Context.USER_SERVICE) as? UserManager
+            if (userManager?.isUserUnlocked == false) {
+                ctx.createDeviceProtectedStorageContext()
+            } else {
+                ctx
+            }
+        } else {
+            ctx
+        }
+    }
 
     override fun query(
         uri: Uri,
@@ -39,14 +60,19 @@ class GlobalSearchProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
         sortOrder: String?
     ): Cursor {
-        return query(uri, projection, null, null)
+        val queryArgs = Bundle().apply {
+            if (selection != null) putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+            if (selectionArgs != null) putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs)
+            if (sortOrder != null) putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
+        }
+        return query(uri, projection, queryArgs, null)
     }
 
     override fun query(
         uri: Uri,
         projection: Array<out String>?,
-        queryArgs: android.os.Bundle?,
-        cancellationSignal: android.os.CancellationSignal?
+        queryArgs: Bundle?,
+        cancellationSignal: CancellationSignal?
     ): Cursor {
         val columns = arrayOf(
             BaseColumns._ID,
@@ -67,103 +93,23 @@ class GlobalSearchProvider : ContentProvider() {
         val queryTerm = rawQuery.replace("\u0000", "").trim().take(128)
         if (queryTerm.isBlank()) return cursor
 
+        val safeCtx = getSafeContext()
         val coordinator = try {
-            val ctx = context?.applicationContext
-            if (ctx != null) {
+            val appCtx = safeCtx?.applicationContext ?: safeCtx
+            if (appCtx != null) {
                 EntryPointAccessors.fromApplication(
-                    ctx,
+                    appCtx,
                     GlobalSearchProviderEntryPoint::class.java
                 ).unifiedSearchCoordinator()
             } else null
-        } catch (_: Exception) { null }
+        } catch (e: Exception) {
+            Log.w(TAG, "UnifiedSearchCoordinator entry point unavailable: ${e.message}")
+            null
+        }
 
         var rowId = 1L
 
-        if (coordinator != null && cancellationSignal?.isCanceled != true) {
-            val results = coordinator.executeSearchSync(queryTerm)
-
-            // 1. Math calculation result if available
-            results.mathResult?.let { math ->
-                val display = when (math) {
-                    is MathematicalExpressionEngine.MathEvaluationResult.Computation -> math.formattedResult
-                    is MathematicalExpressionEngine.MathEvaluationResult.UnitConversion -> math.formatted
-                    is MathematicalExpressionEngine.MathEvaluationResult.Bitwise -> "${math.decimalValue} (0x${math.hexValue})"
-                }
-                cursor.addRow(arrayOf<Any?>(
-                    rowId++,
-                    display,
-                    "Calculation = $display",
-                    "android.resource://${context?.packageName}/drawable/ic_search_lens_expressive",
-                    Intent.ACTION_VIEW,
-                    "intelligentsearch://search?q=${Uri.encode(display)}",
-                    display,
-                    "math:$display"
-                ))
-            }
-
-            // 2. Apps - In-memory intent synthesis to eliminate synchronous Binder IPC storm
-            for (app in results.apps) {
-                if (cancellationSignal?.isCanceled == true) break
-                val launchIntentUri = if (app.activityName != null) {
-                    "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;component=${app.packageName}/${app.activityName};end"
-                } else {
-                    "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${app.packageName};end"
-                }
-
-                cursor.addRow(arrayOf<Any?>(
-                    rowId++,
-                    app.name,
-                    "Application",
-                    "android.resource://${context?.packageName}/drawable/ic_search_lens_expressive",
-                    Intent.ACTION_VIEW,
-                    launchIntentUri,
-                    app.name,
-                    "app:${app.packageName}"
-                ))
-            }
-
-            // 3. Contacts (Strict caller validation preventing unauthorized contact leakage)
-            val caller = callingPackage
-            val isAuthorized = caller != null && (
-                caller == context?.packageName || 
-                context?.packageManager?.checkPermission(android.Manifest.permission.READ_CONTACTS, caller) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            )
-
-            if (isAuthorized) {
-                for (contact in results.contacts) {
-                    if (cancellationSignal?.isCanceled == true) break
-                    cursor.addRow(arrayOf<Any?>(
-                        rowId++,
-                        contact.name,
-                        contact.phoneNumber.ifBlank { "Contact" },
-                        "android.resource://${context?.packageName}/drawable/ic_search_lens_expressive",
-                        Intent.ACTION_VIEW,
-                        contact.lookupUri.ifBlank { "tel:${contact.phoneNumber}" },
-                        contact.name,
-                        "contact:${contact.name.hashCode()}"
-                    ))
-                }
-            }
-
-            // 4. App Shortcuts
-            for (shortcut in results.shortcuts) {
-                if (cancellationSignal?.isCanceled == true) break
-                val shortcutLaunchUri = "intent:#Intent;action=android.intent.action.MAIN;package=${shortcut.packageName};end"
-                cursor.addRow(arrayOf<Any?>(
-                    rowId++,
-                    shortcut.shortLabel,
-                    shortcut.longLabel.ifBlank { "Shortcut" },
-                    "android.resource://${context?.packageName}/drawable/ic_search_lens_expressive",
-                    Intent.ACTION_VIEW,
-                    shortcutLaunchUri,
-                    shortcut.shortLabel,
-                    "shortcut:${shortcut.packageName}/${shortcut.id}"
-                ))
-            }
-        }
-
-        // 5. Dynamic Autocomplete Suggestions & Web Search for Pixel Launcher
-        val prefs = context?.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val prefs = safeCtx?.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
         val suggestionsEnabled = prefs?.getBoolean("search.web.suggestions", true) ?: true
         val engine = prefs?.getString("search.engine", "Google") ?: "Google"
         val customUrl = prefs?.getString("custom_search_engine_url", "") ?: ""
@@ -174,7 +120,7 @@ class GlobalSearchProvider : ContentProvider() {
             isTorEngine -> "Tor"
             engine == "DuckDuckGo" -> "DuckDuckGo"
             engine == "Bing" -> "Bing"
-            isCustomEngine -> if (customUrl.isNotBlank()) "Web" else "Web"
+            isCustomEngine -> "Web"
             else -> "Google"
         }
 
@@ -202,35 +148,135 @@ class GlobalSearchProvider : ContentProvider() {
             }
         }
 
-        // Check in-memory cache first (< 0.1ms). For Tor, Custom engines, or when web suggestions are disabled, suppress remote suggestions completely.
-        val suggestions = if (isTorEngine || isCustomEngine || !suggestionsEnabled) {
-            emptyList()
-        } else {
-            val cached = WebSearchProvider.getCachedSuggestions(queryTerm, engine)
-            cached ?: WebSearchProvider.getWebSuggestionsSync(queryTerm, engine, timeoutMs = 80)
-        }
-        for (suggestion in suggestions.take(5)) {
-            val suggestUrl = buildWebSearchUrl(suggestion)
-            cursor.addRow(arrayOf<Any?>(
-                rowId++,
-                suggestion,
-                "$providerName Search",
-                "android.resource://${context?.packageName}/drawable/ic_search_lens_expressive",
-                Intent.ACTION_VIEW,
-                suggestUrl,
-                suggestion,
-                "suggest:${suggestion.hashCode()}"
-            ))
+        try {
+            if (coordinator != null && cancellationSignal?.isCanceled != true) {
+                val results = coordinator.executeSearchSync(queryTerm)
+
+                // 1. Math calculation result if available
+                results.mathResult?.let { math ->
+                    val display = when (math) {
+                        is MathematicalExpressionEngine.MathEvaluationResult.Computation -> math.formattedResult
+                        is MathematicalExpressionEngine.MathEvaluationResult.UnitConversion -> math.formatted
+                        is MathematicalExpressionEngine.MathEvaluationResult.Bitwise -> "${math.decimalValue} (${math.hexValue})"
+                    }
+                    cursor.addRow(arrayOf<Any?>(
+                        rowId++,
+                        display,
+                        "Calculation = $display",
+                        "android.resource://${safeCtx?.packageName}/drawable/ic_search_lens_expressive",
+                        Intent.ACTION_VIEW,
+                        buildWebSearchUrl(display),
+                        display,
+                        "math:$display"
+                    ))
+                }
+
+                // 2. Apps - In-memory intent synthesis
+                for (app in results.apps) {
+                    if (cancellationSignal?.isCanceled == true) break
+                    val launchIntentUri = if (app.activityName != null) {
+                        "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;component=${app.packageName}/${app.activityName};end"
+                    } else {
+                        "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${app.packageName};end"
+                    }
+
+                    cursor.addRow(arrayOf<Any?>(
+                        rowId++,
+                        app.name,
+                        "Application",
+                        "android.resource://${safeCtx?.packageName}/drawable/ic_search_lens_expressive",
+                        Intent.ACTION_VIEW,
+                        launchIntentUri,
+                        app.name,
+                        "app:${app.packageName}"
+                    ))
+                }
+
+                // 3. Contacts (Strict caller validation preventing unauthorized contact leakage)
+                val callingUid = android.os.Binder.getCallingUid()
+                val myUid = Process.myUid()
+                val isAuthorized = if (safeCtx == null || safeCtx.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    false
+                } else if (callingUid == myUid || callingUid == Process.SYSTEM_UID) {
+                    true
+                } else {
+                    val callPkg = try { callingPackage } catch (_: Exception) { null }
+                    if (callPkg != null) {
+                        androidx.core.content.PermissionChecker.checkCallingPermission(
+                            safeCtx,
+                            android.Manifest.permission.READ_CONTACTS,
+                            callPkg
+                        ) == androidx.core.content.PermissionChecker.PERMISSION_GRANTED
+                    } else {
+                        safeCtx.checkCallingPermission(android.Manifest.permission.READ_CONTACTS) == 
+                            android.content.pm.PackageManager.PERMISSION_GRANTED
+                    }
+                }
+
+                if (isAuthorized) {
+                    for (contact in results.contacts) {
+                        if (cancellationSignal?.isCanceled == true) break
+                        cursor.addRow(arrayOf<Any?>(
+                            rowId++,
+                            contact.name,
+                            contact.phoneNumber.ifBlank { "Contact" },
+                            "android.resource://${safeCtx?.packageName}/drawable/ic_search_lens_expressive",
+                            Intent.ACTION_VIEW,
+                            contact.lookupUri.ifBlank { "tel:${contact.phoneNumber}" },
+                            contact.name,
+                            "contact:${contact.name.hashCode()}"
+                        ))
+                    }
+                }
+
+                // 4. App Shortcuts
+                for (shortcut in results.shortcuts) {
+                    if (cancellationSignal?.isCanceled == true) break
+                    val shortcutLaunchUri = "intent:#Intent;action=android.intent.action.MAIN;package=${shortcut.packageName};end"
+                    cursor.addRow(arrayOf<Any?>(
+                        rowId++,
+                        shortcut.shortLabel,
+                        shortcut.longLabel.ifBlank { "Shortcut" },
+                        "android.resource://${safeCtx?.packageName}/drawable/ic_search_lens_expressive",
+                        Intent.ACTION_VIEW,
+                        shortcutLaunchUri,
+                        shortcut.shortLabel,
+                        "shortcut:${shortcut.packageName}/${shortcut.id}"
+                    ))
+                }
+            }
+
+            // 5. Dynamic Autocomplete Suggestions
+            val suggestions = if (isTorEngine || isCustomEngine || !suggestionsEnabled) {
+                emptyList()
+            } else {
+                WebSearchProvider.getCachedSuggestions(queryTerm, engine) ?: emptyList()
+            }
+            for (suggestion in suggestions.take(5)) {
+                val suggestUrl = buildWebSearchUrl(suggestion)
+                cursor.addRow(arrayOf<Any?>(
+                    rowId++,
+                    suggestion,
+                    "$providerName Search",
+                    "android.resource://${safeCtx?.packageName}/drawable/ic_search_lens_expressive",
+                    Intent.ACTION_VIEW,
+                    suggestUrl,
+                    suggestion,
+                    "suggest:${suggestion.hashCode()}"
+                ))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error generating search suggestions in GlobalSearchProvider", e)
         }
 
-        // 6. Web Search Fallback Row
+        // 6. Web Search Fallback Row (Always present as guaranteed fallback)
         val searchUrl = buildWebSearchUrl(queryTerm)
         val encodedQuery = Uri.encode(queryTerm)
         cursor.addRow(arrayOf<Any?>(
             rowId++,
             "Search $providerName for '$queryTerm'",
             "$providerName Search",
-            "android.resource://${context?.packageName}/drawable/ic_search_lens_expressive",
+            "android.resource://${safeCtx?.packageName}/drawable/ic_search_lens_expressive",
             Intent.ACTION_VIEW,
             searchUrl,
             queryTerm,

@@ -65,6 +65,19 @@ class ADPFThermalManager(private val context: Context) {
 
     private var powerSaveReceiver: BroadcastReceiver? = null
 
+    // Level reported by the thermal service, before the battery-saver floor is applied. Keeping it
+    // separate stops each headroom poll from resetting the published level to the raw value and the
+    // mitigation pass from immediately raising it again.
+    @Volatile
+    private var rawThrottleLevel = ThermalThrottleLevel.NORMAL
+
+    private val headroomPoll = object : Runnable {
+        override fun run() {
+            updateThermalHeadroom()
+            monitorHandler.postDelayed(this, HEADROOM_POLL_INTERVAL_MS)
+        }
+    }
+
     private val thermalStatusListener: PowerManager.OnThermalStatusChangedListener? by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             PowerManager.OnThermalStatusChangedListener { status ->
@@ -78,6 +91,8 @@ class ADPFThermalManager(private val context: Context) {
     init {
         registerThermalListeners()
         initHintSession(targetFps = 120)
+        // Applies the battery-saver floor straight away instead of waiting for the first thermal event.
+        applyThermalMitigations()
     }
 
     private fun registerThermalListeners() {
@@ -92,7 +107,7 @@ class ADPFThermalManager(private val context: Context) {
             val filter = IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
-                    applyThermalMitigations(_thermalThrottleLevel.value)
+                    applyThermalMitigations()
                 }
             }
             powerSaveReceiver = receiver
@@ -103,17 +118,19 @@ class ADPFThermalManager(private val context: Context) {
                 ContextCompat.RECEIVER_NOT_EXPORTED
             )
         } catch (_: Throwable) {}
-        // Kick off periodic headroom query on the monitor thread
-        scheduleHeadroomPoll()
     }
 
-    private fun scheduleHeadroomPoll() {
-        monitorHandler.postDelayed(object : Runnable {
-            override fun run() {
-                updateThermalHeadroom()
-                monitorHandler.postDelayed(this, HEADROOM_POLL_INTERVAL_MS)
-            }
-        }, HEADROOM_POLL_INTERVAL_MS)
+    /**
+     * Polls thermal headroom while the overlay is visible. The thermal status listener keeps working
+     * in the background, so polling is only needed for the finer-grained headroom signal on screen.
+     */
+    fun startHeadroomMonitoring() {
+        monitorHandler.removeCallbacks(headroomPoll)
+        monitorHandler.post(headroomPoll)
+    }
+
+    fun stopHeadroomMonitoring() {
+        monitorHandler.removeCallbacks(headroomPoll)
     }
 
     /**
@@ -185,7 +202,9 @@ class ADPFThermalManager(private val context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && totalDurationNanos > 0) {
             val session = hintSession as? PerformanceHintManager.Session ?: return
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && gpuDurationNanos > 0L) {
+                // WorkDuration and Session.reportActualWorkDuration(WorkDuration) were added in API 35. Guarding
+                // on API 34 would throw NoClassDefFoundError on every frame report on Android 14.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM && gpuDurationNanos > 0L) {
                     val cpuDurationNanos = (totalDurationNanos - gpuDurationNanos).coerceAtLeast(0L)
                     val workDuration = android.os.WorkDuration().apply {
                         this.actualTotalDurationNanos = totalDurationNanos
@@ -271,9 +290,9 @@ class ADPFThermalManager(private val context: Context) {
             headroom >= 0.75f -> ThermalThrottleLevel.LIGHT
             else -> ThermalThrottleLevel.NORMAL
         }
-        if (_thermalThrottleLevel.value != newLevel) {
-            _thermalThrottleLevel.value = newLevel
-            applyThermalMitigations(newLevel)
+        if (rawThrottleLevel != newLevel) {
+            rawThrottleLevel = newLevel
+            applyThermalMitigations()
         }
     }
 
@@ -292,21 +311,22 @@ class ADPFThermalManager(private val context: Context) {
         } else {
             ThermalThrottleLevel.NORMAL
         }
-        if (_thermalThrottleLevel.value != newLevel) {
-            _thermalThrottleLevel.value = newLevel
-            applyThermalMitigations(newLevel)
+        if (rawThrottleLevel != newLevel) {
+            rawThrottleLevel = newLevel
+            applyThermalMitigations()
         }
     }
 
-    private fun applyThermalMitigations(level: ThermalThrottleLevel) {
+    @Synchronized
+    private fun applyThermalMitigations() {
+        val level = rawThrottleLevel
         val effectiveLevel = if (powerManager?.isPowerSaveMode == true && level < ThermalThrottleLevel.SEVERE) {
             ThermalThrottleLevel.SEVERE
         } else {
             level
         }
-        if (_thermalThrottleLevel.value != effectiveLevel) {
-            _thermalThrottleLevel.value = effectiveLevel
-        }
+        if (_thermalThrottleLevel.value == effectiveLevel) return
+        _thermalThrottleLevel.value = effectiveLevel
         Log.i(TAG, "Thermal mitigation transition: $effectiveLevel (effective, requested=$level, headroom=${_thermalHeadroom.value})")
         when (effectiveLevel) {
             ThermalThrottleLevel.NORMAL -> {

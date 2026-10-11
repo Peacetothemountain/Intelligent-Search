@@ -30,6 +30,20 @@ class RadixTreeIndex<T> {
         val isTerminal: Boolean
             get() = values.isNotEmpty()
 
+        /**
+         * Stores [value] on this node. If an equal element is already present it is replaced by the
+         * new instance, so re-indexing an entity (same identity, updated payload) never leaves a stale
+         * copy behind. Returns true only when the value was not present before.
+         */
+        fun putValue(value: T): Boolean {
+            val isNew = values.add(value)
+            if (!isNew) {
+                values.remove(value)
+                values.add(value)
+            }
+            return isNew
+        }
+
         fun findChildByFirstChar(ch: Char): RadixNode<T>? {
             for (i in 0 until children.size) {
                 val child = children[i]
@@ -76,6 +90,25 @@ class RadixTreeIndex<T> {
         }
     }
 
+    /**
+     * Atomically swaps the entire index contents for [items] under a single write lock, so concurrent
+     * readers observe either the complete old index or the complete new one, never an empty or
+     * half-built state.
+     */
+    fun replaceAll(items: List<Pair<String, T>>) {
+        lock.write {
+            root.children.clear()
+            root.values.clear()
+            totalEntries = 0
+            for (item in items) {
+                val key = item.first.trim().lowercase(java.util.Locale.ROOT)
+                if (key.isNotEmpty()) {
+                    insertInternal(key, item.second)
+                }
+            }
+        }
+    }
+
     private fun insertInternal(key: String, value: T) {
         var currentNode = root
         var remainingKey = key
@@ -87,9 +120,10 @@ class RadixTreeIndex<T> {
             if (child == null) {
                 // No matching branch: create a new edge containing all remaining characters
                 val newNode = RadixNode<T>(edge = remainingKey)
-                newNode.values.add(value)
+                if (newNode.values.add(value)) {
+                    totalEntries++
+                }
                 currentNode.children.add(newNode)
-                totalEntries++
                 return
             }
 
@@ -101,8 +135,9 @@ class RadixTreeIndex<T> {
                 currentNode = child
                 if (remainingKey.isEmpty()) {
                     // Reached terminal position
-                    child.values.add(value)
-                    totalEntries++
+                    if (child.putValue(value)) {
+                        totalEntries++
+                    }
                     return
                 }
             } else {
@@ -125,14 +160,17 @@ class RadixTreeIndex<T> {
 
                 if (newEdgeSuffix.isEmpty()) {
                     // The key ends at this split node
-                    child.values.add(value)
+                    if (child.putValue(value)) {
+                        totalEntries++
+                    }
                 } else {
                     // Create a second child for the new suffix
                     val newLeaf = RadixNode<T>(edge = newEdgeSuffix)
-                    newLeaf.values.add(value)
+                    if (newLeaf.values.add(value)) {
+                        totalEntries++
+                    }
                     child.children.add(newLeaf)
                 }
-                totalEntries++
                 return
             }
         }
@@ -197,6 +235,7 @@ class RadixTreeIndex<T> {
         return lock.read {
             val results = mutableListOf<FuzzyMatchResult<T>>()
             val initialRow = IntArray(query.length + 1) { it }
+            val candidateCap = maxOf(limit * 5, 200)
 
             for (child in root.children) {
                 searchFuzzyRecursive(
@@ -205,12 +244,20 @@ class RadixTreeIndex<T> {
                     previousRow = initialRow,
                     currentKeyPath = StringBuilder(),
                     maxDistance = maxDistance,
-                    limit = limit * 2,
+                    candidateCap = candidateCap,
                     results = results
                 )
+                if (results.size >= candidateCap) break
             }
 
-            results.sortedBy { it.distance }.take(limit)
+            val bestResults = LinkedHashMap<T, FuzzyMatchResult<T>>()
+            for (res in results) {
+                val existing = bestResults[res.value]
+                if (existing == null || res.distance < existing.distance) {
+                    bestResults[res.value] = res
+                }
+            }
+            bestResults.values.sortedBy { it.distance }.take(limit)
         }
     }
 
@@ -220,7 +267,7 @@ class RadixTreeIndex<T> {
         previousRow: IntArray,
         currentKeyPath: StringBuilder,
         maxDistance: Int,
-        limit: Int,
+        candidateCap: Int,
         results: MutableList<FuzzyMatchResult<T>>
     ) {
         val pathLengthBefore = currentKeyPath.length
@@ -255,7 +302,7 @@ class RadixTreeIndex<T> {
                 val matchedKey = currentKeyPath.toString()
                 for (value in node.values) {
                     results.add(FuzzyMatchResult(value, finalDistance, matchedKey))
-                    if (results.size >= limit) {
+                    if (results.size >= candidateCap) {
                         currentKeyPath.setLength(pathLengthBefore)
                         return
                     }
@@ -269,10 +316,10 @@ class RadixTreeIndex<T> {
                     previousRow = currentRow,
                     currentKeyPath = currentKeyPath,
                     maxDistance = maxDistance,
-                    limit = limit,
+                    candidateCap = candidateCap,
                     results = results
                 )
-                if (results.size >= limit) break
+                if (results.size >= candidateCap) break
             }
         }
 

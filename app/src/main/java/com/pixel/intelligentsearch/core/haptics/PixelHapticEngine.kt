@@ -31,7 +31,14 @@ enum class PixelHapticType {
     DELETE_THUD,
     SCROLL_DETENT,
     MAGNETIC_RESISTANCE,
-    SPRING_RELEASE
+    SPRING_RELEASE,
+    // Material 3 Expressive semantic tactile profiles (Android 17 Canary ZP11)
+    SEARCH_RESULT_COMMIT,
+    SEGMENT_SWITCH,
+    EXPAND_COLLAPSE,
+    SLIDER_DETENT,
+    WARP_SPEED,
+    PREDICTIVE_BACK_PROGRESS
 }
 
 /**
@@ -67,19 +74,29 @@ class PixelHapticEngine(private val context: Context) {
         context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     }
 
+    /**
+     * VibrationAttributes and Vibrator.vibrate(VibrationEffect, VibrationAttributes) are API 33+.
+     * Resolved only behind an SDK check; on Android 12/12L the class does not exist, and touching it
+     * would raise NoClassDefFoundError, which `catch (Exception)` cannot intercept.
+     */
+    @get:androidx.annotation.RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private val touchVibrationAttributes: VibrationAttributes by lazy {
         VibrationAttributes.Builder()
             .setUsage(VibrationAttributes.USAGE_TOUCH)
             .build()
     }
 
-    // Cache primitive support matrix to avoid repeated IPC querying
-    private val primitiveSupportMap = mutableMapOf<Int, Boolean>()
+    // Thread-safe primitive support matrix to avoid repeated IPC querying & race conditions
+    private val primitiveSupportMap = java.util.concurrent.ConcurrentHashMap<Int, Boolean>()
 
     private fun isPrimitiveSupported(primitiveId: Int): Boolean {
         if (vibrator == null || !vibrator.hasVibrator()) return false
-        return primitiveSupportMap.getOrPut(primitiveId) {
-            vibrator.areAllPrimitivesSupported(primitiveId)
+        return primitiveSupportMap.computeIfAbsent(primitiveId) {
+            try {
+                vibrator.areAllPrimitivesSupported(primitiveId)
+            } catch (_: Throwable) {
+                false
+            }
         }
     }
 
@@ -101,6 +118,14 @@ class PixelHapticEngine(private val context: Context) {
      * Standardized to the subtle predictive back vibration across the entire application.
      */
     fun performHaptic(
+        type: PixelHapticType,
+        amplitudeScale: Float = 1.0f,
+        velocity: Float = 0f
+    ) {
+        performHaptic(view = null, type = type, amplitudeScale = amplitudeScale, velocity = velocity)
+    }
+
+    fun performHaptic(
         view: View? = null,
         type: PixelHapticType = PixelHapticType.LOW_TICK,
         amplitudeScale: Float = 1.0f,
@@ -121,7 +146,11 @@ class PixelHapticEngine(private val context: Context) {
 
     private fun vibrateWithAttributes(effect: VibrationEffect) {
         try {
-            vibrator?.vibrate(effect, touchVibrationAttributes)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                vibrator?.vibrate(effect, touchVibrationAttributes)
+            } else {
+                vibrator?.vibrate(effect)
+            }
         } catch (_: Exception) {
             try {
                 vibrator?.vibrate(effect)
@@ -397,6 +426,85 @@ class PixelHapticEngine(private val context: Context) {
                     return composition.compose()
                 }
             }
+
+            PixelHapticType.SEARCH_RESULT_COMMIT -> {
+                // Crisp dual-harmonic commit tick for launching instant query results
+                if (arePrimitivesSupported(
+                        VibrationEffect.Composition.PRIMITIVE_CLICK,
+                        VibrationEffect.Composition.PRIMITIVE_QUICK_FALL
+                    )
+                ) {
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.85f * scale)
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_QUICK_FALL, 0.40f * scale, 12)
+                    return composition.compose()
+                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_CLICK)) {
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.80f * scale)
+                    return composition.compose()
+                }
+            }
+
+            PixelHapticType.SEGMENT_SWITCH -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
+                ) {
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.50f * scale)
+                    return composition.compose()
+                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.40f * scale)
+                    return composition.compose()
+                }
+            }
+
+            PixelHapticType.EXPAND_COLLAPSE -> {
+                if (arePrimitivesSupported(
+                        VibrationEffect.Composition.PRIMITIVE_QUICK_RISE,
+                        VibrationEffect.Composition.PRIMITIVE_LOW_TICK
+                    )
+                ) {
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_QUICK_RISE, 0.45f * scale)
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.55f * scale, 15)
+                    return composition.compose()
+                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_CLICK)) {
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.60f * scale)
+                    return composition.compose()
+                }
+            }
+
+            PixelHapticType.SLIDER_DETENT -> {
+                val tickScale = (0.30f * scale).coerceIn(0.1f, 1.0f)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
+                ) {
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, tickScale)
+                    return composition.compose()
+                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, tickScale)
+                    return composition.compose()
+                }
+            }
+
+            PixelHapticType.WARP_SPEED -> {
+                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_SPIN)) {
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_SPIN, 0.40f * scale)
+                    return composition.compose()
+                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.35f * scale)
+                    return composition.compose()
+                }
+            }
+
+            PixelHapticType.PREDICTIVE_BACK_PROGRESS -> {
+                val progressScale = (0.20f + 0.60f * scale).coerceIn(0.1f, 1.0f)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
+                ) {
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, progressScale)
+                    return composition.compose()
+                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, progressScale)
+                    return composition.compose()
+                }
+            }
         }
 
         return null
@@ -404,12 +512,28 @@ class PixelHapticEngine(private val context: Context) {
 
     private fun performViewFallback(view: View, type: PixelHapticType) {
         val feedbackConstant = when (type) {
-            PixelHapticType.CLICK, PixelHapticType.APP_LAUNCH -> HapticFeedbackConstants.KEYBOARD_TAP
-            PixelHapticType.HEAVY_IMPACT, PixelHapticType.DELETE_THUD -> HapticFeedbackConstants.LONG_PRESS
-            PixelHapticType.CONFIRM -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.KEYBOARD_TAP
-            PixelHapticType.REJECT -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.REJECT else HapticFeedbackConstants.LONG_PRESS
-            PixelHapticType.GESTURE_THRESHOLD -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE else HapticFeedbackConstants.CLOCK_TICK
-            else -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK
+            PixelHapticType.CLICK, PixelHapticType.APP_LAUNCH, PixelHapticType.SEARCH_RESULT_COMMIT ->
+                HapticFeedbackConstants.KEYBOARD_TAP
+            PixelHapticType.HEAVY_IMPACT, PixelHapticType.DELETE_THUD ->
+                HapticFeedbackConstants.LONG_PRESS
+            PixelHapticType.CONFIRM ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.KEYBOARD_TAP
+            PixelHapticType.REJECT ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.REJECT else HapticFeedbackConstants.LONG_PRESS
+            PixelHapticType.GESTURE_THRESHOLD ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE else HapticFeedbackConstants.CLOCK_TICK
+            PixelHapticType.REORDER_SWAP ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.DRAG_START else HapticFeedbackConstants.KEYBOARD_TAP
+            PixelHapticType.TOGGLE_ON ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) HapticFeedbackConstants.TOGGLE_ON else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.KEYBOARD_TAP
+            PixelHapticType.TOGGLE_OFF ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) HapticFeedbackConstants.TOGGLE_OFF else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.KEYBOARD_TAP
+            PixelHapticType.SEGMENT_SWITCH ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK
+            PixelHapticType.SLIDER_DETENT ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.SEGMENT_FREQUENT_TICK else HapticFeedbackConstants.CLOCK_TICK
+            else ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK
         }
         view.performHapticFeedback(feedbackConstant)
     }
@@ -424,7 +548,7 @@ class PixelHapticEngine(private val context: Context) {
             return
         }
 
-        val flags = HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+        val flags = HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING
         if (view != null) {
             try {
                 if (view.performHapticFeedback(HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE, flags)) {

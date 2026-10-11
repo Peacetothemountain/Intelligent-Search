@@ -94,4 +94,88 @@ class RadixTreeIndexTest {
         // Verify average lookup time is well below 1,000µs (1ms)
         assertTrue("Prefix lookup took ${avgMicroseconds}µs, expected < 1000µs", avgMicroseconds < 1000.0)
     }
+
+    @Test
+    fun testEmptyAndZeroIndexResilience() {
+        index.insert("", "Empty")
+        index.insert("   ", "Spaces")
+        assertEquals(0, index.size)
+
+        assertTrue(index.searchPrefix("").isEmpty())
+        assertTrue(index.searchPrefix("   ").isEmpty())
+        assertTrue(index.searchFuzzy("").isEmpty())
+    }
+
+    /** Equality on [id] only, mirroring how SearchItem identifies an entity independent of its payload. */
+    private class Entity(val id: String, val label: String) {
+        override fun equals(other: Any?) = other is Entity && other.id == id
+        override fun hashCode() = id.hashCode()
+    }
+
+    @Test
+    fun testReinsertReplacesStaleEqualValue() {
+        val tree = RadixTreeIndex<Entity>()
+        tree.insert("maps", Entity("app:maps", "Maps v1"))
+        tree.insert("maps", Entity("app:maps", "Maps v2"))
+        // Same key again through a split path and a descended path
+        tree.insert("map", Entity("app:maps", "Maps v2"))
+        tree.insert("mapsy", Entity("app:mapsy", "Mapsy"))
+        tree.insert("maps", Entity("app:maps", "Maps v3"))
+
+        val results = tree.searchPrefix("maps")
+        val maps = results.single { it.id == "app:maps" }
+        assertEquals("Maps v3", maps.label)
+        // Counting is by distinct (key, value) pairs: maps, map, mapsy
+        assertEquals(3, tree.size)
+    }
+
+    @Test
+    fun testReplaceAllSwapsContentsAtomically() {
+        index.insert("alpha", "A")
+        index.insert("beta", "B")
+
+        index.replaceAll(listOf("gamma" to "G", "  " to "ignored", "gam" to "G2"))
+
+        assertTrue(index.searchPrefix("alpha").isEmpty())
+        assertTrue(index.searchPrefix("beta").isEmpty())
+        assertEquals(setOf("G", "G2"), index.searchPrefix("gam").toSet())
+        assertEquals(2, index.size)
+
+        index.replaceAll(emptyList())
+        assertEquals(0, index.size)
+        assertTrue(index.searchPrefix("gam").isEmpty())
+    }
+
+    @Test
+    fun testConcurrentReadersNeverObserveEmptyIndexDuringReplaceAll() {
+        index.replaceAll((1..200).map { "app$it" to "v$it" })
+        val failed = java.util.concurrent.atomic.AtomicBoolean(false)
+        val stop = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        val readers = (1..3).map {
+            Thread {
+                while (!stop.get()) {
+                    if (index.searchPrefix("app", limit = 1).isEmpty()) failed.set(true)
+                }
+            }.also { it.start() }
+        }
+        repeat(200) { round ->
+            index.replaceAll((1..200).map { "app$it" to "r$round-$it" })
+        }
+        stop.set(true)
+        readers.forEach { it.join() }
+
+        assertFalse("A reader saw an empty index while replaceAll was running", failed.get())
+    }
+
+    @Test
+    fun testFuzzyDeduplication() {
+        index.insert("calculator", "CalcApp")
+        index.insert("calc", "CalcApp")
+        index.insert("calcapp", "CalcApp")
+
+        val results = index.searchFuzzy("cal", maxDistance = 2)
+        // CalcApp must appear exactly once despite matching multiple indexed keys
+        assertEquals(1, results.count { it.value == "CalcApp" })
+    }
 }

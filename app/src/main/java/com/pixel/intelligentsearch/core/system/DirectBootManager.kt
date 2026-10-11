@@ -1,9 +1,6 @@
 package com.pixel.intelligentsearch.core.system
 
 import android.content.Context
-import android.content.SharedPreferences
-import android.os.Build
-import android.os.Process
 import android.os.UserManager
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -15,31 +12,31 @@ import javax.inject.Singleton
 
 @Singleton
 class DirectBootManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) {
 
     companion object {
         private const val TAG = "DirectBootManager"
-        private const val PREFS_DIRECT_BOOT = "direct_boot_emergency_cache"
-        const val KEY_EMERGENCY_DATA_MIGRATED = "emergency_data_migrated"
     }
 
-    private val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
+    private val userManager = context.getSystemService(UserManager::class.java)
 
-    private val _isUserUnlocked = MutableStateFlow(checkIsUserUnlocked())
-    val isUserUnlocked: StateFlow<Boolean> = _isUserUnlocked.asStateFlow()
-
-    fun checkIsUserUnlocked(): Boolean {
+    private fun queryIsUserUnlocked(): Boolean {
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                userManager?.isUserUnlocked(Process.myUserHandle()) ?: true
-            } else {
-                true
-            }
+            userManager?.isUserUnlocked ?: true
         } catch (e: Exception) {
             Log.w(TAG, "Error checking isUserUnlocked, assuming unlocked", e)
             true
         }
+    }
+
+    private val _isUserUnlocked = MutableStateFlow(queryIsUserUnlocked())
+    val isUserUnlocked: StateFlow<Boolean> = _isUserUnlocked.asStateFlow()
+
+    fun checkIsUserUnlocked(): Boolean {
+        val unlocked = queryIsUserUnlocked()
+        _isUserUnlocked.value = unlocked
+        return unlocked
     }
 
     fun onUserUnlocked() {
@@ -49,19 +46,4 @@ class DirectBootManager @Inject constructor(
             Log.i(TAG, "Device Credential-Encrypted (CE) storage unlocked! Migrating or refreshing data.")
         }
     }
-
-    fun getDeviceProtectedContext(): Context {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            context.createDeviceProtectedStorageContext()
-        } else {
-            context
-        }
-    }
-
-    fun getDeviceProtectedPreferences(): SharedPreferences {
-        val dpContext = getDeviceProtectedContext()
-        return dpContext.getSharedPreferences(PREFS_DIRECT_BOOT, Context.MODE_PRIVATE)
-    }
-
-    fun isDirectBootActive(): Boolean = !_isUserUnlocked.value
 }

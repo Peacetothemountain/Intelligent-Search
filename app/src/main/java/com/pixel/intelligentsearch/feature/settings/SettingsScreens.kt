@@ -1,4 +1,9 @@
 package com.pixel.intelligentsearch.feature.settings
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.asComposePath
@@ -81,6 +86,7 @@ import androidx.compose.animation.*
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.NavDestination.Companion.hasRoute
 
 
 import androidx.compose.foundation.background
@@ -379,7 +385,7 @@ fun GeminiCornerSwipeWaveLayer(
         } else null
     }
 
-    if (shader != null) {
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && shader != null) {
         val brush = remember(shader) { androidx.compose.ui.graphics.ShaderBrush(shader) }
         var time by remember { mutableFloatStateOf(0f) }
         LaunchedEffect(Unit) {
@@ -486,6 +492,40 @@ fun getAlternatePreferenceKey(key: String): String? = when (key) {
     else -> null
 }
 
+/**
+ * Tracks the last DataStore value mirrored into a preference-backed state so that a stale
+ * settingsState emission (one that does not carry a new value for this key, or that still
+ * carries the pre-toggle value while our own write is in flight) never reverts a value the
+ * user just changed.
+ */
+private class DataStoreMirrorGuard<T : Any> {
+    private var lastSeen: T? = null
+    private var pending: T? = null
+    private var pendingAtMs: Long = 0L
+
+    fun onLocalWrite(value: T) {
+        pending = value
+        pendingAtMs = android.os.SystemClock.uptimeMillis()
+    }
+
+    /** Returns true when [dsValue] is a genuinely new DataStore value that should be applied. */
+    fun shouldApply(dsValue: T): Boolean {
+        val changed = lastSeen != dsValue
+        lastSeen = dsValue
+        if (!changed) return false
+        val expected = pending ?: return true
+        if (dsValue == expected) {
+            pending = null
+            return true
+        }
+        if (android.os.SystemClock.uptimeMillis() - pendingAtMs > 2000L) {
+            pending = null
+            return true
+        }
+        return false
+    }
+}
+
 private fun readBooleanPref(prefs: SharedPreferences, key: String, altKey: String?, fallback: Boolean): Boolean {
     return if (prefs.contains(key)) {
         prefs.getBoolean(key, fallback)
@@ -506,7 +546,9 @@ fun rememberBooleanPreference(
     val viewModel = LocalSettingsViewModel.current
     val settingsState = LocalSettingsState.current
     val altKey = remember(key) { getAlternatePreferenceKey(key) }
-    
+    val currentOnChanged by rememberUpdatedState(onChanged)
+    val currentViewModel by rememberUpdatedState(viewModel)
+
     val datastoreKey = when (key) {
         "search.apps" -> SettingsManager.SEARCH_APPS
         "search.contacts" -> SettingsManager.SEARCH_CONTACTS
@@ -541,6 +583,9 @@ fun rememberBooleanPreference(
         "search_overlay_enabled" -> SettingsManager.SEARCH_OVERLAY_ENABLED
         "matrix_animation_enabled" -> SettingsManager.MATRIX_ANIMATION_ENABLED
         "settings_back_to_search_overlay" -> SettingsManager.BACK_TO_SEARCH_OVERLAY
+        "never_show_icon_pack_warning" -> SettingsManager.NEVER_SHOW_ICON_PACK_WARNING
+        "dynamic_icon_masking" -> SettingsManager.DYNAMIC_ICON_MASKING
+        "diagnostics_overlay_enabled" -> SettingsManager.DIAGNOSTICS_OVERLAY_ENABLED
         "vibration_enabled" -> SettingsManager.VIBRATION
         else -> null
     }
@@ -549,6 +594,7 @@ fun rememberBooleanPreference(
         "settings.bottom.search", "settings.bottom.search.result" -> true
         else -> defaultValue
     }
+    val currentFallbackValue by rememberUpdatedState(fallbackValue)
 
     val initialValue = remember(key, prefs) {
         if (prefs.contains(key) || (altKey != null && prefs.contains(altKey))) {
@@ -588,40 +634,83 @@ fun rememberBooleanPreference(
                 "search_overlay_enabled" -> settingsState?.searchOverlayEnabled
                 "matrix_animation_enabled" -> settingsState?.matrixAnimationEnabled
                 "settings_back_to_search_overlay" -> settingsState?.backToSearchOverlay
+                "never_show_icon_pack_warning" -> settingsState?.neverShowIconPackWarning
+                "dynamic_icon_masking" -> settingsState?.dynamicIconMasking
+                "diagnostics_overlay_enabled" -> settingsState?.diagnosticsOverlayEnabled
                 "vibration_enabled" -> settingsState?.vibrationEnabled
                 else -> null
             }
-            val resolved = dsVal ?: fallbackValue
-            prefs.edit().apply {
-                putBoolean(key, resolved)
-                if (altKey != null) putBoolean(altKey, resolved)
-                apply()
-            }
-            resolved
+            dsVal ?: fallbackValue
         }
     }
 
-    val state = remember { mutableStateOf(initialValue) }
+    val state = remember(key, prefs) { mutableStateOf(initialValue) }
+    val dsGuard = remember(key, prefs) { DataStoreMirrorGuard<Boolean>() }
+
+    LaunchedEffect(settingsState, datastoreKey, key) {
+        if (datastoreKey != null && settingsState != null) {
+            val dsVal = when (key) {
+                "search.apps" -> settingsState.searchApps
+                "search.contacts" -> settingsState.searchContacts
+                "search.files" -> settingsState.searchFiles
+                "search.web" -> settingsState.searchWeb
+                "search.calculator" -> settingsState.searchCalculator
+                "search.calendar" -> settingsState.searchCalendar
+                "search.shortcuts" -> settingsState.searchShortcuts
+                "search.background.show.wall" -> settingsState.showWallpaper
+                "app_animations" -> settingsState.appAnimations
+                "settings.bottom.search" -> settingsState.bottomSearch
+                "settings.bottom.search.result" -> settingsState.bottomSearchResult
+                "g_icon_enabled" -> settingsState.gIconEnabled
+                "widget_show_voice" -> settingsState.widgetShowVoice
+                "widget_show_gemini" -> settingsState.widgetShowGemini
+                "quick_search_youtube" -> settingsState.quickSearchYoutube
+                "quick_search_wikipedia" -> settingsState.quickSearchWikipedia
+                "quick_search_play_store" -> settingsState.quickSearchPlayStore
+                "quick_search_maps" -> settingsState.quickSearchMaps
+                "app_quick_launch" -> settingsState.appQuickLaunch
+                "contact_direct_call" -> settingsState.contactDirectCall
+                "shortcut.inline" -> settingsState.shortcutInline
+                "app.fuzzy.search" -> settingsState.appFuzzySearch
+                "quick.search.horizontal", "quick_search_horizontal" -> settingsState.quickSearchHorizontal
+                "search.files.hidden.files" -> settingsState.filesHiddenFiles
+                "search.files.thumbnails" -> settingsState.filesThumbnails
+                "tutorial_completed" -> settingsState.tutorialCompleted
+                "force_tutorial" -> settingsState.forceTutorial
+                "context_aware_quick_apps" -> settingsState.contextAwareQuickApps
+                "smart_clipboard_suggestions" -> settingsState.smartClipboardSuggestions
+                "search_previous_searches" -> settingsState.searchPreviousSearches
+                "search_overlay_enabled" -> settingsState.searchOverlayEnabled
+                "matrix_animation_enabled" -> settingsState.matrixAnimationEnabled
+                "settings_back_to_search_overlay" -> settingsState.backToSearchOverlay
+                "never_show_icon_pack_warning" -> settingsState.neverShowIconPackWarning
+                "dynamic_icon_masking" -> settingsState.dynamicIconMasking
+                "diagnostics_overlay_enabled" -> settingsState.diagnosticsOverlayEnabled
+                "vibration_enabled" -> settingsState.vibrationEnabled
+                else -> null
+            }
+            if (dsVal != null && dsGuard.shouldApply(dsVal) && state.value != dsVal) {
+                state.value = dsVal
+            }
+        }
+    }
 
     val listener = remember(prefs, key, altKey) {
         SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
             if (changedKey == key || (altKey != null && changedKey == altKey)) {
-                state.value = readBooleanPref(sharedPreferences, key, altKey, fallbackValue)
+                state.value = readBooleanPref(sharedPreferences, key, altKey, currentFallbackValue)
             }
         }
     }
 
-    androidx.compose.runtime.DisposableEffect(prefs, key, listener) {
+    DisposableEffect(prefs, listener) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
         }
     }
 
-    val currentViewModel by rememberUpdatedState(viewModel)
-    val currentOnChanged by rememberUpdatedState(onChanged)
-
-    return remember(key, prefs) {
+    return remember(key, prefs, altKey, datastoreKey) {
         object : MutableState<Boolean> {
             override var value: Boolean
                 get() = state.value
@@ -630,6 +719,7 @@ fun rememberBooleanPreference(
                     state.value = v
                     val vm = currentViewModel
                     if (datastoreKey != null && vm != null) {
+                        dsGuard.onLocalWrite(v)
                         vm.updateSetting(datastoreKey, v)
                     }
                     prefs.edit().apply {
@@ -655,13 +745,19 @@ fun rememberIntPreference(
     val viewModel = LocalSettingsViewModel.current
     val settingsState = LocalSettingsState.current
     val altKey = remember(key) { getAlternatePreferenceKey(key) }
-    
+    val currentOnChanged by rememberUpdatedState(onChanged)
+    val currentViewModel by rememberUpdatedState(viewModel)
+    val currentDefaultValue by rememberUpdatedState(defaultValue)
+
     val datastoreKey = when (key) {
         "search.background.blur" -> SettingsManager.BACKGROUND_BLUR
         "search.background.transparency" -> SettingsManager.BACKGROUND_TRANSPARENCY
         "search.pill.opacity" -> SettingsManager.PILL_OPACITY
         "tutorial_step" -> SettingsManager.TUTORIAL_STEP
         "shortcut_results_count" -> SettingsManager.SHORTCUT_RESULTS_COUNT
+        "web_results_count" -> SettingsManager.WEB_RESULTS_COUNT
+        "contact_results_count" -> SettingsManager.CONTACT_RESULTS_COUNT
+        "file_results_count" -> SettingsManager.FILE_RESULTS_COUNT
         else -> null
     }
 
@@ -677,53 +773,68 @@ fun rememberIntPreference(
                 "search.pill.opacity" -> settingsState?.pillOpacity
                 "tutorial_step" -> settingsState?.tutorialStep
                 "shortcut_results_count" -> settingsState?.shortcutResultsCount
+                "web_results_count" -> settingsState?.webResultsCount
+                "contact_results_count" -> settingsState?.contactResultsCount
+                "file_results_count" -> settingsState?.fileResultsCount
                 else -> null
             }
-            val resolved = dsVal ?: defaultValue
-            prefs.edit().apply {
-                putInt(key, resolved)
-                if (altKey != null) putInt(altKey, resolved)
-                apply()
-            }
-            resolved
+            dsVal ?: defaultValue
         }
     }
 
-    val state = remember { mutableIntStateOf(initialValue) }
+    val state = remember(key, prefs) { mutableIntStateOf(initialValue) }
+    val dsGuard = remember(key, prefs) { DataStoreMirrorGuard<Int>() }
+
+    LaunchedEffect(settingsState, datastoreKey, key) {
+        if (datastoreKey != null && settingsState != null) {
+            val dsVal = when (key) {
+                "search.background.blur" -> settingsState.backgroundBlur
+                "search.background.transparency" -> settingsState.backgroundTransparency
+                "search.pill.opacity" -> settingsState.pillOpacity
+                "tutorial_step" -> settingsState.tutorialStep
+                "shortcut_results_count" -> settingsState.shortcutResultsCount
+                "web_results_count" -> settingsState.webResultsCount
+                "contact_results_count" -> settingsState.contactResultsCount
+                "file_results_count" -> settingsState.fileResultsCount
+                else -> null
+            }
+            if (dsVal != null && dsGuard.shouldApply(dsVal) && state.intValue != dsVal) {
+                state.intValue = dsVal
+            }
+        }
+    }
 
     val listener = remember(prefs, key, altKey) {
         SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
             if (changedKey == key || (altKey != null && changedKey == altKey)) {
-                state.value = if (sharedPreferences.contains(key)) {
-                    sharedPreferences.getInt(key, defaultValue)
+                state.intValue = if (sharedPreferences.contains(key)) {
+                    sharedPreferences.getInt(key, currentDefaultValue)
                 } else if (altKey != null && sharedPreferences.contains(altKey)) {
-                    sharedPreferences.getInt(altKey, defaultValue)
+                    sharedPreferences.getInt(altKey, currentDefaultValue)
                 } else {
-                    defaultValue
+                    currentDefaultValue
                 }
             }
         }
     }
 
-    androidx.compose.runtime.DisposableEffect(prefs, key, listener) {
+    DisposableEffect(prefs, listener) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
         }
     }
 
-    val currentViewModel by rememberUpdatedState(viewModel)
-    val currentOnChanged by rememberUpdatedState(onChanged)
-
-    return remember(key, prefs) {
+    return remember(key, prefs, altKey, datastoreKey) {
         object : MutableState<Int> {
             override var value: Int
-                get() = state.value
+                get() = state.intValue
                 set(v) {
-                    if (state.value == v) return
-                    state.value = v
+                    if (state.intValue == v) return
+                    state.intValue = v
                     val vm = currentViewModel
                     if (datastoreKey != null && vm != null) {
+                        dsGuard.onLocalWrite(v)
                         vm.updateSetting(datastoreKey, v)
                     }
                     prefs.edit().apply {
@@ -743,12 +854,16 @@ fun rememberIntPreference(
 fun rememberStringPreference(
     prefs: SharedPreferences,
     key: String,
-    defaultValue: String
+    defaultValue: String,
+    onChanged: () -> Unit = {}
 ): MutableState<String> {
     val viewModel = LocalSettingsViewModel.current
     val settingsState = LocalSettingsState.current
     val altKey = remember(key) { getAlternatePreferenceKey(key) }
-    
+    val currentOnChanged by rememberUpdatedState(onChanged)
+    val currentViewModel by rememberUpdatedState(viewModel)
+    val currentDefaultValue by rememberUpdatedState(defaultValue)
+
     val datastoreKey = when (key) {
         "night.mode" -> SettingsManager.THEME
         "search.engine" -> SettingsManager.SEARCH_ENGINE
@@ -757,6 +872,7 @@ fun rememberStringPreference(
         "search.pills" -> SettingsManager.SEARCH_PILLS
         "custom_icon_pills" -> SettingsManager.CUSTOM_ICON_PILLS
         "active_icon_pack" -> SettingsManager.ACTIVE_ICON_PACK
+        "adaptive_icon_shape" -> SettingsManager.ADAPTIVE_ICON_SHAPE
         else -> null
     }
 
@@ -774,44 +890,57 @@ fun rememberStringPreference(
                 "search.pills" -> settingsState?.searchPills
                 "custom_icon_pills" -> settingsState?.customIconPills
                 "active_icon_pack" -> settingsState?.activeIconPack
+                "adaptive_icon_shape" -> settingsState?.adaptiveIconShape
                 else -> null
             }
-            val resolved = dsVal ?: defaultValue
-            prefs.edit().apply {
-                putString(key, resolved)
-                if (altKey != null) putString(altKey, resolved)
-                apply()
-            }
-            resolved
+            dsVal ?: defaultValue
         }
     }
 
-    val state = remember { mutableStateOf(initialValue) }
+    val state = remember(key, prefs) { mutableStateOf(initialValue) }
+    val dsGuard = remember(key, prefs) { DataStoreMirrorGuard<String>() }
+
+    LaunchedEffect(settingsState, datastoreKey, key) {
+        if (datastoreKey != null && settingsState != null) {
+            val dsVal = when (key) {
+                "night.mode" -> settingsState.theme
+                "search.engine" -> settingsState.searchEngine
+                "custom_search_engine_url" -> settingsState.customSearchEngineUrl
+                "widget.theme.style" -> settingsState.widgetThemeStyle
+                "search.pills" -> settingsState.searchPills
+                "custom_icon_pills" -> settingsState.customIconPills
+                "active_icon_pack" -> settingsState.activeIconPack
+                "adaptive_icon_shape" -> settingsState.adaptiveIconShape
+                else -> null
+            }
+            if (dsVal != null && dsGuard.shouldApply(dsVal) && state.value != dsVal) {
+                state.value = dsVal
+            }
+        }
+    }
 
     val listener = remember(prefs, key, altKey) {
         SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
             if (changedKey == key || (altKey != null && changedKey == altKey)) {
                 state.value = if (sharedPreferences.contains(key)) {
-                    sharedPreferences.getString(key, defaultValue) ?: defaultValue
+                    sharedPreferences.getString(key, currentDefaultValue) ?: currentDefaultValue
                 } else if (altKey != null && sharedPreferences.contains(altKey)) {
-                    sharedPreferences.getString(altKey, defaultValue) ?: defaultValue
+                    sharedPreferences.getString(altKey, currentDefaultValue) ?: currentDefaultValue
                 } else {
-                    defaultValue
+                    currentDefaultValue
                 }
             }
         }
     }
 
-    androidx.compose.runtime.DisposableEffect(prefs, key, listener) {
+    DisposableEffect(prefs, listener) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
         }
     }
 
-    val currentViewModel by rememberUpdatedState(viewModel)
-
-    return remember(key, prefs) {
+    return remember(key, prefs, altKey, datastoreKey) {
         object : MutableState<String> {
             override var value: String
                 get() = state.value
@@ -820,6 +949,7 @@ fun rememberStringPreference(
                     state.value = v
                     val vm = currentViewModel
                     if (datastoreKey != null && vm != null) {
+                        dsGuard.onLocalWrite(v)
                         vm.updateSetting(datastoreKey, v)
                     }
                     if (key == "active_icon_pack") {
@@ -830,6 +960,7 @@ fun rememberStringPreference(
                         if (altKey != null) putString(altKey, v)
                         apply()
                     }
+                    currentOnChanged()
                 }
             override operator fun component1() = value
             override operator fun component2(): (String) -> Unit = { value = it }
@@ -852,8 +983,32 @@ fun SettingsScreensHub(
     onBackToLauncher: () -> Unit,
     context: Context
 ) {
-    val viewModel: SettingsViewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel()
-    val settingsState by viewModel.settingsState.collectAsStateWithLifecycle()
+    SettingsScreensHub(
+        initialRoute = com.pixel.intelligentsearch.core.navigation.Route.fromKey(initialScreen),
+        fromSearchOverlay = fromSearchOverlay,
+        prefs = prefs,
+        onBackToLauncher = onBackToLauncher,
+        context = context
+    )
+}
+
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+@Composable
+fun SettingsScreensHub(
+    initialRoute: com.pixel.intelligentsearch.core.navigation.Route = com.pixel.intelligentsearch.core.navigation.Route.Main,
+    fromSearchOverlay: Boolean = false,
+    prefs: SharedPreferences,
+    onBackToLauncher: () -> Unit,
+    context: Context
+) {
+    val viewModel: SettingsViewModel = LocalSettingsViewModel.current ?: androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel()
+    val view = LocalView.current
+    val localSettings = LocalSettingsState.current
+    val settingsState by if (localSettings != null) {
+        rememberUpdatedState(localSettings)
+    } else {
+        viewModel.settingsState.collectAsStateWithLifecycle()
+    }
 
     CompositionLocalProvider(
         LocalSettingsViewModel provides viewModel,
@@ -892,29 +1047,38 @@ fun SettingsScreensHub(
         val handleExitBack: () -> Unit = {
             SettingsDebouncer.recordClick()
             val act = context.findActivity() ?: (context as? Activity)
+            val isBackToOverlay = prefs.getBoolean("settings_back_to_search_overlay", settingsState.backToSearchOverlay)
             if (act != null) {
-                if (act.isTaskRoot) {
-                    val isBackToOverlay = fromSearchOverlay || settingsState.backToSearchOverlay
-                    if (isBackToOverlay) {
+                if (isBackToOverlay) {
+                    if (act.isTaskRoot || !fromSearchOverlay) {
                         val intent = Intent(context, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java).apply {
                             putExtra("FROM_BACK_SWIPE", true)
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                         }
                         context.startActivity(intent)
-                    } else {
-                        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                            addCategory(Intent.CATEGORY_HOME)
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        }
-                        context.startActivity(homeIntent)
                     }
-                }
-                act.finish()
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    act.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, R.anim.slide_in_left, R.anim.slide_out_right)
+                    act.finish()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        act.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, R.anim.slide_in_left, R.anim.slide_out_right)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        act.overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
+                    }
                 } else {
-                    @Suppress("DEPRECATION")
-                    act.overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
+                    (act as? com.pixel.intelligentsearch.feature.settings.SettingsActivity)?.isExitingToHome = true
+                    context.sendBroadcast(Intent("com.pixel.intelligentsearch.DISMISS_OVERLAY").setPackage(context.packageName))
+                    val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                        addCategory(Intent.CATEGORY_HOME)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(homeIntent)
+                    act.finishAffinity()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        act.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        act.overridePendingTransition(0, 0)
+                    }
                 }
             } else {
                 onBackToLauncher()
@@ -922,9 +1086,8 @@ fun SettingsScreensHub(
         }
 
         val currentBackStackEntry by navController.currentBackStackEntryAsState()
-        val currentRoute = currentBackStackEntry?.destination?.route
         val hasSubScreensInNavHost = navController.previousBackStackEntry != null
-        val isAtRootMain = (currentRoute == null || currentRoute.contains("main", ignoreCase = true)) && !hasSubScreensInNavHost
+        val isAtRoot = !hasSubScreensInNavHost || currentBackStackEntry?.destination?.hasRoute<com.pixel.intelligentsearch.core.navigation.Route.Main>() == true
 
         val onBack: () -> Unit = {
             if (navController.previousBackStackEntry != null) {
@@ -937,8 +1100,10 @@ fun SettingsScreensHub(
         val exitBackProgress = remember { Animatable(0f) }
         var predictiveBackSwipeEdge by remember { mutableIntStateOf(androidx.activity.BackEventCompat.EDGE_LEFT) }
 
-        androidx.activity.compose.PredictiveBackHandler(enabled = isAtRootMain) { progressFlow ->
+        androidx.activity.compose.PredictiveBackHandler(enabled = !hasSubScreensInNavHost) { progressFlow ->
+            val act = context.findActivity()
             try {
+                com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(act)
                 progressFlow.collect { backEvent ->
                     predictiveBackSwipeEdge = backEvent.swipeEdge
                     exitBackProgress.snapTo(backEvent.progress)
@@ -947,26 +1112,9 @@ fun SettingsScreensHub(
                 handleExitBack()
             } catch (_: java.util.concurrent.CancellationException) {
                 exitBackProgress.animateTo(0f, spring(dampingRatio = 0.85f, stiffness = 300f))
+            } finally {
+                com.pixel.intelligentsearch.core.ui.WindowFramePacing.setNormalRefreshRateCategory(act)
             }
-        }
-
-        val startRoute: com.pixel.intelligentsearch.core.navigation.Route = when (initialScreen) {
-            "main" -> com.pixel.intelligentsearch.core.navigation.Route.Main
-            "appearance" -> com.pixel.intelligentsearch.core.navigation.Route.Appearance
-            "search_sources" -> com.pixel.intelligentsearch.core.navigation.Route.SearchSources
-            "search_behavior" -> com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior
-            "launch_portal" -> com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal
-            "app_search" -> com.pixel.intelligentsearch.core.navigation.Route.AppSearch
-            "search_pills" -> com.pixel.intelligentsearch.core.navigation.Route.SearchPills
-            "web_search" -> com.pixel.intelligentsearch.core.navigation.Route.WebSearch
-            "contact_search" -> com.pixel.intelligentsearch.core.navigation.Route.ContactSearch
-            "file_search" -> com.pixel.intelligentsearch.core.navigation.Route.FileSearch
-            "widget" -> com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization
-            "manage_hidden_apps" -> com.pixel.intelligentsearch.core.navigation.Route.ManageHiddenApps
-            "custom_icons" -> com.pixel.intelligentsearch.core.navigation.Route.CustomIcons
-            "backup_restore" -> com.pixel.intelligentsearch.core.navigation.Route.BackupRestore
-            "debug" -> com.pixel.intelligentsearch.core.navigation.Route.Debug
-            else -> com.pixel.intelligentsearch.core.navigation.Route.Main
         }
 
         Box(
@@ -989,6 +1137,11 @@ fun SettingsScreensHub(
                             if (predictiveBackSwipeEdge == androidx.activity.BackEventCompat.EDGE_LEFT) 0.05f else 0.95f,
                             0.5f
                         )
+                    } else {
+                        scaleX = 1f
+                        scaleY = 1f
+                        translationX = 0f
+                        alpha = 1f
                     }
                 }
                 .background(MaterialTheme.colorScheme.background)
@@ -1015,7 +1168,7 @@ fun SettingsScreensHub(
             ) {
                 NavHost(
                     navController = navController,
-                    startDestination = startRoute,
+                    startDestination = initialRoute,
                     enterTransition = {
                         if (initialState.destination.route == null) {
                             androidx.compose.animation.EnterTransition.None
@@ -1102,7 +1255,7 @@ fun SettingsScreensHub(
                 TutorialSpotlightOverlay(
                     prefs = prefs,
                     stepsInfo = mapOf(
-                        3 to TutorialStepInfo("Settings & Features", "Here you can personalize your experience. We recently cleaned up this menu to organize all your Search Sources into one convenient page.", Alignment.Center, requireButtonPress = true, showArrow = false),
+                        3 to TutorialStepInfo("Settings & Features", "Here you can personalize your experience by customizing your widget and search controls.", Alignment.Center, requireButtonPress = true, showArrow = false),
                         4 to TutorialStepInfo("Make it Yours", "Explore all the categories below to fine-tune Intelligent Search perfectly to your workflow. You're all set!", Alignment.Center, requireButtonPress = true, showArrow = false)
                     ),
                     onComplete = { showTutorial = false }
@@ -2832,6 +2985,7 @@ fun MainSettingsScreen(
                                     } else {
                                         Button(
                                             onClick = {
+                                                com.pixel.intelligentsearch.core.system.SearchRoleManager.syncAllSearchEngineSettings(context)
                                                 com.pixel.intelligentsearch.core.system.SearchRoleManager.openDefaultSearchEngineSettings(context)
                                             },
                                             modifier = Modifier.fillMaxWidth()
@@ -2840,7 +2994,7 @@ fun MainSettingsScreen(
                                         }
                                     }
                                     Text(
-                                        "If you're running an older version of Android, you can still configure it manually via ADB:",
+                                        "If you're running Android 17 QPR2 or an older version, bypass the system package allow list and set Intelligent Search as default manually via ADB:",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
@@ -2849,16 +3003,26 @@ fun MainSettingsScreen(
                                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Text(
-                                            "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(12.dp)
-                                        )
+                                        Column(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                "adb shell settings put secure user_setup_search_engine com.pixel.intelligentsearch",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                     }
                                     Text(
-                                        "*Please be advised: configuring the default search engine on Android 17 QPR2 and newer will not affect At a Glance sports and finance integrations; however, configuring via ADB command will still bypass these integrations.",
+                                        "*Please be advised: Settings.Secure.user_setup_search_engine bypasses the QPR2 package allow list so Intelligent Search always qualifies as the system search engine. Configuring the default search engine on Android 17 QPR2 and newer will not affect At a Glance sports and finance integrations; however, configuring via ADB command will still bypass these integrations.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -3085,14 +3249,14 @@ fun MainSettingsScreen(
                         try {
                             context.startActivity(intent)
                         } catch (e: Exception) {
-                            e.printStackTrace()
+                            android.util.Log.w("IntelligentSearch", "Unexpected error", e)
                             // Fallback if the specific intent is not available
                             val fallbackIntent = Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
                             fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             try {
                                 context.startActivity(fallbackIntent)
                             } catch (e2: Exception) {
-                                e2.printStackTrace()
+                                android.util.Log.w("IntelligentSearch", "Unexpected error", e2)
                             }
                         }
                     },
@@ -3135,7 +3299,7 @@ fun MainSettingsScreen(
                                     }
                                     context.startActivity(intent)
                                 } catch (e: Exception) {
-                                    e.printStackTrace()
+                                    android.util.Log.w("IntelligentSearch", "Unexpected error", e)
                                 }
                             }
                             "DuckDuckGo" -> {
@@ -3147,7 +3311,7 @@ fun MainSettingsScreen(
                                         }
                                     context.startActivity(intent)
                                 } catch (e: Exception) {
-                                    e.printStackTrace()
+                                    android.util.Log.w("IntelligentSearch", "Unexpected error", e)
                                 }
                             }
                             "Tor Project", "Tor Browser" -> {
@@ -3170,7 +3334,7 @@ fun MainSettingsScreen(
                                 try {
                                     context.startActivity(intent)
                                 } catch (e: Exception) {
-                                    e.printStackTrace()
+                                    android.util.Log.w("IntelligentSearch", "Unexpected error", e)
                                 }
                             }
                         }
@@ -4638,7 +4802,10 @@ fun SlideToRemoveAllBar(
 @Composable
 fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
-    Scaffold(containerColor = Color.Transparent, topBar = {
+    Scaffold(
+        containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.ime),
+        topBar = {
             TopAppBar(
                 title = { Text("Web Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
@@ -4885,10 +5052,11 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
 
                     val viewModel = LocalSettingsViewModel.current
-                    val allBangs by (viewModel?.bangsFlow ?: kotlinx.coroutines.flow.flowOf(emptyList()))
+                    val localSettings = LocalSettingsState.current
+                    val allBangs by (viewModel?.bangsFlow ?: remember { kotlinx.coroutines.flow.emptyFlow() })
                         .collectAsStateWithLifecycle(initialValue = viewModel?.bangsFlow?.value ?: emptyList())
-                    val settings by (viewModel?.settingsState ?: kotlinx.coroutines.flow.flowOf(IntelligentSearchSettings()))
-                        .collectAsStateWithLifecycle(initialValue = IntelligentSearchSettings())
+                    val settings = localSettings ?: (viewModel?.settingsState ?: remember { kotlinx.coroutines.flow.emptyFlow() })
+                        .collectAsStateWithLifecycle(initialValue = IntelligentSearchSettings()).value
                     val disabledPrefixes = settings.disabledWebShortcuts
 
                     var showAddDialog by remember { mutableStateOf(false) }
@@ -5061,20 +5229,52 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         SwipeToDismissBox(
                                             state = dismissState,
                                             backgroundContent = {
-                                                Box(modifier = Modifier.fillMaxSize())
+                                                val color by androidx.compose.animation.animateColorAsState(
+                                                    targetValue = when (dismissState.targetValue) {
+                                                        SwipeToDismissBoxValue.Settled -> Color.Transparent
+                                                        else -> MaterialTheme.colorScheme.errorContainer
+                                                    },
+                                                    label = "dismissBackground"
+                                                )
+                                                val iconTint by androidx.compose.animation.animateColorAsState(
+                                                    targetValue = when (dismissState.targetValue) {
+                                                        SwipeToDismissBoxValue.Settled -> Color.Transparent
+                                                        else -> MaterialTheme.colorScheme.onErrorContainer
+                                                    },
+                                                    label = "dismissIconTint"
+                                                )
+                                                val alignment = when (dismissState.dismissDirection) {
+                                                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                                                    SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                                                    SwipeToDismissBoxValue.Settled -> Alignment.CenterEnd
+                                                }
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .clip(RoundedCornerShape(24.dp))
+                                                        .background(color)
+                                                        .padding(horizontal = 24.dp),
+                                                    contentAlignment = alignment
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Outlined.Delete,
+                                                        contentDescription = "Delete shortcut",
+                                                        tint = iconTint,
+                                                        modifier = Modifier.size(24.dp)
+                                                    )
+                                                }
                                             }
                                         ) {
-                                            Surface(
+                                            Card(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .clip(RoundedCornerShape(24.dp))
-                                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
                                                     .bouncyClickable {
                                                         editingBang = bang
                                                         showAddDialog = true
                                                     },
-                                                color = Color.Transparent
+                                                shape = RoundedCornerShape(24.dp),
+                                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
                                             ) {
                                                 Row(
                                                     modifier = Modifier
@@ -5166,17 +5366,11 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 availableDirectBangs.forEach { bang ->
                                     key("avail_${bang.displayPrefix}") {
-                                        Surface(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(RoundedCornerShape(24.dp))
-                                                .border(
-                                                    width = 1.dp,
-                                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                                                    shape = RoundedCornerShape(24.dp)
-                                                ),
+                                        Card(
+                                            modifier = Modifier.fillMaxWidth(),
                                             shape = RoundedCornerShape(24.dp),
-                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f))
                                         ) {
                                             Row(
                                                 modifier = Modifier
@@ -6025,14 +6219,16 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 @Composable
 fun SettingsCard(
     modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(28.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        modifier = modifier
+        modifier = modifier.semantics { isTraversalGroup = true }
     ) {
         Column(modifier = Modifier.padding(vertical = 12.dp)) {
             content()
@@ -6059,6 +6255,9 @@ fun SettingsRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                }
                 .bouncyClickable(
                     onLongClick = onLongClick,
                     onClick = onClick
@@ -6094,12 +6293,26 @@ fun SettingsRow(
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                Text(text = subtitle, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
         if (showDivider) {
-            HorizontalDivider(modifier = Modifier.padding(start = 56.dp, end = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 56.dp, end = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+            )
         }
     }
 }
@@ -6123,6 +6336,9 @@ fun SettingsDropdownRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .semantics(mergeDescendants = true) {
+                    role = Role.DropdownList
+                }
                 .bouncyClickable { 
                     performClickHaptic(context)
                     expanded = true 
@@ -6142,7 +6358,13 @@ fun SettingsDropdownRow(
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 if (subtitle != null) {
                     if (title == "Primary Search App") {
                         Row(
@@ -6151,10 +6373,20 @@ fun SettingsDropdownRow(
                         ) {
                             SearchAppColorfulIcon(appName = subtitle, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = subtitle, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     } else {
-                        Text(text = subtitle, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -6171,12 +6403,31 @@ fun SettingsDropdownRow(
                     expanded = expanded,
                     onDismissRequest = { expanded = false },
                     modifier = Modifier
-                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(24.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(24.dp))
                         .clip(RoundedCornerShape(24.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
                 ) {
                     options.forEach { option ->
+                        val isSelected = option == selectedOption
                         DropdownMenuItem(
-                            text = { Text(option) },
+                            text = {
+                                Text(
+                                    option,
+                                    fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            },
+                            trailingIcon = if (isSelected) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            } else null,
                             leadingIcon = if (title == "Primary Search App") {
                                 {
                                     SearchAppColorfulIcon(appName = option, modifier = Modifier.size(24.dp))
@@ -6211,11 +6462,15 @@ fun SettingsDropdownRow(
             }
         }
         if (showDivider) {
-            HorizontalDivider(modifier = Modifier.padding(start = 56.dp, end = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 56.dp, end = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+            )
         }
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun SettingsRowToggle(
     onLongClick: (() -> Unit)? = null,
@@ -6227,6 +6482,8 @@ fun SettingsRowToggle(
     onCheckedChange: (Boolean) -> Unit,
     onClick: (() -> Unit)? = null,
     showDivider: Boolean = true,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
+    shape: androidx.compose.ui.graphics.Shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
     modifier: Modifier = Modifier
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -6237,31 +6494,83 @@ fun SettingsRowToggle(
             runCatching { icon.toBitmap().asImageBitmap() }.getOrNull()
         } else null
     }
-    Column(modifier = modifier) {
+
+    val currentIsChecked by rememberUpdatedState(isChecked)
+    val currentOnCheckedChange by rememberUpdatedState(onCheckedChange)
+    val currentOnClick by rememberUpdatedState(onClick)
+
+    // Rows with a sub-page (onClick != null) navigate when the row body is tapped, while the switch
+    // itself must always toggle the setting. Both paths share one debounce key so a single tap that
+    // reaches both handlers cannot toggle twice.
+    val debounceKey = remember { Any() }
+    val applyToggle: (Boolean) -> Unit = remember(view, sensoryEngine, debounceKey) {
+        { next ->
+            if (SettingsDebouncer.canClick(120L, debounceKey)) {
+                sensoryEngine.toggle(view, next)
+                currentOnCheckedChange(next)
+            }
+        }
+    }
+    val toggleAction = remember(view, sensoryEngine, applyToggle) {
+        {
+            val navigate = currentOnClick
+            if (navigate != null) {
+                navigate()
+            } else {
+                applyToggle(!currentIsChecked)
+            }
+        }
+    }
+
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isPressed) com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens.PRESS_SCALE_ROW else 1f,
+        animationSpec = if (isPressed) {
+            com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens.Effects.FastSpatial()
+        } else {
+            com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens.Spatial.ExpressiveDefault()
+        },
+        label = "messages_row_press_scale"
+    )
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 3.dp)
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .bouncyClickable(
-                    onLongClick = onLongClick,
-                    suppressClickHaptic = true,
-                    onClick = {
-                        if (onClick != null) {
-                            onClick()
-                        } else {
-                            if (SettingsDebouncer.canClick()) {
-                                val next = !isChecked
-                                sensoryEngine.toggle(view, next)
-                                onCheckedChange(next)
-                            }
-                        }
+                .clip(shape)
+                .background(color = containerColor, shape = shape)
+                .then(
+                    if (onLongClick != null) {
+                        Modifier.combinedClickable(
+                            interactionSource = interactionSource,
+                            indication = androidx.compose.material3.ripple(bounded = true),
+                            onLongClick = onLongClick,
+                            onClick = toggleAction
+                        )
+                    } else {
+                        Modifier.clickable(
+                            interactionSource = interactionSource,
+                            indication = androidx.compose.material3.ripple(bounded = true),
+                            onClick = toggleAction
+                        )
                     }
                 )
-                .padding(horizontal = 16.dp, vertical = 16.dp),
+                .graphicsLayer {
+                    scaleX = pressScale
+                    scaleY = pressScale
+                }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (customIcon != null) {
                 customIcon()
-            } else {
+                Spacer(modifier = Modifier.width(16.dp))
+            } else if (icon != null) {
                 when (icon) {
                     is ImageVector -> {
                         Icon(
@@ -6288,39 +6597,38 @@ fun SettingsRowToggle(
                         )
                     }
                 }
+                Spacer(modifier = Modifier.width(16.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (subtitle.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                Text(text = subtitle, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Switch(
+            com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(
                 checked = isChecked,
-                onCheckedChange = { next ->
-                    if (SettingsDebouncer.canClick()) {
-                        sensoryEngine.toggle(view, next)
-                        onCheckedChange(next)
-                    }
-                },
-                thumbContent = if (isChecked) {
-                    {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(SwitchDefaults.IconSize)
-                        )
-                    }
-                } else null,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.primary,
-                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
-                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                onCheckedChange = { next -> applyToggle(next) }
             )
         }
-        if (showDivider) {
-            HorizontalDivider(modifier = Modifier.padding(start = 56.dp, end = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        if (showDivider && containerColor == Color.Transparent) {
+            HorizontalDivider(
+                modifier = Modifier.padding(start = if (icon != null || customIcon != null) 56.dp else 16.dp, end = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                thickness = 0.8.dp
+            )
         }
     }
 }
@@ -6357,7 +6665,13 @@ fun SettingsSliderRow(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = title, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                     if (onReset != null) {
                         IconButton(
                             onClick = {
@@ -6385,7 +6699,10 @@ fun SettingsSliderRow(
             }
         }
         if (showDivider) {
-            HorizontalDivider(modifier = Modifier.padding(start = 56.dp, end = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 56.dp, end = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+            )
         }
     }
 }
@@ -6498,20 +6815,20 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
     var sysHue by remember {
         val hVal = prefs.getInt("widget_system_custom_hue", if (sysSaved) prefs.getInt("widget_custom_hue", defaultHue.toInt()) else defaultHue.toInt())
-        mutableStateOf((if (hVal == 277 && !prefs.contains("widget_system_custom_hue")) defaultHue.toInt() else hVal).toFloat())
+        mutableFloatStateOf((if (hVal == 277 && !prefs.contains("widget_system_custom_hue")) defaultHue.toInt() else hVal).toFloat())
     }
     var sysSaturation by remember {
         val sVal = prefs.getInt("widget_system_custom_saturation", if (sysSaved) prefs.getInt("widget_custom_saturation", defaultSat.toInt()) else defaultSat.toInt())
-        mutableStateOf((if (sVal == 51 && !prefs.contains("widget_system_custom_saturation")) defaultSat.toInt() else sVal).toFloat())
+        mutableFloatStateOf((if (sVal == 51 && !prefs.contains("widget_system_custom_saturation")) defaultSat.toInt() else sVal).toFloat())
     }
     var sysLightness by remember {
-        mutableStateOf(prefs.getInt("widget_system_custom_lightness", if (sysSaved) prefs.getInt("widget_custom_lightness", 100) else 100).toFloat())
+        mutableFloatStateOf(prefs.getInt("widget_system_custom_lightness", if (sysSaved) prefs.getInt("widget_custom_lightness", 100) else 100).toFloat())
     }
     var sysColorOpacity by remember {
-        mutableStateOf(prefs.getInt("widget_system_custom_color_opacity", if (sysSaved) prefs.getInt("widget_custom_color_opacity", 100) else 100).toFloat())
+        mutableFloatStateOf(prefs.getInt("widget_system_custom_color_opacity", if (sysSaved) prefs.getInt("widget_custom_color_opacity", 100) else 100).toFloat())
     }
     var sysTransparency by remember {
-        mutableStateOf(prefs.getInt("widget_system_background_transparency", if (sysSaved) prefs.getInt("widget.background.transparency", 0) else 0).toFloat())
+        mutableFloatStateOf(prefs.getInt("widget_system_background_transparency", if (sysSaved) prefs.getInt("widget.background.transparency", 0) else 0).toFloat())
     }
     var sysShowGIcon by remember {
         mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
@@ -6561,23 +6878,23 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
     var matHue by remember {
         val hVal = prefs.getInt("widget_material_custom_hue", if (matSaved) prefs.getInt("widget_custom_hue", defaultHue.toInt()) else defaultHue.toInt())
-        mutableStateOf((if (hVal == 277 && !prefs.contains("widget_material_custom_hue")) defaultHue.toInt() else hVal).toFloat())
+        mutableFloatStateOf((if (hVal == 277 && !prefs.contains("widget_material_custom_hue")) defaultHue.toInt() else hVal).toFloat())
     }
     var matSaturation by remember {
         val sVal = prefs.getInt("widget_material_custom_saturation", if (matSaved) prefs.getInt("widget_custom_saturation", defaultSat.toInt()) else defaultSat.toInt())
-        mutableStateOf((if (sVal == 51 && !prefs.contains("widget_material_custom_saturation")) defaultSat.toInt() else sVal).toFloat())
+        mutableFloatStateOf((if (sVal == 51 && !prefs.contains("widget_material_custom_saturation")) defaultSat.toInt() else sVal).toFloat())
     }
     var matLightness by remember {
-        mutableStateOf(prefs.getInt("widget_material_custom_lightness", if (matSaved) prefs.getInt("widget_custom_lightness", 100) else 100).toFloat())
+        mutableFloatStateOf(prefs.getInt("widget_material_custom_lightness", if (matSaved) prefs.getInt("widget_custom_lightness", 100) else 100).toFloat())
     }
     var matColorOpacity by remember {
-        mutableStateOf(prefs.getInt("widget_material_custom_color_opacity", if (matSaved) prefs.getInt("widget_custom_color_opacity", 100) else 100).toFloat())
+        mutableFloatStateOf(prefs.getInt("widget_material_custom_color_opacity", if (matSaved) prefs.getInt("widget_custom_color_opacity", 100) else 100).toFloat())
     }
     var matTransparency by remember {
-        mutableStateOf(prefs.getInt("widget_material_background_transparency", if (matSaved) prefs.getInt("widget.background.transparency", 28) else 28).toFloat())
+        mutableFloatStateOf(prefs.getInt("widget_material_background_transparency", if (matSaved) prefs.getInt("widget.background.transparency", 28) else 28).toFloat())
     }
     var matLockBlack by remember {
-        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_lock_black", false) else false)
+        mutableStateOf(prefs.getBoolean("widget_material_lock_black", false))
     }
     var matActionIcon by remember {
         mutableStateOf(prefs.getString("widget_material_action_icon", if (matSaved) prefs.getString("widget_action_icon", "Search") else "Search") ?: "Search")
@@ -7123,7 +7440,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
                     
                     val materialDarkCompose = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        androidx.compose.ui.graphics.Color(context.getColor(android.R.color.system_accent1_700))
+                        androidx.compose.ui.res.colorResource(android.R.color.system_accent1_700)
                     } else {
                         androidx.compose.ui.graphics.Color(0xFF1F1F1F)
                     }
@@ -7136,12 +7453,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     
                     val previewPillColorAlpha = if (previewIsMaterialYou) {
                         if (localLockBlack) {
-                            val baseColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                androidx.compose.ui.graphics.Color(context.getColor(android.R.color.system_neutral1_900))
-                            } else {
-                                androidx.compose.ui.graphics.Color(0xFF121212)
-                            }
-                            baseColor.copy(alpha = containerAlpha)
+                            androidx.compose.ui.graphics.Color(0xFF121212)
                         } else {
                             if (localSubtheme == "Custom") {
                                 accentColor.copy(alpha = effectiveColorAlpha)
@@ -7151,13 +7463,13 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     } else {
                         when (localSubtheme) {
-                            "Light" -> androidx.compose.ui.graphics.Color(0xFFF8F9FA).copy(alpha = containerAlpha)
+                            "Light" -> androidx.compose.ui.graphics.Color(0xFFF1F3F4).copy(alpha = containerAlpha)
                             "Dark" -> androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = containerAlpha)
                             "Custom" -> accentColor.copy(alpha = effectiveColorAlpha)
                             else -> if (DynamicThemeDetector.isDynamicColorActive(context)) {
                                 MaterialTheme.colorScheme.surfaceContainer.copy(alpha = containerAlpha)
                             } else {
-                                if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = containerAlpha) else androidx.compose.ui.graphics.Color(0xFFF8F9FA).copy(alpha = containerAlpha)
+                                if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = containerAlpha) else androidx.compose.ui.graphics.Color(0xFFF1F3F4).copy(alpha = containerAlpha)
                             }
                         }
                     }
@@ -7171,21 +7483,41 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         )
                     }
 
-                    val gPrimary = if (isCustomTheme) {
-                        androidx.compose.ui.graphics.Color(customM3Colors.primary)
+                    val rawP = if (isCustomTheme) {
+                        customM3Colors.primary
                     } else {
-                        MaterialTheme.colorScheme.primary
+                        MaterialTheme.colorScheme.primary.toArgb()
                     }
-                    val gSecondary = if (isCustomTheme) {
-                        androidx.compose.ui.graphics.Color(customM3Colors.secondary)
+                    val rawS = if (isCustomTheme) {
+                        customM3Colors.secondary
                     } else {
-                        MaterialTheme.colorScheme.secondary
+                        MaterialTheme.colorScheme.secondary.toArgb()
                     }
-                    val gTertiary = if (isCustomTheme) {
-                        androidx.compose.ui.graphics.Color(customM3Colors.tertiary)
+                    val rawT = if (isCustomTheme) {
+                        customM3Colors.tertiary
                     } else {
-                        MaterialTheme.colorScheme.tertiary
+                        MaterialTheme.colorScheme.tertiary.toArgb()
                     }
+
+                    val finalPInt = if (previewIsMaterialYou && !localLockBlack) {
+                        com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper.darkenForContrast(rawP, 24.0)
+                    } else {
+                        rawP
+                    }
+                    val finalSInt = if (previewIsMaterialYou && !localLockBlack) {
+                        com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper.darkenForContrast(rawS, 26.0)
+                    } else {
+                        rawS
+                    }
+                    val finalTInt = if (previewIsMaterialYou && !localLockBlack) {
+                        com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper.darkenForContrast(rawT, 24.0)
+                    } else {
+                        rawT
+                    }
+
+                    val gPrimary = androidx.compose.ui.graphics.Color(finalPInt)
+                    val gSecondary = androidx.compose.ui.graphics.Color(finalSInt)
+                    val gTertiary = androidx.compose.ui.graphics.Color(finalTInt)
 
                     Row(
                         modifier = Modifier
@@ -7212,7 +7544,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 val isAccented = effectiveGIconTheme == "Accented G Icon"
                                 val isCustom = effectiveGIconTheme == "Custom G Icon"
                                 val useOriginalGIcon = effectiveGIconTheme == "System G Icon"
-                                val customGColorObj = androidx.compose.ui.graphics.Color(localCustomGIconColor)
+                                val customGColorInt = if (previewIsMaterialYou && !localLockBlack) {
+                                    com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper.darkenForContrast(localCustomGIconColor, 24.0)
+                                } else {
+                                    localCustomGIconColor
+                                }
+                                val customGColorObj = androidx.compose.ui.graphics.Color(customGColorInt)
                                 ComposeGIcon(
                                     modifier = Modifier.size(24.dp),
                                     primaryColor = if (isCustom) customGColorObj else gPrimary,
@@ -7274,13 +7611,18 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 else -> localCustomGIconColor
                                             }
                                         }
-                                        val customScColorObj = androidx.compose.ui.graphics.Color(scColor)
+                                        val effectiveScColor = if (previewIsMaterialYou && !localLockBlack) {
+                                            com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper.darkenForContrast(scColor, 24.0)
+                                        } else {
+                                            scColor
+                                        }
+                                        val customScColorObj = androidx.compose.ui.graphics.Color(effectiveScColor)
                                         Triple(customScColorObj, customScColorObj, customScColorObj)
                                     }
                                     "Accented G Icon" -> Triple(gPrimary, gPrimary, gPrimary)
                                     "Material G Icon" -> Triple(gPrimary, gSecondary, gTertiary)
                                     else -> { // System G Icon
-                                        val sysTint = if (isPreviewPillLight) materialDarkCompose else androidx.compose.ui.graphics.Color.White
+                                        val sysTint = if (isPreviewPillLight || (previewIsMaterialYou && !localLockBlack)) materialDarkCompose else androidx.compose.ui.graphics.Color.White
                                         val finalTint = if (item.resId == com.pixel.intelligentsearch.R.drawable.ic_mic_original) androidx.compose.ui.graphics.Color.Unspecified else sysTint
                                         Triple(finalTint, finalTint, finalTint)
                                     }
@@ -7308,13 +7650,18 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 val (actPrimary, actSecondary, actTertiary) = when (effectiveGIconTheme) {
                                     "Custom G Icon" -> {
                                         val actColor = if (localCustomSyncColors) localCustomGIconColor else localCustomActionColor
-                                        val customActColorObj = androidx.compose.ui.graphics.Color(actColor)
+                                        val effectiveActColor = if (previewIsMaterialYou && !localLockBlack) {
+                                            com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper.darkenForContrast(actColor, 24.0)
+                                        } else {
+                                            actColor
+                                        }
+                                        val customActColorObj = androidx.compose.ui.graphics.Color(effectiveActColor)
                                         Triple(customActColorObj, customActColorObj, customActColorObj)
                                     }
                                     "Accented G Icon" -> Triple(gPrimary, gPrimary, gPrimary)
                                     "Material G Icon" -> Triple(gPrimary, gSecondary, gTertiary)
                                     else -> { // System G Icon
-                                        val sysActionTint = if (isPreviewPillLight) materialDarkCompose else androidx.compose.ui.graphics.Color.White
+                                        val sysActionTint = if (isPreviewPillLight || (previewIsMaterialYou && !localLockBlack)) materialDarkCompose else androidx.compose.ui.graphics.Color.White
                                         Triple(sysActionTint, sysActionTint, sysActionTint)
                                     }
                                 }
@@ -7669,7 +8016,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
-                                        androidx.compose.material3.Switch(
+                                        com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(
                                             checked = localCustomSyncColors,
                                             onCheckedChange = { synced ->
                                                 localCustomSyncColors = synced
@@ -7680,22 +8027,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                     localCustomShortcut3Color = localCustomGIconColor
                                                     localCustomActionColor = localCustomGIconColor
                                                 }
-                                            },
-                                            thumbContent = if (localCustomSyncColors) {
-                                                {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Check,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(androidx.compose.material3.SwitchDefaults.IconSize)
-                                                    )
-                                                }
-                                            } else null,
-                                            colors = androidx.compose.material3.SwitchDefaults.colors(
-                                                checkedThumbColor = MaterialTheme.colorScheme.primary,
-                                                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                                                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
-                                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                                            )
+                                            }
                                         )
                                     }
 
@@ -7874,9 +8206,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         android.graphics.Color.colorToHSV(activeColor, h)
                                         h
                                     }
-                                    var customHueState by remember(activeCustomColorTarget, localCustomSyncColors, isSystem) { mutableStateOf(curHsv[0]) }
-                                    var customSatState by remember(activeCustomColorTarget, localCustomSyncColors, isSystem) { mutableStateOf(curHsv[1] * 100f) }
-                                    var customValState by remember(activeCustomColorTarget, localCustomSyncColors, isSystem) { mutableStateOf(curHsv[2] * 100f) }
+                                    var customHueState by remember(activeCustomColorTarget, localCustomSyncColors, isSystem) { mutableFloatStateOf(curHsv[0]) }
+                                    var customSatState by remember(activeCustomColorTarget, localCustomSyncColors, isSystem) { mutableFloatStateOf(curHsv[1] * 100f) }
+                                    var customValState by remember(activeCustomColorTarget, localCustomSyncColors, isSystem) { mutableFloatStateOf(curHsv[2] * 100f) }
 
                                     LaunchedEffect(activeColor) {
                                         val h = FloatArray(3)
@@ -8212,8 +8544,44 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 }
                                 
                                 Spacer(modifier = Modifier.height(24.dp))
+
+                                // 3. Lightness Slider
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(Icons.Outlined.BrightnessMedium, contentDescription = "Lightness", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Lightness", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            Text("${localLightness.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                        Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
+                                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                colors = listOf(
+                                                    androidx.compose.ui.graphics.Color.Black,
+                                                    androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(localHue, (localSaturation / 100f).coerceIn(0f, 1f), 1f)))
+                                                )
+                                            ),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )) {
+                                            Android17Slider(
+                                                showTrack = false,
+                                                enableHaptics = false,
+                                                value = localLightness,
+                                                onValueChange = { 
+                                                    localSubtheme = "Custom"
+                                                    localLightness = it 
+                                                },
+                                                valueRange = 0f..100f,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(24.dp))
                                 
-                                // 3. Color Opacity Slider
+                                // 4. Color Opacity Slider
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                     Icon(Icons.Default.Contrast, contentDescription = "Color Opacity", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                                     Spacer(modifier = Modifier.width(16.dp))
@@ -8249,7 +8617,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                                 Spacer(modifier = Modifier.height(24.dp))
 
-                                // 4. Transparency Slider (under color opacity in the same container)
+                                // 5. Transparency Slider (under color opacity in the same container)
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                     Icon(Icons.Default.Opacity, contentDescription = "Transparency", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                                     Spacer(modifier = Modifier.width(16.dp))
@@ -8279,7 +8647,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                                 Spacer(modifier = Modifier.height(20.dp))
 
-                                // 5. Hex Color Pill Bar (pill bar under custom color pallet sliders in the same container)
+                                // 6. Hex Color Pill Bar (pill bar under custom color pallet sliders in the same container)
                                 val customColorHex = String.format("#%06X", (0xFFFFFF and computedCustomColorInt))
                                 Row(
                                     modifier = Modifier
@@ -8319,42 +8687,20 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             }
                         }
 
-                        // Material Design Inner Pill & Circle Switcher (its own separate, smaller container)
+                        // Material Design Inner Pill & Circle Switcher
                         val isMaterialDesign = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
                         if (isMaterialDesign) {
-                            SettingsCard {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            "Inner Pill & Circle State",
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            "Force Inner Pill & Circle to #121212.",
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    androidx.compose.material3.Switch(
-                                        checked = localLockBlack,
-                                        onCheckedChange = { localLockBlack = it },
-                                        colors = androidx.compose.material3.SwitchDefaults.colors(
-                                            checkedThumbColor = MaterialTheme.colorScheme.primary,
-                                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                                            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
-                                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                                        )
-                                    )
+                            SettingsRowToggle(
+                                title = "Inner Pill & Circle State",
+                                subtitle = "Force Inner Pill & Circle to #121212.",
+                                isChecked = localLockBlack,
+                                onCheckedChange = { checked ->
+                                    localLockBlack = checked
+                                    matLockBlack = checked
+                                    prefs.edit().putBoolean("widget_material_lock_black", checked).apply()
+                                    updateWidgets(context)
                                 }
-                            }
+                            )
                         }
                     }
 
@@ -8833,6 +9179,20 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
 
 
+private val searchActionPath1 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10.5,4 A 6.5,6.5 0 0 0 4,10.5 A 6.5,6.5 0 0 0 10.5,17 A 6.5,6.5 0 0 0 15,15").toPath() }
+private val searchActionPath2 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 14,5 A 6.5,6.5 0 0 0 10.5,4 A 6.5,6.5 0 0 0 5,7.5").toPath() }
+private val searchActionPath3 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 15.5,15.5 L 20,20").toPath() }
+private val searchActionPath4 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 18,0.5 C 18,4 21,6.5 24,6.5 C 21,6.5 18,9 18,12.5 C 18,9 15,6.5 12,6.5 C 15,6.5 18,4 18,0.5 Z").toPath() }
+
+private val assistantActionPath1 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M11.5,9.5 L9.0,4.0 L6.5,9.5 L1.0,12.0 l5.5,2.5 L9.0,20.0 l2.5,-5.5 L17.0,12.0 l-5.5,-2.5 Z").toPath() }
+private val assistantActionPath2 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M19.0,9.0 l1.25,-2.75 L23.0,5.0 l-2.75,-1.25 L19.0,1.0 l-1.25,2.75 L15.0,5.0 l2.75,1.25 L19.0,9.0 Z").toPath() }
+private val assistantActionPath3 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M19.0,15.0 l-1.25,2.75 L15.0,19.0 l2.75,1.25 L19.0,23.0 l1.25,-2.75 L23.0,19.0 l-2.75,-1.25 L19.0,15.0 Z").toPath() }
+
+private val nowPlayingActionPath1 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 19,11.5 L 19,12.5").toPath() }
+private val nowPlayingActionPath2 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 14.5,9.5 L 14.5,15.5").toPath() }
+private val nowPlayingActionPath3 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10,7 L 10,16").toPath() }
+private val nowPlayingActionPath4 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 11.6,16.5 C 11.6,19.26 9.36,21.5 6.6,21.5 C 3.84,21.5 1.6,19.26 1.6,16.5 C 1.6,13.74 3.84,11.5 6.6,11.5 C 8.6,11.5 10.3,12.7 11.1,14.4 Z").toPath() }
+
 @Composable
 fun ComposeActionIcon(
     iconType: String,
@@ -8848,51 +9208,62 @@ fun ComposeActionIcon(
             when (iconType) {
                 "Search" -> {
                     drawPath(
-                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10.5,4 A 6.5,6.5 0 0 0 4,10.5 A 6.5,6.5 0 0 0 10.5,17 A 6.5,6.5 0 0 0 15,15").toPath(),
+                        path = searchActionPath1,
                         color = primaryColor,
                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                     )
                     drawPath(
-                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 14,5 A 6.5,6.5 0 0 0 10.5,4 A 6.5,6.5 0 0 0 5,7.5").toPath(),
+                        path = searchActionPath2,
                         color = tertiaryColor,
                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                     )
                     drawPath(
-                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 15.5,15.5 L 20,20").toPath(),
+                        path = searchActionPath3,
                         color = secondaryColor,
                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                     )
                     drawPath(
-                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 18,0.5 C 18,4 21,6.5 24,6.5 C 21,6.5 18,9 18,12.5 C 18,9 15,6.5 12,6.5 C 15,6.5 18,4 18,0.5 Z").toPath(),
+                        path = searchActionPath4,
                         color = primaryColor
                     )
                 }
-                "Assistant", "Gemini" -> {
+                "Assistant", "Gemini", "Voice" -> {
                     drawPath(
-                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,2L14.8,9.2L22,12L14.8,14.8L12,22L9.2,14.8L2,12L9.2,9.2L12,2Z").toPath(),
+                        path = assistantActionPath1,
                         color = primaryColor
+                    )
+                    drawPath(
+                        path = assistantActionPath2,
+                        color = tertiaryColor
+                    )
+                    drawPath(
+                        path = assistantActionPath3,
+                        color = secondaryColor
                     )
                 }
                 "Now Playing" -> {
                     drawPath(
-                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 19,11.5 L 19,12.5").toPath(),
+                        path = nowPlayingActionPath1,
                         color = tertiaryColor,
                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                     )
                     drawPath(
-                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 14.5,9.5 L 14.5,15.5").toPath(),
+                        path = nowPlayingActionPath2,
                         color = secondaryColor,
                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                     )
                     drawPath(
-                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10,7 L 10,16").toPath(),
+                        path = nowPlayingActionPath3,
                         color = primaryColor,
                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                     )
                     drawPath(
-                        path = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 11.6,16.5 C 11.6,19.26 9.36,21.5 6.6,21.5 C 3.84,21.5 1.6,19.26 1.6,16.5 C 1.6,13.74 3.84,11.5 6.6,11.5 C 8.6,11.5 10.3,12.7 11.1,14.4 Z").toPath(),
+                        path = nowPlayingActionPath4,
                         color = primaryColor
                     )
+                }
+                else -> {
+                    // None or unmapped: draw nothing
                 }
             }
         }
@@ -9034,7 +9405,7 @@ fun Android17Slider(
     val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
     
     val infiniteTransition = rememberInfiniteTransition(label = "squiggle")
-    val phase by if (isSquiggly) {
+    val phase by if (isSquiggly && showTrack) {
         infiniteTransition.animateFloat(
             initialValue = 0f,
             targetValue = 2f * Math.PI.toFloat(),
@@ -9371,7 +9742,7 @@ fun SearchPillsScreen(
                         .toList()
                     installedApps = apps
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    android.util.Log.w("IntelligentSearch", "Unexpected error", e)
                 } finally {
                     isAppsLoading = false
                 }
@@ -9634,10 +10005,44 @@ fun SearchPillsScreen(
                         }
                     }
                 } else {
+                    val view = LocalView.current
+                    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
                     var draggingPackage by remember { mutableStateOf<String?>(null) }
                     var itemDragOffset by remember { mutableFloatStateOf(0f) }
+                    var autoScrollVelocity by remember { mutableFloatStateOf(0f) }
                     val listState = rememberLazyListState()
                     val coroutineScope = rememberCoroutineScope()
+
+                    LaunchedEffect(draggingPackage, autoScrollVelocity) {
+                        if (draggingPackage != null && autoScrollVelocity != 0f) {
+                            while (isActive && draggingPackage != null && autoScrollVelocity != 0f) {
+                                val canScroll = if (autoScrollVelocity < 0f) listState.canScrollBackward else listState.canScrollForward
+                                if (!canScroll) break
+                                listState.scrollBy(autoScrollVelocity)
+                                kotlinx.coroutines.delay(16)
+                            }
+                        }
+                    }
+
+                    var pillAppLabels by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+                    LaunchedEffect(localPillList) {
+                        withContext(Dispatchers.IO) {
+                            val pm = context.packageManager
+                            val map = mutableMapOf<String, String>()
+                            localPillList.forEach { pkg ->
+                                try {
+                                    val info = pm.getApplicationInfo(pkg, 0)
+                                    map[pkg] = pm.getApplicationLabel(info).toString()
+                                    getNativeAppIcon(context, pkg)
+                                } catch (_: Exception) {
+                                    map[pkg] = pkg
+                                }
+                            }
+                            withContext(Dispatchers.Main) {
+                                pillAppLabels = map
+                            }
+                        }
+                    }
 
                     androidx.compose.foundation.lazy.LazyColumn(
                         state = listState,
@@ -9648,7 +10053,7 @@ fun SearchPillsScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp)
                     ) {
-                        items(localPillList, key = { "$resetCounter-$it" }) { packageName ->
+                        items(localPillList, key = { it }) { packageName ->
                             val isDragging = draggingPackage == packageName
                             val elevation by androidx.compose.animation.core.animateDpAsState(
                                 targetValue = if (isDragging) 8.dp else 0.dp,
@@ -9679,6 +10084,7 @@ fun SearchPillsScreen(
                                 )
                                 LaunchedEffect(dismissState.currentValue) {
                                     if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
+                                        hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
                                         val updated = localPillList.toMutableList()
                                         updated.remove(packageName)
                                         persistPills(updated)
@@ -9690,30 +10096,40 @@ fun SearchPillsScreen(
                                     enableDismissFromStartToEnd = !isDragging,
                                     enableDismissFromEndToStart = !isDragging,
                                     backgroundContent = {
-                                        Box(modifier = Modifier.fillMaxSize())
-                                    }
-                                ) {
-                                    val appName = remember(packageName) {
-                                        try {
-                                            val pm = context.packageManager
-                                            val info = pm.getApplicationInfo(packageName, 0)
-                                            pm.getApplicationLabel(info).toString()
-                                        } catch (e: Exception) {
-                                            packageName
+                                        val direction = dismissState.dismissDirection
+                                        val isDismissing = dismissState.targetValue != SwipeToDismissBoxValue.Settled
+                                        val bgColor by androidx.compose.animation.animateColorAsState(
+                                            targetValue = if (isDismissing) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                            label = "pill_dismiss_color"
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(24.dp))
+                                                .background(bgColor)
+                                                .padding(horizontal = 24.dp),
+                                            contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Delete,
+                                                contentDescription = "Remove from Quick Launch",
+                                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                                modifier = Modifier.size(24.dp)
+                                            )
                                         }
                                     }
+                                ) {
+                                    val appName = pillAppLabels[packageName] ?: packageName
                                     val appIcon = remember(packageName) {
                                         getNativeAppIcon(context, packageName)
                                     }
 
-                                    Surface(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .shadow(elevation, RoundedCornerShape(24.dp))
-                                            .clip(RoundedCornerShape(24.dp))
-                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
-                                        color = Color.Transparent
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(24.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = elevation)
                                     ) {
                                         Row(
                                             modifier = Modifier
@@ -9737,14 +10153,16 @@ fun SearchPillsScreen(
                                                 Column {
                                                     Text(
                                                         text = appName,
-                                                        color = MaterialTheme.colorScheme.onSurface,
-                                                        fontSize = 16.sp,
-                                                        fontWeight = FontWeight.Medium
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                        fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = MaterialTheme.colorScheme.onSurface
                                                     )
                                                     Text(
                                                         text = packageName,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                                        fontSize = 12.sp
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                                     )
                                                 }
                                             }
@@ -9757,15 +10175,19 @@ fun SearchPillsScreen(
                                                 modifier = Modifier.pointerInput(currentPkg) {
                                                     detectVerticalDragGestures(
                                                         onDragStart = {
+                                                            hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
                                                             draggingPackage = currentPkg
                                                             itemDragOffset = 0f
+                                                            autoScrollVelocity = 0f
                                                         },
                                                         onDragEnd = {
+                                                            autoScrollVelocity = 0f
                                                             draggingPackage = null
                                                             itemDragOffset = 0f
                                                             persistPills(localPillList)
                                                         },
                                                         onDragCancel = {
+                                                            autoScrollVelocity = 0f
                                                             draggingPackage = null
                                                             itemDragOffset = 0f
                                                         },
@@ -9775,33 +10197,34 @@ fun SearchPillsScreen(
 
                                                             val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
                                                             val draggingItem = listState.layoutInfo.visibleItemsInfo.find {
-                                                                it.key == "$resetCounter-$currentDraggingPackage" ||
-                                                                it.key == currentDraggingPackage ||
-                                                                it.key.toString().endsWith(currentDraggingPackage)
+                                                                it.key == currentDraggingPackage
                                                             }
                                                             if (draggingItem != null) {
                                                                 val spacing = listState.layoutInfo.mainAxisItemSpacing.toFloat()
                                                                 val itemHeight = draggingItem.size.toFloat() + spacing
                                                                 val from = localPillList.indexOf(currentDraggingPackage)
                                                                 val distanceFromBottom = listState.layoutInfo.viewportSize.height - (draggingItem.offset + draggingItem.size)
+                                                                val hotZonePx = 160f
 
-                                                                if (itemDragOffset < 0f && draggingItem.offset < 80f && listState.canScrollBackward) {
-                                                                    coroutineScope.launch {
-                                                                        listState.scrollBy(-16f)
-                                                                    }
-                                                                } else if (itemDragOffset > 0f && distanceFromBottom < 80f && listState.canScrollForward) {
-                                                                    coroutineScope.launch {
-                                                                        listState.scrollBy(16f)
-                                                                    }
+                                                                if (itemDragOffset < 0f && draggingItem.offset < hotZonePx && listState.canScrollBackward) {
+                                                                    val proximity = (1f - (draggingItem.offset / hotZonePx)).coerceIn(0.2f, 1f)
+                                                                    autoScrollVelocity = -22f * proximity
+                                                                } else if (itemDragOffset > 0f && distanceFromBottom < hotZonePx && listState.canScrollForward) {
+                                                                    val proximity = (1f - (distanceFromBottom / hotZonePx)).coerceIn(0.2f, 1f)
+                                                                    autoScrollVelocity = 22f * proximity
+                                                                } else {
+                                                                    autoScrollVelocity = 0f
                                                                 }
 
                                                                 if (from != -1) {
                                                                     if (itemDragOffset > itemHeight / 2f && from < localPillList.size - 1) {
+                                                                        hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.REORDER_SWAP)
                                                                         val currentList = localPillList.toMutableList()
                                                                         java.util.Collections.swap(currentList, from, from + 1)
                                                                         localPillList = currentList
                                                                         itemDragOffset -= itemHeight
                                                                     } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
+                                                                        hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.REORDER_SWAP)
                                                                         val currentList = localPillList.toMutableList()
                                                                         java.util.Collections.swap(currentList, from, from - 1)
                                                                         localPillList = currentList
@@ -9880,7 +10303,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     { _ -> }
                                 )
                             } catch (e: Exception) {
-                                e.printStackTrace()
+                                android.util.Log.w("IntelligentSearch", "Unexpected error", e)
                             }
                         } else {
                             android.widget.Toast.makeText(context, "Please add the tile manually from your notification shade.", android.widget.Toast.LENGTH_LONG).show()
@@ -9914,7 +10337,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 )
                                 shortcutManager.requestPinShortcut(pinShortcutInfo, successCallback.intentSender)
                             } catch (e: Exception) {
-                                e.printStackTrace()
+                                android.util.Log.w("IntelligentSearch", "Unexpected error", e)
                             }
                         } else {
                             Toast.makeText(context, "Pinning shortcuts not supported on this device.", Toast.LENGTH_SHORT).show()
@@ -10276,6 +10699,10 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
 @Composable
 fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
+    val view = LocalView.current
+    val viewModel = LocalSettingsViewModel.current
+    val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
+
     var activeIconPack by rememberStringPreference(prefs, "active_icon_pack", "system_default")
     var neverShowWarning by rememberBooleanPreference(prefs, "never_show_icon_pack_warning", false) {}
     var storedPillString by rememberStringPreference(prefs, "custom_icon_pills", "")
@@ -10283,19 +10710,28 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         if (storedPillString.isNotBlank()) storedPillString else prefs.getString("custom_icon_packs_order", "") ?: ""
     }
 
-    val installedPacks = remember { com.pixel.intelligentsearch.core.util.IconPackManager.getInstalledIconPacks(context) }
-    val validPackSet = remember(installedPacks) {
-        (listOf("system_default") + installedPacks.map { it.packageName }).toSet()
+    var installedPacks by remember { mutableStateOf<List<com.pixel.intelligentsearch.core.util.IconPackInfo>>(emptyList()) }
+    var allPackMap by remember { mutableStateOf<Map<String, Pair<String, ImageBitmap?>>>(mapOf("system_default" to Pair("System Default", null))) }
+    var isPacksLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        val (packs, map) = withContext(Dispatchers.IO) {
+            val p = com.pixel.intelligentsearch.core.util.IconPackManager.getInstalledIconPacks(context)
+            val m = mutableMapOf<String, Pair<String, ImageBitmap?>>()
+            m["system_default"] = Pair("System Default", null)
+            p.forEach { pack ->
+                val bmp = try { pack.icon?.toBitmap()?.asImageBitmap() } catch (_: Exception) { null }
+                m[pack.packageName] = Pair(pack.label, bmp)
+            }
+            p to m
+        }
+        installedPacks = packs
+        allPackMap = map
+        isPacksLoading = false
     }
 
-    val allPackMap = remember(installedPacks) {
-        val map = mutableMapOf<String, Pair<String, ImageBitmap?>>()
-        map["system_default"] = Pair("System Default", null)
-        installedPacks.forEach { pack ->
-            val bmp = try { pack.icon?.toBitmap()?.asImageBitmap() } catch (e: Exception) { null }
-            map[pack.packageName] = Pair(pack.label, bmp)
-        }
-        map
+    val validPackSet = remember(installedPacks) {
+        (listOf("system_default") + installedPacks.map { it.packageName }).toSet()
     }
 
     var localPillList by remember(effectivePillString, validPackSet) {
@@ -10310,8 +10746,20 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
     var draggingPackage by remember { mutableStateOf<String?>(null) }
     var itemDragOffset by remember { mutableFloatStateOf(0f) }
+    var autoScrollVelocity by remember { mutableFloatStateOf(0f) }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(draggingPackage, autoScrollVelocity) {
+        if (draggingPackage != null && autoScrollVelocity != 0f) {
+            while (isActive && draggingPackage != null && autoScrollVelocity != 0f) {
+                val canScroll = if (autoScrollVelocity < 0f) listState.canScrollBackward else listState.canScrollForward
+                if (!canScroll) break
+                listState.scrollBy(autoScrollVelocity)
+                kotlinx.coroutines.delay(16)
+            }
+        }
+    }
 
     var pendingIconPack by remember { mutableStateOf<String?>(null) }
 
@@ -10321,7 +10769,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             pendingIconPack = pkg
         } else {
             activeIconPack = pkg
-            prefs.edit().putString("active_icon_pack", pkg).apply()
+            viewModel?.updateActiveIconPack(pkg)
             com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
         }
     }
@@ -10355,8 +10803,9 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     neverShowWarning = true
                                     prefs.edit().putBoolean("never_show_icon_pack_warning", true).apply()
                                     if (pendingIconPack != null) {
-                                        activeIconPack = pendingIconPack!!
-                                        prefs.edit().putString("active_icon_pack", pendingIconPack!!).apply()
+                                        val chosen = pendingIconPack!!
+                                        activeIconPack = chosen
+                                        viewModel?.updateActiveIconPack(chosen)
                                         com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
                                         pendingIconPack = null
                                     }
@@ -10373,8 +10822,9 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 Button(
                                     onClick = {
                                         if (pendingIconPack != null) {
-                                            activeIconPack = pendingIconPack!!
-                                            prefs.edit().putString("active_icon_pack", pendingIconPack!!).apply()
+                                            val chosen = pendingIconPack!!
+                                            activeIconPack = chosen
+                                            viewModel?.updateActiveIconPack(chosen)
                                             com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
                                             pendingIconPack = null
                                         }
@@ -10389,188 +10839,212 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 )
             }
 
-            androidx.compose.foundation.lazy.LazyColumn(
-                state = listState,
-                userScrollEnabled = draggingPackage == null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
-            ) {
-                items(localPillList, key = { it }) { packageName ->
-                    val isDragging = draggingPackage == packageName
+            if (isPacksLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                androidx.compose.foundation.lazy.LazyColumn(
+                    state = listState,
+                    userScrollEnabled = draggingPackage == null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
+                ) {
+                    items(localPillList, key = { it }) { packageName ->
+                        val isDragging = draggingPackage == packageName
 
-                    val elevation by androidx.compose.animation.core.animateDpAsState(
-                        targetValue = if (isDragging) 8.dp else 0.dp,
-                        label = "elevation"
-                    )
-                    val scale by androidx.compose.animation.core.animateFloatAsState(
-                        targetValue = if (isDragging) 1.03f else 1f,
-                        label = "scale"
-                    )
+                        val elevation by androidx.compose.animation.core.animateDpAsState(
+                            targetValue = if (isDragging) 8.dp else 0.dp,
+                            label = "elevation"
+                        )
+                        val scale by androidx.compose.animation.core.animateFloatAsState(
+                            targetValue = if (isDragging) 1.03f else 1f,
+                            label = "scale"
+                        )
 
-                    val draggingModifier = if (isDragging) {
-                        Modifier.zIndex(10f).graphicsLayer {
-                            translationY = itemDragOffset
-                            scaleX = scale
-                            scaleY = scale
+                        val draggingModifier = if (isDragging) {
+                            Modifier.zIndex(10f).graphicsLayer {
+                                translationY = itemDragOffset
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                        } else {
+                            Modifier.animateItem().zIndex(0f).graphicsLayer {
+                                translationY = 0f
+                                scaleX = scale
+                                scaleY = scale
+                            }
                         }
-                    } else {
-                        Modifier.animateItem().zIndex(0f).graphicsLayer {
-                            translationY = 0f
-                            scaleX = scale
-                            scaleY = scale
-                        }
-                    }
 
-                    val packInfo = allPackMap[packageName] ?: Pair(packageName, null)
-                    val packLabel = packInfo.first
-                    val packIcon = packInfo.second
-                    val isSelected = activeIconPack == packageName
+                        val packInfo = allPackMap[packageName] ?: Pair(packageName, null)
+                        val packLabel = packInfo.first
+                        val packIcon = packInfo.second
+                        val isSelected = activeIconPack == packageName
 
-                    Box(modifier = draggingModifier) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(elevation, RoundedCornerShape(24.dp))
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
-                            color = Color.Transparent
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                        Box(modifier = draggingModifier) {
+                            val containerColor = if (isSelected) {
+                                MaterialTheme.colorScheme.surfaceContainerHighest
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainer
+                            }
+                            val borderColor = if (isSelected) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                            } else {
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
+                            }
+
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(24.dp),
+                                colors = CardDefaults.cardColors(containerColor = containerColor),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+                                elevation = CardDefaults.cardElevation(defaultElevation = elevation)
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    if (packageName == "system_default") {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Palette,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(36.dp)
-                                        )
-                                    } else if (packIcon != null) {
-                                        Image(
-                                            bitmap = packIcon,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(36.dp)
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Outlined.AppShortcut,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(36.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column {
-                                        Text(
-                                            text = packLabel,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        Text(
-                                            text = if (packageName == "system_default") "Default Monet dynamic icons" else packageName,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                            fontSize = 12.sp
-                                        )
-                                    }
-                                }
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Switch(
-                                        checked = isSelected,
-                                        onCheckedChange = { checked ->
-                                            if (checked) {
-                                                activatePack(packageName)
-                                            } else {
-                                                if (activeIconPack == packageName) {
-                                                    activatePack("system_default")
-                                                }
-                                            }
-                                        },
-                                        colors = SwitchDefaults.colors(
-                                            checkedThumbColor = MaterialTheme.colorScheme.primary,
-                                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                                            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
-                                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                                        )
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    val currentPkg by rememberUpdatedState(packageName)
-                                    Icon(
-                                        imageVector = Icons.Outlined.DragHandle,
-                                        contentDescription = "Drag to reorder",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                        modifier = Modifier.pointerInput(currentPkg) {
-                                            detectVerticalDragGestures(
-                                                onDragStart = {
-                                                    draggingPackage = currentPkg
-                                                    itemDragOffset = 0f
-                                                },
-                                                onDragEnd = {
-                                                    draggingPackage = null
-                                                    itemDragOffset = 0f
-                                                    storedPillString = localPillList.joinToString(",")
-                                                    prefs.edit()
-                                                        .putString("custom_icon_pills", storedPillString)
-                                                        .putString("custom_icon_packs_order", storedPillString)
-                                                        .apply()
-                                                },
-                                                onDragCancel = {
-                                                    draggingPackage = null
-                                                    itemDragOffset = 0f
-                                                },
-                                                onVerticalDrag = { change, dragAmount ->
-                                                    change.consume()
-                                                    itemDragOffset += dragAmount
-
-                                                    val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
-                                                    val draggingItem = listState.layoutInfo.visibleItemsInfo.find {
-                                                        it.key == currentDraggingPackage
-                                                    }
-                                                    if (draggingItem != null) {
-                                                        val spacing = listState.layoutInfo.mainAxisItemSpacing.toFloat()
-                                                        val itemHeight = draggingItem.size.toFloat() + spacing
-                                                        val from = localPillList.indexOf(currentDraggingPackage)
-                                                        val distanceFromBottom = listState.layoutInfo.viewportSize.height - (draggingItem.offset + draggingItem.size)
-
-                                                        if (itemDragOffset < 0f && draggingItem.offset < 80f && listState.canScrollBackward) {
-                                                            coroutineScope.launch {
-                                                                listState.scrollBy(-16f)
-                                                            }
-                                                        } else if (itemDragOffset > 0f && distanceFromBottom < 80f && listState.canScrollForward) {
-                                                            coroutineScope.launch {
-                                                                listState.scrollBy(16f)
-                                                            }
-                                                        }
-
-                                                        if (from != -1) {
-                                                            if (itemDragOffset > itemHeight / 2f && from < localPillList.size - 1) {
-                                                                val currentList = localPillList.toMutableList()
-                                                                java.util.Collections.swap(currentList, from, from + 1)
-                                                                localPillList = currentList
-                                                                itemDragOffset -= itemHeight
-                                                            } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
-                                                                val currentList = localPillList.toMutableList()
-                                                                java.util.Collections.swap(currentList, from, from - 1)
-                                                                localPillList = currentList
-                                                                itemDragOffset += itemHeight
-                                                            }
-                                                        }
-                                                    }
-                                                }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        if (packageName == "system_default") {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Palette,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(36.dp)
+                                            )
+                                        } else if (packIcon != null) {
+                                            Image(
+                                                bitmap = packIcon,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(36.dp)
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Outlined.AppShortcut,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(36.dp)
                                             )
                                         }
-                                    )
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Column {
+                                            Text(
+                                                text = packLabel,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = if (packageName == "system_default") "Default Monet dynamic icons" else packageName,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                            )
+                                        }
+                                    }
+
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(
+                                            checked = isSelected,
+                                            onCheckedChange = { checked ->
+                                                if (checked) {
+                                                    activatePack(packageName)
+                                                } else {
+                                                    if (activeIconPack == packageName) {
+                                                        activatePack("system_default")
+                                                    }
+                                                }
+                                            }
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        val currentPkg by rememberUpdatedState(packageName)
+                                        Icon(
+                                            imageVector = Icons.Outlined.DragHandle,
+                                            contentDescription = "Drag to reorder",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                            modifier = Modifier.pointerInput(currentPkg) {
+                                                detectVerticalDragGestures(
+                                                    onDragStart = {
+                                                        hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
+                                                        draggingPackage = currentPkg
+                                                        itemDragOffset = 0f
+                                                        autoScrollVelocity = 0f
+                                                    },
+                                                    onDragEnd = {
+                                                        autoScrollVelocity = 0f
+                                                        draggingPackage = null
+                                                        itemDragOffset = 0f
+                                                        storedPillString = localPillList.joinToString(",")
+                                                        viewModel?.updateCustomIconPills(storedPillString)
+                                                        prefs.edit()
+                                                            .putString("custom_icon_pills", storedPillString)
+                                                            .putString("custom_icon_packs_order", storedPillString)
+                                                            .apply()
+                                                    },
+                                                    onDragCancel = {
+                                                        autoScrollVelocity = 0f
+                                                        draggingPackage = null
+                                                        itemDragOffset = 0f
+                                                    },
+                                                    onVerticalDrag = { change, dragAmount ->
+                                                        change.consume()
+                                                        itemDragOffset += dragAmount
+
+                                                        val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
+                                                        val draggingItem = listState.layoutInfo.visibleItemsInfo.find {
+                                                            it.key == currentDraggingPackage
+                                                        }
+                                                        if (draggingItem != null) {
+                                                            val spacing = listState.layoutInfo.mainAxisItemSpacing.toFloat()
+                                                            val itemHeight = draggingItem.size.toFloat() + spacing
+                                                            val from = localPillList.indexOf(currentDraggingPackage)
+                                                            val distanceFromBottom = listState.layoutInfo.viewportSize.height - (draggingItem.offset + draggingItem.size)
+                                                            val hotZonePx = 160f
+
+                                                            if (itemDragOffset < 0f && draggingItem.offset < hotZonePx && listState.canScrollBackward) {
+                                                                val proximity = (1f - (draggingItem.offset / hotZonePx)).coerceIn(0.2f, 1f)
+                                                                autoScrollVelocity = -22f * proximity
+                                                            } else if (itemDragOffset > 0f && distanceFromBottom < hotZonePx && listState.canScrollForward) {
+                                                                val proximity = (1f - (distanceFromBottom / hotZonePx)).coerceIn(0.2f, 1f)
+                                                                autoScrollVelocity = 22f * proximity
+                                                            } else {
+                                                                autoScrollVelocity = 0f
+                                                            }
+
+                                                            if (from != -1) {
+                                                                if (itemDragOffset > itemHeight / 2f && from < localPillList.size - 1) {
+                                                                    hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.REORDER_SWAP)
+                                                                    val currentList = localPillList.toMutableList()
+                                                                    java.util.Collections.swap(currentList, from, from + 1)
+                                                                    localPillList = currentList
+                                                                    itemDragOffset -= itemHeight
+                                                                } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
+                                                                    hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.REORDER_SWAP)
+                                                                    val currentList = localPillList.toMutableList()
+                                                                    java.util.Collections.swap(currentList, from, from - 1)
+                                                                    localPillList = currentList
+                                                                    itemDragOffset += itemHeight
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }

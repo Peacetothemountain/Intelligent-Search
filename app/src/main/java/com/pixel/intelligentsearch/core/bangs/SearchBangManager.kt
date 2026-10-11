@@ -1,23 +1,27 @@
 package com.pixel.intelligentsearch.core.bangs
 
 import android.content.Context
-import kotlinx.coroutines.sync.withLock
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import android.os.UserManager
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.regex.Pattern
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class SearchBangManager @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val settingsManager: SettingsManager
 ) {
 
@@ -133,14 +137,32 @@ class SearchBangManager @Inject constructor(
         )
     }
 
+    private fun getSafeContext(): Context {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return context
+        val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
+        val isUnlocked = userManager?.isUserUnlocked ?: true
+        return if (!isUnlocked && !context.isDeviceProtectedStorage) {
+            context.createDeviceProtectedStorageContext()
+        } else {
+            context
+        }
+    }
+
+    private fun getPrefs(): SharedPreferences {
+        return getSafeContext().getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+    }
+
+    private val prefChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "web_shortcut_trigger_symbol" || key == "custom_bangs_json" || key == "disabled_web_shortcuts") {
+            cachedTriggerSymbol = null
+            cachedSyncBangs = null
+        }
+    }
+
     init {
-        context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-            .registerOnSharedPreferenceChangeListener { _, key ->
-                if (key == "web_shortcut_trigger_symbol" || key == "custom_bangs_json" || key == "disabled_web_shortcuts") {
-                    cachedTriggerSymbol = null
-                    cachedSyncBangs = null
-                }
-            }
+        try {
+            getPrefs().registerOnSharedPreferenceChangeListener(prefChangeListener)
+        } catch (_: Exception) {}
     }
 
     @Volatile
@@ -149,8 +171,11 @@ class SearchBangManager @Inject constructor(
     fun getTriggerSymbol(): String {
         val cached = cachedTriggerSymbol
         if (cached != null) return cached
-        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-        val symbol = prefs.getString("web_shortcut_trigger_symbol", "!")?.ifBlank { "!" } ?: "!"
+        val symbol = try {
+            getPrefs().getString("web_shortcut_trigger_symbol", "!")?.ifBlank { "!" } ?: "!"
+        } catch (_: Exception) {
+            "!"
+        }
         cachedTriggerSymbol = symbol
         return symbol
     }
@@ -167,19 +192,19 @@ class SearchBangManager @Inject constructor(
                 bang
             }
         }
-        val res = (customBangs + builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase(java.util.Locale.ROOT) !in disabled }).distinctBy { it.displayPrefix }
+        val res = (customBangs + builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase(Locale.ROOT) !in disabled }).distinctBy { it.displayPrefix }
         cachedSyncBangs = res
         res
     }
 
     @Volatile
     private var cachedSyncBangs: List<SearchBang>? = null
-    private val mutex = kotlinx.coroutines.sync.Mutex()
+    private val mutex = Mutex()
 
     fun getAllBangsSync(): List<SearchBang> {
         val cached = cachedSyncBangs
         if (cached != null) return cached
-        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val prefs = getPrefs()
         val trigger = prefs.getString("web_shortcut_trigger_symbol", "!")?.ifBlank { "!" } ?: "!"
         val customBangsJson = prefs.getString("custom_bangs_json", null)
             ?: settingsManager.getInitialSettings().customBangsJson
@@ -194,7 +219,7 @@ class SearchBangManager @Inject constructor(
                 bang
             }
         }
-        val result = (customBangs + builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase(java.util.Locale.ROOT) !in disabled }).distinctBy { it.displayPrefix }
+        val result = (customBangs + builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase(Locale.ROOT) !in disabled }).distinctBy { it.displayPrefix }
         cachedSyncBangs = result
         return result
     }
@@ -302,7 +327,12 @@ class SearchBangManager @Inject constructor(
                 val resolved = pkgSearchIntent.resolveActivity(pm)
                 if (resolved != null) {
                     try {
-                        val activityInfo = pm.getActivityInfo(resolved, 0)
+                        val activityInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            pm.getActivityInfo(resolved, PackageManager.ComponentInfoFlags.of(0))
+                        } else {
+                            @Suppress("DEPRECATION")
+                            pm.getActivityInfo(resolved, 0)
+                        }
                         if (activityInfo.exported) {
                             return pkgSearchIntent
                         }
@@ -311,66 +341,81 @@ class SearchBangManager @Inject constructor(
             }
         }
 
-        // Priority 2: Universal Web URL Dispatch
-        val webUrl = bang.buildWebUrl(query)
+        // Priority 2: Universal Web URL Dispatch. Custom bangs can arrive from imported backups, so only
+        // web URLs are dispatched; any other scheme (intent:, file:, javascript:...) is forced onto https.
+        val webUrl = bang.buildWebUrl(query).let { url ->
+            val scheme = Uri.parse(url).scheme?.lowercase(Locale.ROOT)
+            if (scheme == "http" || scheme == "https") url else "https://${url.substringAfter("://")}"
+        }
         return Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
     }
 
-    private fun getPrefs() = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-
     suspend fun saveCustomBang(bang: SearchBang) {
-        mutex.withLock { cachedSyncBangs = null }
-        val prefs = getPrefs()
-        val currentJson = prefs.getString("custom_bangs_json", null)
-            ?: settingsManager.getInitialSettings().customBangsJson
-        val currentCustom = parseCustomBangs(currentJson).toMutableList()
-        currentCustom.removeAll { it.displayPrefix == bang.displayPrefix || it.prefix.equals(bang.prefix, ignoreCase = true) }
-        currentCustom.add(bang.copy(isBuiltIn = false))
-        val jsonStr = serializeCustomBangs(currentCustom)
-        prefs.edit().putString("custom_bangs_json", jsonStr).apply()
-        settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, jsonStr)
+        mutex.withLock {
+            cachedSyncBangs = null
+            val prefs = getPrefs()
+            val currentJson = prefs.getString("custom_bangs_json", null)
+                ?: settingsManager.getInitialSettings().customBangsJson
+            val currentCustom = parseCustomBangs(currentJson).toMutableList()
+            currentCustom.removeAll { it.displayPrefix == bang.displayPrefix || it.prefix.equals(bang.prefix, ignoreCase = true) }
+            currentCustom.add(bang.copy(isBuiltIn = false))
+            val jsonStr = serializeCustomBangs(currentCustom)
+            prefs.edit().putString("custom_bangs_json", jsonStr).apply()
+            settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, jsonStr)
+        }
     }
 
     suspend fun deleteCustomBang(prefix: String) {
-        mutex.withLock { cachedSyncBangs = null }
-        val normPrefix = prefix.lowercase().trim()
-        val prefs = getPrefs()
-        val currentJson = prefs.getString("custom_bangs_json", null)
-            ?: settingsManager.getInitialSettings().customBangsJson
-        val currentCustom = parseCustomBangs(currentJson).toMutableList()
-        currentCustom.removeAll { it.displayPrefix == normPrefix || it.prefix.equals(normPrefix, ignoreCase = true) }
-        val jsonStr = serializeCustomBangs(currentCustom)
-        prefs.edit().putString("custom_bangs_json", jsonStr).apply()
-        settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, jsonStr)
+        mutex.withLock {
+            cachedSyncBangs = null
+            val normPrefix = prefix.lowercase().trim()
+            val prefs = getPrefs()
+            val currentJson = prefs.getString("custom_bangs_json", null)
+                ?: settingsManager.getInitialSettings().customBangsJson
+            val currentCustom = parseCustomBangs(currentJson).toMutableList()
+            currentCustom.removeAll { it.displayPrefix == normPrefix || it.prefix.equals(normPrefix, ignoreCase = true) }
+            val jsonStr = serializeCustomBangs(currentCustom)
+            prefs.edit().putString("custom_bangs_json", jsonStr).apply()
+            settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, jsonStr)
+        }
     }
 
     suspend fun disableBuiltInBang(prefix: String) {
-        mutex.withLock { cachedSyncBangs = null }
-        val normPrefix = prefix.lowercase().trim()
-        val prefs = getPrefs()
-        val currentDisabled = (prefs.getStringSet("disabled_web_shortcuts", null)?.toSet()
-            ?: settingsManager.getInitialSettings().disabledWebShortcuts).toMutableSet()
-        currentDisabled.add(normPrefix)
-        prefs.edit().putStringSet("disabled_web_shortcuts", HashSet(currentDisabled)).apply()
-        settingsManager.updateSetting(SettingsManager.DISABLED_WEB_SHORTCUTS, currentDisabled)
+        mutex.withLock {
+            cachedSyncBangs = null
+            val normPrefix = prefix.lowercase().trim()
+            val prefs = getPrefs()
+            val currentDisabled = (prefs.getStringSet("disabled_web_shortcuts", null)?.toSet()
+                ?: settingsManager.getInitialSettings().disabledWebShortcuts).toMutableSet()
+            currentDisabled.add(normPrefix)
+            prefs.edit().putStringSet("disabled_web_shortcuts", HashSet(currentDisabled)).apply()
+            settingsManager.updateSetting(SettingsManager.DISABLED_WEB_SHORTCUTS, currentDisabled)
+        }
     }
 
     suspend fun enableBuiltInBang(prefix: String) {
-        mutex.withLock { cachedSyncBangs = null }
-        val normPrefix = prefix.lowercase().trim()
-        val prefs = getPrefs()
-        val currentDisabled = (prefs.getStringSet("disabled_web_shortcuts", null)?.toSet()
-            ?: settingsManager.getInitialSettings().disabledWebShortcuts).toMutableSet()
-        currentDisabled.remove(normPrefix)
-        prefs.edit().putStringSet("disabled_web_shortcuts", HashSet(currentDisabled)).apply()
-        settingsManager.updateSetting(SettingsManager.DISABLED_WEB_SHORTCUTS, currentDisabled)
+        mutex.withLock {
+            cachedSyncBangs = null
+            val normPrefix = prefix.lowercase().trim()
+            val prefs = getPrefs()
+            val currentDisabled = (prefs.getStringSet("disabled_web_shortcuts", null)?.toSet()
+                ?: settingsManager.getInitialSettings().disabledWebShortcuts).toMutableSet()
+            currentDisabled.remove(normPrefix)
+            prefs.edit().putStringSet("disabled_web_shortcuts", HashSet(currentDisabled)).apply()
+            settingsManager.updateSetting(SettingsManager.DISABLED_WEB_SHORTCUTS, currentDisabled)
+        }
     }
 
     private fun isPackageInstalled(pm: PackageManager, packageName: String): Boolean {
         return try {
-            pm.getPackageInfo(packageName, 0)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(packageName, 0)
+            }
             true
         } catch (_: Exception) {
             false
@@ -383,21 +428,23 @@ class SearchBangManager @Inject constructor(
         try {
             val jsonArray = JSONArray(jsonString)
             for (i in 0 until jsonArray.length()) {
-                val obj = jsonArray.getJSONObject(i)
-                list.add(
-                    SearchBang(
-                        prefix = obj.getString("prefix"),
-                        name = obj.getString("name"),
-                        urlTemplate = obj.getString("urlTemplate"),
-                        targetPackage = obj.optString("targetPackage").ifBlank { null },
-                        appIntentUriTemplate = obj.optString("appIntentUriTemplate").ifBlank { null },
-                        isBuiltIn = false,
-                        description = obj.optString("description")
+                try {
+                    val obj = jsonArray.getJSONObject(i)
+                    list.add(
+                        SearchBang(
+                            prefix = obj.getString("prefix"),
+                            name = obj.getString("name"),
+                            urlTemplate = obj.getString("urlTemplate"),
+                            targetPackage = obj.optString("targetPackage").ifBlank { null },
+                            appIntentUriTemplate = obj.optString("appIntentUriTemplate").ifBlank { null },
+                            isBuiltIn = false,
+                            description = obj.optString("description")
+                        )
                     )
-                )
+                } catch (_: Throwable) {}
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("IntelligentSearch", "Unexpected error", e)
         }
         return list
     }

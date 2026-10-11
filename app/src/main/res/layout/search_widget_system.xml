@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="0dp">
+
+    <!-- Centered capsule container matching 1:1 preview (56dp height) with system background ID for Android 12-17 corner rounding -->
+    <FrameLayout
+        android:id="@android:id/background"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_gravity="center">
+
+        <FrameLayout
+            android:id="@+id/widget_pill_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/widget_search_description">
+
+            <ImageView
+                android:id="@+id/widget_pill_background"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/bg_search_pill"
+                android:scaleType="fitXY"
+                android:importantForAccessibility="no" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:baselineAligned="false"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp">
+
+                <!-- Google G logo (4-color official Google G, 24dp) -->
+                <ImageView
+                    android:id="@+id/widget_g_logo"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_g_logo_colored"
+                    android:scaleType="fitCenter"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:contentDescription="@string/widget_talkback_google_logo" />
+
+                <!-- Spacer -->
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:importantForAccessibility="no"
+                    android:text="" />
+
+                <!-- Colored Microphone (24dp) -->
+                <ImageView
+                    android:id="@+id/widget_voice_search"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_mic"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="@string/widget_talkback_voice_search"
+                    android:clickable="true"
+                    android:focusable="true" />
+
+                <!-- Shortcut 1 (Lens Search, 24dp, 16dp spacing) -->
+                <ImageView
+                    android:id="@+id/widget_lens_search"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginStart="16dp"
+                    android:src="@drawable/ic_camera"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="@string/widget_talkback_lens"
+                    android:clickable="true"
+                    android:focusable="true" />
+
+                <!-- Shortcut 2 (24dp, 16dp spacing) -->
+                <ImageView
+                    android:id="@+id/widget_shortcut_2"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginStart="16dp"
+                    android:src="@drawable/ic_camera"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone"
+                    android:contentDescription="@string/widget_talkback_lens"
+                    android:clickable="true"
+                    android:focusable="true" />
+
+                <!-- Shortcut 3 (24dp, 16dp spacing) -->
+                <ImageView
+                    android:id="@+id/widget_shortcut_3"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginStart="16dp"
+                    android:src="@drawable/ic_camera"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone"
+                    android:contentDescription="@string/widget_talkback_lens"
+                    android:clickable="true"
+                    android:focusable="true" />
+
+                <!-- Action Search (24dp, 16dp spacing) -->
+                <ImageView
+                    android:id="@+id/widget_action_search"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginStart="16dp"
+                    android:src="@drawable/ic_lens_action"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone"
+                    android:contentDescription="@string/widget_talkback_voice_search"
+                    android:clickable="true"
+                    android:focusable="true" />
+
+            </LinearLayout>
+        </FrameLayout>
+    </FrameLayout>
+
+    <!-- Invisible stub IDs to satisfy SearchWidgetProvider references safely without impacting UI -->
+    <ImageView
+        android:id="@+id/widget_outer_background"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
+
+    <FrameLayout
+        android:id="@+id/widget_sound_search"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        android:importantForAccessibility="no">
+        <ImageView
+            android:id="@+id/widget_sound_background"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:importantForAccessibility="no" />
+        <ImageView
+            android:id="@+id/widget_sound_icon"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:importantForAccessibility="no" />
+    </FrameLayout>
+
+</FrameLayout>

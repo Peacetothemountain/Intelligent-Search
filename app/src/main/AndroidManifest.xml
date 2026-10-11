@@ -9,26 +9,21 @@
     
     <!-- System Toggles & Hardware Permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_SCAN"
-        android:usesPermissionFlags="neverForLocation"
-        tools:targetApi="s" />
-    <uses-permission
-        android:name="android.permission.NEARBY_WIFI_DEVICES"
-        android:usesPermissionFlags="neverForLocation"
-        tools:targetApi="tiramisu" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     
     <!-- Search Data Source Permissions -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Optional Hardware Features to Support Maximum Devices on Google Play -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
@@ -58,22 +53,88 @@
         <package android:name="com.google.android.apps.books" />
         <package android:name="com.google.android.apps.labs.language.tailwind" />
         <package android:name="com.google.android.apps.pixel.nowplaying" />
+        <package android:name="com.google.android.as" />
+        <package android:name="com.google.android.settings.intelligence" />
+        <package android:name="com.google.android.apps.nexuslauncher" />
+        <package android:name="com.google.android.apps.googleassistant" />
+        <package android:name="com.google.android.soundsearch" />
+        <package android:name="com.shazam.android" />
+        <package android:name="com.melodis.midomiMusicIdentifier.freemium" />
+        <!-- Voice & Assist Intents -->
         <intent>
             <action android:name="android.intent.action.DIAL" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.ASSIST" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VOICE_ASSIST" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VOICE_COMMAND" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.action.WEB_SEARCH" />
+        </intent>
+        <!-- Web & Global Search Intents -->
+        <intent>
+            <action android:name="android.intent.action.WEB_SEARCH" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SEARCH" />
+        </intent>
+        <intent>
+            <action android:name="android.search.action.GLOBAL_SEARCH" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <!-- Music & Sound Search Intents -->
+        <intent>
+            <action android:name="com.google.android.googlequicksearchbox.MUSIC_SEARCH" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+        </intent>
+        <intent>
+            <action android:name="com.google.android.as.NOW_PLAYING_HISTORY" />
+        </intent>
+        <intent>
+            <action android:name="com.google.android.settings.intelligence.NOW_PLAYING_HISTORY" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.NOW_PLAYING_SETTINGS" />
+        </intent>
+        <!-- System Role & Default Settings Intents -->
+        <intent>
+            <action android:name="android.intent.action.MANAGE_DEFAULT_APP" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.MANAGE_DEFAULT_APPS_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.DEFAULT_SEARCH_ENGINE_SETTINGS" />
         </intent>
     </queries>
 
     <application
         android:name=".App"
         android:allowBackup="false"
-        android:fullBackupContent="false"
         android:resizeableActivity="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:usesCleartextTraffic="false"
         android:networkSecurityConfig="@xml/network_security_config"
         android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="Intelligent Search"
+        android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.IntelligentSearch">
@@ -107,7 +168,6 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
-            android:directBootAware="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.WEB_SEARCH" />
@@ -116,7 +176,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.SEARCH" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.search.action.GLOBAL_SEARCH" />
@@ -151,6 +210,10 @@
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -188,9 +251,6 @@
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-                <action android:name="com.pixel.intelligentsearch.ACTION_UPDATE_WIDGET" />
-                <action android:name="com.pixel.intelligentsearch.ACTION_HIDE_WIDGET" />
-                <action android:name="com.pixel.intelligentsearch.ACTION_SHOW_WIDGET" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -205,9 +265,6 @@
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-                <action android:name="com.pixel.intelligentsearch.ACTION_UPDATE_WIDGET" />
-                <action android:name="com.pixel.intelligentsearch.ACTION_HIDE_WIDGET" />
-                <action android:name="com.pixel.intelligentsearch.ACTION_SHOW_WIDGET" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -217,7 +274,7 @@
         <receiver
             android:name="com.pixel.intelligentsearch.core.system.DirectBootReceiver"
             android:directBootAware="true"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
@@ -228,13 +285,22 @@
 
 
         <service android:name=".feature.widget.SearchTileService"
-                 android:label="Intelligent Search"
+                 android:label="@string/app_name"
                  android:icon="@drawable/ic_search_lens_expressive"
                  android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
                  android:exported="true">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.ACTIVE_TILE"
+                android:value="true" />
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="false" />
+            <meta-data
+                android:name="android.service.quicksettings.TILE_CATEGORY"
+                android:value="android.service.quicksettings.category.UTILITIES" />
         </service>
 
         <service android:name=".feature.voice.IntelligentVoiceInteractionService"
@@ -256,7 +322,7 @@
         <provider
             android:name="com.pixel.intelligentsearch.core.data.GlobalSearchProvider"
             android:authorities="com.pixel.intelligentsearch.globalsearch"
-            android:readPermission="android.permission.GLOBAL_SEARCH"
+            android:permission="android.permission.GLOBAL_SEARCH"
             android:exported="true" />
 
     </application>

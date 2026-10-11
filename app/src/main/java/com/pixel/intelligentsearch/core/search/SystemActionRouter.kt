@@ -280,6 +280,7 @@ class SystemActionRouter @Inject constructor(
                         subtitle = systemToggleManager.getDarkModeStatusText(isDark),
                         iconType = "darkmode",
                         isEnabled = isDark,
+                        isActionOnly = true,
                         onToggle = { systemToggleManager.toggleDarkMode(it) },
                         onOpenSettings = { systemToggleManager.openDarkModeSettings() }
                     )

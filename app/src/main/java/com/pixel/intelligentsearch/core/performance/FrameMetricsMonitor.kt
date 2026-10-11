@@ -1,12 +1,10 @@
 package com.pixel.intelligentsearch.core.performance
 
 import android.app.Activity
-import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.view.FrameMetrics
 import android.view.Window
-import androidx.annotation.RequiresApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -39,8 +37,13 @@ class FrameMetricsMonitor(
     private val _jankStats = MutableStateFlow(FrameJankStats())
     val jankStats: StateFlow<FrameJankStats> = _jankStats.asStateFlow()
 
-    private val metricsThread = HandlerThread("HWUI-FrameMetrics").apply { start() }
-    private val metricsHandler = Handler(metricsThread.looper)
+    companion object {
+        // One looper shared by every monitor: each overlay activity creates its own monitor, and a
+        // thread per instance was never quit, leaking one HandlerThread per launch.
+        private val metricsHandler: Handler by lazy {
+            Handler(HandlerThread("HWUI-FrameMetrics").apply { start() }.looper)
+        }
+    }
 
     // Rolling frame duration ring buffer (120 frames = ~1 sec at 120Hz)
     private val ringBufferSize = 120
@@ -51,22 +54,13 @@ class FrameMetricsMonitor(
 
     private var attachedWindow: Window? = null
 
-    private val frameMetricsListener = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        Window.OnFrameMetricsAvailableListener { _, frameMetrics, dropCountSinceLastInvocation ->
-            processFrameMetrics(frameMetrics, dropCountSinceLastInvocation)
-        }
-    } else {
-        null
+    private val frameMetricsListener = Window.OnFrameMetricsAvailableListener { _, frameMetrics, dropCountSinceLastInvocation ->
+        processFrameMetrics(frameMetrics, dropCountSinceLastInvocation)
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
     private fun processFrameMetrics(metrics: FrameMetrics, dropCount: Int) {
         val totalDurationNanos = metrics.getMetric(FrameMetrics.TOTAL_DURATION)
-        val gpuDurationNanos = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            metrics.getMetric(FrameMetrics.GPU_DURATION)
-        } else {
-            0L
-        }
+        val gpuDurationNanos = metrics.getMetric(FrameMetrics.GPU_DURATION)
 
         // Feed immediately to ADPF session for DVFS governor feedback
         adpfThermalManager.reportFrameMetrics(totalDurationNanos, gpuDurationNanos)
@@ -115,37 +109,21 @@ class FrameMetricsMonitor(
         )
     }
 
+    /** Starts sampling [activity]'s window. Pair with [detach] (the overlay calls them from onStart/onStop). */
     fun attach(activity: Activity) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && frameMetricsListener != null) {
-            try {
-                val window = activity.window ?: return
-                if (attachedWindow == window) return
-                detach()
-                window.addOnFrameMetricsAvailableListener(frameMetricsListener, metricsHandler)
-                attachedWindow = window
-
-                if (activity is androidx.lifecycle.LifecycleOwner) {
-                    activity.lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
-                        override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) {
-                            detach()
-                        }
-                    })
-                }
-            } catch (_: Throwable) {}
-        }
+        try {
+            val window = activity.window ?: return
+            if (attachedWindow == window) return
+            detach()
+            window.addOnFrameMetricsAvailableListener(frameMetricsListener, metricsHandler)
+            attachedWindow = window
+        } catch (_: Throwable) {}
     }
 
     fun detach() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && frameMetricsListener != null) {
-            try {
-                attachedWindow?.removeOnFrameMetricsAvailableListener(frameMetricsListener)
-            } catch (_: Throwable) {}
-            attachedWindow = null
-        }
-    }
-
-    fun release() {
-        detach()
-        metricsThread.quitSafely()
+        try {
+            attachedWindow?.removeOnFrameMetricsAvailableListener(frameMetricsListener)
+        } catch (_: Throwable) {}
+        attachedWindow = null
     }
 }

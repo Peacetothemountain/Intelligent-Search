@@ -3,14 +3,17 @@ package com.pixel.intelligentsearch.core.security
 import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.biometrics.BiometricPrompt
+import android.os.UserManager
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
-import android.security.keystore.StrongBoxUnavailableException
+import android.util.Base64
 import android.util.Log
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.KeyStore
-import java.security.ProviderException
 import java.security.SecureRandom
+import java.security.UnrecoverableKeyException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.Mac
@@ -18,7 +21,6 @@ import javax.crypto.SecretKey
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -78,6 +80,10 @@ class StrongBoxSecurityManager @Inject constructor(
         const val KEY_ALIAS_BIOMETRIC_GATE = "com.pixel.intelligentsearch.vault.biometric_gate_v1"
         const val KEY_ALIAS_BLIND_INDEX = "com.pixel.intelligentsearch.vault.blind_index_v1"
         const val KEY_ALIAS_SAVED_PASSPHRASE = "com.pixel.intelligentsearch.vault.saved_passphrase_v1"
+
+        // Dynamic circuit-breaker for devices reporting StrongBox in PackageManager but lacking hardware support
+        @Volatile
+        private var strongBoxDisabledDueToFailure = false
     }
 
     private val keyStore: KeyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply {
@@ -85,8 +91,23 @@ class StrongBoxSecurityManager @Inject constructor(
     }
     private val secureRandom = SecureRandom()
 
+    private fun getSafeContext(): Context {
+        val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
+        val isUnlocked = userManager?.isUserUnlocked ?: true
+        return if (!isUnlocked && !context.isDeviceProtectedStorage) {
+            context.createDeviceProtectedStorageContext()
+        } else {
+            context
+        }
+    }
+
     fun isStrongBoxSupported(): Boolean {
-        return context.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
+        if (strongBoxDisabledDueToFailure) return false
+        return try {
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /**
@@ -103,7 +124,7 @@ class StrongBoxSecurityManager @Inject constructor(
             val entry = try {
                 keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry
             } catch (e: Exception) {
-                Log.e(TAG, "Transient error reading Keystore entry for $alias", e)
+                Log.w(TAG, "Keystore getEntry failed for $alias: ${e.message}")
                 null
             }
             if (entry != null) {
@@ -113,14 +134,17 @@ class StrongBoxSecurityManager @Inject constructor(
             val key = try {
                 keyStore.getKey(alias, null) as? SecretKey
             } catch (e: Exception) {
-                Log.e(TAG, "Transient error in getKey for $alias", e)
+                Log.w(TAG, "Keystore getKey failed for $alias: ${e.message}")
                 null
             }
             if (key != null) {
                 val currentLevel = getHardwareSecurityLevel(key)
                 return Pair(key, currentLevel)
             }
-            throw IllegalStateException("Keystore alias $alias exists but entry could not be retrieved. Aborting key generation to prevent vault data loss.")
+
+            // Key alias exists but cannot be loaded (e.g. invalidated biometric enrollment or corrupt Keymaster state)
+            Log.w(TAG, "Keystore alias $alias exists but entry is unrecoverable. Purging and regenerating.")
+            deleteKey(alias)
         }
 
         return if (isStrongBoxSupported()) {
@@ -129,23 +153,14 @@ class StrongBoxSecurityManager @Inject constructor(
                 val key = generateAesKey(alias, isStrongBox = true, requireBiometric, authTimeoutSeconds)
                 Pair(key, getHardwareSecurityLevel(key))
             } catch (e: Exception) {
-                when (e) {
-                    is StrongBoxUnavailableException, is ProviderException -> {
-                        Log.w(TAG, "StrongBox key provisioning failed (${e.javaClass.simpleName}); executing atomic TEE fallback.", e)
-                        deleteKey(alias)
-                        val key = generateAesKey(alias, isStrongBox = false, requireBiometric, authTimeoutSeconds)
-                        Pair(key, getHardwareSecurityLevel(key))
-                    }
-                    else -> {
-                        Log.e(TAG, "StrongBox key generation encountered fatal error", e)
-                        deleteKey(alias)
-                        val key = generateAesKey(alias, isStrongBox = false, requireBiometric, authTimeoutSeconds)
-                        Pair(key, getHardwareSecurityLevel(key))
-                    }
-                }
+                Log.w(TAG, "StrongBox key provisioning failed (${e.javaClass.simpleName}); executing atomic TEE fallback.", e)
+                strongBoxDisabledDueToFailure = true
+                deleteKey(alias)
+                val key = generateAesKey(alias, isStrongBox = false, requireBiometric, authTimeoutSeconds)
+                Pair(key, getHardwareSecurityLevel(key))
             }
         } else {
-            Log.i(TAG, "StrongBox hardware not present; utilizing ARM TrustZone TEE KeyStore for alias: $alias")
+            Log.i(TAG, "StrongBox hardware not present or disabled; utilizing ARM TrustZone TEE KeyStore for alias: $alias")
             val key = generateAesKey(alias, isStrongBox = false, requireBiometric, authTimeoutSeconds)
             Pair(key, getHardwareSecurityLevel(key))
         }
@@ -204,15 +219,18 @@ class StrongBoxSecurityManager @Inject constructor(
                 else -> HardwareSecurityLevel.SOFTWARE
             }
         } catch (e: Exception) {
-            Log.w(TAG, "KeyInfo spec query failed; inspecting keystore provider properties", e)
-            if (isStrongBoxSupported()) HardwareSecurityLevel.STRONGBOX else HardwareSecurityLevel.TEE
+            Log.w(TAG, "KeyInfo spec query failed; defaulting to software level: ${e.message}")
+            HardwareSecurityLevel.SOFTWARE
         }
     }
 
     fun getSecurityLevelForAlias(alias: String): HardwareSecurityLevel {
         if (!keyStore.containsAlias(alias)) return HardwareSecurityLevel.SOFTWARE
-        val entry = keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry
-            ?: return HardwareSecurityLevel.SOFTWARE
+        val entry = try {
+            keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry
+        } catch (_: Exception) {
+            null
+        } ?: return HardwareSecurityLevel.SOFTWARE
         return getHardwareSecurityLevel(entry.secretKey)
     }
 
@@ -250,7 +268,22 @@ class StrongBoxSecurityManager @Inject constructor(
             authTimeoutSeconds = 0
         )
         val cipher = Cipher.getInstance(CIPHER_ALGORITHM)
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+        try {
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+        } catch (e: Exception) {
+            if (e is KeyPermanentlyInvalidatedException || e is UnrecoverableKeyException) {
+                Log.w(TAG, "Biometric encrypt key invalidated; resetting alias and regenerating", e)
+                deleteKey(alias)
+                val (newKey, _) = getOrCreateSymmetricKey(
+                    alias = alias,
+                    requireBiometric = true,
+                    authTimeoutSeconds = 0
+                )
+                cipher.init(Cipher.ENCRYPT_MODE, newKey)
+            } else {
+                throw e
+            }
+        }
         val iv = cipher.iv.clone()
         return Pair(BiometricPrompt.CryptoObject(cipher), iv)
     }
@@ -269,7 +302,22 @@ class StrongBoxSecurityManager @Inject constructor(
             authTimeoutSeconds = 0
         )
         val cipher = Cipher.getInstance(CIPHER_ALGORITHM)
-        cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(GCM_TAG_LENGTH, iv))
+        try {
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(GCM_TAG_LENGTH, iv))
+        } catch (e: Exception) {
+            if (e is KeyPermanentlyInvalidatedException || e is UnrecoverableKeyException) {
+                Log.w(TAG, "Biometric decrypt key invalidated; resetting alias and regenerating", e)
+                deleteKey(alias)
+                val (newKey, _) = getOrCreateSymmetricKey(
+                    alias = alias,
+                    requireBiometric = true,
+                    authTimeoutSeconds = 0
+                )
+                cipher.init(Cipher.DECRYPT_MODE, newKey, GCMParameterSpec(GCM_TAG_LENGTH, iv))
+            } else {
+                throw e
+            }
+        }
         return BiometricPrompt.CryptoObject(cipher)
     }
 
@@ -279,15 +327,28 @@ class StrongBoxSecurityManager @Inject constructor(
 
     /**
      * Retrieves or generates an HMAC-SHA256 key backed by KeyStore discrete hardware,
-     * with StrongBox and TEE fallback.
+     * with StrongBox, TEE, and software fallback.
      */
     @Synchronized
     fun getOrCreateHmacKey(alias: String = KEY_ALIAS_BLIND_INDEX): Pair<SecretKey, HardwareSecurityLevel> {
         if (keyStore.containsAlias(alias)) {
-            val entry = keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry
+            val entry = try {
+                keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry
+            } catch (_: Exception) {
+                null
+            }
             if (entry != null) {
                 return Pair(entry.secretKey, getHardwareSecurityLevel(entry.secretKey))
             }
+            val existingKey = try {
+                keyStore.getKey(alias, null) as? SecretKey
+            } catch (_: Exception) {
+                null
+            }
+            if (existingKey != null) {
+                return Pair(existingKey, getHardwareSecurityLevel(existingKey))
+            }
+            deleteKey(alias)
         }
 
         return if (isStrongBoxSupported()) {
@@ -295,13 +356,28 @@ class StrongBoxSecurityManager @Inject constructor(
                 val key = generateHmacKey(alias, isStrongBox = true)
                 Pair(key, getHardwareSecurityLevel(key))
             } catch (e: Exception) {
+                Log.w(TAG, "StrongBox HMAC unavailable on device; falling back to TEE: ${e.message}")
                 deleteKey(alias)
-                val key = generateHmacKey(alias, isStrongBox = false)
-                Pair(key, getHardwareSecurityLevel(key))
+                try {
+                    val key = generateHmacKey(alias, isStrongBox = false)
+                    Pair(key, getHardwareSecurityLevel(key))
+                } catch (teeEx: Exception) {
+                    Log.w(TAG, "TEE HMAC generation failed; utilizing device-isolated entropy seed", teeEx)
+                    val seed = getOrCreateSoftwareBlindIndexSeed()
+                    val key = SecretKeySpec(seed, HMAC_ALGORITHM)
+                    Pair(key, HardwareSecurityLevel.SOFTWARE)
+                }
             }
         } else {
-            val key = generateHmacKey(alias, isStrongBox = false)
-            Pair(key, getHardwareSecurityLevel(key))
+            try {
+                val key = generateHmacKey(alias, isStrongBox = false)
+                Pair(key, getHardwareSecurityLevel(key))
+            } catch (teeEx: Exception) {
+                Log.w(TAG, "TEE HMAC generation failed; utilizing device-isolated entropy seed", teeEx)
+                val seed = getOrCreateSoftwareBlindIndexSeed()
+                val key = SecretKeySpec(seed, HMAC_ALGORITHM)
+                Pair(key, HardwareSecurityLevel.SOFTWARE)
+            }
         }
     }
 
@@ -311,7 +387,7 @@ class StrongBoxSecurityManager @Inject constructor(
             alias,
             KeyProperties.PURPOSE_SIGN
         )
-        if (isStrongBox && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+        if (isStrongBox) {
             specBuilder.setIsStrongBoxBacked(true)
         }
         keyGenerator.init(specBuilder.build())
@@ -319,14 +395,14 @@ class StrongBoxSecurityManager @Inject constructor(
     }
 
     private fun getOrCreateSoftwareBlindIndexSeed(): ByteArray {
-        val sp = context.getSharedPreferences("secure_crypto_seed_store", Context.MODE_PRIVATE)
+        val sp = getSafeContext().getSharedPreferences("secure_crypto_seed_store", Context.MODE_PRIVATE)
         val existing = sp.getString("blind_seed", null)
         if (existing != null) {
-            return android.util.Base64.decode(existing, android.util.Base64.NO_WRAP)
+            return Base64.decode(existing, Base64.NO_WRAP)
         }
         val newSeed = ByteArray(32)
         secureRandom.nextBytes(newSeed)
-        sp.edit().putString("blind_seed", android.util.Base64.encodeToString(newSeed, android.util.Base64.NO_WRAP)).apply()
+        sp.edit().putString("blind_seed", Base64.encodeToString(newSeed, Base64.NO_WRAP)).apply()
         return newSeed
     }
 
@@ -343,7 +419,7 @@ class StrongBoxSecurityManager @Inject constructor(
             val hmac = mac.doFinal(input.lowercase().trim().toByteArray(Charsets.UTF_8))
             bytesToHex(hmac.copyOf(16))
         } catch (e: Exception) {
-            Log.w(TAG, "Hardware KeyStore HMAC signing unavailable; utilizing device-isolated entropy seed", e)
+            Log.w(TAG, "Hardware KeyStore HMAC signing unavailable; utilizing device-isolated entropy seed: ${e.message}")
             val seed = getOrCreateSoftwareBlindIndexSeed()
             val keySpec = SecretKeySpec(seed, HMAC_ALGORITHM)
             mac.init(keySpec)
@@ -382,21 +458,24 @@ class StrongBoxSecurityManager @Inject constructor(
      */
     @Synchronized
     fun savePassphrase(passphrase: String): Boolean {
+        val passBytes = passphrase.toByteArray(Charsets.UTF_8)
         return try {
             val (key, _) = getOrCreateSymmetricKey(KEY_ALIAS_SAVED_PASSPHRASE)
             val cipher = Cipher.getInstance(CIPHER_ALGORITHM)
             cipher.init(Cipher.ENCRYPT_MODE, key)
             val iv = cipher.iv
-            val cipherBytes = cipher.doFinal(passphrase.toByteArray(Charsets.UTF_8))
-            val sp = context.getSharedPreferences("secure_hardware_vault", Context.MODE_PRIVATE)
+            val cipherBytes = cipher.doFinal(passBytes)
+            val sp = getSafeContext().getSharedPreferences("secure_hardware_vault", Context.MODE_PRIVATE)
             sp.edit()
-                .putString("saved_passphrase_cipher", android.util.Base64.encodeToString(cipherBytes, android.util.Base64.NO_WRAP))
-                .putString("saved_passphrase_iv", android.util.Base64.encodeToString(iv, android.util.Base64.NO_WRAP))
+                .putString("saved_passphrase_cipher", Base64.encodeToString(cipherBytes, Base64.NO_WRAP))
+                .putString("saved_passphrase_iv", Base64.encodeToString(iv, Base64.NO_WRAP))
                 .commit()
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save passphrase to hardware security chip", e)
             false
+        } finally {
+            MemorySanitizer.wipe(passBytes)
         }
     }
 
@@ -405,20 +484,23 @@ class StrongBoxSecurityManager @Inject constructor(
      */
     @Synchronized
     fun getSavedPassphrase(): String? {
+        var decrypted: ByteArray? = null
         return try {
-            val sp = context.getSharedPreferences("secure_hardware_vault", Context.MODE_PRIVATE)
+            val sp = getSafeContext().getSharedPreferences("secure_hardware_vault", Context.MODE_PRIVATE)
             val cipherBase64 = sp.getString("saved_passphrase_cipher", null) ?: return null
             val ivBase64 = sp.getString("saved_passphrase_iv", null) ?: return null
-            val cipherBytes = android.util.Base64.decode(cipherBase64, android.util.Base64.NO_WRAP)
-            val iv = android.util.Base64.decode(ivBase64, android.util.Base64.NO_WRAP)
+            val cipherBytes = Base64.decode(cipherBase64, Base64.NO_WRAP)
+            val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
             val (key, _) = getOrCreateSymmetricKey(KEY_ALIAS_SAVED_PASSPHRASE)
             val cipher = Cipher.getInstance(CIPHER_ALGORITHM)
             cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
-            val decrypted = cipher.doFinal(cipherBytes)
+            decrypted = cipher.doFinal(cipherBytes)
             String(decrypted, Charsets.UTF_8)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to retrieve saved passphrase from hardware security chip", e)
             null
+        } finally {
+            MemorySanitizer.wipe(decrypted)
         }
     }
 
@@ -428,7 +510,7 @@ class StrongBoxSecurityManager @Inject constructor(
     @Synchronized
     fun clearSavedPassphrase(): Boolean {
         return try {
-            val sp = context.getSharedPreferences("secure_hardware_vault", Context.MODE_PRIVATE)
+            val sp = getSafeContext().getSharedPreferences("secure_hardware_vault", Context.MODE_PRIVATE)
             sp.edit().remove("saved_passphrase_cipher").remove("saved_passphrase_iv").commit()
             deleteKey(KEY_ALIAS_SAVED_PASSPHRASE)
             true

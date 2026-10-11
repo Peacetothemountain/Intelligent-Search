@@ -1,27 +1,19 @@
 package com.pixel.intelligentsearch.core.backup
 
-import android.app.Activity
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import com.pixel.intelligentsearch.core.bangs.SearchBangManager
 import com.pixel.intelligentsearch.core.data.HistoryDao
 import com.pixel.intelligentsearch.core.data.HistoryEntity
 import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.security.BiometricSearchGate
 import com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import javax.crypto.SecretKey
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,17 +23,59 @@ class BackupManager @Inject constructor(
     private val settingsManager: SettingsManager,
     private val historyDao: HistoryDao,
     private val searchBangManager: SearchBangManager,
-    private val biometricGate: BiometricSearchGate,
     private val strongBoxSecurityManager: StrongBoxSecurityManager
 ) {
 
     companion object {
         private const val HARWARE_BACKUP_KEY_ALIAS = "com.pixel.intelligentsearch.hardware_backup_kek"
+        private const val HISTORY_LIMIT = 25
+
+        /** Backup preferencesMap names mapped to the DataStore keys they restore. */
+        private val BOOLEAN_SETTING_KEYS = mapOf(
+            "searchApps" to SettingsManager.SEARCH_APPS,
+            "searchContacts" to SettingsManager.SEARCH_CONTACTS,
+            "searchFiles" to SettingsManager.SEARCH_FILES,
+            "searchWeb" to SettingsManager.SEARCH_WEB,
+            "searchCalculator" to SettingsManager.SEARCH_CALCULATOR,
+            "searchCalendar" to SettingsManager.SEARCH_CALENDAR,
+            "searchShortcuts" to SettingsManager.SEARCH_SHORTCUTS,
+            "showWallpaper" to SettingsManager.SHOW_WALLPAPER,
+            "filesHiddenFiles" to SettingsManager.FILES_HIDDEN_FILES,
+            "filesThumbnails" to SettingsManager.FILES_THUMBNAILS,
+            "appAnimations" to SettingsManager.APP_ANIMATIONS,
+            "bottomSearch" to SettingsManager.BOTTOM_SEARCH,
+            "bottomSearchResult" to SettingsManager.BOTTOM_SEARCH_RESULT,
+            "appQuickLaunch" to SettingsManager.APP_QUICK_LAUNCH,
+            "contactDirectCall" to SettingsManager.CONTACT_DIRECT_CALL,
+            "shortcutInline" to SettingsManager.SHORTCUT_INLINE,
+            "appFuzzySearch" to SettingsManager.APP_FUZZY_SEARCH,
+            "quickSearchHorizontal" to SettingsManager.QUICK_SEARCH_HORIZONTAL,
+            "searchPreviousSearches" to SettingsManager.SEARCH_PREVIOUS_SEARCHES,
+            "dynamicIconMasking" to SettingsManager.DYNAMIC_ICON_MASKING
+        )
+        private val INT_SETTING_KEYS = mapOf(
+            "backgroundBlur" to SettingsManager.BACKGROUND_BLUR,
+            "backgroundTransparency" to SettingsManager.BACKGROUND_TRANSPARENCY,
+            "pillOpacity" to SettingsManager.PILL_OPACITY,
+            "webResultsCount" to SettingsManager.WEB_RESULTS_COUNT,
+            "contactResultsCount" to SettingsManager.CONTACT_RESULTS_COUNT,
+            "fileResultsCount" to SettingsManager.FILE_RESULTS_COUNT,
+            "shortcutResultsCount" to SettingsManager.SHORTCUT_RESULTS_COUNT
+        )
+        private val STRING_SETTING_KEYS = mapOf(
+            "theme" to SettingsManager.THEME,
+            "searchEngine" to SettingsManager.SEARCH_ENGINE,
+            "customSearchEngineUrl" to SettingsManager.CUSTOM_SEARCH_ENGINE_URL,
+            "searchPills" to SettingsManager.SEARCH_PILLS,
+            "activeIconPack" to SettingsManager.ACTIVE_ICON_PACK,
+            "customIconPills" to SettingsManager.CUSTOM_ICON_PILLS,
+            "adaptiveIconShape" to SettingsManager.ADAPTIVE_ICON_SHAPE
+        )
     }
 
     suspend fun createBackupPayload(): BackupContentPayload = withContext(Dispatchers.IO) {
         val currentSettings = settingsManager.settingsFlow.first()
-        val historyList = runCatching { historyDao.getSearchHistory().map { it.query } }.getOrDefault(emptyList())
+        val historyList = runCatching { historyDao.getSearchHistory().map { it.query } }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it; emptyList<String>() }
         val customBangs = searchBangManager.parseCustomBangs(currentSettings.customBangsJson)
 
         // 1. DataStore settings map for backward compatibility
@@ -167,15 +201,16 @@ class BackupManager @Inject constructor(
                         isHardwareBacked = isHwBacked,
                         hardwareChip = hwInfo.chipName,
                         deviceModel = hwInfo.deviceDisplayName,
-                        kdf = KdfMetadata(saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
+                        kdf = KdfMetadata(iterations = BackupCryptoEngine.PBKDF2_ITERATIONS, saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
                         cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
                         encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
                         payloadSha256 = sha
                     )
                 } else if (isHwBacked) {
                     val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
-                    val iv = BackupCryptoEngine.generateRandomIv()
-                    val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
+                    // Keystore keys require randomized encryption and reject a caller-supplied IV, so the
+                    // cipher generates the IV itself.
+                    val (iv, cipherBytes) = BackupCryptoEngine.encryptPayloadWithGeneratedIv(plainJson, key)
                     val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
 
                     EncryptedBackupEnvelope(
@@ -215,7 +250,7 @@ class BackupManager @Inject constructor(
                         ?: context.contentResolver.openFileDescriptor(uri, "w")
                     if (pfd != null) {
                         pfd.use { fd ->
-                            java.io.FileOutputStream(fd.fileDescriptor).use { fos ->
+                            java.io.FileOutputStream(fd.fileDescriptor).let { fos ->
                                 fos.write(bytes)
                                 fos.flush()
                                 try { fd.fileDescriptor.sync() } catch (_: Throwable) {}
@@ -238,19 +273,11 @@ class BackupManager @Inject constructor(
                     }
                 }
 
-                // Verify file size on disk immediately
-                try {
-                    val pfd = context.contentResolver.openFileDescriptor(uri, "r")
-                    if (pfd != null) {
-                        pfd.close()
-                    }
-                } catch (_: Throwable) {}
-
                 withContext(Dispatchers.Main) {
                     onSuccess()
                 }
             } catch (e: Throwable) {
-                Log.e("BackupManager", "exportToFile failed", e)
+                if (e is kotlinx.coroutines.CancellationException) throw e; Log.e("BackupManager", "exportToFile failed", e)
                 withContext(Dispatchers.Main) {
                     onError(e.localizedMessage ?: "Failed to export backup")
                 }
@@ -304,7 +331,7 @@ class BackupManager @Inject constructor(
                         throw IllegalArgumentException("Passphrase required to decrypt this backup")
                     }
                     val salt = BackupCryptoEngine.decodeBase64(envelope.kdf.saltBase64)
-                    val key = BackupCryptoEngine.deriveKeyFromPassphrase(passphrase.toCharArray(), salt)
+                    val key = BackupCryptoEngine.deriveKeyFromPassphrase(passphrase.toCharArray(), salt, envelope.kdf.iterations)
                     try {
                         BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
                     } catch (e: javax.crypto.AEADBadTagException) {
@@ -341,6 +368,8 @@ class BackupManager @Inject constructor(
                     onSuccess(restoredCount)
                 }
             } catch (e: Throwable) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                Log.e("BackupManager", "importFromFile failed", e)
                 withContext(Dispatchers.Main) {
                     onError(e.localizedMessage ?: "Failed to restore backup")
                 }
@@ -385,210 +414,22 @@ class BackupManager @Inject constructor(
             }
         }
 
-        // 2. Restore DataStore preferences & fallback to SharedPreferences for Schema 1 backups
-        val editor = sharedPrefs.edit()
+        // Typed prefs only feed settingsFlow where DataStore has no value, so push every restored key
+        // into DataStore as well; otherwise settings already customised on this device would win.
+        settingsManager.syncSharedPreferencesToDataStore(overwrite = true)
+
+        // 2. Restore the DataStore snapshot (the only settings source in schema 1 backups). updateSetting
+        // writes DataStore plus every SharedPreferences spelling of the key.
         payload.preferencesMap.forEach { (k, v) ->
-            when (k) {
-                "theme" -> {
-                    settingsManager.updateSetting(SettingsManager.THEME, v)
-                    editor.putString("theme", v)
-                    restoredCount++
-                }
-                "searchApps" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.SEARCH_APPS, b)
-                    editor.putBoolean("search.apps", b)
-                    restoredCount++
-                }
-                "searchContacts" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.SEARCH_CONTACTS, b)
-                    editor.putBoolean("search.contacts", b)
-                    restoredCount++
-                }
-                "searchFiles" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.SEARCH_FILES, b)
-                    editor.putBoolean("search.files", b)
-                    restoredCount++
-                }
-                "searchWeb" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.SEARCH_WEB, b)
-                    editor.putBoolean("search.web", b)
-                    restoredCount++
-                }
-                "searchCalculator" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.SEARCH_CALCULATOR, b)
-                    editor.putBoolean("search.calculator", b)
-                    restoredCount++
-                }
-                "searchCalendar" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.SEARCH_CALENDAR, b)
-                    editor.putBoolean("search.calendar", b)
-                    restoredCount++
-                }
-                "searchShortcuts" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.SEARCH_SHORTCUTS, b)
-                    editor.putBoolean("search.shortcuts", b)
-                    restoredCount++
-                }
-                "backgroundBlur" -> {
-                    val intVal = v.toIntOrNull() ?: 50
-                    settingsManager.updateSetting(SettingsManager.BACKGROUND_BLUR, intVal)
-                    editor.putInt("background.blur", intVal)
-                    restoredCount++
-                }
-                "showWallpaper" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.SHOW_WALLPAPER, b)
-                    editor.putBoolean("show.wallpaper", b)
-                    restoredCount++
-                }
-                "backgroundTransparency" -> {
-                    val intVal = v.toIntOrNull() ?: 50
-                    settingsManager.updateSetting(SettingsManager.BACKGROUND_TRANSPARENCY, intVal)
-                    editor.putInt("background.transparency", intVal)
-                    restoredCount++
-                }
-                "pillOpacity" -> {
-                    val intVal = v.toIntOrNull() ?: 50
-                    settingsManager.updateSetting(SettingsManager.PILL_OPACITY, intVal)
-                    editor.putInt("pill.opacity", intVal)
-                    restoredCount++
-                }
-                "searchEngine" -> {
-                    settingsManager.updateSetting(SettingsManager.SEARCH_ENGINE, v)
-                    editor.putString("search.engine", v)
-                    restoredCount++
-                }
-                "customSearchEngineUrl" -> {
-                    settingsManager.updateSetting(SettingsManager.CUSTOM_SEARCH_ENGINE_URL, v)
-                    editor.putString("custom_search_engine_url", v)
-                    restoredCount++
-                }
-                "filesHiddenFiles" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.FILES_HIDDEN_FILES, b)
-                    editor.putBoolean("files.hidden.files", b)
-                    restoredCount++
-                }
-                "filesThumbnails" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.FILES_THUMBNAILS, b)
-                    editor.putBoolean("files.thumbnails", b)
-                    restoredCount++
-                }
-                "appAnimations" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.APP_ANIMATIONS, b)
-                    editor.putBoolean("app.animations", b)
-                    restoredCount++
-                }
-                "bottomSearch" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.BOTTOM_SEARCH, b)
-                    editor.putBoolean("settings.bottom.search", b)
-                    restoredCount++
-                }
-                "bottomSearchResult" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.BOTTOM_SEARCH_RESULT, b)
-                    editor.putBoolean("settings.bottom.search.result", b)
-                    restoredCount++
-                }
-                "searchPills" -> {
-                    settingsManager.updateSetting(SettingsManager.SEARCH_PILLS, v)
-                    editor.putString("search.pills", v)
-                    restoredCount++
-                }
-                "appQuickLaunch" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.APP_QUICK_LAUNCH, b)
-                    editor.putBoolean("app.quick.launch", b)
-                    restoredCount++
-                }
-                "contactDirectCall" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.CONTACT_DIRECT_CALL, b)
-                    editor.putBoolean("contact.direct.call", b)
-                    restoredCount++
-                }
-                "shortcutInline" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.SHORTCUT_INLINE, b)
-                    editor.putBoolean("shortcut.inline", b)
-                    restoredCount++
-                }
-                "appFuzzySearch" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.APP_FUZZY_SEARCH, b)
-                    editor.putBoolean("app.fuzzy.search", b)
-                    restoredCount++
-                }
-                "quickSearchHorizontal" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.QUICK_SEARCH_HORIZONTAL, b)
-                    editor.putBoolean("quick.search.horizontal", b)
-                    restoredCount++
-                }
-                "webResultsCount" -> {
-                    val intVal = v.toIntOrNull() ?: 5
-                    settingsManager.updateSetting(SettingsManager.WEB_RESULTS_COUNT, intVal)
-                    editor.putInt("web.results.count", intVal)
-                    restoredCount++
-                }
-                "contactResultsCount" -> {
-                    val intVal = v.toIntOrNull() ?: 5
-                    settingsManager.updateSetting(SettingsManager.CONTACT_RESULTS_COUNT, intVal)
-                    editor.putInt("contact.results.count", intVal)
-                    restoredCount++
-                }
-                "fileResultsCount" -> {
-                    val intVal = v.toIntOrNull() ?: 5
-                    settingsManager.updateSetting(SettingsManager.FILE_RESULTS_COUNT, intVal)
-                    editor.putInt("file.results.count", intVal)
-                    restoredCount++
-                }
-                "shortcutResultsCount" -> {
-                    val intVal = v.toIntOrNull() ?: 6
-                    settingsManager.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, intVal)
-                    editor.putInt("shortcut.results.count", intVal)
-                    restoredCount++
-                }
-                "activeIconPack" -> {
-                    settingsManager.updateSetting(SettingsManager.ACTIVE_ICON_PACK, v)
-                    editor.putString("active_icon_pack", v)
-                    restoredCount++
-                }
-                "customIconPills" -> {
-                    settingsManager.updateSetting(SettingsManager.CUSTOM_ICON_PILLS, v)
-                    editor.putString("custom_icon_pills", v)
-                    restoredCount++
-                }
-                "searchPreviousSearches" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.SEARCH_PREVIOUS_SEARCHES, b)
-                    editor.putBoolean("search_previous_searches", b)
-                    restoredCount++
-                }
-                "adaptiveIconShape" -> {
-                    settingsManager.updateSetting(SettingsManager.ADAPTIVE_ICON_SHAPE, v)
-                    editor.putString("adaptive_icon_shape", v)
-                    restoredCount++
-                }
-                "dynamicIconMasking" -> {
-                    val b = v.toBoolean()
-                    settingsManager.updateSetting(SettingsManager.DYNAMIC_ICON_MASKING, b)
-                    editor.putBoolean("dynamic_icon_masking", b)
-                    restoredCount++
-                }
+            val restored = BOOLEAN_SETTING_KEYS[k]?.let { key ->
+                settingsManager.updateSetting(key, v.toBoolean())
+            } ?: INT_SETTING_KEYS[k]?.let { key ->
+                v.toIntOrNull()?.let { settingsManager.updateSetting(key, it) }
+            } ?: STRING_SETTING_KEYS[k]?.let { key ->
+                settingsManager.updateSetting(key, v)
             }
+            if (restored != null) restoredCount++
         }
-        editor.commit()
 
         // 3. Restore Custom Bangs & Section Configs
         if (payload.customBangsJson.isNotBlank() && payload.customBangsJson != "[]") {
@@ -611,22 +452,16 @@ class BackupManager @Inject constructor(
                 HistoryEntity(query = q, timestamp = now - idx * 1000L)
             }
             historyDao.insertSearches(entities)
+            historyDao.pruneHistory(HISTORY_LIMIT)
             restoredCount += entities.size
         }
 
         // 5. Update Home Screen Widgets immediately
         try {
-            val appWidgetManager = AppWidgetManager.getInstance(context)
-            val component = ComponentName(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java)
-            val appWidgetIds = appWidgetManager.getAppWidgetIds(component)
-            if (appWidgetIds != null && appWidgetIds.isNotEmpty()) {
-                val updateIntent = Intent(context, com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider::class.java).apply {
-                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, appWidgetIds)
-                }
-                context.sendBroadcast(updateIntent)
-            }
-        } catch (_: Throwable) {}
+            com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(context)
+        } catch (e: Exception) {
+            Log.w("BackupManager", "Widget refresh after restore failed", e)
+        }
 
         try {
             com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()

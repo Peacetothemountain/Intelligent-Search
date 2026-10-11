@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.core.data
 
 import android.util.LruCache
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -37,37 +36,29 @@ object WebSearchProvider {
             else -> "https://suggestqueries.google.com/complete/search?client=chrome&q=$encodedQuery"
         }
 
-        fun fetchFromUrl(urlString: String): Boolean {
-            var connection: HttpURLConnection? = null
-            try {
-                val url = java.net.URI.create(urlString).toURL()
-                connection = url.openConnection() as HttpURLConnection
-                connection.requestMethod = "GET"
-                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Mobile)")
-                connection.setRequestProperty("Connection", "keep-alive")
-                connection.connectTimeout = timeoutMs
-                connection.readTimeout = timeoutMs
+        var connection: HttpURLConnection? = null
+        try {
+            connection = java.net.URI.create(primaryUrl).toURL().openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Mobile)")
+            connection.connectTimeout = timeoutMs
+            connection.readTimeout = timeoutMs
 
-                if (connection.responseCode == 200) {
-                    val response = connection.inputStream.bufferedReader().use { it.readText() }
-                    val jsonArray = JSONArray(response)
-                    if (jsonArray.length() >= 2) {
-                        val suggestionsArray = jsonArray.getJSONArray(1)
-                        for (i in 0 until suggestionsArray.length()) {
-                            suggestions.add(suggestionsArray.getString(i))
-                        }
+            if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                // Reading the body to the end and closing it returns the socket to the keep-alive pool.
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
+                val suggestionsArray = JSONArray(response).optJSONArray(1)
+                if (suggestionsArray != null) {
+                    for (i in 0 until suggestionsArray.length()) {
+                        suggestionsArray.optString(i).takeIf { it.isNotBlank() }?.let(suggestions::add)
                     }
-                    return suggestions.isNotEmpty()
                 }
-            } catch (_: Exception) {
-                try { connection?.disconnect() } catch (_: Exception) {}
-            } finally {
-                try { connection?.inputStream?.close() } catch (_: Exception) {}
+            } else {
+                connection.disconnect()
             }
-            return false
+        } catch (_: Exception) {
+            connection?.disconnect()
         }
-
-        fetchFromUrl(primaryUrl)
 
         if (suggestions.isNotEmpty()) {
             synchronized(suggestionCache) {

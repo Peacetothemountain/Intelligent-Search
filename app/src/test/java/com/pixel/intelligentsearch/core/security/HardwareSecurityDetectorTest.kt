@@ -239,6 +239,101 @@ class HardwareSecurityDetectorTest {
     }
 
     @Test
+    fun testRealWorldCapitalizedBuildStrings_areMatchedCaseInsensitively() {
+        // Android reports Build.MANUFACTURER / Build.BRAND with vendor-specific capitalization.
+        val xiaomi = HardwareSecurityDetector.resolveHardwareInfo(
+            manufacturer = "Xiaomi",
+            brand = "Xiaomi",
+            model = "2410DPN6CC",
+            device = "shennong",
+            hardware = "qcom",
+            board = "pineapple",
+            product = "shennong",
+            socModel = "SM8650",
+            hasStrongBoxFeature = true,
+            effectiveLevel = HardwareSecurityLevel.STRONGBOX
+        )
+        assertEquals("Xiaomi HyperOS Hardware Security Element", xiaomi.chipName)
+
+        val sony = HardwareSecurityDetector.resolveHardwareInfo(
+            manufacturer = "Sony",
+            brand = "Sony",
+            model = "XQ-ES54",
+            device = "pdx245",
+            hardware = "qcom",
+            board = "sun",
+            product = "pdx245",
+            socModel = "SM8750",
+            hasStrongBoxFeature = false,
+            effectiveLevel = HardwareSecurityLevel.TEE
+        )
+        assertEquals("Sony Xperia Hardware Security Module", sony.chipName)
+
+        val honor = HardwareSecurityDetector.resolveHardwareInfo(
+            manufacturer = "HONOR",
+            brand = "HONOR",
+            model = "PGT-N19",
+            device = "HNPGT",
+            hardware = "qcom",
+            board = "sun",
+            product = "PGT-N19",
+            socModel = "SM8750",
+            hasStrongBoxFeature = false,
+            effectiveLevel = HardwareSecurityLevel.TEE
+        )
+        assertEquals("Honor Discrete Security Chip (HTEE)", honor.chipName)
+    }
+
+    @Test
+    fun testPixel8_withOnlyCapitalizedModelAndUnknownCodename_isTitanM2() {
+        // No codename / SoC hints at all: the "Pixel 8" model string alone must be enough.
+        val info = HardwareSecurityDetector.resolveHardwareInfo(
+            manufacturer = "Google",
+            brand = "google",
+            model = "Pixel 8",
+            device = "unknown_device",
+            hardware = "unknown_hw",
+            board = "unknown_board",
+            product = "unknown_product",
+            socModel = "",
+            hasStrongBoxFeature = true,
+            effectiveLevel = HardwareSecurityLevel.STRONGBOX
+        )
+        assertEquals("Google Titan M2", info.chipName)
+    }
+
+    @Test
+    fun testLgMatchRequiresExactBrand_notAnySubstring() {
+        val lg = HardwareSecurityDetector.resolveHardwareInfo(
+            manufacturer = "LGE",
+            brand = "lge",
+            model = "LM-G900",
+            device = "judyln",
+            hardware = "qcom",
+            board = "sdm845",
+            product = "judyln",
+            socModel = "",
+            hasStrongBoxFeature = false,
+            effectiveLevel = HardwareSecurityLevel.TEE
+        )
+        assertEquals("LG Gatekeeper Hardware Keystore", lg.chipName)
+
+        val notLg = HardwareSecurityDetector.resolveHardwareInfo(
+            manufacturer = "Algoma",
+            brand = "algo",
+            model = "A1",
+            device = "a1",
+            hardware = "unknown",
+            board = "unknown",
+            product = "a1",
+            socModel = "",
+            hasStrongBoxFeature = false,
+            effectiveLevel = HardwareSecurityLevel.TEE
+        )
+        assertEquals("ARM TrustZone Hardware Keystore", notLg.chipName)
+    }
+
+    @Test
     fun testSnapdragonReferenceDevice_SPU() {
         val info = HardwareSecurityDetector.resolveHardwareInfo(
             manufacturer = "Qualcomm",

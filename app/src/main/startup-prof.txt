@@ -15,8 +15,6 @@ Lcom/pixel/intelligentsearch/core/data/SystemDataProvider;
 Lcom/pixel/intelligentsearch/core/data/AppItem;
 Lcom/pixel/intelligentsearch/core/data/SettingsManager;
 Lcom/pixel/intelligentsearch/core/data/IntelligentSearchSettings;
-Lcom/pixel/intelligentsearch/core/data/AppSearchEngine;
-Lcom/pixel/intelligentsearch/core/data/IndexedSearchDocument;
 Lcom/pixel/intelligentsearch/core/data/HistoryDao;
 Lcom/pixel/intelligentsearch/core/data/HistoryEntity;
 Lcom/pixel/intelligentsearch/core/data/IntelligentSearchDatabase;

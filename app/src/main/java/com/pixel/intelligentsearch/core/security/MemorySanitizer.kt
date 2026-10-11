@@ -1,13 +1,17 @@
 package com.pixel.intelligentsearch.core.security
 
 import android.app.Activity
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.WindowManager
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import java.nio.ByteBuffer
+import java.nio.CharBuffer
 import java.util.Arrays
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * High-performance, zero-allocation memory sanitization utilities for military-grade
@@ -19,11 +23,20 @@ import java.util.Arrays
 object MemorySanitizer {
 
     /**
+     * Observable sink written after every wipe. The volatile store (which depends on a value read
+     * back from the wiped region) makes the zeroing an observable side effect, so neither R8 nor the
+     * ART optimizing compiler can treat the fill as a dead store and drop it.
+     */
+    @Volatile
+    private var wipeSink: Int = 0
+
+    /**
      * Overwrites a [ByteArray] in-place with zeroes.
      */
     fun wipe(array: ByteArray?) {
         if (array != null && array.isNotEmpty()) {
             Arrays.fill(array, 0.toByte())
+            wipeSink = array[0].toInt()
         }
     }
 
@@ -33,23 +46,52 @@ object MemorySanitizer {
     fun wipe(array: CharArray?) {
         if (array != null && array.isNotEmpty()) {
             Arrays.fill(array, '\u0000')
+            wipeSink = array[0].code
         }
     }
 
     /**
-     * Overwrites the remaining contents of a [ByteBuffer] with zeroes and clears positions.
+     * Overwrites the entire visible region of a [ByteBuffer] (position 0 up to capacity) with zeroes
+     * and resets its position and limit. Honors [ByteBuffer.arrayOffset] so sliced buffers never zero
+     * bytes outside their own window. Safely ignores read-only buffers without throwing
+     * [java.nio.ReadOnlyBufferException].
      */
     fun wipe(buffer: ByteBuffer?) {
-        if (buffer == null) return
-        buffer.clear()
-        if (buffer.hasArray()) {
-            Arrays.fill(buffer.array(), 0.toByte())
-        } else {
-            while (buffer.hasRemaining()) {
-                buffer.put(0.toByte())
+        if (buffer == null || buffer.isReadOnly) return
+        try {
+            buffer.clear()
+            if (buffer.hasArray()) {
+                val start = buffer.arrayOffset()
+                Arrays.fill(buffer.array(), start, start + buffer.capacity(), 0.toByte())
+                wipeSink = buffer.array()[start].toInt()
+            } else {
+                while (buffer.hasRemaining()) {
+                    buffer.put(0.toByte())
+                }
             }
-        }
-        buffer.clear()
+            buffer.clear()
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Overwrites the entire visible region of a [CharBuffer] (position 0 up to capacity) with null
+     * characters and resets its position and limit. Honors [CharBuffer.arrayOffset] for sliced buffers.
+     */
+    fun wipe(buffer: CharBuffer?) {
+        if (buffer == null || buffer.isReadOnly) return
+        try {
+            buffer.clear()
+            if (buffer.hasArray()) {
+                val start = buffer.arrayOffset()
+                Arrays.fill(buffer.array(), start, start + buffer.capacity(), '\u0000')
+                wipeSink = buffer.array()[start].code
+            } else {
+                while (buffer.hasRemaining()) {
+                    buffer.put('\u0000')
+                }
+            }
+            buffer.clear()
+        } catch (_: Exception) {}
     }
 }
 
@@ -59,6 +101,7 @@ object MemorySanitizer {
  */
 class SecureByteArray(size: Int) : AutoCloseable {
     val data: ByteArray = ByteArray(size)
+    @Volatile
     private var isWiped = false
 
     constructor(initialBytes: ByteArray) : this(initialBytes.size) {
@@ -95,6 +138,7 @@ class SecureByteArray(size: Int) : AutoCloseable {
  */
 class SecureCharArray(size: Int) : AutoCloseable {
     val data: CharArray = CharArray(size)
+    @Volatile
     private var isWiped = false
 
     constructor(initialChars: CharArray) : this(initialChars.size) {
@@ -134,11 +178,19 @@ class SecureCharArray(size: Int) : AutoCloseable {
 object WindowSecurityGuard {
 
     fun enableScreenShield(activity: Activity?) {
-        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        if (activity != null && !activity.isFinishing && !activity.isDestroyed) {
+            try {
+                activity.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            } catch (_: Exception) {}
+        }
     }
 
     fun disableScreenShield(activity: Activity?) {
-        activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        if (activity != null && !activity.isFinishing && !activity.isDestroyed) {
+            try {
+                activity.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            } catch (_: Exception) {}
+        }
     }
 }
 
@@ -155,11 +207,11 @@ class SecuritySessionLock private constructor() : DefaultLifecycleObserver {
 
     private var lastUnlockTimestamp: Long = 0L
     private var isSessionUnlocked: Boolean = false
-    private val lockListeners = mutableListOf<() -> Unit>()
+    private val lockListeners = CopyOnWriteArrayList<() -> Unit>()
 
     init {
         try {
-            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            val handler = Handler(Looper.getMainLooper())
             handler.post {
                 try {
                     ProcessLifecycleOwner.get().lifecycle.addObserver(this@SecuritySessionLock)
@@ -170,12 +222,10 @@ class SecuritySessionLock private constructor() : DefaultLifecycleObserver {
         }
     }
 
-    @Synchronized
     fun registerLockListener(listener: () -> Unit) {
         lockListeners.add(listener)
     }
 
-    @Synchronized
     fun unregisterLockListener(listener: () -> Unit) {
         lockListeners.remove(listener)
     }
@@ -186,23 +236,24 @@ class SecuritySessionLock private constructor() : DefaultLifecycleObserver {
         lastUnlockTimestamp = SystemClock.elapsedRealtime()
     }
 
-    @Synchronized
     fun isUnlocked(timeoutMs: Long = DEFAULT_AUTO_LOCK_TIMEOUT_MS): Boolean {
-        if (!isSessionUnlocked) return false
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastUnlockTimestamp > timeoutMs) {
-            lockdown()
-            return false
+        synchronized(this) {
+            if (!isSessionUnlocked) return false
+            if (SystemClock.elapsedRealtime() - lastUnlockTimestamp <= timeoutMs) return true
         }
-        return true
+        // Session expired: lock down outside the monitor so listeners never run while it is held.
+        lockdown()
+        return false
     }
 
-    @Synchronized
     fun lockdown() {
-        isSessionUnlocked = false
-        lastUnlockTimestamp = 0L
-        val snapshot = lockListeners.toList()
-        for (listener in snapshot) {
+        synchronized(this) {
+            isSessionUnlocked = false
+            lastUnlockTimestamp = 0L
+        }
+        // Listeners run outside the monitor so a listener that re-enters the session lock from
+        // another thread (e.g. to re-check isUnlocked) can never deadlock against lockdown().
+        for (listener in lockListeners) {
             try {
                 listener.invoke()
             } catch (_: Throwable) {}

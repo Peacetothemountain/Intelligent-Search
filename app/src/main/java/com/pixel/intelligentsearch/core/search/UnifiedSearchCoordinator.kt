@@ -7,6 +7,12 @@ import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -83,7 +89,6 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val shortcutRadixTree = RadixTreeIndex<SearchItem>()
     private val fileRadixTree = RadixTreeIndex<SearchItem>()
     private val phoneticIndex = ConcurrentHashMap<String, MutableSet<SearchItem>>()
-    private val itemRegistry = ConcurrentHashMap<String, SearchItem>()
 
     private val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
     @Volatile private var cachedAppWeightMul: Float = 1.0f
@@ -122,108 +127,54 @@ class UnifiedSearchCoordinator @Inject constructor(
     // ---------------------------------------------------------------------------------------------
 
     /**
-     * Indexes an installed application into the Radix Tree and phonetic registry.
-     */
-    fun indexApp(app: AppItem, launchCount: Int = 0, lastUsedMs: Long = 0L, isPinned: Boolean = false) {
-        val entityId = "app:${app.packageName}:${app.userHandle?.hashCode() ?: 0}:${app.profileType}"
-        val metadata = SearchScoringEngine.ScoringMetadata(
-            launchCount = launchCount,
-            lastUsedTimestampMs = lastUsedMs,
-            isPinned = isPinned,
-            domain = SearchScoringEngine.EntityDomain.APPLICATION
-        )
-        val metaphone = DoubleMetaphone.encode(app.name)
-        val searchItem = SearchItem(
-            id = entityId,
-            title = app.name,
-            subtitle = app.packageName,
-            domain = SearchScoringEngine.EntityDomain.APPLICATION,
-            payload = app,
-            metadata = metadata,
-            precomputedMetaphone = metaphone
-        )
-        itemRegistry[searchItem.id] = searchItem
-
-        // Index full title, normalized title, and package name
-        appRadixTree.insert(app.name, searchItem)
-        val normalizedTitle = QueryNormalizer.normalize(app.name)
-        if (normalizedTitle.isNotEmpty() && !normalizedTitle.equals(app.name, ignoreCase = true)) {
-            appRadixTree.insert(normalizedTitle, searchItem)
-        }
-        appRadixTree.insert(app.packageName, searchItem)
-
-        // Index acronym / initials (e.g. "yt" -> "YouTube", "gpm" -> "Google Play Music")
-        val initials = QueryNormalizer.extractInitials(app.name)
-        if (initials.isNotEmpty()) {
-            appRadixTree.insert(initials, searchItem)
-        }
-        val words = QueryNormalizer.tokenize(app.name)
-        for (w in words) {
-            appRadixTree.insert(w, searchItem)
-        }
-
-        // Index phonetic codes
-        if (metaphone.primary.isNotEmpty()) {
-            phoneticIndex.getOrPut(metaphone.primary) { ConcurrentHashMap.newKeySet() }.add(searchItem)
-        }
-        if (metaphone.alternate.isNotEmpty()) {
-            phoneticIndex.getOrPut(metaphone.alternate) { ConcurrentHashMap.newKeySet() }.add(searchItem)
-        }
-    }
-
-    /**
      * Indexes a contact into the Radix Tree and phonetic inverted index.
      */
     fun indexContact(contact: ContactItem, lastUsedMs: Long = 0L) {
-        val metadata = SearchScoringEngine.ScoringMetadata(
-            launchCount = 0,
-            lastUsedTimestampMs = lastUsedMs,
-            isPinned = false,
-            domain = SearchScoringEngine.EntityDomain.CONTACT
-        )
-        val nameMetaphone = DoubleMetaphone.encode(contact.name)
-        val searchItem = SearchItem(
-            id = "contact:${contact.lookupUri}",
-            title = contact.name,
-            subtitle = contact.phoneNumber,
-            domain = SearchScoringEngine.EntityDomain.CONTACT,
-            payload = contact,
-            metadata = metadata,
-            precomputedMetaphone = nameMetaphone
-        )
-        itemRegistry[searchItem.id] = searchItem
+        val item = newContactItem(contact, lastUsedMs)
+        val keys = ArrayList<Pair<String, SearchItem>>(8)
+        collectContactKeys(contact, item, keys)
+        contactRadixTree.insertBatch(keys)
+    }
 
-        // Index full name, normalized name, and phone number
-        contactRadixTree.insert(contact.name, searchItem)
-        val normalizedContact = QueryNormalizer.normalize(contact.name)
-        if (normalizedContact.isNotEmpty() && !normalizedContact.equals(contact.name, ignoreCase = true)) {
-            contactRadixTree.insert(normalizedContact, searchItem)
+    /**
+     * Replaces every indexed contact with [contacts] without ever exposing an empty or half-built
+     * contact index to concurrent searches: the new phonetic entries are published first, the radix
+     * tree is swapped atomically, and only then are entries of vanished contacts retired.
+     */
+    fun replaceContacts(contacts: List<ContactItem>, lastUsedMs: Long = 0L) {
+        val keys = ArrayList<Pair<String, SearchItem>>(contacts.size * 4)
+        val fresh = HashSet<SearchItem>(contacts.size * 2)
+        for (contact in contacts) {
+            val item = newContactItem(contact, lastUsedMs)
+            collectContactKeys(contact, item, keys)
+            fresh.add(item)
         }
-        contactRadixTree.insert(contact.phoneNumber.filter { it.isDigit() }, searchItem)
-
-        // Index individual name tokens (First name, Last name)
-        val tokens = QueryNormalizer.tokenize(contact.name)
-        for (token in tokens) {
-            contactRadixTree.insert(token, searchItem)
-            val tokenMetaphone = DoubleMetaphone.encode(token)
-            if (tokenMetaphone.primary.isNotEmpty()) {
-                phoneticIndex.getOrPut(tokenMetaphone.primary) { ConcurrentHashMap.newKeySet() }.add(searchItem)
-            }
-            if (tokenMetaphone.alternate.isNotEmpty()) {
-                phoneticIndex.getOrPut(tokenMetaphone.alternate) { ConcurrentHashMap.newKeySet() }.add(searchItem)
-            }
-        }
-
-        // Index full name phonetics
-        if (nameMetaphone.primary.isNotEmpty()) {
-            phoneticIndex.getOrPut(nameMetaphone.primary) { ConcurrentHashMap.newKeySet() }.add(searchItem)
-        }
+        contactRadixTree.replaceAll(keys)
+        removeFromPhoneticIndex { it.domain == SearchScoringEngine.EntityDomain.CONTACT && it !in fresh }
     }
 
     /**
      * Indexes an app shortcut.
      */
     fun indexShortcut(shortcut: AppShortcutItem) {
+        val keys = ArrayList<Pair<String, SearchItem>>(2)
+        collectShortcutKeys(shortcut, keys)
+        shortcutRadixTree.insertBatch(keys)
+    }
+
+    /**
+     * Atomically replaces every indexed shortcut with [shortcuts], so shortcuts that were removed or
+     * disabled since the last sync no longer linger in the index.
+     */
+    fun replaceShortcuts(shortcuts: List<AppShortcutItem>) {
+        val keys = ArrayList<Pair<String, SearchItem>>(shortcuts.size * 2)
+        for (shortcut in shortcuts) {
+            collectShortcutKeys(shortcut, keys)
+        }
+        shortcutRadixTree.replaceAll(keys)
+    }
+
+    private fun collectShortcutKeys(shortcut: AppShortcutItem, out: MutableList<Pair<String, SearchItem>>) {
         val metadata = SearchScoringEngine.ScoringMetadata(
             domain = SearchScoringEngine.EntityDomain.APP_SHORTCUT
         )
@@ -237,11 +188,10 @@ class UnifiedSearchCoordinator @Inject constructor(
             metadata = metadata,
             precomputedMetaphone = metaphone
         )
-        itemRegistry[searchItem.id] = searchItem
 
-        shortcutRadixTree.insert(shortcut.shortLabel, searchItem)
+        out.add(shortcut.shortLabel to searchItem)
         if (shortcut.longLabel.isNotBlank()) {
-            shortcutRadixTree.insert(shortcut.longLabel, searchItem)
+            out.add(shortcut.longLabel to searchItem)
         }
     }
 
@@ -249,71 +199,163 @@ class UnifiedSearchCoordinator @Inject constructor(
      * Indexes a local file.
      */
     fun indexFile(file: FileItem, modifiedMs: Long = 0L) {
-        val metadata = SearchScoringEngine.ScoringMetadata(
-            lastUsedTimestampMs = modifiedMs,
-            domain = SearchScoringEngine.EntityDomain.FILE
-        )
-        val metaphone = DoubleMetaphone.encode(file.name)
-        val searchItem = SearchItem(
+        fileRadixTree.insert(file.name, newFileItem(file, modifiedMs))
+    }
+
+    /**
+     * Atomically replaces every indexed file with [files], so deleted or renamed files no longer
+     * linger in the index.
+     */
+    fun replaceFiles(files: List<FileItem>) {
+        val keys = ArrayList<Pair<String, SearchItem>>(files.size)
+        for (file in files) {
+            keys.add(file.name to newFileItem(file, 0L))
+        }
+        fileRadixTree.replaceAll(keys)
+    }
+
+    private fun newFileItem(file: FileItem, modifiedMs: Long): SearchItem {
+        return SearchItem(
             id = "file:${file.path}",
             title = file.name,
             subtitle = file.path,
             domain = SearchScoringEngine.EntityDomain.FILE,
             payload = file,
-            metadata = metadata,
-            precomputedMetaphone = metaphone
+            metadata = SearchScoringEngine.ScoringMetadata(
+                lastUsedTimestampMs = modifiedMs,
+                domain = SearchScoringEngine.EntityDomain.FILE
+            ),
+            precomputedMetaphone = DoubleMetaphone.encode(file.name)
         )
-        itemRegistry[searchItem.id] = searchItem
-
-        fileRadixTree.insert(file.name, searchItem)
     }
 
     /**
-     * Batch indexes an entire list of apps atomically using insertBatch.
+     * Atomically replaces every indexed app with [apps], so apps that were uninstalled, disabled or
+     * moved out of an unlocked profile since the last sync no longer linger in results. An empty list
+     * is ignored because it signals a failed PackageManager query rather than a device with no apps.
      */
     fun bulkIndexApps(apps: List<AppItem>) {
-        val pairs = ArrayList<Pair<String, SearchItem>>(apps.size * 5)
+        if (apps.isEmpty()) return
+        val keys = ArrayList<Pair<String, SearchItem>>(apps.size * 5)
+        val fresh = HashSet<SearchItem>(apps.size * 2)
         for (app in apps) {
-            val entityId = "app:${app.packageName}:${app.userHandle?.hashCode() ?: 0}:${app.profileType}"
-            val metadata = SearchScoringEngine.ScoringMetadata(
-                domain = SearchScoringEngine.EntityDomain.APPLICATION
+            val item = newAppItem(
+                app,
+                SearchScoringEngine.ScoringMetadata(domain = SearchScoringEngine.EntityDomain.APPLICATION)
             )
-            val metaphone = DoubleMetaphone.encode(app.name)
-            val searchItem = SearchItem(
-                id = entityId,
-                title = app.name,
-                subtitle = app.packageName,
-                domain = SearchScoringEngine.EntityDomain.APPLICATION,
-                payload = app,
-                metadata = metadata,
-                precomputedMetaphone = metaphone
-            )
-            itemRegistry[searchItem.id] = searchItem
+            collectAppKeys(app, item, keys)
+            fresh.add(item)
+        }
+        appRadixTree.replaceAll(keys)
+        removeFromPhoneticIndex { it.domain == SearchScoringEngine.EntityDomain.APPLICATION && it !in fresh }
+    }
 
-            pairs.add(app.name to searchItem)
-            val normalizedTitle = QueryNormalizer.normalize(app.name)
-            if (normalizedTitle.isNotEmpty() && !normalizedTitle.equals(app.name, ignoreCase = true)) {
-                pairs.add(normalizedTitle to searchItem)
-            }
-            pairs.add(app.packageName to searchItem)
+    private fun newAppItem(app: AppItem, metadata: SearchScoringEngine.ScoringMetadata): SearchItem {
+        return SearchItem(
+            id = "app:${app.packageName}:${app.userHandle?.hashCode() ?: 0}:${app.profileType}",
+            title = app.name,
+            subtitle = app.packageName,
+            domain = SearchScoringEngine.EntityDomain.APPLICATION,
+            payload = app,
+            metadata = metadata,
+            precomputedMetaphone = DoubleMetaphone.encode(app.name)
+        )
+    }
 
-            val initials = QueryNormalizer.extractInitials(app.name)
-            if (initials.isNotEmpty()) {
-                pairs.add(initials to searchItem)
-            }
-            val words = QueryNormalizer.tokenize(app.name)
-            for (w in words) {
-                pairs.add(w to searchItem)
-            }
+    /**
+     * Appends every radix key under which an app is reachable (title, normalized title, package name,
+     * acronym, individual words) to [out] and registers its phonetic codes.
+     */
+    private fun collectAppKeys(app: AppItem, item: SearchItem, out: MutableList<Pair<String, SearchItem>>) {
+        out.add(app.name to item)
+        val normalizedTitle = QueryNormalizer.normalize(app.name)
+        if (normalizedTitle.isNotEmpty() && !normalizedTitle.equals(app.name, ignoreCase = true)) {
+            out.add(normalizedTitle to item)
+        }
+        out.add(app.packageName to item)
 
-            if (metaphone.primary.isNotEmpty()) {
-                phoneticIndex.getOrPut(metaphone.primary) { ConcurrentHashMap.newKeySet() }.add(searchItem)
-            }
-            if (metaphone.alternate.isNotEmpty()) {
-                phoneticIndex.getOrPut(metaphone.alternate) { ConcurrentHashMap.newKeySet() }.add(searchItem)
+        // Acronym / initials (e.g. "yt" -> "YouTube", "gpm" -> "Google Play Music")
+        val initials = QueryNormalizer.extractInitials(app.name)
+        if (initials.isNotEmpty()) {
+            out.add(initials to item)
+        }
+        for (word in QueryNormalizer.tokenize(app.name)) {
+            out.add(word to item)
+        }
+
+        item.precomputedMetaphone?.let {
+            addToPhoneticIndex(it.primary, item)
+            addToPhoneticIndex(it.alternate, item)
+        }
+    }
+
+    private fun newContactItem(contact: ContactItem, lastUsedMs: Long): SearchItem {
+        return SearchItem(
+            id = "contact:${contact.lookupUri}",
+            title = contact.name,
+            subtitle = contact.phoneNumber,
+            domain = SearchScoringEngine.EntityDomain.CONTACT,
+            payload = contact,
+            metadata = SearchScoringEngine.ScoringMetadata(
+                launchCount = 0,
+                lastUsedTimestampMs = lastUsedMs,
+                isPinned = false,
+                domain = SearchScoringEngine.EntityDomain.CONTACT
+            ),
+            precomputedMetaphone = DoubleMetaphone.encode(contact.name)
+        )
+    }
+
+    /**
+     * Appends every radix key under which a contact is reachable (full name, normalized name, phone
+     * digits, individual name tokens) to [out] and registers its phonetic codes.
+     */
+    private fun collectContactKeys(contact: ContactItem, item: SearchItem, out: MutableList<Pair<String, SearchItem>>) {
+        out.add(contact.name to item)
+        val normalizedContact = QueryNormalizer.normalize(contact.name)
+        if (normalizedContact.isNotEmpty() && !normalizedContact.equals(contact.name, ignoreCase = true)) {
+            out.add(normalizedContact to item)
+        }
+        out.add(contact.phoneNumber.filter { it.isDigit() } to item)
+
+        // Individual name tokens (first name, last name)
+        for (token in QueryNormalizer.tokenize(contact.name)) {
+            out.add(token to item)
+            val tokenMetaphone = DoubleMetaphone.encode(token)
+            addToPhoneticIndex(tokenMetaphone.primary, item)
+            addToPhoneticIndex(tokenMetaphone.alternate, item)
+        }
+
+        // Full name phonetics
+        item.precomputedMetaphone?.let { addToPhoneticIndex(it.primary, item) }
+    }
+
+    /**
+     * Publishes [item] under a phonetic [code]. The per-key atomic `compute` guarantees the entry can
+     * never land in a bucket that a concurrent [removeFromPhoneticIndex] has just discarded, and an
+     * already present equal item is replaced so its payload never goes stale.
+     */
+    private fun addToPhoneticIndex(code: String, item: SearchItem) {
+        if (code.isEmpty()) return
+        phoneticIndex.compute(code) { _, existing ->
+            val bucket = existing ?: ConcurrentHashMap.newKeySet()
+            bucket.remove(item)
+            bucket.add(item)
+            bucket
+        }
+    }
+
+    /**
+     * Removes every phonetic entry matching [predicate], dropping buckets that become empty. Each bucket
+     * is mutated through an atomic per-key `computeIfPresent`, so it cannot race with [addToPhoneticIndex].
+     */
+    private fun removeFromPhoneticIndex(predicate: (SearchItem) -> Boolean) {
+        for (code in phoneticIndex.keys) {
+            phoneticIndex.computeIfPresent(code) { _, bucket ->
+                bucket.removeIf(predicate)
+                if (bucket.isEmpty()) null else bucket
             }
         }
-        appRadixTree.insertBatch(pairs)
     }
 
     /**
@@ -325,18 +367,15 @@ class UnifiedSearchCoordinator @Inject constructor(
         shortcutRadixTree.clear()
         fileRadixTree.clear()
         phoneticIndex.clear()
-        itemRegistry.clear()
     }
 
     /**
-     * Clears only contact entities from in-memory indices before re-indexing.
+     * Clears only contact entities from in-memory indices. Prefer [replaceContacts] when re-syncing, as
+     * it never exposes an empty contact index to concurrent searches.
      */
     fun clearContacts() {
         contactRadixTree.clear()
-        phoneticIndex.values.forEach { set ->
-            set.removeIf { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
-        }
-        itemRegistry.entries.removeIf { it.value.domain == SearchScoringEngine.EntityDomain.CONTACT }
+        removeFromPhoneticIndex { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -587,18 +626,47 @@ class UnifiedSearchCoordinator @Inject constructor(
     fun removePackage(packageName: String) {
         appRadixTree.removeIf { (it.payload as? AppItem)?.packageName == packageName }
         shortcutRadixTree.removeIf { (it.payload as? AppShortcutItem)?.packageName == packageName }
-        itemRegistry.entries.removeIf { it.value.id.startsWith("app:$packageName") || it.value.id.startsWith("shortcut:$packageName") }
+        removeFromPhoneticIndex {
+            (it.payload as? AppItem)?.packageName == packageName ||
+                (it.payload as? AppShortcutItem)?.packageName == packageName
+        }
+    }
+
+    /**
+     * Unregisters preference listeners and purges in-memory indices for zero memory leaks.
+     */
+    fun cleanup() {
+        try {
+            prefs.unregisterOnSharedPreferenceChangeListener(prefChangeListener)
+        } catch (_: Exception) {}
+        clearIndex()
+    }
+
+    /**
+     * Modern reactive search pipeline: emits latest unified search results,
+     * automatically cancelling any obsolete in-flight searches via flatMapLatest.
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun searchFlow(queryFlow: Flow<String>): Flow<UnifiedSearchResults> {
+        return queryFlow
+            .distinctUntilChanged()
+            .flatMapLatest { query ->
+                flow {
+                    emit(executeSearch(query))
+                }
+            }
+            .flowOn(Dispatchers.Default)
     }
 
     suspend fun executeSearch(rawQuery: String): UnifiedSearchResults = withContext(Dispatchers.Default) {
-        executeSearchInternal(rawQuery)
+        executeSearchInternal(rawQuery) { ensureActive() }
     }
 
     fun executeSearchSync(rawQuery: String): UnifiedSearchResults {
-        return executeSearchInternal(rawQuery)
+        return executeSearchInternal(rawQuery, cancellationCheck = null)
     }
 
-    private fun executeSearchInternal(rawQuery: String): UnifiedSearchResults {
+    private fun executeSearchInternal(rawQuery: String, cancellationCheck: (() -> Unit)? = null): UnifiedSearchResults {
         val startTime = System.nanoTime()
         val query = rawQuery.trim()
 
@@ -614,6 +682,8 @@ class UnifiedSearchCoordinator @Inject constructor(
 
         // 3. Natural Language Intent Parser
         val parsedIntent = NaturalLanguageIntentParser.parse(query)
+
+        cancellationCheck?.invoke()
 
         // 4. Candidate Retrieval via Partitioned Radix Tree Prefix Search (< 0.5ms)
         val candidates = mutableSetOf<SearchItem>()
@@ -647,6 +717,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
 
         // 5. Phonetic Candidate Retrieval via Double Metaphone (< 0.2ms)
+        cancellationCheck?.invoke()
         val queryMetaphone = DoubleMetaphone.encode(query)
         if (queryMetaphone.primary.isNotEmpty()) {
             phoneticIndex[queryMetaphone.primary]?.let { candidates.addAll(it) }
@@ -663,6 +734,7 @@ class UnifiedSearchCoordinator @Inject constructor(
 
         // 6. Typo-Tolerant Fuzzy Search if Candidate Pool is Small (< 1.5ms)
         if (candidates.size < 8 && query.length >= 3) {
+            cancellationCheck?.invoke()
             val fuzzyResults = appRadixTree.searchFuzzy(query, maxDistance = 2, limit = 20)
             for (f in fuzzyResults) {
                 candidates.add(f.value)
@@ -670,13 +742,18 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
 
         // 7. Multi-Factor Relevance Scoring Matrix
+        cancellationCheck?.invoke()
         val now = System.currentTimeMillis()
         val appWeightMul = cachedAppWeightMul
         val contactWeightMul = cachedContactWeightMul
         val fileWeightMul = cachedFileWeightMul
 
         val rankedResults = ArrayList<RankedSearchResult>(candidates.size)
+        var scoredCount = 0
         for (item in candidates) {
+            if ((++scoredCount and 15) == 0) {
+                cancellationCheck?.invoke()
+            }
             val domainMul = when (item.domain) {
                 SearchScoringEngine.EntityDomain.APPLICATION, SearchScoringEngine.EntityDomain.APP_SHORTCUT -> appWeightMul
                 SearchScoringEngine.EntityDomain.CONTACT -> contactWeightMul
@@ -696,6 +773,7 @@ class UnifiedSearchCoordinator @Inject constructor(
                 rankedResults.add(RankedSearchResult(item, scoreBreakdown))
             }
         }
+        cancellationCheck?.invoke()
         rankedResults.sortByDescending { it.scoreBreakdown.totalScore }
 
         // 8. Domain Separation & Output Filtering

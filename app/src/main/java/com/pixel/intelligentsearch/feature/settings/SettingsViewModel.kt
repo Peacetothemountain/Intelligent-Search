@@ -11,7 +11,6 @@ import com.pixel.intelligentsearch.core.bangs.SearchBangManager
 import com.pixel.intelligentsearch.core.data.HistoryDao
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.icons.UniversalIconEngine
 import com.pixel.intelligentsearch.core.weighting.SearchSectionConfig
 import com.pixel.intelligentsearch.core.weighting.SearchWeightingDefaults
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,7 +28,6 @@ class SettingsViewModel @Inject constructor(
     private val historyDao: HistoryDao,
     private val bangManager: SearchBangManager,
     private val backupManager: BackupManager,
-    private val iconEngine: UniversalIconEngine,
     private val strongBoxSecurityManager: com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager,
     private val corpusIndexManager: com.pixel.intelligentsearch.core.search.CorpusIndexManager
 ) : ViewModel() {
@@ -51,7 +49,7 @@ class SettingsViewModel @Inject constructor(
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = bangManager.getAllBangsSync()
+            initialValue = emptyList()
         )
 
     val sectionConfigsFlow: StateFlow<List<SearchSectionConfig>> = settingsManager.settingsFlow
@@ -62,8 +60,27 @@ class SettingsViewModel @Inject constructor(
             initialValue = SearchWeightingDefaults.parseConfigs(settingsManager.getInitialSettings().searchSectionsConfigJson)
         )
 
+    fun updateCustomIconPills(pills: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsManager.updateSetting(SettingsManager.CUSTOM_ICON_PILLS, pills)
+        }
+    }
+
+    fun updateActiveIconPack(packageName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsManager.updateSetting(SettingsManager.ACTIVE_ICON_PACK, packageName)
+        }
+    }
+
+    fun updateSearchPills(pills: String, count: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsManager.updateSetting(SettingsManager.SEARCH_PILLS, pills)
+            settingsManager.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, count)
+        }
+    }
+
     fun <T> updateSetting(key: Preferences.Key<T>, value: T) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             settingsManager.updateSetting(key, value)
             if (key == SettingsManager.SEARCH_CONTACTS && value == true) {
                 corpusIndexManager.reindexContacts()
@@ -72,11 +89,13 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun reindexContacts() {
-        corpusIndexManager.reindexContacts()
+        viewModelScope.launch(Dispatchers.IO) {
+            corpusIndexManager.reindexContacts()
+        }
     }
 
     fun clearSearchHistory() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             historyDao.clearHistory()
         }
     }
@@ -138,15 +157,13 @@ class SettingsViewModel @Inject constructor(
 
     // --- Backup & Restore Operations ---
     fun exportBackup(
-        
         uri: Uri,
         passphrase: String?,
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             backupManager.exportToFile(
-                
                 uri = uri,
                 passphrase = passphrase,
                 onSuccess = onSuccess,
@@ -156,15 +173,13 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun importBackup(
-        
         uri: Uri,
         passphrase: String?,
         onSuccess: (Int) -> Unit,
         onError: (String) -> Unit
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             backupManager.importFromFile(
-                
                 uri = uri,
                 passphrase = passphrase,
                 onSuccess = onSuccess,
@@ -178,7 +193,6 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun clearIconCaches() {
-        iconEngine.clearCache()
         com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
     }
 

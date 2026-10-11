@@ -43,8 +43,9 @@ class MathematicalExpressionEngineTest {
 
         val baseRes = MathematicalExpressionEngine.evaluate("255 to hex")
         assertTrue(baseRes is MathematicalExpressionEngine.MathEvaluationResult.Bitwise)
-        assertEquals(255L, (baseRes as MathematicalExpressionEngine.MathEvaluationResult.Bitwise).decimalValue)
-        assertEquals("0xFF", (baseRes as MathematicalExpressionEngine.MathEvaluationResult.Bitwise).hexValue)
+        val bitwise = baseRes as MathematicalExpressionEngine.MathEvaluationResult.Bitwise
+        assertEquals(255L, bitwise.decimalValue)
+        assertEquals("0xFF", bitwise.hexValue)
     }
 
     @Test
@@ -61,5 +62,71 @@ class MathematicalExpressionEngineTest {
         val currRes = MathematicalExpressionEngine.evaluate("100 usd to eur")
         assertTrue(currRes is MathematicalExpressionEngine.MathEvaluationResult.UnitConversion)
         assertEquals(92.0, (currRes as MathematicalExpressionEngine.MathEvaluationResult.UnitConversion).toValue, 1.0)
+    }
+
+    @Test
+    fun testUnsigned64BitMask() {
+        val maskRes = MathematicalExpressionEngine.evaluate("0xFFFFFFFFFFFFFFFF AND 0x0F")
+        assertTrue(maskRes is MathematicalExpressionEngine.MathEvaluationResult.Bitwise)
+        val bit = maskRes as MathematicalExpressionEngine.MathEvaluationResult.Bitwise
+        assertEquals(15L, bit.decimalValue)
+    }
+
+    @Test
+    fun testTinyNumberFormat() {
+        val res = MathematicalExpressionEngine.evaluate("1e-18")
+        assertTrue(res is MathematicalExpressionEngine.MathEvaluationResult.Computation)
+        val comp = res as MathematicalExpressionEngine.MathEvaluationResult.Computation
+        assertEquals("1.0000e-18", comp.formattedResult)
+    }
+
+    @Test
+    fun testUnsigned64BitDecimalConversion() {
+        val res = MathematicalExpressionEngine.evaluate("0xFFFFFFFFFFFFFFFF to dec")
+        assertTrue(res is MathematicalExpressionEngine.MathEvaluationResult.Bitwise)
+        val bit = res as MathematicalExpressionEngine.MathEvaluationResult.Bitwise
+        assertEquals("0xFFFFFFFFFFFFFFFF to dec = 18446744073709551615", bit.expression)
+    }
+
+    @Test
+    fun testNegativeTemperatureConversion() {
+        val res = MathematicalExpressionEngine.evaluate("-40 f to c")
+        assertTrue(res is MathematicalExpressionEngine.MathEvaluationResult.UnitConversion)
+        val conv = res as MathematicalExpressionEngine.MathEvaluationResult.UnitConversion
+        assertEquals(-40.0, conv.toValue, 0.1)
+    }
+
+    @Test
+    fun testPureScientificNotation() {
+        val res = MathematicalExpressionEngine.evaluate("1e6")
+        assertTrue("Pure 1e6 must evaluate to Computation", res is MathematicalExpressionEngine.MathEvaluationResult.Computation)
+        val comp = res as MathematicalExpressionEngine.MathEvaluationResult.Computation
+        assertEquals(1000000.0, comp.numericValue, 0.001)
+        assertEquals("1000000", comp.formattedResult)
+    }
+
+    @Test
+    fun testDivisionAndModuloByZeroSafety() {
+        val divZero = MathematicalExpressionEngine.evaluate("10 / 0")
+        assertNull("Division by zero must safely evaluate to null", divZero)
+
+        val modZero = MathematicalExpressionEngine.evaluate("10 % 0")
+        assertNull("Modulo by zero must safely evaluate to null", modZero)
+    }
+
+    @Test
+    fun testFunctionWithoutParens() {
+        val res = MathematicalExpressionEngine.evaluate("sqrt 144")
+        assertTrue("sqrt without parens must evaluate to Computation", res is MathematicalExpressionEngine.MathEvaluationResult.Computation)
+        val comp = res as MathematicalExpressionEngine.MathEvaluationResult.Computation
+        assertEquals(12.0, comp.numericValue, 0.001)
+    }
+
+    @Test
+    fun testBitwiseNot() {
+        val res = MathematicalExpressionEngine.evaluate("~0x0F")
+        assertTrue("Bitwise NOT must return Bitwise result", res is MathematicalExpressionEngine.MathEvaluationResult.Bitwise)
+        val bit = res as MathematicalExpressionEngine.MathEvaluationResult.Bitwise
+        assertEquals(15L.inv(), bit.decimalValue)
     }
 }

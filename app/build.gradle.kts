@@ -15,8 +15,8 @@ android {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
         targetSdk = 37
-        versionCode = 118
-        versionName = "9.1.7"
+        versionCode = 120
+        versionName = "9.1.8"
         ndk {
             // CRITICAL: Must support arm64-v8a, armeabi-v7a, x86_64, and x86 to retain Google Play compatibility for 2,159+ devices.
             abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86"))
@@ -35,7 +35,6 @@ android {
                 customStore != null && file(customStore).exists() -> file(customStore)
                 customStore != null && rootProject.file(customStore).exists() -> rootProject.file(customStore)
                 rootProject.file("release.keystore").exists() -> rootProject.file("release.keystore")
-                file("F:/release.keystore").exists() -> file("F:/release.keystore")
                 else -> null
             }
             val storePass = localProperties.getProperty("RELEASE_STORE_PASSWORD") ?: System.getenv("RELEASE_STORE_PASSWORD")
@@ -127,7 +126,8 @@ dependencies {
   implementation("androidx.compose.material:material-icons-extended")
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
-  // Instrumented tests
+  // Instrumented tests (the androidTest classpath does not inherit the BOM applied to `implementation`)
+  androidTestImplementation(platform(libs.androidx.compose.bom))
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
 
@@ -166,12 +166,6 @@ dependencies {
   implementation(libs.androidx.graphics.shapes)
 }
 
-tasks.register<Zip>("packageNativeDebugSymbols") {
-    archiveFileName.set("native-debug-symbols.zip")
-    destinationDirectory.set(file("${layout.buildDirectory.get()}/outputs/native-debug-symbols/release"))
-    from("${layout.buildDirectory.get()}/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib")
-    dependsOn("mergeReleaseNativeLibs")
-}
 
 
 

@@ -5,4 +5,27 @@
     <string name="widget_search_description">Search phone and web</string>
     <string name="widget_system_search_bar">System search bar</string>
     <string name="widget_material_search_bar">Material Design search bar</string>
+
+    <!-- App Widget Dynamic TalkBack Accessibility Descriptions -->
+    <string name="widget_talkback_voice_search">Voice search</string>
+    <string name="widget_talkback_lens">Google Lens visual search</string>
+    <string name="widget_talkback_assistant">Google Assistant</string>
+    <string name="widget_talkback_translate_text">Translate text</string>
+    <string name="widget_talkback_translate_camera">Translate with camera</string>
+    <string name="widget_talkback_song_search">Identify playing music</string>
+    <string name="widget_talkback_weather">Check weather forecast</string>
+    <string name="widget_talkback_sports">Check sports scores</string>
+    <string name="widget_talkback_dictionary">Look up in dictionary</string>
+    <string name="widget_talkback_homework">Get homework help</string>
+    <string name="widget_talkback_finance">Check stock market and finance</string>
+    <string name="widget_talkback_saved">View saved collections</string>
+    <string name="widget_talkback_news">Read top news</string>
+    <string name="widget_talkback_search_action">Search and actions</string>
+    <string name="widget_talkback_google_logo">Google search</string>
+    <string name="widget_talkback_gemini_search">Gemini and assistant search</string>
+    <string name="widget_talkback_now_playing">Pixel Now Playing song history</string>
+    <string name="tile_content_description">Search phone and web quick launcher</string>
+    <string name="tile_subtitle_last_query">Last: %1$s</string>
+    <string name="widget_talkback_open_app">Open %1$s</string>
+    <string name="widget_talkback_open_web">Open %1$s</string>
 </resources>

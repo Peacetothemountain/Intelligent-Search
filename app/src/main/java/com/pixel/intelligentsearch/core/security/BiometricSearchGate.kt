@@ -23,7 +23,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class BiometricSearchGate @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val securityManager: StrongBoxSecurityManager,
     private val encryptedVault: EncryptedDataVault
 ) {
@@ -56,7 +56,7 @@ class BiometricSearchGate @Inject constructor(
             val status = biometricManager?.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
             status == BiometricManager.BIOMETRIC_SUCCESS
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to query biometric hardware availability", e)
+            Log.w(TAG, "Failed to query biometric hardware availability: ${e.message}")
             false
         }
     }
@@ -69,7 +69,7 @@ class BiometricSearchGate @Inject constructor(
             )
             status == BiometricManager.BIOMETRIC_SUCCESS
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to query device credential availability", e)
+            Log.w(TAG, "Failed to query device credential availability: ${e.message}")
             false
         }
     }
@@ -171,7 +171,8 @@ class BiometricSearchGate @Inject constructor(
      * Hardware Cryptographic Gating Pipeline:
      * Unlocks an [EncryptedVaultRecord] bound to a per-operation KeyMint biometric key.
      * Guarantees that data cannot be decrypted by hooking callbacks without authenticating
-     * the underlying StrongBox / TEE Cipher.
+     * the underlying StrongBox / TEE Cipher. If per-operation key was invalidated by new biometric
+     * enrollment, gracefully falls back to master vault authentication.
      */
     fun authenticateForCryptographicAccess(
         activity: Activity,
@@ -182,18 +183,23 @@ class BiometricSearchGate @Inject constructor(
         onError: (String) -> Unit,
         onCancel: () -> Unit = {}
     ) {
-        if (!isBiometricHardwareAvailable()) {
-            onError("Biometric hardware is not available on this device.")
+        if (!isBiometricHardwareAvailable() && !isDeviceSecure()) {
+            onError("Biometric hardware or secure lock screen is not available on this device.")
             return
         }
 
-        try {
+        val cryptoObjectResult = try {
             val iv = encryptedVault.extractIv(record.payload)
-            val cryptoObject = securityManager.initBiometricDecryptCryptoObject(iv)
+            securityManager.initBiometricDecryptCryptoObject(iv)
+        } catch (e: Exception) {
+            Log.w(TAG, "Per-operation biometric crypto object init failed; falling back to device auth gate: ${e.message}")
+            null
+        }
 
+        if (cryptoObjectResult != null) {
             authenticate(
                 activity = activity,
-                cryptoObject = cryptoObject,
+                cryptoObject = cryptoObjectResult,
                 title = title,
                 subtitle = "Hardware-bound KeyMint verification",
                 enableScreenShield = true,
@@ -203,25 +209,56 @@ class BiometricSearchGate @Inject constructor(
                         onError("Hardware cipher is null after authentication.")
                         return@authenticate
                     }
-                    try {
-                        val secureBytes = encryptedVault.decryptWithBiometricCipher(cipher, record, profileId)
-                        onDecrypted(secureBytes)
+                    // Decrypt first, deliver afterwards: a throwing onDecrypted callback must never be
+                    // mistaken for a decryption failure (which would re-run the fallback and invoke the
+                    // callback a second time while leaking the first buffer).
+                    val decrypted = try {
+                        encryptedVault.decryptWithBiometricCipher(cipher, record, profileId)
                     } catch (e: Exception) {
                         try {
-                            val masterBytes = encryptedVault.decrypt(record, profileId)
-                            onDecrypted(masterBytes)
+                            encryptedVault.decrypt(record, profileId)
                         } catch (masterEx: Exception) {
                             Log.e(TAG, "Biometric decryption failed", masterEx)
                             onError("Decryption failed: ${masterEx.message}")
+                            return@authenticate
                         }
+                    }
+                    try {
+                        onDecrypted(decrypted)
+                    } catch (callbackEx: Throwable) {
+                        decrypted.close()
+                        throw callbackEx
                     }
                 },
                 onError = { _, errString -> onError(errString) },
                 onCancel = onCancel
             )
-        } catch (e: Exception) {
-            Log.e(TAG, "Cryptographic gate preparation failed", e)
-            onError("Gate initialization error: ${e.message}")
+        } else {
+            // Fallback to standard biometric / device credential authentication when per-operation crypto object is unavailable
+            authenticate(
+                activity = activity,
+                cryptoObject = null,
+                title = title,
+                subtitle = "Device Security Verification",
+                enableScreenShield = true,
+                onSuccess = {
+                    val masterBytes = try {
+                        encryptedVault.decrypt(record, profileId)
+                    } catch (masterEx: Exception) {
+                        Log.e(TAG, "Master vault decryption fallback failed", masterEx)
+                        onError("Decryption failed: ${masterEx.message}")
+                        return@authenticate
+                    }
+                    try {
+                        onDecrypted(masterBytes)
+                    } catch (callbackEx: Throwable) {
+                        masterBytes.close()
+                        throw callbackEx
+                    }
+                },
+                onError = { _, errString -> onError(errString) },
+                onCancel = onCancel
+            )
         }
     }
 

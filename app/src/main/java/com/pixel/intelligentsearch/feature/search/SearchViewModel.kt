@@ -23,6 +23,26 @@ import kotlinx.coroutines.flow.*
 
 private val URL_PATTERN = Regex("""^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(/.*)?$""")
 
+/** Common places whose time zone is not named after them in the tz database (e.g. Asia/Kolkata). */
+private val TIME_ZONE_ALIASES = mapOf(
+    "utc" to "UTC", "gmt" to "GMT",
+    "san francisco" to "America/Los_Angeles", "seattle" to "America/Los_Angeles", "la" to "America/Los_Angeles",
+    "california" to "America/Los_Angeles", "las vegas" to "America/Los_Angeles", "portland" to "America/Los_Angeles",
+    "boston" to "America/New_York", "miami" to "America/New_York", "washington" to "America/New_York",
+    "atlanta" to "America/New_York", "philadelphia" to "America/New_York", "nyc" to "America/New_York",
+    "dallas" to "America/Chicago", "houston" to "America/Chicago", "austin" to "America/Chicago",
+    "salt lake city" to "America/Denver", "montreal" to "America/Toronto",
+    "beijing" to "Asia/Shanghai", "china" to "Asia/Shanghai", "japan" to "Asia/Tokyo",
+    "india" to "Asia/Kolkata", "delhi" to "Asia/Kolkata", "new delhi" to "Asia/Kolkata",
+    "mumbai" to "Asia/Kolkata", "bangalore" to "Asia/Kolkata", "bengaluru" to "Asia/Kolkata",
+    "uk" to "Europe/London", "england" to "Europe/London", "france" to "Europe/Paris",
+    "germany" to "Europe/Berlin", "spain" to "Europe/Madrid", "italy" to "Europe/Rome",
+    "korea" to "Asia/Seoul", "south korea" to "Asia/Seoul", "vietnam" to "Asia/Ho_Chi_Minh",
+    "hanoi" to "Asia/Bangkok", "uae" to "Asia/Dubai", "abu dhabi" to "Asia/Dubai",
+    "melbourne" to "Australia/Melbourne", "canberra" to "Australia/Sydney", "new zealand" to "Pacific/Auckland",
+    "hawaii" to "Pacific/Honolulu", "alaska" to "America/Anchorage"
+)
+
 @androidx.compose.runtime.Immutable
 data class DirectAction(
     val title: String,
@@ -51,6 +71,7 @@ data class SearchUiState(
     val mathResult: String? = null,
     val instantAnswer: InstantAnswer? = null,
     val systemToggle: com.pixel.intelligentsearch.core.ui.SystemToggleUiState? = null,
+    val volumeSlider: com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider? = null,
     val directActions: List<DirectAction> = emptyList(),
     val calendarEvents: List<CalendarEvent> = emptyList(),
     val recentSearches: List<String> = emptyList(),
@@ -62,9 +83,10 @@ data class SearchUiState(
     val detectedBangQuery: com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = null
 )
 
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 @HiltViewModel
 class SearchViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val historyDao: HistoryDao,
     private val settingsManager: SettingsManager,
     private val bangManager: com.pixel.intelligentsearch.core.bangs.SearchBangManager,
@@ -73,7 +95,8 @@ class SearchViewModel @Inject constructor(
     private val nativeAppPredictionProvider: com.pixel.intelligentsearch.core.system.NativeAppPredictionProvider,
     private val multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager,
     private val privateSpaceManager: com.pixel.intelligentsearch.core.data.PrivateSpaceManager,
-    private val systemToggleManager: com.pixel.intelligentsearch.core.system.SystemToggleManager
+    private val systemToggleManager: com.pixel.intelligentsearch.core.system.SystemToggleManager,
+    private val directBootManager: com.pixel.intelligentsearch.core.system.DirectBootManager
 ) : ViewModel() {
     
     private val settingsState = settingsManager.settingsFlow
@@ -87,17 +110,13 @@ class SearchViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     private val _remoteSearchQueryFlow = MutableStateFlow("")
-    private val _idleIndexFlow = MutableStateFlow("")
     private var searchJob: Job? = null
-    private var remoteSearchJob: Job? = null
+    private var initialDataJob: Job? = null
 
-    private val localInferenceEngine = com.pixel.intelligentsearch.core.local.LocalInferenceEngine(context)
     private val adpfThermalManager = com.pixel.intelligentsearch.core.performance.ADPFThermalManager.getInstance(context)
-    private val appSearchEngine = com.pixel.intelligentsearch.core.data.AppSearchEngine(context)
-    private val directBootManager = com.pixel.intelligentsearch.core.system.DirectBootManager(context)
-    private val pixelEcosystemSync = com.pixel.intelligentsearch.core.ecosystem.PixelEcosystemSync(context)
     private val nexusLauncherBridge = com.pixel.intelligentsearch.core.data.NexusLauncherBridge(context)
     private val customPrefs by lazy { context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE) }
+    private var initialClipboardActions: List<DirectAction> = emptyList()
 
     init {
         adpfThermalManager.applyTopAppThreadPriority()
@@ -112,35 +131,14 @@ class SearchViewModel @Inject constructor(
                 .debounce(80L)
                 .distinctUntilChanged()
                 .collectLatest { query ->
-                    if (query.isNotBlank()) {
+                    if (query.isBlank()) {
+                        _uiState.update { it.copy(webSuggestions = emptyList()) }
+                    } else {
                         fetchRemoteWebSuggestions(query)
                     }
                 }
         }
 
-        // Tier 3: Idle Indexing & Local Embeddings (Runs only when user pauses/finishes typing)
-        viewModelScope.launch(Dispatchers.IO) {
-            _idleIndexFlow
-                .debounce(1500L)
-                .distinctUntilChanged()
-                .collectLatest { query ->
-                    if (query.isNotBlank()) {
-                        try {
-                            localInferenceEngine.generateTextEmbedding(query)
-                            appSearchEngine.indexDocument(
-                                com.pixel.intelligentsearch.core.data.IndexedSearchDocument(
-                                    id = query.hashCode().toString(),
-                                    namespace = "search_history",
-                                    title = query,
-                                    snippet = "User search query",
-                                    timestampMs = System.currentTimeMillis()
-                                )
-                            )
-                        } catch (_: Exception) {}
-                    }
-                }
-        }
-        
         viewModelScope.launch {
             directBootManager.isUserUnlocked.collectLatest { isUnlocked ->
                 _uiState.update { it.copy(isDirectBootLocked = !isUnlocked) }
@@ -163,6 +161,105 @@ class SearchViewModel @Inject constructor(
                 _uiState.update { it.copy(hasLockedPrivateSpace = hasLocked) }
             }
         }
+
+        // Live Hardware State Synchronization with System Toggles (Flashlight, Bluetooth, Wi-Fi, DND, Location, etc.)
+        observeLiveSystemToggles()
+    }
+
+    private fun observeLiveSystemToggles() {
+        viewModelScope.launch {
+            systemToggleManager.isFlashlightOn.collect { torch ->
+                _uiState.update { current ->
+                    if (current.systemToggle?.id == "flashlight" && current.systemToggle.isEnabled != torch) {
+                        current.copy(systemToggle = current.systemToggle.copy(
+                            isEnabled = torch,
+                            subtitle = systemToggleManager.getTorchStatusText(torch)
+                        ))
+                    } else current
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            systemToggleManager.isBluetoothEnabled.collect { bt ->
+                _uiState.update { current ->
+                    if (current.systemToggle?.id == "bluetooth" && current.systemToggle.isEnabled != bt) {
+                        current.copy(systemToggle = current.systemToggle.copy(
+                            isEnabled = bt,
+                            subtitle = systemToggleManager.getBluetoothStatusText(bt)
+                        ))
+                    } else current
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            combine(systemToggleManager.isWifiConnected, systemToggleManager.wifiSsid) { wifi, _ ->
+                _uiState.update { current ->
+                    if (current.systemToggle?.id == "wifi") {
+                        val newSubtitle = systemToggleManager.getWifiStatusText(wifi)
+                        if (current.systemToggle.isEnabled != wifi || current.systemToggle.subtitle != newSubtitle) {
+                            current.copy(systemToggle = current.systemToggle.copy(
+                                isEnabled = wifi,
+                                subtitle = newSubtitle
+                            ))
+                        } else current
+                    } else current
+                }
+            }.collect()
+        }
+
+        viewModelScope.launch {
+            systemToggleManager.isDndEnabled.collect { dnd ->
+                _uiState.update { current ->
+                    if (current.systemToggle?.id == "dnd" && current.systemToggle.isEnabled != dnd) {
+                        current.copy(systemToggle = current.systemToggle.copy(
+                            isEnabled = dnd,
+                            subtitle = systemToggleManager.getDndStatusText(dnd)
+                        ))
+                    } else current
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            systemToggleManager.isLocationEnabled.collect { loc ->
+                _uiState.update { current ->
+                    if (current.systemToggle?.id == "location" && current.systemToggle.isEnabled != loc) {
+                        current.copy(systemToggle = current.systemToggle.copy(
+                            isEnabled = loc,
+                            subtitle = systemToggleManager.getLocationStatusText(loc)
+                        ))
+                    } else current
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            systemToggleManager.isBatterySaverEnabled.collect { bat ->
+                _uiState.update { current ->
+                    if (current.systemToggle?.id == "battery" && current.systemToggle.isEnabled != bat) {
+                        current.copy(systemToggle = current.systemToggle.copy(
+                            isEnabled = bat,
+                            subtitle = systemToggleManager.getBatterySaverStatusText(bat)
+                        ))
+                    } else current
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            systemToggleManager.isAirplaneModeEnabled.collect { air ->
+                _uiState.update { current ->
+                    if (current.systemToggle?.id == "airplane" && current.systemToggle.isEnabled != air) {
+                        current.copy(systemToggle = current.systemToggle.copy(
+                            isEnabled = air,
+                            subtitle = systemToggleManager.getAirplaneModeStatusText(air)
+                        ))
+                    } else current
+                }
+            }
+        }
     }
 
     fun refreshContacts() {
@@ -173,7 +270,8 @@ class SearchViewModel @Inject constructor(
 
     fun loadInitialData() {
         refreshContacts()
-        viewModelScope.launch(Dispatchers.IO) {
+        initialDataJob?.cancel()
+        initialDataJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 val appsDeferred = async { SystemDataProvider.getAllApps(context) }
                 val launcherPredictedDeferred = async {
@@ -203,13 +301,14 @@ class SearchViewModel @Inject constructor(
                 unifiedSearchCoordinator.bulkIndexApps(allApps)
                 val launcherPredictedApps = launcherPredictedDeferred.await()
 
+                val hiddenApps = settingsState.value.hiddenApps
                 val recentApps = if (settingsState.value.contextAwareQuickApps) {
-                    val quickApps = SystemDataProvider.getContextAwareQuickApps(context).distinctBy { it.packageName }
+                    val quickApps = SystemDataProvider.getContextAwareQuickApps(context, settingsState.value.hiddenApps).distinctBy { it.packageName }
                     if (launcherPredictedApps.isNotEmpty()) (launcherPredictedApps + quickApps).distinctBy { it.packageName } else quickApps
                 } else {
                     val standardRecents = SystemDataProvider.getRecentApps(context, settingsState.value.hiddenApps).distinctBy { it.packageName }
                     if (launcherPredictedApps.isNotEmpty()) (launcherPredictedApps + standardRecents).distinctBy { it.packageName } else standardRecents
-                }
+                }.filter { it.packageName !in hiddenApps } // launcher predictions know nothing about hidden apps
 
                 val events = eventsDeferred.await()
 
@@ -236,9 +335,9 @@ class SearchViewModel @Inject constructor(
                                 }
                             }
                         }
-                    } catch (e: Exception) { e.printStackTrace() }
+                    } catch (e: Exception) { android.util.Log.w("IntelligentSearch", "Unexpected error", e) }
                 }
-                
+                initialClipboardActions = clipboardActions
                 _uiState.update { it.copy(
                     allApps = allApps,
                     recentApps = recentApps,
@@ -246,7 +345,7 @@ class SearchViewModel @Inject constructor(
                     directActions = clipboardActions
                 ) }
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.w("IntelligentSearch", "Unexpected error", e)
             }
         }
     }
@@ -256,19 +355,18 @@ class SearchViewModel @Inject constructor(
         
         if (newQuery.isBlank()) {
             _remoteSearchQueryFlow.value = ""
-            _idleIndexFlow.value = ""
             searchJob?.cancel()
-            remoteSearchJob?.cancel()
             _uiState.update { it.copy(
                 filteredApps = emptyList(),
                 contacts = emptyList(),
                 files = emptyList(),
                 webSuggestions = emptyList(),
                 shortcuts = emptyList(),
-                directActions = emptyList(),
+                directActions = if (settingsState.value.smartClipboardSuggestions) initialClipboardActions else emptyList(),
                 mathResult = null,
                 instantAnswer = null,
                 systemToggle = null,
+                volumeSlider = null,
                 bangSuggestions = emptyList(),
                 detectedBangQuery = null,
                 isLoading = false
@@ -282,12 +380,7 @@ class SearchViewModel @Inject constructor(
             is com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.Toggle -> action.toggleUiState
             else -> null
         }
-        val tier0Math = when (val math = tier0.mathResult) {
-            is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.Computation -> math.formattedResult
-            is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.Bitwise -> "${math.decimalValue} (0x${math.hexValue})"
-            is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.UnitConversion -> math.formatted
-            null -> null
-        }
+        val tier0Math = tier0.mathResult?.takeIf { settingsState.value.searchCalculator }?.let(::formatMathResult)
 
         val availableBangs = bangManager.getAllBangsSync()
         val parsedBang = bangManager.parseBangQuery(newQuery, availableBangs)
@@ -304,9 +397,12 @@ class SearchViewModel @Inject constructor(
             current.copy(
                 bangSuggestions = bangSuggestions,
                 detectedBangQuery = parsedBang,
-                filteredApps = if (tier0.apps.isNotEmpty()) tier0.apps else current.filteredApps,
-                mathResult = tier0Math ?: current.mathResult,
-                systemToggle = tier0Toggle ?: current.systemToggle
+                filteredApps = if (tier0.apps.isNotEmpty() && settingsState.value.searchApps) {
+                    tier0.apps.filter { it.packageName !in settingsState.value.hiddenApps }
+                } else current.filteredApps,
+                mathResult = tier0Math,
+                systemToggle = tier0Toggle,
+                volumeSlider = tier0.systemAction as? com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider
             )
         }
 
@@ -315,9 +411,6 @@ class SearchViewModel @Inject constructor(
 
         // TIER 2: Debounced Web Suggestions (80ms human-pause debounce)
         _remoteSearchQueryFlow.value = newQuery
-
-        // TIER 3: Idle Indexing (1500ms)
-        _idleIndexFlow.value = newQuery
     }
 
     private fun executeLocalSearch(newQuery: String) {
@@ -393,68 +486,33 @@ class SearchViewModel @Inject constructor(
                 else -> null
             }
 
-            val isAppsSearchEnabled = settings.searchApps ||
-                customPrefs.getBoolean("search.apps", true) ||
-                customPrefs.getBoolean("search_apps", true)
-
-            val resolvedApps = if (isAppsSearchEnabled) {
-                if (unifiedResults.apps.isNotEmpty()) {
-                    unifiedResults.apps
-                } else {
-                    unifiedSearchCoordinator.searchApps(newQuery, 12)
-                }
+            // settingsState already merges DataStore with the SharedPreferences mirror, so it is the
+            // single source of truth; OR-ing in raw prefs made a stale "true" impossible to switch off.
+            val resolvedApps = if (settings.searchApps) {
+                unifiedResults.apps.filter { it.packageName !in settings.hiddenApps }.take(12)
             } else emptyList()
 
-            val mathStr = when (val math = unifiedResults.mathResult) {
-                is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.Computation -> math.formattedResult
-                is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.Bitwise -> "${math.decimalValue} (0x${math.hexValue})"
-                is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.UnitConversion -> math.formatted
-                null -> if (settings.searchCalculator) SystemDataProvider.evaluateMath(newQuery) else null
-            }
+            val mathResult = unifiedResults.mathResult.takeIf { settings.searchCalculator }
+            val mathStr = mathResult?.let(::formatMathResult)
 
-            val isContactsSearchEnabled = settings.searchContacts || 
-                customPrefs.getBoolean("search.contacts", false) || 
-                customPrefs.getBoolean("search_contacts", false)
-
-            val localContacts = if (isContactsSearchEnabled) {
-                val memoryContacts = if (unifiedResults.contacts.isNotEmpty()) {
+            currentCoroutineContext().ensureActive()
+            val localContacts = if (settings.searchContacts) {
+                if (unifiedResults.contacts.isNotEmpty()) {
                     unifiedResults.contacts.take(settings.contactResultsCount)
-                } else {
-                    unifiedSearchCoordinator.searchContacts(newQuery, settings.contactResultsCount)
-                }
-                if (memoryContacts.isNotEmpty()) {
-                    memoryContacts
                 } else if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    val direct = SystemDataProvider.getContacts(context, newQuery).take(settings.contactResultsCount)
-                    if (direct.isNotEmpty()) {
-                        viewModelScope.launch(Dispatchers.IO) {
-                            corpusIndexManager.reindexContacts()
-                        }
-                    }
-                    direct
+                    SystemDataProvider.getContacts(context, newQuery).take(settings.contactResultsCount)
                 } else {
                     emptyList()
                 }
             } else emptyList()
 
-            val isFilesSearchEnabled = settings.searchFiles || 
-                customPrefs.getBoolean("search.files", false) || 
-                customPrefs.getBoolean("search_files", false)
-
-            val localFiles = if (isFilesSearchEnabled) {
-                if (unifiedResults.files.isNotEmpty()) {
-                    unifiedResults.files.take(settings.fileResultsCount)
-                } else {
-                    unifiedSearchCoordinator.searchFiles(newQuery, settings.fileResultsCount)
-                }
+            currentCoroutineContext().ensureActive()
+            val localFiles = if (settings.searchFiles) {
+                unifiedResults.files.take(settings.fileResultsCount)
             } else emptyList()
 
             val localShortcuts = if (settings.searchShortcuts) {
-                if (unifiedResults.shortcuts.isNotEmpty()) {
-                    unifiedResults.shortcuts.take(settings.shortcutResultsCount)
-                } else {
-                    unifiedSearchCoordinator.searchShortcuts(newQuery, settings.shortcutResultsCount)
-                }
+                unifiedResults.shortcuts.take(settings.shortcutResultsCount)
             } else emptyList()
 
             val suggestionsEnabled = customPrefs.getBoolean("search.web.suggestions", true)
@@ -464,20 +522,16 @@ class SearchViewModel @Inject constructor(
             } else null
 
             val q = newQuery.lowercase().trim()
-            val unitConv = if (settings.searchCalculator) SystemDataProvider.evaluateUnitConversion(newQuery) else null
+            val unitConv = mathResult as? com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.UnitConversion
             val localInstantAnswer = if (unitConv != null) {
-                InstantAnswer(unitConv, "Unit Conversion", "conversion")
-            } else if (q.startsWith("time in ") || q == "time") {
-                val location = if (q == "time") "your location" else q.removePrefix("time in ").replaceFirstChar { it.uppercase() }
-                val calendar = java.util.Calendar.getInstance()
-                val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
-                val min = calendar.get(java.util.Calendar.MINUTE)
-                val amPm = if (hour < 12) "AM" else "PM"
-                val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
-                InstantAnswer("$displayHour:${String.format(java.util.Locale.getDefault(), "%02d", min)} $amPm", "Current time in $location", "time")
+                InstantAnswer(unitConv.formatted, "Unit Conversion", "conversion")
+            } else if (q == "time" || q.startsWith("time in ")) {
+                buildTimeAnswer(q.removePrefix("time").removePrefix(" in ").trim())
             } else if (q == "weather" || q.startsWith("weather in ")) {
-                val location = if (q == "weather") "your area" else q.removePrefix("weather in ").replaceFirstChar { it.uppercase() }
-                InstantAnswer("72°F", "Mostly Sunny in $location", "weather")
+                // No weather data source is available offline, so offer the lookup rather than a made-up reading.
+                val place = q.removePrefix("weather").removePrefix(" in ").trim()
+                val title = if (place.isEmpty()) "Weather" else "Weather in ${place.toDisplayPlaceName()}"
+                InstantAnswer(title, "Tap for the current forecast", "weather")
             } else if (q.startsWith("define ") || q.startsWith("meaning of ") || q.startsWith("definition of ")) {
                 val word = q.removePrefix("define ").removePrefix("meaning of ").removePrefix("definition of ").trim()
                 val providerName = when (engine) { "DuckDuckGo" -> "DuckDuckGo"; "Bing" -> "Bing"; else -> "Dictionary" }
@@ -496,15 +550,21 @@ class SearchViewModel @Inject constructor(
             // TIER 1 UPDATE: Instant local results (<3ms) + Instant cached suggestions
             _uiState.update { current ->
                 if (current.query != newQuery) return@update current
+                val resolvedSuggestions = cachedWebSuggestions ?: if (current.query.isNotBlank() && newQuery.startsWith(current.query, ignoreCase = true)) {
+                    current.webSuggestions.filter { it.contains(newQuery, ignoreCase = true) }
+                } else {
+                    emptyList()
+                }
                 current.copy(
                     filteredApps = resolvedApps,
                     contacts = localContacts,
                     files = localFiles,
                     shortcuts = localShortcuts,
-                    webSuggestions = cachedWebSuggestions ?: current.webSuggestions,
+                    webSuggestions = resolvedSuggestions,
                     mathResult = mathStr,
                     instantAnswer = localInstantAnswer,
                     systemToggle = systemToggle,
+                    volumeSlider = unifiedResults.systemAction as? com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider,
                     directActions = directActions,
                     isLoading = false,
                     lastQueryLatency = elapsed
@@ -517,12 +577,53 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    private fun fetchRemoteWebSuggestions(query: String) {
+    /**
+     * Text for the calculator card. Unit conversions return null because they render in the dedicated
+     * conversion card; showing them in both places duplicated the answer.
+     */
+    private fun formatMathResult(
+        math: com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult
+    ): String? = when (math) {
+        is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.Computation -> math.formattedResult
+        is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.Bitwise -> {
+            // The expression ends with the requested representation, e.g. "255 to bin = 0b11111111".
+            val value = math.expression.substringAfterLast(" = ")
+            if (value.startsWith("0x") || value.startsWith("0b") || value.startsWith("0o")) value else "$value (${math.hexValue})"
+        }
+        is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.UnitConversion -> null
+    }
+
+    /**
+     * Answers "time" with the local time and "time in <place>" with that place's time when the place maps
+     * to a known time zone; unknown places return null so the query falls through to web search instead
+     * of mislabelling the local time.
+     */
+    private fun buildTimeAnswer(place: String): InstantAnswer? {
+        val zone = if (place.isEmpty()) java.util.TimeZone.getDefault() else resolveTimeZone(place) ?: return null
+        val format = android.text.format.DateFormat.getTimeFormat(context).apply { timeZone = zone }
+        val label = if (place.isEmpty()) "your location" else place.toDisplayPlaceName()
+        return InstantAnswer(format.format(java.util.Date()), "Current time in $label", "time")
+    }
+
+    private fun String.toDisplayPlaceName(): String =
+        split(' ').filter { it.isNotEmpty() }.joinToString(" ") { word -> word.replaceFirstChar { it.titlecase() } }
+
+    private fun resolveTimeZone(place: String): java.util.TimeZone? {
+        val normalized = place.lowercase().replace(Regex("[^a-z ]"), "").trim().replace(Regex("\\s+"), " ")
+        if (normalized.isEmpty()) return null
+        val zoneId = TIME_ZONE_ALIASES[normalized]
+            ?: java.time.ZoneId.getAvailableZoneIds().firstOrNull { id ->
+                id.contains('/') && id.substringAfterLast('/').replace('_', ' ').lowercase() == normalized
+            }
+            ?: return null
+        return java.util.TimeZone.getTimeZone(zoneId)
+    }
+
+    private suspend fun fetchRemoteWebSuggestions(query: String) {
         if (query.isBlank()) return
         val settings = settingsState.value
         val engine = settings.searchEngine
         if (engine == "Tor Project" || engine == "Tor Browser") {
-            remoteSearchJob?.cancel()
             _uiState.update { it.copy(webSuggestions = emptyList()) }
             return
         }
@@ -532,14 +633,18 @@ class SearchViewModel @Inject constructor(
 
         val maxResults = settings.webResultsCount.coerceAtLeast(5)
 
-        remoteSearchJob?.cancel()
-        remoteSearchJob = viewModelScope.launch(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
             try {
                 val suggestions = WebSearchProvider.getWebSuggestions(query, engine).take(maxResults)
-                if (_uiState.value.query == query) {
-                    _uiState.update { it.copy(webSuggestions = suggestions) }
+                currentCoroutineContext().ensureActive()
+                _uiState.update { current ->
+                    if (current.query == query) {
+                        current.copy(webSuggestions = suggestions)
+                    } else current
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+            }
         }
     }
 
@@ -553,7 +658,9 @@ class SearchViewModel @Inject constructor(
             state.copy(recentSearches = updated)
         }
         viewModelScope.launch(Dispatchers.IO) {
-            historyDao.recordAndPrune(trimmed, System.currentTimeMillis(), 25)
+            if (directBootManager.isUserUnlocked.value) {
+                historyDao.recordAndPrune(trimmed, System.currentTimeMillis(), 25)
+            }
         }
     }
 
@@ -564,7 +671,9 @@ class SearchViewModel @Inject constructor(
             state.copy(recentSearches = state.recentSearches.filterNot { it.equals(trimmed, ignoreCase = true) })
         }
         viewModelScope.launch(Dispatchers.IO) {
-            historyDao.deleteByQuery(trimmed)
+            if (directBootManager.isUserUnlocked.value) {
+                historyDao.deleteByQuery(trimmed)
+            }
         }
     }
 
@@ -573,13 +682,17 @@ class SearchViewModel @Inject constructor(
         _uiState.update { state -> state.copy(recentSearches = emptyList()) }
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val dbHistory = historyDao.getSearchHistory()
-                lastClearedHistory = if (dbHistory.isNotEmpty()) {
-                    dbHistory
+                if (directBootManager.isUserUnlocked.value) {
+                    val dbHistory = historyDao.getSearchHistory()
+                    lastClearedHistory = if (dbHistory.isNotEmpty()) {
+                        dbHistory
+                    } else {
+                        currentSearches.map { HistoryEntity(it, System.currentTimeMillis()) }
+                    }
+                    historyDao.clearHistory()
                 } else {
-                    currentSearches.map { HistoryEntity(it, System.currentTimeMillis()) }
+                    lastClearedHistory = currentSearches.map { HistoryEntity(it, System.currentTimeMillis()) }
                 }
-                historyDao.clearHistory()
             } catch (_: Exception) {
                 lastClearedHistory = currentSearches.map { HistoryEntity(it, System.currentTimeMillis()) }
             }
@@ -592,14 +705,17 @@ class SearchViewModel @Inject constructor(
             _uiState.update { state -> state.copy(recentSearches = toRestore.map { it.query }) }
             viewModelScope.launch(Dispatchers.IO) {
                 try {
-                    historyDao.insertSearches(toRestore)
-                    lastClearedHistory = emptyList()
+                    if (directBootManager.isUserUnlocked.value) {
+                        historyDao.insertSearches(toRestore)
+                        lastClearedHistory = emptyList()
+                    }
                 } catch (_: Exception) {}
             }
         }
     }
 
     fun dismissDirectAction(action: DirectAction) {
+        initialClipboardActions = initialClipboardActions.filter { it != action }
         _uiState.update { state ->
             state.copy(directActions = state.directActions.filter { it != action })
         }
@@ -611,14 +727,24 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    /** Intent for a bang query such as "!yt cats", or null when [query] contains no known bang. */
+    fun resolveBangIntent(query: String): android.content.Intent? =
+        bangManager.parseBangQuery(query)?.let(bangManager::dispatchBangSearch)
+
     fun notifyAppLaunch(packageName: String) {
         nativeAppPredictionProvider.notifyAppLaunch(packageName)
+    }
+
+    fun unlockPrivateSpace(activity: android.app.Activity) {
+        privateSpaceManager.requestUnlockPrivateSpace(activity)
     }
 
     override fun onCleared() {
         super.onCleared()
         searchJob?.cancel()
-        remoteSearchJob?.cancel()
+        searchJob = null
+        initialDataJob?.cancel()
+        initialDataJob = null
     }
 }
 

@@ -3,7 +3,6 @@ package com.pixel.intelligentsearch.core.system
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.provider.Settings
 
 object SearchRoleManager {
@@ -11,7 +10,6 @@ object SearchRoleManager {
     const val ROLE_SEARCH = "android.app.role.SEARCH"
 
     fun getAvailableSearchRole(context: Context): String? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
         val roleManager = context.getSystemService(RoleManager::class.java) ?: return null
         return when {
             roleManager.isRoleAvailable(ROLE_SEARCH_ENGINE) -> ROLE_SEARCH_ENGINE
@@ -25,14 +23,12 @@ object SearchRoleManager {
     }
 
     fun isSearchRoleHeld(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
         val roleManager = context.getSystemService(RoleManager::class.java) ?: return false
         val role = getAvailableSearchRole(context) ?: return false
         return roleManager.isRoleHeld(role)
     }
 
     fun createRequestSearchRoleIntent(context: Context): Intent? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
         val roleManager = context.getSystemService(RoleManager::class.java) ?: return null
         val role = getAvailableSearchRole(context) ?: return null
         return try {
@@ -43,6 +39,7 @@ object SearchRoleManager {
     }
 
     fun openDefaultSearchEngineSettings(context: Context) {
+        ensureUserSetupSearchEngineAllowlist(context)
         // Direct intent to Android system Default Search Engine selection page
         try {
             val role = getAvailableSearchRole(context) ?: ROLE_SEARCH_ENGINE
@@ -88,6 +85,7 @@ object SearchRoleManager {
     }
 
     fun openSearchRoleOrSettings(context: Context) {
+        ensureUserSetupSearchEngineAllowlist(context)
         val requestIntent = createRequestSearchRoleIntent(context)
         if (requestIntent != null) {
             try {
@@ -102,7 +100,48 @@ object SearchRoleManager {
     }
 
     const val SECURE_SELECTED_SEARCH_ENGINE = "selected_search_engine"
+    const val SECURE_USER_SETUP_SEARCH_ENGINE = "user_setup_search_engine"
     const val ACTION_UPDATE_DSE = "com.google.android.finsky.intent.action.UPDATE_DSE"
+
+    /**
+     * Checks whether Settings.Secure.user_setup_search_engine is active and set to this app.
+     * This bypasses the QPR2 permission controller package allowlist restriction.
+     */
+    fun isUserSetupSearchEngineActive(context: Context): Boolean {
+        return try {
+            val current = Settings.Secure.getString(context.contentResolver, SECURE_USER_SETUP_SEARCH_ENGINE)
+            current == context.packageName
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Ensures Settings.Secure.user_setup_search_engine is set to this package.
+     * On Android 17 QPR2, SearchEngineRoleBehavior.getQualifyingPackagesInternal() checks
+     * SearchManager.getUserSetupSearchEngineRoleHolder() which reads "user_setup_search_engine".
+     * Setting this key bypasses the hardcoded allow list of search engine packages,
+     * ensuring Intelligent Search is always marked as a qualifying package.
+     */
+    fun ensureUserSetupSearchEngineAllowlist(context: Context): Boolean {
+        // Runs on every overlay resume; without the adb-granted permission the write can only throw.
+        if (!canWriteSecureSettings(context)) return false
+        return try {
+            val current = Settings.Secure.getString(context.contentResolver, SECURE_USER_SETUP_SEARCH_ENGINE)
+            if (current != context.packageName) {
+                Settings.Secure.putString(
+                    context.contentResolver,
+                    SECURE_USER_SETUP_SEARCH_ENGINE,
+                    context.packageName
+                )
+            } else {
+                true
+            }
+        } catch (e: Exception) {
+            android.util.Log.d("SearchRoleManager", "Could not set $SECURE_USER_SETUP_SEARCH_ENGINE: ${e.message}")
+            false
+        }
+    }
 
     fun isPixelLauncherSynced(context: Context): Boolean {
         return try {
@@ -118,18 +157,33 @@ object SearchRoleManager {
                 android.content.pm.PackageManager.PERMISSION_GRANTED
     }
 
-    fun syncPixelLauncherSearchEngine(context: Context): Boolean {
-        return try {
-            val success = Settings.Secure.putString(
+    /**
+     * Synchronizes both user_setup_search_engine (for QPR2 allowlist bypass)
+     * and selected_search_engine (for Pixel Launcher widget sync), then broadcasts UPDATE_DSE.
+     */
+    fun syncAllSearchEngineSettings(context: Context): Boolean {
+        var success = true
+        try {
+            ensureUserSetupSearchEngineAllowlist(context)
+        } catch (_: Exception) {
+            success = false
+        }
+        try {
+            val putSuccess = Settings.Secure.putString(
                 context.contentResolver,
                 SECURE_SELECTED_SEARCH_ENGINE,
                 context.packageName
             )
             val intent = Intent(ACTION_UPDATE_DSE)
             context.sendBroadcast(intent)
-            success
+            success = success && putSuccess
         } catch (_: Exception) {
-            false
+            success = false
         }
+        return success
+    }
+
+    fun syncPixelLauncherSearchEngine(context: Context): Boolean {
+        return syncAllSearchEngineSettings(context)
     }
 }

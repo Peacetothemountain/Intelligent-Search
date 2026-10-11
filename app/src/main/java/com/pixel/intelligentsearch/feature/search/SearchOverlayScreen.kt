@@ -48,7 +48,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -74,6 +73,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
@@ -96,12 +96,19 @@ import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import androidx.compose.runtime.saveable.rememberSaveable
+import com.pixel.intelligentsearch.core.ui.WindowFramePacing
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 import com.pixel.intelligentsearch.core.ui.MathResultOneBox
 import com.pixel.intelligentsearch.core.ui.ConversionOneBox
 import com.pixel.intelligentsearch.core.ui.DictionaryOneBox
 import com.pixel.intelligentsearch.core.ui.UrlNavigationOneBox
 import com.pixel.intelligentsearch.core.ui.TimeWeatherOneBox
+import com.pixel.intelligentsearch.core.ui.expressive.SquircleShape
+import com.pixel.intelligentsearch.core.ui.progressiveEdgeBlur
+import com.pixel.intelligentsearch.core.ui.ProgressiveBlurDirection
+import com.pixel.intelligentsearch.core.ui.materialYouGeminiPlate
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Brush
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -408,7 +415,7 @@ private fun launchSafeIntent(context: Context, intent: Intent, options: android.
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.findActivity()?.startActivity(intent, options)
         } catch (e2: Exception) {
-            e2.printStackTrace()
+            android.util.Log.w("IntelligentSearch", "Unexpected error", e2)
         }
     }
 }
@@ -430,6 +437,7 @@ fun SearchOverlayScreen(
     var webWeight by remember { mutableIntStateOf(prefs.getInt("search_weight_web", 50)) }
     var contactWeight by remember { mutableIntStateOf(prefs.getInt("search_weight_contacts", 50)) }
     var fileWeight by remember { mutableIntStateOf(prefs.getInt("search_weight_files", 50)) }
+    var suggestionsEnabled by remember { mutableStateOf(prefs.getBoolean("search.web.suggestions", true)) }
 
     DisposableEffect(prefs) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -438,6 +446,7 @@ fun SearchOverlayScreen(
                 "search_weight_web" -> webWeight = prefs.getInt("search_weight_web", 50)
                 "search_weight_contacts" -> contactWeight = prefs.getInt("search_weight_contacts", 50)
                 "search_weight_files" -> fileWeight = prefs.getInt("search_weight_files", 50)
+                "search.web.suggestions" -> suggestionsEnabled = prefs.getBoolean("search.web.suggestions", true)
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -445,7 +454,6 @@ fun SearchOverlayScreen(
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
         }
     }
-    val suggestionsEnabled = remember(prefs) { prefs.getBoolean("search.web.suggestions", true) }
     val searchProviderName = remember(settingsState.searchEngine, settingsState.customSearchEngineUrl) {
         when (settingsState.searchEngine) {
             "DuckDuckGo" -> "DuckDuckGo"
@@ -477,9 +485,11 @@ fun SearchOverlayScreen(
             hasStartedTyping = true
         }
         if (uiState.query != textFieldValue.text) {
+            val safeStart = textFieldValue.selection.start.coerceIn(0, uiState.query.length)
+            val safeEnd = textFieldValue.selection.end.coerceIn(0, uiState.query.length)
             textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
                 text = uiState.query,
-                selection = textFieldValue.selection
+                selection = androidx.compose.ui.text.TextRange(safeStart, safeEnd)
             )
         }
     }
@@ -492,9 +502,6 @@ fun SearchOverlayScreen(
     }
 
     val density = LocalDensity.current
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
-    val screenHeight = configuration.screenHeightDp.dp
 
     val coroutineScope = rememberCoroutineScope()
     // Animatable for the overlay expansion progress: starts fully expanded (1f) so returning from apps is instant and never transparent
@@ -509,6 +516,18 @@ fun SearchOverlayScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val searchResultsListState = rememberLazyListState()
     rememberScrollDetentController(searchResultsListState, sensoryEngine)
+
+    val isListScrollInProgress by remember { derivedStateOf { searchResultsListState.isScrollInProgress } }
+    LaunchedEffect(isListScrollInProgress) {
+        val act = context.findActivity()
+        if (isListScrollInProgress) {
+            WindowFramePacing.setHighRefreshRateCategory(act)
+            WindowFramePacing.setDynamicLtpoPacing(view, isMoving = true)
+        } else {
+            WindowFramePacing.setNormalRefreshRateCategory(act)
+            WindowFramePacing.setDynamicLtpoPacing(view, isMoving = false)
+        }
+    }
 
     val performAppLaunch: (String) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController, focusManager) {
         { packageName ->
@@ -526,7 +545,7 @@ fun SearchOverlayScreen(
         }
     }
 
-    val distinctRecents = remember(uiState.recentSearches) { uiState.recentSearches.distinct() }
+    val distinctRecents by remember { derivedStateOf { uiState.recentSearches.distinct() } }
     var showHistoryClearedSnackbar by remember { mutableStateOf(false) }
     LaunchedEffect(showHistoryClearedSnackbar) {
         if (showHistoryClearedSnackbar) {
@@ -539,17 +558,16 @@ fun SearchOverlayScreen(
         if (isOpening) {
             overlayProgressAnim.snapTo(1f)
         } else {
+            val act = context.findActivity()
+            WindowFramePacing.setHighRefreshRateCategory(act)
             sensoryEngine.overlayDismiss(view)
             val currentVel = overlayProgressAnim.velocity
             overlayProgressAnim.animateTo(
                 targetValue = 0f,
                 initialVelocity = currentVel,
-                animationSpec = spring(
-                    dampingRatio = 0.88f,
-                    stiffness = 340f
-                )
+                animationSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault()
             )
-            val act = context.findActivity()
+            viewModel.onQueryChanged("")
             finishWithoutTransition(act)
         }
     }
@@ -570,7 +588,6 @@ fun SearchOverlayScreen(
     }
     
     var showDebugPill by remember { mutableStateOf(false) }
-    val hapticContext = LocalContext.current
 
     var isKeyboardDismissedByUser by rememberSaveable { mutableStateOf(false) }
     var showTorInstallPopup by remember { mutableStateOf(false) }
@@ -590,10 +607,10 @@ fun SearchOverlayScreen(
             androidx.core.view.WindowCompat.getInsetsController(act.window, act.window.decorView)
                 .hide(androidx.core.view.WindowInsetsCompat.Type.ime())
         }
-        viewModel.onQueryChanged("")
         if (transitionState.targetState) {
             transitionState.targetState = false
         } else {
+            viewModel.onQueryChanged("")
             finishWithoutTransition(act)
         }
     }
@@ -615,7 +632,7 @@ fun SearchOverlayScreen(
             }
             context.startActivity(homeIntent)
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("IntelligentSearch", "Unexpected error", e)
         }
         finishWithoutTransition(act)
     }
@@ -624,12 +641,11 @@ fun SearchOverlayScreen(
         hasStartedTyping = false
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
-        val bangMgr = com.pixel.intelligentsearch.core.bangs.SearchBangManager(context, com.pixel.intelligentsearch.core.data.SettingsManager(context))
-        val parsedBang = bangMgr.parseBangQuery(searchQuery)
-        if (parsedBang != null) {
-            val bangIntent = bangMgr.dispatchBangSearch(parsedBang).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            }
+        val bangIntent = viewModel.resolveBangIntent(searchQuery)
+        if (bangIntent != null) {
+            bangIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            viewModel.addSearchHistory(searchQuery)
+            viewModel.onQueryChanged("")
             launchSafeIntent(context, bangIntent)
             return@launchWebSearch
         }
@@ -761,8 +777,6 @@ fun SearchOverlayScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
                 hasStartedTyping = false
-                viewModel.onQueryChanged("")
-                textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 hasStartedTyping = false
                 isKeyboardDismissedByUser = false
@@ -770,7 +784,7 @@ fun SearchOverlayScreen(
                 webWeight = prefs.getInt("search_weight_web", 50)
                 contactWeight = prefs.getInt("search_weight_contacts", 50)
                 fileWeight = prefs.getInt("search_weight_files", 50)
-                val isContactsEnabled = settingsState.searchContacts || prefs.getBoolean("search.contacts", false) || prefs.getBoolean("search_contacts", false)
+                val isContactsEnabled = settingsState.searchContacts
                 if (isContactsEnabled) {
                     viewModel.refreshContacts()
                 }
@@ -814,160 +828,210 @@ fun SearchOverlayScreen(
     
     PredictiveBackHandler(enabled = !showTutorial) { progressFlow ->
         try {
+            val act = context.findActivity()
+            com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(act)
             progressFlow.collect { backEvent ->
                 predictiveBackEdge = backEvent.swipeEdge
-                predictiveBackProgress.snapTo(backEvent.progress)
+                val fluidProgress = androidx.compose.animation.core.FastOutSlowInEasing.transform(backEvent.progress)
+                predictiveBackProgress.snapTo(fluidProgress)
             }
-            if (uiState.query.isNotEmpty()) {
-                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
-                viewModel.onQueryChanged("")
-                textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
-                hasStartedTyping = false
-                predictiveBackProgress.snapTo(0f)
+            if (showTorInstallPopup) {
+                showTorInstallPopup = false
+                predictiveBackProgress.animateTo(
+                    targetValue = 0f,
+                    animationSpec = ExpressiveMotionTokens.morphSpring()
+                )
             } else {
                 keyboardController?.hide()
                 hasStartedTyping = false
-                viewModel.onQueryChanged("")
                 sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
-                predictiveBackProgress.snapTo(0f)
+                viewModel.onQueryChanged("")
+                textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
+                coroutineScope.launch {
+                    predictiveBackProgress.animateTo(
+                        targetValue = 1f,
+                        animationSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault()
+                    )
+                }
+                overlayProgressAnim.animateTo(
+                    targetValue = 0f,
+                    animationSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault()
+                )
                 goToHomeScreen()
             }
         } catch (_: java.util.concurrent.CancellationException) {
-            predictiveBackProgress.animateTo(
-                targetValue = 0f,
-                animationSpec = spring(dampingRatio = 0.85f, stiffness = 300f)
-            )
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                sensoryEngine.hapticEngine.performHaptic(view, PixelHapticType.SPRING_RELEASE)
+                predictiveBackProgress.animateTo(
+                    targetValue = 0f,
+                    animationSpec = ExpressiveMotionTokens.morphSpring()
+                )
+            }
+        } finally {
+            com.pixel.intelligentsearch.core.ui.WindowFramePacing.setNormalRefreshRateCategory(context.findActivity())
         }
     }
 
-    val visibleApps = remember(uiState.filteredApps, settingsState.hiddenApps) {
-        uiState.filteredApps.filter { !settingsState.hiddenApps.contains(it.packageName) }.distinctBy { it.packageName }
+    val visibleApps by remember {
+        derivedStateOf {
+            val hidden = settingsState.hiddenApps
+            uiState.filteredApps.filter { !hidden.contains(it.packageName) }.distinctBy { it.packageName }
+        }
     }
 
-    val isAppsEnabled = settingsState.searchApps || prefs.getBoolean("search.apps", true) || prefs.getBoolean("search_apps", true)
-    val isContactsEnabled = settingsState.searchContacts || prefs.getBoolean("search.contacts", false) || prefs.getBoolean("search_contacts", false)
-    val isFilesEnabled = settingsState.searchFiles || prefs.getBoolean("search.files", false) || prefs.getBoolean("search_files", false)
-
-    val domainMatchPriorities = remember(appWeight, contactWeight, fileWeight) {
-        listOf(
-            "apps" to appWeight,
-            "contacts" to contactWeight,
-            "files" to fileWeight
-        ).sortedByDescending { it.second }
+    val isAppsEnabled by remember {
+        derivedStateOf {
+            settingsState.searchApps
+        }
+    }
+    val isContactsEnabled by remember {
+        derivedStateOf {
+            settingsState.searchContacts
+        }
+    }
+    val isFilesEnabled by remember {
+        derivedStateOf {
+            settingsState.searchFiles
+        }
     }
 
-    val bestMatch = remember(uiState.query, uiState.contacts, visibleApps, uiState.files, isAppsEnabled, isContactsEnabled, isFilesEnabled, domainMatchPriorities) {
-        val q = uiState.query.trim()
-        if (q.isEmpty()) return@remember null
+    val domainMatchPriorities by remember {
+        derivedStateOf {
+            listOf(
+                "apps" to appWeight,
+                "contacts" to contactWeight,
+                "files" to fileWeight
+            ).sortedByDescending { it.second }
+        }
+    }
 
-        // Tier 1: Exact matches across domains in user-configured priority order
-        for ((domain, _) in domainMatchPriorities) {
-            when (domain) {
-                "apps" -> {
-                    if (isAppsEnabled) {
-                        val exactApp = visibleApps.firstOrNull { it.name.equals(q, ignoreCase = true) }
-                        if (exactApp != null) return@remember exactApp
+    val bestMatch by remember {
+        derivedStateOf {
+            val q = uiState.query.trim()
+            if (q.isEmpty()) return@derivedStateOf null
+
+            // Tier 1: Exact matches across domains in user-configured priority order
+            for ((domain, _) in domainMatchPriorities) {
+                when (domain) {
+                    "apps" -> {
+                        if (isAppsEnabled) {
+                            val exactApp = visibleApps.firstOrNull { it.name.equals(q, ignoreCase = true) }
+                            if (exactApp != null) return@derivedStateOf exactApp
+                        }
                     }
-                }
-                "contacts" -> {
-                    if (isContactsEnabled) {
-                        val exactContact = uiState.contacts.firstOrNull { it.name.equals(q, ignoreCase = true) }
-                        if (exactContact != null) return@remember exactContact
+                    "contacts" -> {
+                        if (isContactsEnabled) {
+                            val exactContact = uiState.contacts.firstOrNull { it.name.equals(q, ignoreCase = true) }
+                            if (exactContact != null) return@derivedStateOf exactContact
+                        }
                     }
-                }
-                "files" -> {
-                    if (isFilesEnabled) {
-                        val exactFile = uiState.files.firstOrNull { it.name.equals(q, ignoreCase = true) }
-                        if (exactFile != null) return@remember exactFile
+                    "files" -> {
+                        if (isFilesEnabled) {
+                            val exactFile = uiState.files.firstOrNull { it.name.equals(q, ignoreCase = true) }
+                            if (exactFile != null) return@derivedStateOf exactFile
+                        }
                     }
                 }
             }
-        }
 
-        // Tier 2: Prefix matches across domains in priority order
-        for ((domain, _) in domainMatchPriorities) {
-            when (domain) {
-                "apps" -> {
-                    if (isAppsEnabled) {
-                        val appMatch = visibleApps.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
-                        if (appMatch != null) return@remember appMatch
+            // Tier 2: Prefix matches across domains in priority order
+            for ((domain, _) in domainMatchPriorities) {
+                when (domain) {
+                    "apps" -> {
+                        if (isAppsEnabled) {
+                            val appMatch = visibleApps.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
+                            if (appMatch != null) return@derivedStateOf appMatch
+                        }
                     }
-                }
-                "contacts" -> {
-                    if (isContactsEnabled) {
-                        val contactMatch = uiState.contacts.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
-                        if (contactMatch != null) return@remember contactMatch
+                    "contacts" -> {
+                        if (isContactsEnabled) {
+                            val contactMatch = uiState.contacts.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
+                            if (contactMatch != null) return@derivedStateOf contactMatch
+                        }
                     }
-                }
-                "files" -> {
-                    if (isFilesEnabled) {
-                        val fileMatch = uiState.files.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
-                        if (fileMatch != null) return@remember fileMatch
+                    "files" -> {
+                        if (isFilesEnabled) {
+                            val fileMatch = uiState.files.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
+                            if (fileMatch != null) return@derivedStateOf fileMatch
+                        }
                     }
                 }
             }
-        }
 
-        // Tier 3: Word-boundary prefix matches (e.g. "notes" matching "Keep Notes")
-        for ((domain, _) in domainMatchPriorities) {
-            when (domain) {
-                "apps" -> {
-                    if (isAppsEnabled) {
-                        val wordMatch = visibleApps.firstOrNull { app ->
-                            app.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
+            // Tier 3: Word-boundary prefix matches (e.g. "notes" matching "Keep Notes")
+            for ((domain, _) in domainMatchPriorities) {
+                when (domain) {
+                    "apps" -> {
+                        if (isAppsEnabled) {
+                            val wordMatch = visibleApps.firstOrNull { app ->
+                                app.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
+                            }
+                            if (wordMatch != null) return@derivedStateOf wordMatch
                         }
-                        if (wordMatch != null) return@remember wordMatch
                     }
-                }
-                "contacts" -> {
-                    if (isContactsEnabled) {
-                        val wordMatch = uiState.contacts.firstOrNull { c ->
-                            c.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
+                    "contacts" -> {
+                        if (isContactsEnabled) {
+                            val wordMatch = uiState.contacts.firstOrNull { c ->
+                                c.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
+                            }
+                            if (wordMatch != null) return@derivedStateOf wordMatch
                         }
-                        if (wordMatch != null) return@remember wordMatch
                     }
-                }
-                "files" -> {
-                    if (isFilesEnabled) {
-                        val wordMatch = uiState.files.firstOrNull { f ->
-                            f.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
+                    "files" -> {
+                        if (isFilesEnabled) {
+                            val wordMatch = uiState.files.firstOrNull { f ->
+                                f.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
+                            }
+                            if (wordMatch != null) return@derivedStateOf wordMatch
                         }
-                        if (wordMatch != null) return@remember wordMatch
                     }
                 }
             }
+            null
         }
-        null
     }
     
-    val bestMatchText = when (bestMatch) {
-        is ContactItem -> bestMatch.name
-        is AppItem -> bestMatch.name
-        is FileItem -> bestMatch.name
-        else -> null
+    val bestMatchText by remember {
+        derivedStateOf {
+            when (val match = bestMatch) {
+                is ContactItem -> match.name
+                is AppItem -> match.name
+                is FileItem -> match.name
+                else -> null
+            }
+        }
     }
 
-    val filteredContacts = remember(uiState.contacts, bestMatch) {
-        if (bestMatch is ContactItem) uiState.contacts.filter { it != bestMatch }
-        else uiState.contacts
+    val filteredContacts by remember {
+        derivedStateOf {
+            val match = bestMatch
+            if (match is ContactItem) uiState.contacts.filter { it != match }
+            else uiState.contacts
+        }
     }
     
-    val filteredApps = remember(visibleApps, bestMatch) {
-        if (bestMatch is AppItem) visibleApps.filter { it != bestMatch }
-        else visibleApps
+    val filteredApps by remember {
+        derivedStateOf {
+            val match = bestMatch
+            if (match is AppItem) visibleApps.filter { it != match }
+            else visibleApps
+        }
     }
     
-    val filteredFiles = remember(uiState.files, bestMatch) {
-        if (bestMatch is FileItem) uiState.files.filter { it != bestMatch }
-        else uiState.files
+    val filteredFiles by remember {
+        derivedStateOf {
+            val match = bestMatch
+            if (match is FileItem) uiState.files.filter { it != match }
+            else uiState.files
+        }
     }
 
     val searchBarContent = @Composable {
         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             AnimatedVisibility(
                 visible = showDebugPill,
-                enter = fadeIn(animationSpec = spring(0.72f, 400f)) + expandVertically(animationSpec = spring(0.72f, 400f)),
-                exit = fadeOut(animationSpec = spring(0.72f, 400f)) + shrinkVertically(animationSpec = spring(0.72f, 400f))
+                enter = fadeIn(animationSpec = ExpressiveMotionTokens.morphSpring()) + expandVertically(animationSpec = ExpressiveMotionTokens.morphSpring()),
+                exit = fadeOut(animationSpec = ExpressiveMotionTokens.morphSpring()) + shrinkVertically(animationSpec = ExpressiveMotionTokens.morphSpring())
             ) {
                 Surface(
                     shape = RoundedCornerShape(percent = 50),
@@ -986,8 +1050,8 @@ fun SearchOverlayScreen(
             val showPerfStats = prefs.getBoolean("debug.show_perf_stats", false)
             AnimatedVisibility(
                 visible = showPerfStats,
-                enter = fadeIn(animationSpec = spring(0.72f, 400f)) + expandVertically(animationSpec = spring(0.72f, 400f)),
-                exit = fadeOut(animationSpec = spring(0.72f, 400f)) + shrinkVertically(animationSpec = spring(0.72f, 400f))
+                enter = fadeIn(animationSpec = ExpressiveMotionTokens.morphSpring()) + expandVertically(animationSpec = ExpressiveMotionTokens.morphSpring()),
+                exit = fadeOut(animationSpec = ExpressiveMotionTokens.morphSpring()) + shrinkVertically(animationSpec = ExpressiveMotionTokens.morphSpring())
             ) {
                 val totalResults = uiState.filteredApps.size + uiState.contacts.size + uiState.files.size + uiState.webSuggestions.size
                 Surface(
@@ -1006,27 +1070,25 @@ fun SearchOverlayScreen(
             }
             
             val searchBarCornerRadius by androidx.compose.animation.core.animateDpAsState(
-                targetValue = if (textFieldValue.text.isNotEmpty()) 20.dp else 28.dp,
+                targetValue = if (textFieldValue.text.isNotEmpty()) 20.dp else 100.dp,
                 animationSpec = com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens.morphSpring(),
                 label = "search_pill_shape_morph"
             )
             val searchBarShape = RoundedCornerShape(searchBarCornerRadius)
-            
             Row(
                 modifier = Modifier
                     .tutorialTarget(1, prefs)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f),
-                        searchBarShape
-                    )
-                    .background(
-                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(
-                            alpha = (settingsState.pillOpacity / 100f).coerceIn(0f, 1f)
-                        ),
-                        searchBarShape
+                    .graphicsLayer {
+                        shape = searchBarShape
+                        clip = true
+                    }
+                    // Gemini input plate design (Android 17 QPR3 Google app): deep Material You
+                    // interior, light tone pooling along the bottom edge, ambient rim glow, bottom bevel
+                    .materialYouGeminiPlate(
+                        cornerRadius = searchBarCornerRadius,
+                        alpha = if (settingsState.pillOpacity == 50) 1f else (settingsState.pillOpacity / 100f).coerceIn(0f, 1f)
                     )
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
@@ -1056,6 +1118,20 @@ fun SearchOverlayScreen(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.Center
                 ) {
+                    val ghostTextAnnotated = remember(uiState.query, bestMatchText) {
+                        val bmt = bestMatchText
+                        if (bmt != null && bmt.startsWith(uiState.query, ignoreCase = true) && bmt.length > uiState.query.length) {
+                            androidx.compose.ui.text.buildAnnotatedString {
+                                withStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent)) {
+                                    append(bmt.substring(0, minOf(uiState.query.length, bmt.length)))
+                                }
+                                withStyle(androidx.compose.ui.text.SpanStyle(color = Color.Unspecified)) {
+                                    append(bmt.substring(uiState.query.length))
+                                }
+                            }
+                        } else null
+                    }
+
                     androidx.compose.foundation.text.BasicTextField(
                         value = textFieldValue,
                         onValueChange = { newTfv ->
@@ -1083,34 +1159,40 @@ fun SearchOverlayScreen(
                         textStyle = androidx.compose.ui.text.TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontFamily = GoogleSansFlex),
                         singleLine = true,
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.None,
+                            autoCorrectEnabled = false,
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Search
+                        ),
                         keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
                             hasStartedTyping = false
                             keyboardController?.hide()
                             if (uiState.query.isNotEmpty()) {
                                 viewModel.addSearchHistory(uiState.query)
-                                if (bestMatch != null) {
-                                    when (bestMatch) {
+                                val match = bestMatch
+                                if (match != null) {
+                                    when (match) {
                                         is ContactItem -> {
-                                            val intent = if (settingsState.contactDirectCall && bestMatch.phoneNumber.isNotBlank()) {
-                                                Intent(Intent.ACTION_DIAL, Uri.parse("tel:${bestMatch.phoneNumber}"))
-                                            } else if (bestMatch.lookupUri.isNotBlank()) {
-                                                Intent(Intent.ACTION_VIEW, Uri.parse(bestMatch.lookupUri)).apply {
+                                            val intent = if (settingsState.contactDirectCall && match.phoneNumber.isNotBlank()) {
+                                                Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
+                                            } else if (match.lookupUri.isNotBlank()) {
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {
                                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                                 }
-                                            } else if (bestMatch.phoneNumber.isNotBlank()) {
-                                                Intent(Intent.ACTION_DIAL, Uri.parse("tel:${bestMatch.phoneNumber}"))
+                                            } else if (match.phoneNumber.isNotBlank()) {
+                                                Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                             } else {
                                                 Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
                                             }
                                             launchSafeIntent(context, intent)
                                         }
                                         is AppItem -> {
-                                            performAppLaunch(bestMatch.packageName)
+                                            performAppLaunch(match.packageName)
                                         }
                                         is FileItem -> {
                                             val intent = Intent(Intent.ACTION_VIEW).apply {
-                                                setDataAndType(Uri.parse(bestMatch.uri), bestMatch.mimeType)
+                                                setDataAndType(Uri.parse(match.uri), match.mimeType)
                                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                                 setPackage("com.google.android.apps.nbu.files")
                                             }
@@ -1122,6 +1204,16 @@ fun SearchOverlayScreen(
                                             }
                                         }
                                     }
+                                } else if (uiState.instantAnswer?.iconType == "url") {
+                                    val answer = uiState.instantAnswer
+                                    if (answer != null) {
+                                        val targetUrl = if (answer.title.startsWith("http://") || answer.title.startsWith("https://")) {
+                                            answer.title
+                                        } else "https://${answer.title}"
+                                        launchSafeIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                        })
+                                    }
                                 } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
                                     performAppLaunch(visibleApps.first().packageName)
                                 } else {
@@ -1131,18 +1223,12 @@ fun SearchOverlayScreen(
                         }),
                         decorationBox = { innerTextField ->
                             Box(contentAlignment = Alignment.CenterStart) {
-                                 if (uiState.query.isEmpty()) {
-                                     Text("Search...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex)
-                                } else if (bestMatchText != null && bestMatchText.startsWith(uiState.query, ignoreCase = true)) {
-                                    val builder = androidx.compose.ui.text.AnnotatedString.Builder()
-                                    builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent))
-                                    builder.append(bestMatchText.substring(0, minOf(uiState.query.length, bestMatchText.length)))
-                                    builder.pop()
-                                    builder.pushStyle(androidx.compose.ui.text.SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f)))
-                                    builder.append(bestMatchText.substring(uiState.query.length))
-                                    builder.pop()
+                                if (uiState.query.isEmpty()) {
+                                    Text("Search...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex)
+                                } else if (ghostTextAnnotated != null) {
                                     Text(
-                                        text = builder.toAnnotatedString(),
+                                        text = ghostTextAnnotated,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f),
                                         fontSize = 20.sp,
                                         fontFamily = GoogleSansFlex,
                                         maxLines = 1,
@@ -1173,14 +1259,16 @@ fun SearchOverlayScreen(
 
                 AnimatedVisibility(
                     visible = uiState.query.isNotEmpty() && !uiState.isLoading,
-                    enter = fadeIn(ExpressiveMotionTokens.bouncySpring()) + scaleIn(ExpressiveMotionTokens.bouncySpring()),
-                    exit = fadeOut(ExpressiveMotionTokens.gentleSpring()) + scaleOut(ExpressiveMotionTokens.gentleSpring())
+                    enter = fadeIn() + scaleIn(),
+                    exit = fadeOut() + scaleOut()
                 ) {
                     IconButton(
-                        onClick = { viewModel.onQueryChanged("") },
+                        onClick = {
+                            viewModel.onQueryChanged("")
+                            textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
+                        },
                         modifier = Modifier
                             .size(48.dp)
-                            .bouncyClickable { viewModel.onQueryChanged("") }
                             .padding(12.dp)
                     ) {
                         Icon(
@@ -1207,7 +1295,11 @@ fun SearchOverlayScreen(
                         .tutorialTarget(2, prefs)
                         .padding(12.dp)
                 ) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_three_bars),
+                        contentDescription = "Settings",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
 
@@ -1222,7 +1314,7 @@ fun SearchOverlayScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(uiState.bangSuggestions, key = { bang -> "bang_${bang.prefix}" }) { bang ->
+                    items(uiState.bangSuggestions, key = { bang -> "bang_${bang.prefix}" }, contentType = { "bang" }) { bang ->
                         AssistChip(
                             onClick = {
                                 val currentQ = uiState.query
@@ -1262,13 +1354,15 @@ fun SearchOverlayScreen(
 
     val quickAppPanelContent = @Composable {
         if (settingsState.quickSearchHorizontal) {
-            val pillPackages = remember(settingsState.contextAwareQuickApps, settingsState.searchPills, settingsState.shortcutResultsCount, uiState.recentApps) {
-                val raw = if (settingsState.contextAwareQuickApps) {
-                    uiState.recentApps.map { it.packageName }
-                } else {
-                    settingsState.searchPills.split(",").map { it.trim() }.filter { it.isNotBlank() }
+            val pillPackages by remember {
+                derivedStateOf {
+                    val raw = if (settingsState.contextAwareQuickApps) {
+                        uiState.recentApps.map { it.packageName }
+                    } else {
+                        settingsState.searchPills.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                    }
+                    raw.distinct().take(settingsState.shortcutResultsCount)
                 }
-                raw.distinct().take(settingsState.shortcutResultsCount)
             }
             val dynamicScale = if (pillPackages.size > 6) (6f / pillPackages.size.toFloat()).coerceIn(0.6f, 1f) else 1f
             LazyRow(
@@ -1278,15 +1372,19 @@ fun SearchOverlayScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(pillPackages, key = { pkg -> "pill_$pkg" }) { packageName ->
-                            val appIconState = remember(packageName, settingsState.activeIconPack) { mutableStateOf<AppIconResult?>(null) }
-                            val appNameState = remember(packageName) { mutableStateOf("App") }
+                items(pillPackages, key = { pkg -> "pill_$pkg" }, contentType = { "pill" }) { packageName ->
+                            val appIconState = remember(packageName, settingsState.activeIconPack) {
+                                mutableStateOf<AppIconResult?>(peekThemedAppIcon(packageName, settingsState.activeIconPack))
+                            }
+                            val appNameState = remember(packageName) { mutableStateOf(getAppName(context, packageName)) }
                             LaunchedEffect(packageName, settingsState.activeIconPack) {
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                    val icon = getThemedAppIcon(context, packageName, activePackOverride = settingsState.activeIconPack)
-                                    val name = getAppName(context, packageName)
-                                    appIconState.value = icon
-                                    appNameState.value = name
+                                if (appIconState.value == null) {
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        val icon = getThemedAppIcon(context, packageName, activePackOverride = settingsState.activeIconPack)
+                                        val name = getAppName(context, packageName)
+                                        appIconState.value = icon
+                                        appNameState.value = name
+                                    }
                                 }
                             }
                             val appIcon = appIconState.value
@@ -1365,30 +1463,36 @@ fun SearchOverlayScreen(
     }
 
     val searchResultsContent = @Composable {
-        val sortedResultSections = remember(appWeight, webWeight, contactWeight, fileWeight) {
-            listOf(
-                "apps" to appWeight,
-                "web" to webWeight,
-                "contacts" to contactWeight,
-                "files" to fileWeight
-            ).sortedByDescending { it.second }.map { it.first }
-        }
-        val matchingRecent = remember(uiState.query, uiState.recentSearches, settingsState.searchPreviousSearches) {
-            val trimmed = uiState.query.trim()
-            if (!settingsState.searchPreviousSearches || trimmed.isEmpty()) {
-                emptyList()
-            } else {
-                uiState.recentSearches
-                    .filter { it.contains(trimmed, ignoreCase = true) }
-                    .distinct()
+        val sortedResultSections by remember {
+            derivedStateOf {
+                listOf(
+                    "apps" to appWeight,
+                    "web" to webWeight,
+                    "contacts" to contactWeight,
+                    "files" to fileWeight
+                ).sortedByDescending { it.second }.map { it.first }
             }
         }
-        val allDisplaySuggestions = remember(matchingRecent, uiState.webSuggestions, settingsState.webResultsCount) {
-            val maxCount = settingsState.webResultsCount.coerceAtLeast(6)
-            val nonRecentWeb = uiState.webSuggestions.filter { webSugg ->
-                matchingRecent.none { it.equals(webSugg, ignoreCase = true) }
+        val matchingRecent by remember {
+            derivedStateOf {
+                val trimmed = uiState.query.trim()
+                if (!settingsState.searchPreviousSearches || trimmed.isEmpty()) {
+                    emptyList()
+                } else {
+                    uiState.recentSearches
+                        .filter { it.contains(trimmed, ignoreCase = true) }
+                        .distinct()
+                }
             }
-            (matchingRecent + nonRecentWeb).distinct().take(maxCount)
+        }
+        val allDisplaySuggestions by remember {
+            derivedStateOf {
+                val maxCount = settingsState.webResultsCount.coerceAtLeast(6)
+                val nonRecentWeb = uiState.webSuggestions.filter { webSugg ->
+                    matchingRecent.none { it.equals(webSugg, ignoreCase = true) }
+                }
+                (matchingRecent + nonRecentWeb).distinct().take(maxCount)
+            }
         }
 
         val isBottomResults = settingsState.bottomSearch && settingsState.bottomSearchResult
@@ -1397,7 +1501,9 @@ fun SearchOverlayScreen(
             state = searchResultsListState,
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding(),
+                .then(
+                    if (settingsState.bottomSearch) Modifier.statusBarsPadding() else Modifier
+                ),
             contentPadding = PaddingValues(
                 top = 8.dp,
                 bottom = 8.dp
@@ -1412,8 +1518,8 @@ fun SearchOverlayScreen(
 
             val renderInlineShortcuts = {
                 if (settingsState.shortcutInline && uiState.query.isNotEmpty()) {
-                    item(key = "inline_shortcuts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                    item(key = "lens_shortcut") {
+                    item(key = "inline_shortcuts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                    item(key = "lens_shortcut", contentType = "shortcut") {
                         ShortcutRow(
                             iconRes = R.drawable.ic_camera,
                             title = "Search with Google Lens",
@@ -1424,7 +1530,7 @@ fun SearchOverlayScreen(
                             }
                         )
                     }
-                    item(key = "voice_shortcut") {
+                    item(key = "voice_shortcut", contentType = "shortcut") {
                         ShortcutRow(
                             iconRes = R.drawable.ic_mic,
                             title = "Search with Voice",
@@ -1435,7 +1541,7 @@ fun SearchOverlayScreen(
                             }
                         )
                     }
-                    item(key = "assistant_shortcut") {
+                    item(key = "assistant_shortcut", contentType = "shortcut") {
                         ShortcutRow(
                             iconRes = R.drawable.ic_lens_action,
                             title = "Digital Assistant",
@@ -1455,7 +1561,7 @@ fun SearchOverlayScreen(
 
             val systemToggle = uiState.systemToggle
             if (systemToggle != null) {
-                item(key = "system_toggle_card_${systemToggle.id}") {
+                item(key = "system_toggle_card_${systemToggle.id}", contentType = "system_toggle") {
                     com.pixel.intelligentsearch.core.ui.SystemToggleCard(
                         toggleState = systemToggle,
                         modifier = Modifier.padding(bottom = 6.dp)
@@ -1463,10 +1569,25 @@ fun SearchOverlayScreen(
                 }
             }
 
-            if (settingsState.smartClipboardSuggestions && uiState.directActions.isNotEmpty()) {
-                itemsIndexed(uiState.directActions, key = { index, action -> "direct_action_${index}_${action.title}_${action.subtitle}" }) { _, action ->
+            val volumeSlider = uiState.volumeSlider
+            if (volumeSlider != null) {
+                item(key = "volume_slider_${volumeSlider.streamType}", contentType = "volume_slider") {
+                    com.pixel.intelligentsearch.core.ui.VolumeSliderCard(
+                        title = volumeSlider.title,
+                        streamType = volumeSlider.streamType,
+                        currentLevel = volumeSlider.currentLevel,
+                        maxLevel = volumeSlider.maxLevel,
+                        onVolumeChange = volumeSlider.onVolumeChange
+                    )
+                }
+            }
+
+            // Parsed intents (timers, alarms, events, messages, calls, navigation) always show; clipboard
+            // actions are only added to this list when smart clipboard suggestions are enabled.
+            if (uiState.directActions.isNotEmpty()) {
+                items(uiState.directActions, key = { action -> "direct_action_${action.title}_${action.subtitle}" }, contentType = { "direct_action" }) { action ->
                     var dismissed by remember { mutableStateOf(false) }
-                    var dismissDirection by remember { mutableStateOf(1f) }
+                    var dismissDirection by remember { mutableFloatStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
                     val rowAlpha = remember { Animatable(1f) }
                     val scope = rememberCoroutineScope()
@@ -1477,10 +1598,7 @@ fun SearchOverlayScreen(
                             launch {
                                 offsetX.animateTo(
                                     targetValue = dismissDirection * 1500f,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMediumLow
-                                    )
+                                    animationSpec = ExpressiveMotionTokens.bouncySpring()
                                 )
                             }
                             launch {
@@ -1497,7 +1615,11 @@ fun SearchOverlayScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .animateItem()
+                            .animateItem(
+                                placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
+                                fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
+                                fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
+                            )
                             .graphicsLayer {
                                 translationX = offsetX.value
                                 alpha = rowAlpha.value
@@ -1535,15 +1657,15 @@ fun SearchOverlayScreen(
                                                 dismissed = true
                                             } else {
                                                 scope.launch {
-                                                    launch { offsetX.animateTo(0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) }
-                                                    launch { rowAlpha.animateTo(1f, spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) }
+                                                    launch { offsetX.animateTo(0f, ExpressiveMotionTokens.bouncySpring()) }
+                                                    launch { rowAlpha.animateTo(1f, ExpressiveMotionTokens.gentleSpring()) }
                                                 }
                                             }
                                         },
                                         onDragCancel = {
                                             scope.launch {
-                                                launch { offsetX.animateTo(0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) }
-                                                launch { rowAlpha.animateTo(1f, spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) }
+                                                launch { offsetX.animateTo(0f, ExpressiveMotionTokens.bouncySpring()) }
+                                                launch { rowAlpha.animateTo(1f, ExpressiveMotionTokens.gentleSpring()) }
                                             }
                                         }
                                     )
@@ -1552,8 +1674,15 @@ fun SearchOverlayScreen(
                                     hasStartedTyping = false
                                     focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
-                                    action.intent?.let { intent ->
-                                        launchSafeIntent(context, intent)
+                                    if (action.iconType == "private_space") {
+                                        val act = context.findActivity()
+                                        if (act != null) {
+                                            viewModel.unlockPrivateSpace(act)
+                                        }
+                                    } else {
+                                        action.intent?.let { intent ->
+                                            launchSafeIntent(context, intent)
+                                        }
                                     }
                                 }
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -1599,11 +1728,11 @@ fun SearchOverlayScreen(
                         }
                     }
                 }
-                item(key = "direct_actions_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                item(key = "direct_actions_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             if (bestMatch != null) {
-                item(key = "best_match_hero_card") {
+                item(key = "best_match_hero_card", contentType = "best_match") {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1615,7 +1744,7 @@ fun SearchOverlayScreen(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            // Header: Expressive "BEST MATCH" Pill & "Press ↵ to Open" Action Hint
+                            // Header: Expressive "BEST MATCH" Pill & "Press â†µ to Open" Action Hint
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1657,7 +1786,7 @@ fun SearchOverlayScreen(
                                         .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
                                     Text(
-                                        text = "Press ↵ to open",
+                                        text = "Press â†µ to open",
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Medium,
@@ -1733,11 +1862,15 @@ fun SearchOverlayScreen(
                                     }
                                 }
                                 is AppItem -> {
-                                    val appIconState = remember(match.packageName) { mutableStateOf<AppIconResult?>(null) }
-                                    LaunchedEffect(match.packageName) {
-                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                            val icon = getThemedAppIcon(context, match.packageName)
-                                            appIconState.value = icon
+                                    val appIconState = remember(match.packageName, settingsState.activeIconPack) {
+                                        mutableStateOf<AppIconResult?>(peekThemedAppIcon(match.packageName, settingsState.activeIconPack))
+                                    }
+                                    LaunchedEffect(match.packageName, settingsState.activeIconPack) {
+                                        if (appIconState.value == null) {
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                val icon = getThemedAppIcon(context, match.packageName, activePackOverride = settingsState.activeIconPack)
+                                                appIconState.value = icon
+                                            }
                                         }
                                     }
                                     val fallbackBitmap = remember(match.packageName) {
@@ -1888,11 +2021,15 @@ fun SearchOverlayScreen(
             if (settingsState.searchPreviousSearches && uiState.query.isEmpty() && distinctRecents.isNotEmpty()) {
                 val isSingleRecent = distinctRecents.size == 1
                 if (!isSingleRecent) {
-                    item(key = "recent_label") {
+                    item(key = "recent_label", contentType = "recent_label") {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .animateItem()
+                                .animateItem(
+                                    placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
+                                    fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
+                                    fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
+                                )
                                 .padding(horizontal = 24.dp, vertical = 6.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -1943,9 +2080,9 @@ fun SearchOverlayScreen(
                         }
                     }
                 }
-                items(distinctRecents, key = { query -> "recent_$query" }) { recentQuery ->
+                items(distinctRecents, key = { query -> "recent_$query" }, contentType = { "recent_query" }) { recentQuery ->
                     var dismissed by remember { mutableStateOf(false) }
-                    var dismissDirection by remember { mutableStateOf(1f) }
+                    var dismissDirection by remember { mutableFloatStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
                     val rowAlpha = remember { Animatable(1f) }
                     val scope = rememberCoroutineScope()
@@ -1956,10 +2093,7 @@ fun SearchOverlayScreen(
                             launch {
                                 offsetX.animateTo(
                                     targetValue = dismissDirection * 1500f,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMediumLow
-                                    )
+                                    animationSpec = ExpressiveMotionTokens.bouncySpring()
                                 )
                             }
                             launch {
@@ -1976,7 +2110,11 @@ fun SearchOverlayScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .animateItem()
+                            .animateItem(
+                                placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
+                                fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
+                                fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
+                            )
                             .graphicsLayer {
                                 translationX = offsetX.value
                                 alpha = rowAlpha.value
@@ -2002,13 +2140,13 @@ fun SearchOverlayScreen(
                                                 launch {
                                                     offsetX.animateTo(
                                                         0f,
-                                                        spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)
+                                                        ExpressiveMotionTokens.bouncySpring()
                                                     )
                                                 }
                                                 launch {
                                                     rowAlpha.animateTo(
                                                         1f,
-                                                        spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)
+                                                        ExpressiveMotionTokens.gentleSpring()
                                                     )
                                                 }
                                             }
@@ -2019,13 +2157,13 @@ fun SearchOverlayScreen(
                                             launch {
                                                 offsetX.animateTo(
                                                     0f,
-                                                    spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)
+                                                    ExpressiveMotionTokens.bouncySpring()
                                                 )
                                             }
                                             launch {
                                                 rowAlpha.animateTo(
                                                     1f,
-                                                    spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)
+                                                    ExpressiveMotionTokens.gentleSpring()
                                                 )
                                             }
                                         }
@@ -2108,9 +2246,9 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
-                itemsIndexed(uiState.calendarEvents, key = { index, event -> "event_${index}_${event.title}_${event.startTime}" }) { _, event ->
+                items(uiState.calendarEvents, key = { event -> "event_${event.title}_${event.startTime}" }, contentType = { "calendar_event" }) { event ->
                     var dismissed by remember { mutableStateOf(false) }
-                    var dismissDirection by remember { mutableStateOf(1f) }
+                    var dismissDirection by remember { mutableFloatStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
                     val rowAlpha = remember { Animatable(1f) }
                     val scope = rememberCoroutineScope()
@@ -2121,10 +2259,7 @@ fun SearchOverlayScreen(
                             launch {
                                 offsetX.animateTo(
                                     targetValue = dismissDirection * 1500f,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMediumLow
-                                    )
+                                    animationSpec = ExpressiveMotionTokens.bouncySpring()
                                 )
                             }
                             launch {
@@ -2141,7 +2276,11 @@ fun SearchOverlayScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .animateItem()
+                            .animateItem(
+                                placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
+                                fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
+                                fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
+                            )
                             .graphicsLayer {
                                 translationX = offsetX.value
                                 alpha = rowAlpha.value
@@ -2168,15 +2307,15 @@ fun SearchOverlayScreen(
                                                 dismissed = true
                                             } else {
                                                 scope.launch {
-                                                    launch { offsetX.animateTo(0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) }
-                                                    launch { rowAlpha.animateTo(1f, spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) }
+                                                    launch { offsetX.animateTo(0f, ExpressiveMotionTokens.bouncySpring()) }
+                                                    launch { rowAlpha.animateTo(1f, ExpressiveMotionTokens.gentleSpring()) }
                                                 }
                                             }
                                         },
                                         onDragCancel = {
                                             scope.launch {
-                                                launch { offsetX.animateTo(0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) }
-                                                launch { rowAlpha.animateTo(1f, spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) }
+                                                launch { offsetX.animateTo(0f, ExpressiveMotionTokens.bouncySpring()) }
+                                                launch { rowAlpha.animateTo(1f, ExpressiveMotionTokens.gentleSpring()) }
                                             }
                                         }
                                     )
@@ -2195,11 +2334,11 @@ fun SearchOverlayScreen(
                         }
                     }
                 }
-                item(key = "calendar_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                item(key = "calendar_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             if (settingsState.searchShortcuts && uiState.shortcuts.isNotEmpty()) {
-                itemsIndexed(uiState.shortcuts, key = { index, shortcut -> "shortcut_${index}_${shortcut.packageName}_${shortcut.id}" }) { _, shortcut ->
+                items(uiState.shortcuts, key = { shortcut -> "shortcut_${shortcut.packageName}_${shortcut.id}" }, contentType = { "app_shortcut" }) { shortcut ->
                     Row(
                         modifier = Modifier.fillMaxWidth().expressiveRowClickable {
                             hasStartedTyping = false
@@ -2209,7 +2348,7 @@ fun SearchOverlayScreen(
                             try {
                                 launcherApps?.startShortcut(shortcut.packageName, shortcut.id, null, null, shortcut.userHandle)
                                 viewModel.onQueryChanged("")
-                            } catch (e: Exception) { e.printStackTrace() }
+                            } catch (e: Exception) { android.util.Log.w("IntelligentSearch", "Unexpected error", e) }
                         }.padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -2218,11 +2357,11 @@ fun SearchOverlayScreen(
                         Text(shortcut.shortLabel, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
                     }
                 }
-                item(key = "shortcuts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                item(key = "shortcuts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
             }
 
             if (uiState.mathResult != null) {
-                item(key = "math_result") {
+                item(key = "math_result", contentType = "math_result") {
                     MathResultOneBox(
                         expression = uiState.query,
                         result = uiState.mathResult ?: "",
@@ -2239,7 +2378,7 @@ fun SearchOverlayScreen(
 
             val instantAnswer = uiState.instantAnswer
             if (instantAnswer != null) {
-                item(key = "instant_answer") {
+                item(key = "instant_answer", contentType = "instant_answer") {
                     when (instantAnswer.iconType) {
                         "conversion" -> {
                             ConversionOneBox(conversionText = instantAnswer.title)
@@ -2294,7 +2433,7 @@ fun SearchOverlayScreen(
                                     if (instantAnswer.iconType == "time") {
                                         launchSafeIntent(context, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
                                     } else {
-                                        launchWebSearch("weather ${uiState.query}")
+                                        launchWebSearch(uiState.query)
                                     }
                                 }
                             )
@@ -2314,14 +2453,14 @@ fun SearchOverlayScreen(
             for (sec in sortedResultSections) {
                 when (sec) {
                     "apps" -> {
-                        val isAppsEnabled = settingsState.searchApps || prefs.getBoolean("search.apps", true) || prefs.getBoolean("search_apps", true)
+                        val isAppsEnabled = settingsState.searchApps
                         val displayApps = if (filteredApps.isNotEmpty()) filteredApps else visibleApps
                         if (showApps && isAppsEnabled && displayApps.isNotEmpty()) {
-                            item(key = "apps_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                            item(key = "apps_row") {
+                            item(key = "apps_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                            item(key = "apps_row", contentType = "apps_row") {
                                 LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                                     if (uiState.query.isEmpty()) {
-                                        item(key = "search_settings_shortcut") {
+                                        item(key = "search_settings_shortcut", contentType = "settings_shortcut") {
                                             SearchSettingsItem {
                                                 if (SettingsDebouncer.canClick()) {
                                                     onOpenSettings("main")
@@ -2329,7 +2468,7 @@ fun SearchOverlayScreen(
                                             }
                                         }
                                     }
-                                    items(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }) { app ->
+                                    items(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }, contentType = { "app_item" }) { app ->
                                         AppGridItem(app) { performAppLaunch(app.packageName) }
                                     }
                                 }
@@ -2339,7 +2478,7 @@ fun SearchOverlayScreen(
                     "web" -> {
                         if (showWeb && (settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
                             if (allDisplaySuggestions.isNotEmpty()) {
-                                itemsIndexed(allDisplaySuggestions, key = { index, suggestion -> "sugg_${index}_$suggestion" }) { _, suggestion ->
+                                items(allDisplaySuggestions, key = { suggestion -> "sugg_$suggestion" }, contentType = { "web_suggestion" }) { suggestion ->
                                     val isRecent = uiState.recentSearches.any { it.equals(suggestion, ignoreCase = true) }
                                     val trimmed = uiState.query.trim()
                                     val annotatedSuggestion = remember(suggestion, trimmed) {
@@ -2359,9 +2498,9 @@ fun SearchOverlayScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .animateItem(
-                                                placementSpec = androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
-                                                fadeInSpec = androidx.compose.animation.core.tween(150),
-                                                fadeOutSpec = androidx.compose.animation.core.tween(150)
+                                                placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
+                                                fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
+                                                fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
                                             )
                                             .padding(horizontal = 16.dp, vertical = 3.dp)
                                             .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(28.dp))
@@ -2434,11 +2573,11 @@ fun SearchOverlayScreen(
                         }
                     }
                     "contacts" -> {
-                        val isContactsEnabled = settingsState.searchContacts || prefs.getBoolean("search.contacts", false) || prefs.getBoolean("search_contacts", false)
+                        val isContactsEnabled = settingsState.searchContacts
                         val displayContacts = if (filteredContacts.isNotEmpty()) filteredContacts else uiState.contacts
                         if (showPeople && isContactsEnabled && displayContacts.isNotEmpty()) {
-                            item(key = "contacts_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                            itemsIndexed(displayContacts, key = { index, contact -> "contact_${index}_${contact.lookupUri.ifBlank { contact.phoneNumber }}_${contact.name}" }) { _, contact ->
+                            item(key = "contacts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                            items(displayContacts, key = { contact -> "contact_${contact.lookupUri.ifBlank { "${contact.name}_${contact.phoneNumber}" }}" }, contentType = { "contact" }) { contact ->
                                 val isDirectCall = settingsState.contactDirectCall || prefs.getBoolean("contact_direct_call", false) || prefs.getBoolean("contact.direct.call", false)
                                 Row(
                                     modifier = Modifier
@@ -2484,11 +2623,11 @@ fun SearchOverlayScreen(
                         }
                     }
                     "files" -> {
-                        val isFilesEnabled = settingsState.searchFiles || prefs.getBoolean("search.files", false) || prefs.getBoolean("search_files", false)
+                        val isFilesEnabled = settingsState.searchFiles
                         val displayFiles = if (filteredFiles.isNotEmpty()) filteredFiles else uiState.files
                         if (showFiles && isFilesEnabled && displayFiles.isNotEmpty()) {
-                            item(key = "files_divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                            itemsIndexed(displayFiles, key = { index, file -> "file_${index}_${file.uri}" }) { _, file ->
+                            item(key = "files_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                            items(displayFiles, key = { file -> "file_${file.uri}" }, contentType = { "file" }) { file ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -2530,42 +2669,60 @@ fun SearchOverlayScreen(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(Unit) {
+                var dragJob: kotlinx.coroutines.Job? = null
+                val act = context.findActivity()
                 detectVerticalDragGestures(
+                    onDragStart = {
+                        com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(act)
+                    },
                     onDragEnd = {
                         val commitThreshold = 0.75f
                         coroutineScope.launch {
-                            val target = if (overlayProgressAnim.value > commitThreshold) 1f else 0f
-                            val currentVel = overlayProgressAnim.velocity
-                            overlayProgressAnim.animateTo(
-                                targetValue = target,
-                                initialVelocity = currentVel,
-                                animationSpec = spring(dampingRatio = 0.92f, stiffness = 250f)
-                            )
-                            if (target == 0f) {
-                                viewModel.onQueryChanged("")
-                                val act = context.findActivity()
-                                finishWithoutTransition(act)
+                            try {
+                                val target = if (overlayProgressAnim.value > commitThreshold) 1f else 0f
+                                val currentVel = overlayProgressAnim.velocity
+                                overlayProgressAnim.animateTo(
+                                    targetValue = target,
+                                    initialVelocity = currentVel,
+                                    animationSpec = ExpressiveMotionTokens.criticallyDampedSpring()
+                                )
+                                if (target == 0f) {
+                                    viewModel.onQueryChanged("")
+                                    finishWithoutTransition(act)
+                                }
+                            } finally {
+                                WindowFramePacing.setNormalRefreshRateCategory(act)
                             }
                         }
                     },
                     onDragCancel = {
                         coroutineScope.launch {
-                            val currentVel = overlayProgressAnim.velocity
-                            overlayProgressAnim.animateTo(1f, initialVelocity = currentVel, animationSpec = spring(0.92f, 250f))
+                            try {
+                                val currentVel = overlayProgressAnim.velocity
+                                overlayProgressAnim.animateTo(
+                                    1f,
+                                    initialVelocity = currentVel,
+                                    animationSpec = ExpressiveMotionTokens.criticallyDampedSpring()
+                                )
+                            } finally {
+                                WindowFramePacing.setNormalRefreshRateCategory(act)
+                            }
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
                         if (dragAmount > 0) {
                             change.consume()
-                            coroutineScope.launch {
-                                val deltaProgress = dragAmount / maxDragDistance
-                                val newProgress = (overlayProgressAnim.value - deltaProgress).coerceIn(0f, 1f)
+                            com.pixel.intelligentsearch.core.ui.WindowFramePacing.setContentVelocity(view, dragAmount * 60f)
+                            val deltaProgress = dragAmount / maxDragDistance
+                            val newProgress = (overlayProgressAnim.value - deltaProgress).coerceIn(0f, 1f)
+                            dragJob?.cancel()
+                            dragJob = coroutineScope.launch {
                                 overlayProgressAnim.snapTo(newProgress)
-                                if (newProgress < 0.95f) {
-                                    isKeyboardDismissedByUser = true
-                                    focusManager.clearFocus(force = true)
-                                    keyboardController?.hide()
-                                }
+                            }
+                            if (newProgress < 0.95f && !isKeyboardDismissedByUser) {
+                                isKeyboardDismissedByUser = true
+                                focusManager.clearFocus(force = true)
+                                keyboardController?.hide()
                             }
                         }
                     }
@@ -2590,7 +2747,9 @@ fun SearchOverlayScreen(
                 .fillMaxSize()
                 .drawBehind {
                     val p = overlayProgressAnim.value.coerceIn(0f, 1f)
-                    val baseAlpha = if (isShowWallpaper) scrimAlphaFactor * p else p
+                    val backProg = predictiveBackProgress.value.coerceIn(0f, 1f)
+                    val scrimProgress = p * (1f - backProg * 0.5f)
+                    val baseAlpha = if (isShowWallpaper) scrimAlphaFactor * scrimProgress else scrimProgress
                     drawRect(
                         brush = androidx.compose.ui.graphics.Brush.verticalGradient(
                             colors = listOf(
@@ -2608,9 +2767,9 @@ fun SearchOverlayScreen(
                 .fillMaxSize()
                 .windowInsetsPadding(
                     if (!isKeyboardDisabled) {
-                        WindowInsets.ime.union(WindowInsets.navigationBars)
+                        WindowInsets.ime.union(WindowInsets.navigationBars).union(WindowInsets.displayCutout)
                     } else {
-                        WindowInsets.navigationBars
+                        WindowInsets.navigationBars.union(WindowInsets.displayCutout)
                     }
                 ),
             contentAlignment = Alignment.BottomCenter
@@ -2660,9 +2819,17 @@ fun SearchOverlayScreen(
                     .clip(RoundedCornerShape(androidx.compose.ui.unit.lerp(24.dp, 32.dp, predictiveBackProgress.value.coerceIn(0f, 1f))))
                     .then(
                         if (settingsState.bottomSearch) {
+                            val outline = MaterialTheme.colorScheme.outlineVariant
                             Modifier
                                 .background(MaterialTheme.colorScheme.surface.copy(alpha = surfaceAlpha))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp))
+                                .border(
+                                    width = 1.dp,
+                                    // Top-lit edge: depth cue from light instead of a drop shadow
+                                    brush = Brush.verticalGradient(
+                                        listOf(outline, outline.copy(alpha = outline.alpha * 0.25f))
+                                    ),
+                                    shape = RoundedCornerShape(24.dp)
+                                )
                         } else {
                             Modifier.background(Color.Transparent)
                         }
@@ -2677,43 +2844,54 @@ fun SearchOverlayScreen(
                     modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    val contentOffsetPx = with(density) { 20.dp.toPx() }
                     if (!settingsState.bottomSearch) {
                         Spacer(modifier = Modifier.statusBarsPadding())
                         Spacer(modifier = Modifier.height(8.dp))
                         Box(modifier = Modifier.graphicsLayer {
                             val p = overlayProgressAnim.value.coerceIn(0f, 1f)
                             alpha = p
-                            translationY = (1f - p) * 24f
+                            translationY = (1f - p) * contentOffsetPx
                         }) { searchBarContent() }
                         Box(modifier = Modifier.graphicsLayer {
                             val p = overlayProgressAnim.value.coerceIn(0f, 1f)
                             val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
                             alpha = a
-                            translationY = (1f - a) * 24f
+                            translationY = (1f - a) * contentOffsetPx
                         }) { quickAppPanelContent() }
                         Box(modifier = Modifier.weight(1f).graphicsLayer {
                             val p = overlayProgressAnim.value.coerceIn(0f, 1f)
                             val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
                             alpha = a
-                            translationY = (1f - a) * 24f
-                        }) { searchResultsContent() }
+                            translationY = (1f - a) * contentOffsetPx
+                        }
+                            // Android 18 progressive blur: results dissolve as they scroll under the search bar
+                            .progressiveEdgeBlur(edge = ProgressiveBlurDirection.TopToBottom)
+                        ) {
+                            searchResultsContent()
+                        }
                     } else {
                         Box(modifier = Modifier.weight(1f).graphicsLayer {
                             val p = overlayProgressAnim.value.coerceIn(0f, 1f)
                             val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
                             alpha = a
-                            translationY = -(1f - a) * 24f
-                        }) { searchResultsContent() }
+                            translationY = -(1f - a) * contentOffsetPx
+                        }
+                            // Android 18 progressive blur: results dissolve as they scroll under the bottom search pill
+                            .progressiveEdgeBlur(edge = ProgressiveBlurDirection.BottomToTop)
+                        ) {
+                            searchResultsContent()
+                        }
                         Box(modifier = Modifier.graphicsLayer {
                             val p = overlayProgressAnim.value.coerceIn(0f, 1f)
                             val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
                             alpha = a
-                            translationY = -(1f - a) * 24f
+                            translationY = -(1f - a) * contentOffsetPx
                         }) { quickAppPanelContent() }
                         Box(modifier = Modifier.graphicsLayer {
                             val p = overlayProgressAnim.value.coerceIn(0f, 1f)
                             alpha = p
-                            translationY = -(1f - p) * 24f
+                            translationY = -(1f - p) * contentOffsetPx
                         }) { searchBarContent() }
                     }
                 }
@@ -2726,8 +2904,8 @@ fun SearchOverlayScreen(
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .padding(bottom = if (settingsState.bottomSearch) 86.dp else 24.dp, start = 16.dp, end = 16.dp)
-                .imePadding()
                 .zIndex(200f)
         ) {
             Surface(
@@ -2778,12 +2956,14 @@ fun SearchOverlayScreen(
             TutorialSpotlightOverlay(
                 prefs = prefs,
                 stepsInfo = mapOf(
-                    0 to TutorialStepInfo("Welcome!", "Hello! :) Thank you for installing Intelligent Search. Please follow the tutorial to show you around.", Alignment.Center, showArrow = false, requireButtonPress = true),
+                    0 to TutorialStepInfo("Welcome!", "Hello! Thank you for installing Intelligent Search. Please follow the tutorial to show you around. [bugdroid]", Alignment.Center, showArrow = false, requireButtonPress = true),
                     1 to TutorialStepInfo("Search Bar", "This is your search bar. Start typing to find apps, contacts, and files instantly. You can also swipe away recent search cards to remove them.", Alignment.Center, showArrow = true, requireButtonPress = true),
-                    2 to TutorialStepInfo("Settings", "Tap the settings icon (the ⋮ button) to customize your search experience. Press OK below to open Settings now.", Alignment.Center, showArrow = true, requireButtonPress = true, showCircle = true)
+                    2 to TutorialStepInfo("Settings", "Tap the settings icon ( [three_bars] ) to customize your search experience. Press OK below to open Settings now.", Alignment.Center, showArrow = true, requireButtonPress = true, showCircle = true)
                 ),
                 onComplete = {
-                    TutorialManager.completeTutorial(prefs)
+                    if (TutorialManager.getStep(prefs) >= TutorialManager.TOTAL_STEPS - 1) {
+                        TutorialManager.completeTutorial(prefs)
+                    }
                     showTutorial = false
                 },
                 onStepAdvance = { step ->
@@ -2849,6 +3029,7 @@ fun FileIconThumbnail(uri: String, mimeType: String) {
         }
     }
 }
+
 
 
 

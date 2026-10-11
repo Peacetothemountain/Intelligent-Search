@@ -66,7 +66,7 @@ class SonicMicroFeedbackEngine private constructor(private val context: Context)
      */
     private fun precomputeAndWarmBuffers() {
         try {
-            SonicType.values().forEach { type ->
+            SonicType.entries.forEach { type ->
                 val pcmData = generateWaveform(type)
                 val tracks = (0 until 2).mapNotNull {
                     createStaticTrack(pcmData)
@@ -93,7 +93,6 @@ class SonicMicroFeedbackEngine private constructor(private val context: Context)
             val audioAttributes = AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .setFlags(AudioAttributes.FLAG_LOW_LATENCY)
                 .build()
 
             val audioFormat = AudioFormat.Builder()

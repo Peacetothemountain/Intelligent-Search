@@ -13,6 +13,9 @@ class DirectBootReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "DirectBootReceiver"
+        private const val REFRESH_DEBOUNCE_MS = 2500L
+        @Volatile
+        private var lastRefreshTimestamp = 0L
     }
 
     @Inject
@@ -27,10 +30,14 @@ class DirectBootReceiver : BroadcastReceiver() {
                 Log.i(TAG, "Device booted in Direct Boot mode. Emergency caches active.")
             }
             Intent.ACTION_USER_UNLOCKED, Intent.ACTION_BOOT_COMPLETED -> {
-                Log.i(TAG, "Device unlocked / Boot completed. Invalidating caches and refreshing.")
+                Log.i(TAG, "Device unlocked / Boot completed event: $action")
                 directBootManager.onUserUnlocked()
-                SystemDataProvider.invalidateAppsCache()
-                com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(context)
+                val now = System.currentTimeMillis()
+                if (now - lastRefreshTimestamp > REFRESH_DEBOUNCE_MS) {
+                    lastRefreshTimestamp = now
+                    SystemDataProvider.invalidateAppsCache()
+                    com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(context)
+                }
             }
         }
     }

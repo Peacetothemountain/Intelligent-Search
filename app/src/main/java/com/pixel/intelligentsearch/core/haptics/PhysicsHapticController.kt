@@ -63,8 +63,8 @@ fun rememberScrollDetentController(
     val view = LocalView.current
     val controller = remember(engine, view) { ScrollDetentController(engine, view) }
 
-    val firstVisibleItemIndex by remember { derivedStateOf { lazyListState.firstVisibleItemIndex } }
-    val firstVisibleItemScrollOffset by remember { derivedStateOf { lazyListState.firstVisibleItemScrollOffset } }
+    val firstVisibleItemIndex by remember(lazyListState) { derivedStateOf { lazyListState.firstVisibleItemIndex } }
+    val firstVisibleItemScrollOffset by remember(lazyListState) { derivedStateOf { lazyListState.firstVisibleItemScrollOffset } }
 
     LaunchedEffect(firstVisibleItemIndex, firstVisibleItemScrollOffset) {
         if (lazyListState.isScrollInProgress) {

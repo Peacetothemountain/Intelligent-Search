@@ -111,6 +111,9 @@ class SearchWidgetProviderTest {
 
         val subthemePrefs = createMockPrefs(mapOf("widget_material_subtheme" to "Custom"))
         assertTrue(SearchWidgetProvider.hasSavedMaterialDesign(subthemePrefs))
+
+        val lockBlackPrefs = createMockPrefs(mapOf("widget_material_lock_black" to true))
+        assertTrue(SearchWidgetProvider.hasSavedMaterialDesign(lockBlackPrefs))
     }
 
     @Test
@@ -170,4 +173,29 @@ class SearchWidgetProviderTest {
         assertEquals(0xFF188038.toInt(), lightColors.tertiary)
         assertEquals(0xFFD3E3FD.toInt(), lightColors.primaryContainer)
     }
+
+    @Test
+    fun testGetShortcutIconRes_mapsSearchAssistantAndNowPlaying() {
+        assertEquals(
+            com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive,
+            SearchWidgetProvider.getShortcutIconRes("Search")
+        )
+        assertEquals(
+            com.pixel.intelligentsearch.R.drawable.ic_lens_action,
+            SearchWidgetProvider.getShortcutIconRes("Assistant")
+        )
+        assertEquals(
+            com.pixel.intelligentsearch.R.drawable.ic_lens_action,
+            SearchWidgetProvider.getShortcutIconRes("Gemini")
+        )
+        assertEquals(
+            com.pixel.intelligentsearch.R.drawable.ic_music,
+            SearchWidgetProvider.getShortcutIconRes("Now Playing")
+        )
+        assertEquals(
+            com.pixel.intelligentsearch.R.drawable.ic_music,
+            SearchWidgetProvider.getShortcutIconRes("Song Search")
+        )
+    }
 }
+

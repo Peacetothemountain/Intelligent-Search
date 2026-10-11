@@ -36,9 +36,9 @@ object HardwareSecurityDetector {
         }
     }
 
-    fun detect(context: Context): SecurityHardwareInfo {
-        val hasStrongBox = hasStrongBoxFeature(context)
-        val level = if (hasStrongBox) HardwareSecurityLevel.STRONGBOX else HardwareSecurityLevel.TEE
+    fun detect(context: Context, securityManager: StrongBoxSecurityManager? = null): SecurityHardwareInfo {
+        val isHardwareSupported = securityManager?.isStrongBoxSupported() ?: hasStrongBoxFeature(context)
+        val level = if (isHardwareSupported) HardwareSecurityLevel.STRONGBOX else HardwareSecurityLevel.TEE
         return detectSecurityHardware(context, level)
     }
 
@@ -53,13 +53,11 @@ object HardwareSecurityDetector {
         val hardware = Build.HARDWARE.orEmpty()
         val board = Build.BOARD.orEmpty()
         val product = Build.PRODUCT.orEmpty()
-        val socModel = if (Build.VERSION.SDK_INT >= 31) {
-            try {
-                Build.SOC_MODEL.orEmpty()
-            } catch (_: Throwable) {
-                ""
-            }
-        } else {
+        // Build.SOC_MODEL is API 31+, which is this app's minSdk. Unit tests run against the stubbed
+        // android.jar, where the field can be absent, so the lookup stays guarded.
+        val socModel = try {
+            Build.SOC_MODEL.orEmpty()
+        } catch (_: Throwable) {
             ""
         }
 
@@ -69,7 +67,7 @@ object HardwareSecurityDetector {
         val propSocModel = getSystemProperty("ro.soc.model")
         val propPlatform = getSystemProperty("ro.board.platform")
         val propKnoxVault = getSystemProperty("ro.security.vault.version")
-        val hasStrongBox = hasStrongBoxFeature(context)
+        val hasStrongBox = hasStrongBoxFeature(context) && effectiveLevel == HardwareSecurityLevel.STRONGBOX
 
         return resolveHardwareInfo(
             manufacturer = manufacturer,
@@ -151,31 +149,31 @@ object HardwareSecurityDetector {
                     // Pixel 11 / Tensor G6 generation (Malibu platform, Kodiak device)
                     modelLower.contains("pixel 11") || modelLower.contains("pixel11") ||
                             resolvedSoc.contains("tensor g6") || resolvedSoc.contains("malibu") ||
-                            board.contains("malibu") || hardware.contains("malibu") ||
-                            device.contains("kodiak") || hardware.contains("kodiak") ->
+                            boardLower.contains("malibu") || hardwareLower.contains("malibu") ||
+                            deviceLower.contains("kodiak") || hardwareLower.contains("kodiak") ->
                         Pair("Google Titan M3", "Titan M3")
 
                     // Pixel 10 / Tensor G5 generation (Laguna platform, Frankel / Blazer / Mustang / Rango)
                     modelLower.contains("pixel 10") || modelLower.contains("pixel10") ||
                             resolvedSoc.contains("tensor g5") || resolvedSoc.contains("laguna") ||
-                            board.contains("laguna") || hardware.contains("laguna") ||
-                            device.contains("frankel") || device.contains("blazer") ||
-                            device.contains("mustang") || device.contains("rango") ->
+                            boardLower.contains("laguna") || hardwareLower.contains("laguna") ||
+                            deviceLower.contains("frankel") || deviceLower.contains("blazer") ||
+                            deviceLower.contains("mustang") || deviceLower.contains("rango") ->
                         Pair("Google Titan M3", "Titan M3")
 
                     // Pixel 6 - 9 generation (Tensor G1 through Tensor G4)
-                    model.contains("pixel 6") || model.contains("pixel 7") ||
-                            model.contains("pixel 8") || model.contains("pixel 9") ||
-                            model.contains("fold") || model.contains("tablet") ||
-                            device.contains("felix") || device.contains("comet") || device.contains("tangorpro") ||
-                            device.contains("caimito") || device.contains("komodo") || device.contains("tokay") ||
-                            device.contains("shiba") || device.contains("husky") || device.contains("akita") ||
-                            device.contains("cheetah") || device.contains("panther") || device.contains("lynx") ||
-                            device.contains("oriole") || device.contains("raven") || device.contains("bluejay") ||
+                    modelLower.contains("pixel 6") || modelLower.contains("pixel 7") ||
+                            modelLower.contains("pixel 8") || modelLower.contains("pixel 9") ||
+                            modelLower.contains("fold") || modelLower.contains("tablet") ||
+                            deviceLower.contains("felix") || deviceLower.contains("comet") || deviceLower.contains("tangorpro") ||
+                            deviceLower.contains("caimito") || deviceLower.contains("komodo") || deviceLower.contains("tokay") ||
+                            deviceLower.contains("shiba") || deviceLower.contains("husky") || deviceLower.contains("akita") ||
+                            deviceLower.contains("cheetah") || deviceLower.contains("panther") || deviceLower.contains("lynx") ||
+                            deviceLower.contains("oriole") || deviceLower.contains("raven") || deviceLower.contains("bluejay") ||
                             resolvedSoc.contains("tensor") || resolvedSoc.contains("gs101") ||
                             resolvedSoc.contains("gs201") || resolvedSoc.contains("zuma") ||
-                            board.contains("gs101") || board.contains("gs201") || board.contains("zuma") ||
-                            hardware.contains("gs101") || hardware.contains("gs201") || hardware.contains("zuma") ->
+                            boardLower.contains("gs101") || boardLower.contains("gs201") || boardLower.contains("zuma") ||
+                            hardwareLower.contains("gs101") || hardwareLower.contains("gs201") || hardwareLower.contains("zuma") ->
                         Pair("Google Titan M2", "Titan M2")
 
                     // Legacy Pixel 3, 4, 5 series (Snapdragon SoCs + Titan M)
@@ -216,125 +214,125 @@ object HardwareSecurityDetector {
             }
 
             // 3. Xiaomi / Redmi / POCO / Black Shark
-            manufacturer.contains("xiaomi") || brand.contains("xiaomi") ||
-                    brand.contains("redmi") || brand.contains("poco") || brand.contains("blackshark") -> {
+            mfgLower.contains("xiaomi") || brandLower.contains("xiaomi") ||
+                    brandLower.contains("redmi") || brandLower.contains("poco") || brandLower.contains("blackshark") -> {
                 Triple("Xiaomi HyperOS Hardware Security Element", "HyperOS Security Core", "Xiaomi HyperOS TEE")
             }
 
             // 4. OnePlus / OPPO / Realme (OPlus Group)
-            manufacturer.contains("oneplus") || brand.contains("oneplus") ||
-                    manufacturer.contains("oppo") || brand.contains("oppo") ||
-                    manufacturer.contains("realme") || brand.contains("realme") -> {
+            mfgLower.contains("oneplus") || brandLower.contains("oneplus") ||
+                    mfgLower.contains("oppo") || brandLower.contains("oppo") ||
+                    mfgLower.contains("realme") || brandLower.contains("realme") -> {
                 Triple("OPlus Discrete Security Element (StrongBox)", "OPlus Security Core", "OxygenOS / ColorOS Secure TEE")
             }
 
             // 5. Motorola / Lenovo
-            manufacturer.contains("motorola") || brand.contains("motorola") ||
-                    brand.contains("moto") || manufacturer.contains("lenovo") || brand.contains("lenovo") -> {
+            mfgLower.contains("motorola") || brandLower.contains("motorola") ||
+                    brandLower.contains("moto") || mfgLower.contains("lenovo") || brandLower.contains("lenovo") -> {
                 Triple("Moto ThinkShield Hardware Security", "ThinkShield", "ThinkShield ARM TrustZone TEE")
             }
 
             // 6. Sony Xperia
-            manufacturer.contains("sony") || brand.contains("sony") -> {
+            mfgLower.contains("sony") || brandLower.contains("sony") -> {
                 Triple("Sony Xperia Hardware Security Module", "Xperia Security Module", "Sony Xperia Qualcomm QTEE")
             }
 
             // 7. Nothing / CMF
-            manufacturer.contains("nothing") || brand.contains("nothing") || brand.contains("cmf") -> {
+            mfgLower.contains("nothing") || brandLower.contains("nothing") || brandLower.contains("cmf") -> {
                 Triple("Nothing OS Hardware Security Engine", "Nothing Security Core", "Nothing OS ARM TrustZone TEE")
             }
 
             // 8. Honor
-            manufacturer.contains("honor") || brand.contains("honor") -> {
+            mfgLower.contains("honor") || brandLower.contains("honor") -> {
                 Triple("Honor Discrete Security Chip (HTEE)", "Honor HTEE", "Honor MagicOS HTEE Dual-Engine")
             }
 
             // 9. Huawei
-            manufacturer.contains("huawei") || brand.contains("huawei") -> {
+            mfgLower.contains("huawei") || brandLower.contains("huawei") -> {
                 Triple("Huawei In-Chip Security Element (iSE)", "Huawei iSE", "Huawei iTrustee TEE (CC EAL5+)")
             }
 
             // 10. Vivo / iQOO
-            manufacturer.contains("vivo") || brand.contains("vivo") || brand.contains("iqoo") -> {
+            mfgLower.contains("vivo") || brandLower.contains("vivo") || brandLower.contains("iqoo") -> {
                 Triple("Vivo Dual-Security Hardware Core", "Vivo Security Core", "OriginOS / Funtouch OS Secure TEE")
             }
 
             // 11. ASUS (ROG / Zenfone)
-            manufacturer.contains("asus") || brand.contains("asus") || brand.contains("rog") -> {
+            mfgLower.contains("asus") || brandLower.contains("asus") || brandLower.contains("rog") -> {
                 Triple("ASUS ROG Hardware Security Engine", "ROG Security Engine", "ASUS Secure Execution TEE")
             }
 
             // 12. ZTE / Nubia / RedMagic
-            manufacturer.contains("zte") || brand.contains("zte") ||
-                    brand.contains("nubia") || brand.contains("redmagic") -> {
+            mfgLower.contains("zte") || brandLower.contains("zte") ||
+                    brandLower.contains("nubia") || brandLower.contains("redmagic") -> {
                 Triple("RedMagic Dedicated Hardware Security Core", "RedMagic Security Core", "Nubia Secure Execution TEE")
             }
 
             // 13. Fairphone
-            manufacturer.contains("fairphone") || brand.contains("fairphone") -> {
+            mfgLower.contains("fairphone") || brandLower.contains("fairphone") -> {
                 Triple("Fairphone StrongBox KeyMint Module", "StrongBox", "Fairphone ARM TrustZone TEE")
             }
 
             // 14. Nokia / HMD Global
-            manufacturer.contains("hmd") || brand.contains("hmd") || brand.contains("nokia") -> {
+            mfgLower.contains("hmd") || brandLower.contains("hmd") || brandLower.contains("nokia") -> {
                 Triple("HMD Global Hardware StrongBox Keystore", "StrongBox", "Nokia ARM TrustZone TEE")
             }
 
             // 15. Transsion Group (Infinix / Tecno / itel)
-            manufacturer.contains("transsion") || brand.contains("infinix") ||
-                    brand.contains("tecno") || brand.contains("itel") -> {
+            mfgLower.contains("transsion") || brandLower.contains("infinix") ||
+                    brandLower.contains("tecno") || brandLower.contains("itel") -> {
                 Triple("Transsion Hardware Security Module", "Transsion Security Core", "HiOS / XOS Secure TEE")
             }
 
             // 16. Meizu
-            manufacturer.contains("meizu") || brand.contains("meizu") -> {
+            mfgLower.contains("meizu") || brandLower.contains("meizu") -> {
                 Triple("Flyme All-Scenario Security Core", "Flyme Security Core", "Flyme Secure TEE")
             }
 
             // 17. TCL / Alcatel
-            manufacturer.contains("tcl") || brand.contains("tcl") || brand.contains("alcatel") -> {
+            mfgLower.contains("tcl") || brandLower.contains("tcl") || brandLower.contains("alcatel") -> {
                 Triple("TCL Hardware Security Module", "TCL Security Core", "TCL ARM TrustZone TEE")
             }
 
             // 18. Sharp Aquos
-            manufacturer.contains("sharp") || brand.contains("sharp") -> {
+            mfgLower.contains("sharp") || brandLower.contains("sharp") -> {
                 Triple("Sharp Aquos Hardware Security Engine", "Aquos Security Engine", "Sharp Secure Execution TEE")
             }
 
             // 19. Kyocera
-            manufacturer.contains("kyocera") || brand.contains("kyocera") -> {
+            mfgLower.contains("kyocera") || brandLower.contains("kyocera") -> {
                 Triple("Kyocera Rugged Hardware Security Core", "Kyocera Security Core", "Kyocera Secure TEE")
             }
 
             // 20. HTC
-            manufacturer.contains("htc") || brand.contains("htc") -> {
+            mfgLower.contains("htc") || brandLower.contains("htc") -> {
                 Triple("HTC Hardware Security Module", "HTC Security Module", "HTC ARM TrustZone TEE")
             }
 
             // 21. LG Electronics
-            manufacturer.contains("lge") || brand.contains("lge") || brand.contains("lg") -> {
+            mfgLower.contains("lge") || brandLower.contains("lge") || brandLower == "lg" -> {
                 Triple("LG Gatekeeper Hardware Keystore", "Gatekeeper Hardware", "LG ARM TrustZone TEE")
             }
 
             // 22. Qualcomm Snapdragon Devices
-            resolvedSoc.contains("snapdragon") || hardware.contains("qcom") ||
-                    board.contains("qcom") || manufacturer.contains("qualcomm") ||
-                    propPlatform.contains("msm") || propPlatform.contains("sm") ||
-                    propPlatform.contains("lahaina") || propPlatform.contains("taro") ||
-                    propPlatform.contains("kalama") || propPlatform.contains("pineapple") ||
-                    propPlatform.contains("sun") -> {
+            resolvedSoc.contains("snapdragon") || hardwareLower.contains("qcom") ||
+                    boardLower.contains("qcom") || mfgLower.contains("qualcomm") ||
+                    propPlatformLower.contains("msm") || propPlatformLower.contains("sm") ||
+                    propPlatformLower.contains("lahaina") || propPlatformLower.contains("taro") ||
+                    propPlatformLower.contains("kalama") || propPlatformLower.contains("pineapple") ||
+                    propPlatformLower.contains("sun") -> {
                 Triple("Qualcomm SPU (Secure Processing Unit)", "Qualcomm SPU", "Qualcomm Secure Execution Environment (QTEE)")
             }
 
             // 23. MediaTek Dimensity / Helio
             resolvedSoc.contains("dimensity") || resolvedSoc.contains("helio") ||
-                    hardware.contains("mt") || manufacturer.contains("mediatek") ||
-                    propPlatform.contains("mt") -> {
+                    hardwareLower.contains("mt") || mfgLower.contains("mediatek") ||
+                    propPlatformLower.contains("mt") -> {
                 Triple("MediaTek MTEE StrongBox Coprocessor", "MediaTek MTEE", "MediaTek Micro-TEE (MTEE)")
             }
 
             // 24. UNISOC
-            resolvedSoc.contains("unisoc") || hardware.contains("unisoc") || hardware.contains("sprd") -> {
+            resolvedSoc.contains("unisoc") || hardwareLower.contains("unisoc") || hardwareLower.contains("sprd") -> {
                 Triple("UNISOC Secure Processing Core", "UNISOC Security Core", "UNISOC Secure TEE")
             }
 
@@ -414,4 +412,3 @@ object HardwareSecurityDetector {
         )
     }
 }
-

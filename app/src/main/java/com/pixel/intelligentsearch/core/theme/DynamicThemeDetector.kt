@@ -1,7 +1,11 @@
 package com.pixel.intelligentsearch.core.theme
 
 import android.content.Context
+import android.database.ContentObserver
+import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import androidx.annotation.ColorInt
 import androidx.compose.material3.ColorScheme
@@ -34,6 +38,79 @@ object DynamicThemeDetector {
         UNSUPPORTED         // Device OS does not support dynamic color (API < 31, EMUI without Monet)
     }
 
+    private val cacheLock = Any()
+
+    @Volatile
+    private var cachedThemeState: ThemeState? = null
+
+    @Volatile
+    private var lastThemeStateCheckTime: Long = 0L
+
+    private const val CACHE_TTL_MS = 5000L
+
+    @Volatile
+    private var cachedDarkWidgetColors: ResolvedWidgetColors? = null
+
+    @Volatile
+    private var cachedLightWidgetColors: ResolvedWidgetColors? = null
+
+    @Volatile
+    private var isObserverRegistered = false
+
+    /**
+     * Clears all cached theme states and resolved widget colors.
+     */
+    fun invalidateCache() {
+        synchronized(cacheLock) {
+            cachedThemeState = null
+            lastThemeStateCheckTime = 0L
+            cachedDarkWidgetColors = null
+            cachedLightWidgetColors = null
+        }
+    }
+
+    @Volatile
+    var onThemeChangedCallback: ((Context) -> Unit)? = null
+
+    private fun tryRegisterContentObserver(context: Context) {
+        if (isObserverRegistered || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        try {
+            val appContext = context.applicationContext ?: context
+            val cr = appContext.contentResolver ?: return
+            val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+                override fun onChange(selfChange: Boolean, uri: Uri?) {
+                    invalidateCache()
+                    try {
+                        onThemeChangedCallback?.invoke(appContext)
+                    } catch (_: Throwable) {}
+                }
+            }
+            val overlayUri = Settings.Secure.getUriFor("theme_customization_overlay_packages")
+            if (overlayUri != null) {
+                cr.registerContentObserver(overlayUri, false, observer)
+            }
+            val samsungPaletteUri = Settings.System.getUriFor("color_palette_enabled")
+            if (samsungPaletteUri != null) {
+                cr.registerContentObserver(samsungPaletteUri, false, observer)
+            }
+            val samsungColorThemeUri = Settings.System.getUriFor("colortheme_enabled")
+            if (samsungColorThemeUri != null) {
+                cr.registerContentObserver(samsungColorThemeUri, false, observer)
+            }
+            val vivoColorUri = Settings.System.getUriFor("ui_color_enable")
+            if (vivoColorUri != null) {
+                cr.registerContentObserver(vivoColorUri, false, observer)
+            }
+            val contrastUri = Settings.Secure.getUriFor("contrast_level")
+            if (contrastUri != null) {
+                cr.registerContentObserver(contrastUri, false, observer)
+            }
+            isObserverRegistered = true
+        } catch (_: Throwable) {
+            // Ignored in restricted sandbox or unit-test environments
+        }
+    }
+
     /**
      * Determines whether Dynamic Color (Material You) is supported AND active on this device.
      */
@@ -43,9 +120,39 @@ object DynamicThemeDetector {
 
     /**
      * Inspects OEM-specific system settings and Android framework resources to determine
-     * the exact dynamic color lifecycle state.
+     * the exact dynamic color lifecycle state, utilizing a thread-safe 5-second cache to prevent
+     * synchronous Binder IPC stalls during 120 FPS UI composition and rendering.
      */
-    fun getThemeState(context: Context): ThemeState {
+    fun getThemeState(context: Context, forceRefresh: Boolean = false): ThemeState {
+        val now = System.currentTimeMillis()
+        val fastCached = cachedThemeState
+        val fastTime = lastThemeStateCheckTime
+        if (!forceRefresh && fastCached != null && (now - fastTime in 0..CACHE_TTL_MS)) {
+            return fastCached
+        }
+
+        return synchronized(cacheLock) {
+            val cached = cachedThemeState
+            val time = lastThemeStateCheckTime
+            val current = System.currentTimeMillis()
+            if (!forceRefresh && cached != null && (current - time in 0..CACHE_TTL_MS)) {
+                return@synchronized cached
+            }
+
+            tryRegisterContentObserver(context)
+
+            val evaluatedState = computeThemeState(context)
+            if (evaluatedState != cached) {
+                cachedDarkWidgetColors = null
+                cachedLightWidgetColors = null
+            }
+            cachedThemeState = evaluatedState
+            lastThemeStateCheckTime = current
+            evaluatedState
+        }
+    }
+
+    private fun computeThemeState(context: Context): ThemeState {
         // 1. Minimum OS Requirement: Monet was introduced in Android 12 (API 31)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             return ThemeState.UNSUPPORTED
@@ -125,6 +232,20 @@ object DynamicThemeDetector {
     }
 
     /**
+     * Queries the system display contrast preference (Android 14+ / Android 17 Canary ZP11).
+     * Returns a normalized value from -1.0 (minimum/reduced) to 1.0 (high contrast), with 0.0 being standard.
+     */
+    fun getSystemContrastLevel(context: Context): Double {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
+                val uiModeManager = context.getSystemService(android.app.UiModeManager::class.java)
+                return uiModeManager?.contrast?.toDouble() ?: 0.0
+            } catch (_: Throwable) {}
+        }
+        return 0.0
+    }
+
+    /**
      * Data class holding resolved Material You tonal colors for widget rendering.
      */
     data class ResolvedWidgetColors(
@@ -133,7 +254,10 @@ object DynamicThemeDetector {
         @get:ColorInt val tertiary: Int,
         @get:ColorInt val primaryContainer: Int,
         @get:ColorInt val surfaceContainer: Int,
-        val isDynamicActive: Boolean
+        val isDynamicActive: Boolean,
+        @get:ColorInt val onPrimary: Int = 0,
+        @get:ColorInt val onSurface: Int = 0,
+        @get:ColorInt val outline: Int = 0
     )
 
     /**
@@ -143,74 +267,100 @@ object DynamicThemeDetector {
     fun resolveWidgetColors(context: Context, isDark: Boolean): ResolvedWidgetColors {
         val isDynamicActive = isDynamicColorActive(context)
 
-        val dynamicScheme: ColorScheme? = if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            try {
-                if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-            } catch (_: Throwable) {
-                null
-            }
-        } else null
-
-        val p = dynamicScheme?.primary?.toArgb() ?: (
-            if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                try { context.getColor(android.R.color.system_accent1_500) } catch (_: Throwable) { if (isDark) 0xFF8AB4F8.toInt() else 0xFF1973E8.toInt() }
-            } else {
-                if (isDark) 0xFF8AB4F8.toInt() else 0xFF1973E8.toInt()
-            }
-        )
-
-        val s = dynamicScheme?.secondary?.toArgb() ?: (
-            if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                try { context.getColor(android.R.color.system_accent2_500) } catch (_: Throwable) { if (isDark) 0xFFBDC1C6.toInt() else 0xFF5F6368.toInt() }
-            } else {
-                if (isDark) 0xFFBDC1C6.toInt() else 0xFF5F6368.toInt()
-            }
-        )
-
-        val t = dynamicScheme?.tertiary?.toArgb() ?: (
-            if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                try { context.getColor(android.R.color.system_accent3_500) } catch (_: Throwable) { if (isDark) 0xFF81C995.toInt() else 0xFF188038.toInt() }
-            } else {
-                if (isDark) 0xFF81C995.toInt() else 0xFF188038.toInt()
-            }
-        )
-
-        val primaryContainer = dynamicScheme?.primaryContainer?.toArgb() ?: (
-            if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                try {
-                    if (isDark) context.getColor(android.R.color.system_accent1_800) else context.getColor(android.R.color.system_accent1_200)
-                } catch (_: Throwable) {
-                    if (isDark) 0xFF1E3A8A.toInt() else 0xFFD3E3FD.toInt()
-                }
-            } else {
-                if (isDark) 0xFF1E3A8A.toInt() else 0xFFD3E3FD.toInt()
-            }
-        )
-
-        val surfaceContainer = if (isDynamicActive) {
-            dynamicScheme?.surfaceContainer?.toArgb() ?: (
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    try {
-                        if (isDark) context.getColor(android.R.color.system_neutral1_800) else context.getColor(android.R.color.system_neutral1_100)
-                    } catch (_: Throwable) {
-                        if (isDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
-                    }
-                } else {
-                    if (isDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
-                }
-            )
-        } else {
-            // When dynamic color is off, fall back to standard neutral surface
-            if (isDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
+        val fastCached = if (isDark) cachedDarkWidgetColors else cachedLightWidgetColors
+        if (fastCached != null && fastCached.isDynamicActive == isDynamicActive) {
+            return fastCached
         }
 
-        return ResolvedWidgetColors(
-            primary = p,
-            secondary = s,
-            tertiary = t,
-            primaryContainer = primaryContainer,
-            surfaceContainer = surfaceContainer,
-            isDynamicActive = isDynamicActive
-        )
+        return synchronized(cacheLock) {
+            val lockedCached = if (isDark) cachedDarkWidgetColors else cachedLightWidgetColors
+            if (lockedCached != null && lockedCached.isDynamicActive == isDynamicActive) {
+                return@synchronized lockedCached
+            }
+
+            val dynamicScheme: ColorScheme? = if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                try {
+                    if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+                } catch (_: Throwable) {
+                    null
+                }
+            } else null
+
+            val p = dynamicScheme?.primary?.toArgb() ?: (
+                if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try { context.getColor(android.R.color.system_accent1_500) } catch (_: Throwable) { if (isDark) 0xFF8AB4F8.toInt() else 0xFF1973E8.toInt() }
+                } else {
+                    if (isDark) 0xFF8AB4F8.toInt() else 0xFF1973E8.toInt()
+                }
+            )
+
+            val s = dynamicScheme?.secondary?.toArgb() ?: (
+                if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try { context.getColor(android.R.color.system_accent2_500) } catch (_: Throwable) { if (isDark) 0xFFBDC1C6.toInt() else 0xFF5F6368.toInt() }
+                } else {
+                    if (isDark) 0xFFBDC1C6.toInt() else 0xFF5F6368.toInt()
+                }
+            )
+
+            val t = dynamicScheme?.tertiary?.toArgb() ?: (
+                if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try { context.getColor(android.R.color.system_accent3_500) } catch (_: Throwable) { if (isDark) 0xFF81C995.toInt() else 0xFF188038.toInt() }
+                } else {
+                    if (isDark) 0xFF81C995.toInt() else 0xFF188038.toInt()
+                }
+            )
+
+            val primaryContainer = dynamicScheme?.primaryContainer?.toArgb() ?: (
+                if (isDynamicActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try {
+                        if (isDark) context.getColor(android.R.color.system_accent1_800) else context.getColor(android.R.color.system_accent1_200)
+                    } catch (_: Throwable) {
+                        if (isDark) 0xFF1E3A8A.toInt() else 0xFFD3E3FD.toInt()
+                    }
+                } else {
+                    if (isDark) 0xFF1E3A8A.toInt() else 0xFFD3E3FD.toInt()
+                }
+            )
+
+            val surfaceContainer = if (isDynamicActive) {
+                dynamicScheme?.surfaceContainer?.toArgb() ?: (
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        try {
+                            if (isDark) context.getColor(android.R.color.system_neutral1_800) else context.getColor(android.R.color.system_neutral1_100)
+                        } catch (_: Throwable) {
+                            if (isDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
+                        }
+                    } else {
+                        if (isDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
+                    }
+                )
+            } else {
+                // When dynamic color is off, fall back to standard neutral surface
+                if (isDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
+            }
+
+            val onP = dynamicScheme?.onPrimary?.toArgb() ?: (if (isDark) GoogleDarkOnPrimary.toArgb() else GoogleLightOnPrimary.toArgb())
+            val onSurf = dynamicScheme?.onSurface?.toArgb() ?: (if (isDark) GoogleDarkOnSurface.toArgb() else GoogleLightOnSurface.toArgb())
+            val outline = dynamicScheme?.outline?.toArgb() ?: (if (isDark) GoogleDarkOutline.toArgb() else GoogleLightOutline.toArgb())
+
+            val resolved = ResolvedWidgetColors(
+                primary = p,
+                secondary = s,
+                tertiary = t,
+                primaryContainer = primaryContainer,
+                surfaceContainer = surfaceContainer,
+                isDynamicActive = isDynamicActive,
+                onPrimary = onP,
+                onSurface = onSurf,
+                outline = outline
+            )
+
+            if (isDark) {
+                cachedDarkWidgetColors = resolved
+            } else {
+                cachedLightWidgetColors = resolved
+            }
+            resolved
+        }
     }
 }

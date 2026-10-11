@@ -1,6 +1,6 @@
 package com.pixel.intelligentsearch.di
+
 import android.content.Context
-import androidx.room.Room
 import com.pixel.intelligentsearch.core.data.HistoryDao
 import com.pixel.intelligentsearch.core.data.IntelligentSearchDatabase
 import dagger.Module
@@ -21,6 +21,7 @@ object DatabaseModule {
     }
 
     @Provides
+    @Singleton
     fun provideHistoryDao(database: IntelligentSearchDatabase): HistoryDao {
         return database.historyDao()
     }

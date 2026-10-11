@@ -48,12 +48,16 @@ open class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         frameMetricsMonitor.attach(this)
-        val filter = android.content.IntentFilter("com.pixel.intelligentsearch.DISMISS_OVERLAY")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(dismissOverlayReceiver, filter, RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(dismissOverlayReceiver, filter)
-        }
+        adpfThermalManager.startHeadroomMonitoring()
+        // Only this app sends DISMISS_OVERLAY (always with setPackage), so it is never exported. On
+        // API 31-32, where the flag does not exist, ContextCompat enforces the same isolation with a
+        // signature-protected permission.
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            dismissOverlayReceiver,
+            android.content.IntentFilter("com.pixel.intelligentsearch.DISMISS_OVERLAY"),
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     override fun onStop() {
@@ -61,11 +65,13 @@ open class MainActivity : AppCompatActivity() {
             unregisterReceiver(dismissOverlayReceiver)
         } catch (_: Exception) {}
         frameMetricsMonitor.detach()
+        adpfThermalManager.stopHeadroomMonitoring()
         super.onStop()
     }
 
     override fun onResume() {
         super.onResume()
+        com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this)
         if (checkAndForwardIfSearchOverlayDisabled()) return
     }
 
@@ -78,14 +84,14 @@ open class MainActivity : AppCompatActivity() {
             overridePendingTransition(0, 0)
         }
         setIntent(intent)
+        if (handleIntent(intent)) return
         if (checkAndForwardIfSearchOverlayDisabled()) return
-        val queryExtra = intent.getStringExtra("query") ?: intent.getStringExtra(SearchManager.QUERY) ?: intent.getStringExtra(Intent.EXTRA_TEXT)
+        val queryExtra = (intent.getStringExtra("query") ?: intent.getStringExtra(SearchManager.QUERY) ?: intent.getStringExtra(Intent.EXTRA_TEXT))?.take(512)
         if (!queryExtra.isNullOrBlank()) {
             searchViewModel.onQueryChanged(queryExtra)
         } else {
             searchViewModel.onQueryChanged("")
         }
-        handleIntent(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -125,22 +131,14 @@ open class MainActivity : AppCompatActivity() {
             statusBarStyle = androidx.activity.SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
             navigationBarStyle = androidx.activity.SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.isNavigationBarContrastEnforced = false
-            window.isStatusBarContrastEnforced = false
-        }
+        window.isNavigationBarContrastEnforced = false
+        disableLegacyStatusBarContrastScrim()
         // Intentionally NOT setShowWhenLocked(true): the overlay surfaces contacts, files and
         // history, so Android must require device unlock before it is shown from the keyguard.
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         val isTutorial = com.pixel.intelligentsearch.feature.settings.TutorialManager.isTutorialActive(prefs)
-        window.setSoftInputMode(
-            if (isTutorial) {
-                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-            } else {
-                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-            }
-        )
+        applySoftInputMode(keyboardVisible = !isTutorial)
         super.onCreate(savedInstanceState)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -153,12 +151,12 @@ open class MainActivity : AppCompatActivity() {
             }
         }
 
+        if (handleIntent(intent)) return
         if (checkAndForwardIfSearchOverlayDisabled()) return
-        val queryExtra = intent?.getStringExtra("query") ?: intent?.getStringExtra(SearchManager.QUERY) ?: intent?.getStringExtra(Intent.EXTRA_TEXT)
+        val queryExtra = (intent?.getStringExtra("query") ?: intent?.getStringExtra(SearchManager.QUERY) ?: intent?.getStringExtra(Intent.EXTRA_TEXT))?.take(512)
         if (!queryExtra.isNullOrBlank()) {
             searchViewModel.onQueryChanged(queryExtra)
         }
-        if (handleIntent(intent)) return
         
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
@@ -247,11 +245,52 @@ open class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * The status-bar contrast scrim was removed in Android 15 (API 35), where this setter is deprecated
+     * and has no effect, so it is only applied on the releases that still draw the scrim (API 31-34).
+     */
+    private fun disableLegacyStatusBarContrastScrim() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            @Suppress("DEPRECATION")
+            window.isStatusBarContrastEnforced = false
+        }
+    }
+
+    /**
+     * Applies the soft-input policy. ADJUST_RESIZE is deprecated since API 30 in favor of consuming IME
+     * insets, which the Compose UI already does; the flag is kept for the legacy resize dispatch that
+     * the overlay's keyboard-docked layout was tuned against, and is isolated here so the suppression
+     * stays narrowly scoped.
+     */
+    private fun applySoftInputMode(keyboardVisible: Boolean) {
+        @Suppress("DEPRECATION")
+        val adjustResize = android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        val stateFlag = if (keyboardVisible) {
+            android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
+        } else {
+            android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+        }
+        window.setSoftInputMode(stateFlag or adjustResize)
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
     }
 
     private fun handleIntent(intent: Intent?): Boolean {
+        if (intent?.action == "com.pixel.intelligentsearch.LAUNCH_GEMINI_OVERLAY" ||
+            intent?.getBooleanExtra("launch_gemini_overlay", false) == true) {
+            com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.launchGeminiCornerOverlay(this)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+            } else {
+                @Suppress("DEPRECATION")
+                overridePendingTransition(0, 0)
+            }
+            finish()
+            return true
+        }
+
         if (intent?.action == "com.pixel.intelligentsearch.LAUNCH_LENS") {
             try {
                 val lensStandalone = packageManager.getLaunchIntentForPackage("com.google.ar.lens")?.apply {
@@ -331,7 +370,7 @@ open class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", android.content.Context.MODE_PRIVATE)
         val searchOverlayEnabled = prefs.getBoolean("search_overlay_enabled", true)
         if (!searchOverlayEnabled) {
-            val queryExtra = intent?.getStringExtra("query") ?: intent?.getStringExtra(SearchManager.QUERY) ?: ""
+            val queryExtra = (intent?.getStringExtra("query") ?: intent?.getStringExtra(SearchManager.QUERY) ?: "").take(512)
             val fallbackIntent = Intent("android.search.action.GLOBAL_SEARCH").apply {
                 setPackage("com.google.android.googlequicksearchbox")
                 if (queryExtra.isNotEmpty()) {

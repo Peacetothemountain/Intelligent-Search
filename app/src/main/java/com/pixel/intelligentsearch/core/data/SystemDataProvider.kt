@@ -11,7 +11,6 @@ import android.provider.ContactsContract
 import android.provider.MediaStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.Calendar
 
 import androidx.compose.runtime.Immutable
 
@@ -91,30 +90,20 @@ data class FileItem(
 
 object SystemDataProvider {
 
-    val semanticTaxonomy = mapOf(
-        "ride" to listOf("uber", "lyft", "grab", "waze", "maps"),
-        "food" to listOf("eats", "doordash", "grubhub", "yelp", "pizza", "food"),
-        "music" to listOf("spotify", "music", "shazam", "soundcloud", "pandora"),
-        "video" to listOf("youtube", "netflix", "hulu", "disney", "prime video", "tiktok"),
-        "social" to listOf("instagram", "facebook", "twitter", "x", "reddit", "snapchat", "tiktok"),
-        "chat" to listOf("whatsapp", "messenger", "telegram", "discord", "signal", "messages"),
-        "browser" to listOf("chrome", "firefox", "brave", "edge", "opera", "browser"),
-        "shop" to listOf("amazon", "ebay", "target", "walmart", "vending")
-    )
-
     @Volatile
     private var cachedApps: List<AppItem>? = null
 
-    @Volatile
-    private var multiProfileManagerInstance: com.pixel.intelligentsearch.core.profile.MultiProfileManager? = null
-
-    private fun getMultiProfileManager(context: Context): com.pixel.intelligentsearch.core.profile.MultiProfileManager {
-        return multiProfileManagerInstance ?: synchronized(this) {
-            multiProfileManagerInstance ?: com.pixel.intelligentsearch.core.profile.MultiProfileManager(context.applicationContext ?: context).also {
-                multiProfileManagerInstance = it
-            }
-        }
+    @dagger.hilt.EntryPoint
+    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+    interface MultiProfileEntryPoint {
+        fun multiProfileManager(): com.pixel.intelligentsearch.core.profile.MultiProfileManager
     }
+
+    /** Uses the Hilt singleton so only one LauncherApps callback and profile cache exist per process. */
+    private fun getMultiProfileManager(context: Context): com.pixel.intelligentsearch.core.profile.MultiProfileManager =
+        dagger.hilt.android.EntryPointAccessors
+            .fromApplication(context.applicationContext, MultiProfileEntryPoint::class.java)
+            .multiProfileManager()
 
     fun invalidateAppsCache() {
         cachedApps = null
@@ -122,7 +111,7 @@ object SystemDataProvider {
 
     suspend fun getAllApps(context: Context, forceRefresh: Boolean = false): List<AppItem> = withContext(Dispatchers.IO) {
         if (!forceRefresh && cachedApps != null) {
-            return@withContext cachedApps!!
+            cachedApps?.let { return@withContext it }
         }
 
         // 1. Universal PackageManager query guarantees all installed apps on any device/OEM are found
@@ -175,7 +164,7 @@ object SystemDataProvider {
                 val key = if (app.profileType != ProfileType.PERSONAL) "${app.packageName}_${app.userHandle}" else app.packageName
                 mergedMap[key] = app
             }
-        } catch (_: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
             // Non-fatal, base apps remain intact
         }
 
@@ -243,12 +232,12 @@ object SystemDataProvider {
         recentApps.distinctBy { it.packageName }
     }
 
-    suspend fun getContextAwareQuickApps(context: Context): List<AppItem> = withContext(Dispatchers.IO) {
-        val recents = getRecentApps(context)
+    suspend fun getContextAwareQuickApps(context: Context, hiddenApps: Set<String> = emptySet()): List<AppItem> = withContext(Dispatchers.IO) {
+        val recents = getRecentApps(context, hiddenApps)
         if (recents.size >= 6) {
             return@withContext recents.take(6)
         }
-        val allApps = getAllApps(context)
+        val allApps = getAllApps(context).filter { it.packageName !in hiddenApps }
         val combined = (recents + allApps).distinctBy { it.packageName }
         combined.take(6)
     }
@@ -281,17 +270,13 @@ object SystemDataProvider {
             )?.use { cursor ->
                 val titleIndex = cursor.getColumnIndex(CalendarContract.Instances.TITLE)
                 val dtStartIndex = cursor.getColumnIndex(CalendarContract.Instances.BEGIN)
+                // Honours the user's 12/24-hour preference and locale instead of always printing AM/PM.
+                val timeFormat = android.text.format.DateFormat.getTimeFormat(context)
 
                 while (cursor.moveToNext() && events.size < 3) { // Max 3 events
                     val title = if (titleIndex >= 0) cursor.getString(titleIndex) else null
                     val startTimeMillis = if (dtStartIndex >= 0) cursor.getLong(dtStartIndex) else 0L
-                    
-                    val calendar = Calendar.getInstance().apply { timeInMillis = startTimeMillis }
-                    val hour = calendar.get(Calendar.HOUR_OF_DAY)
-                    val minute = calendar.get(Calendar.MINUTE)
-                    val amPm = if (hour < 12) "AM" else "PM"
-                    val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
-                    val timeString = String.format(java.util.Locale.getDefault(), "%d:%02d %s", displayHour, minute, amPm)
+                    val timeString = timeFormat.format(java.util.Date(startTimeMillis))
 
                     events.add(CalendarEvent(title ?: "Event", timeString))
                 }
@@ -353,6 +338,8 @@ object SystemDataProvider {
                     c.name.contains(q, ignoreCase = true) ||
                     (qDigits.length >= 3 && c.phoneNumber.filter { it.isDigit() }.contains(qDigits))
                 }.take(15)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (_: Throwable) {}
         }
 
@@ -396,7 +383,7 @@ object SystemDataProvider {
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("IntelligentSearch", "Unexpected error", e)
         }
         contacts.distinctBy { it.phoneNumber }
     }
@@ -438,7 +425,7 @@ object SystemDataProvider {
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("IntelligentSearch", "Unexpected error", e)
         }
         files
     }
@@ -455,8 +442,10 @@ object SystemDataProvider {
                 MediaStore.Files.FileColumns._ID
             )
 
-            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?"
-            val selectionArgs = arrayOf("%$query%")
+            // Escape LIKE wildcards so a query such as "50%" or "my_file" matches literally.
+            val escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ? ESCAPE '\\'"
+            val selectionArgs = arrayOf("%$escaped%")
 
             context.contentResolver.query(
                 MediaStore.Files.getContentUri("external"),
@@ -485,148 +474,9 @@ object SystemDataProvider {
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("IntelligentSearch", "Unexpected error", e)
         }
         files
-    }
-
-    fun evaluateMath(expression: String): String? {
-        val sanitized = expression.replace(" ", "")
-        if (sanitized.isBlank() || !sanitized.matches(Regex("^[0-9+\\-*/.()^]+$"))) return null
-        
-        return try {
-            val result = eval(sanitized)
-            if (result.isInfinite() || result.isNaN()) return null
-            if (result % 1.0 == 0.0) {
-                result.toLong().toString()
-            } else {
-                String.format(java.util.Locale.getDefault(), "%.2f", result)
-            }
-        } catch (_: Throwable) {
-            null
-        }
-    }
-
-    private fun eval(str: String): Double {
-        return object : Any() {
-            var pos = -1
-            var ch = 0
-            var depth = 0
-
-            fun nextChar() {
-                ch = if (++pos < str.length) str[pos].code else -1
-            }
-
-            fun eat(charToEat: Int): Boolean {
-                while (ch == ' '.code) nextChar()
-                if (ch == charToEat) {
-                    nextChar()
-                    return true
-                }
-                return false
-            }
-
-            fun parse(): Double {
-                nextChar()
-                val x = parseExpression()
-                if (pos < str.length) throw RuntimeException("Unexpected: " + ch.toChar())
-                return x
-            }
-
-            fun parseExpression(): Double {
-                var x = parseTerm()
-                while (true) {
-                    if (eat('+'.code)) x += parseTerm() // addition
-                    else if (eat('-'.code)) x -= parseTerm() // subtraction
-                    else return x
-                }
-            }
-
-            fun parseTerm(): Double {
-                var x = parseFactor()
-                while (true) {
-                    if (eat('*'.code)) x *= parseFactor() // multiplication
-                    else if (eat('/'.code)) x /= parseFactor() // division
-                    else return x
-                }
-            }
-
-            fun parseFactor(): Double {
-                if (++depth > 40) throw IllegalArgumentException("Recursion limit exceeded")
-                try {
-                    if (eat('+'.code)) return parseFactor() // unary plus
-                    if (eat('-'.code)) return -parseFactor() // unary minus
-                    var x: Double
-                    val startPos = pos
-                    if (eat('('.code)) { // parentheses
-                        x = parseExpression()
-                        eat(')'.code)
-                    } else if (ch >= '0'.code && ch <= '9'.code || ch == '.'.code) { // numbers
-                        while (ch >= '0'.code && ch <= '9'.code || ch == '.'.code) nextChar()
-                        x = str.substring(startPos, pos).toDouble()
-                    } else {
-                        throw RuntimeException("Unexpected: " + ch.toChar())
-                    }
-                    if (eat('^'.code)) x = Math.pow(x, parseFactor()) // exponentiation
-                    return x
-                } finally {
-                    depth--
-                }
-            }
-        }.parse()
-    }
-
-    fun evaluateUnitConversion(query: String): String? {
-        val regex = Regex("^([0-9.]+)\\s*([a-zA-Z]+)\\s*(to|in)\\s*([a-zA-Z]+)$", RegexOption.IGNORE_CASE)
-        val match = regex.find(query.trim()) ?: return null
-        
-        val value = match.groupValues[1].toDoubleOrNull() ?: return null
-        val fromUnit = match.groupValues[2].lowercase()
-        val toUnit = match.groupValues[4].lowercase()
-        
-        val lengths = mapOf("m" to 1.0, "km" to 1000.0, "cm" to 0.01, "mm" to 0.001, "mi" to 1609.34, "miles" to 1609.34, "yd" to 0.9144, "ft" to 0.3048, "in" to 0.0254)
-        val weights = mapOf("g" to 1.0, "kg" to 1000.0, "mg" to 0.001, "lb" to 453.592, "lbs" to 453.592, "oz" to 28.3495)
-        val currencies = mapOf("usd" to 1.0, "eur" to 1.09, "gbp" to 1.28, "jpy" to 0.0068, "cad" to 0.74, "aud" to 0.65) // Hardcoded approx rates for demo
-        
-        if (lengths.containsKey(fromUnit) && lengths.containsKey(toUnit)) {
-            val baseValue = value * lengths[fromUnit]!!
-            val result = baseValue / lengths[toUnit]!!
-            return formatResult(result, toUnit)
-        } else if (weights.containsKey(fromUnit) && weights.containsKey(toUnit)) {
-            val baseValue = value * weights[fromUnit]!!
-            val result = baseValue / weights[toUnit]!!
-            return formatResult(result, toUnit)
-        } else if (currencies.containsKey(fromUnit) && currencies.containsKey(toUnit)) {
-            val baseValue = value * currencies[fromUnit]!!
-            val result = baseValue / currencies[toUnit]!!
-            return formatResult(result, toUnit)
-        } else if (isTemperature(fromUnit) && isTemperature(toUnit)) {
-            return formatResult(convertTemperature(value, fromUnit, toUnit), toUnit)
-        }
-        
-        return null
-    }
-    
-    private fun formatResult(result: Double, unit: String): String {
-        val rounded = if (result % 1.0 == 0.0) result.toLong().toString() else String.format(java.util.Locale.getDefault(), "%.2f", result)
-        return "$rounded $unit"
-    }
-
-    private fun isTemperature(unit: String): Boolean {
-        return unit in listOf("c", "celsius", "f", "fahrenheit", "k", "kelvin")
-    }
-
-    private fun convertTemperature(value: Double, from: String, to: String): Double {
-        val c = when (from) {
-            "f", "fahrenheit" -> (value - 32) * 5/9
-            "k", "kelvin" -> value - 273.15
-            else -> value
-        }
-        return when (to) {
-            "f", "fahrenheit" -> c * 9/5 + 32
-            "k", "kelvin" -> c + 273.15
-            else -> c
-        }
     }
 
     fun getAppActions(packageName: String): List<AppAction> {

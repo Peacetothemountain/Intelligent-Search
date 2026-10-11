@@ -1,11 +1,15 @@
 package com.pixel.intelligentsearch.core.security
 
 import android.content.Context
+import android.os.UserManager
 import android.util.Base64
 import android.util.Log
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.GeneralSecurityException
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Military-grade secure settings repository backed by [EncryptedDataVault]
@@ -16,10 +20,13 @@ import javax.crypto.spec.GCMParameterSpec
  *
  * Engineered by NG Designs.
  */
-class SecureSettingsRepository(
-    private val context: Context,
-    private val securityManager: StrongBoxSecurityManager = StrongBoxSecurityManager(context)
+@Singleton
+class SecureSettingsRepository @Inject constructor(
+    @param:ApplicationContext private val context: Context,
+    private val securityManager: StrongBoxSecurityManager
 ) {
+    constructor(context: Context) : this(context, StrongBoxSecurityManager(context))
+
     companion object {
         private const val TAG = "SecureSettingsRepo"
         private const val DOMAIN_SETTINGS = "secure_settings"
@@ -29,7 +36,17 @@ class SecureSettingsRepository(
         private const val TRANSFORM = "AES/GCM/NoPadding"
     }
 
-    private val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private fun getSafeContext(): Context {
+        val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
+        val isUnlocked = userManager?.isUserUnlocked ?: true
+        return if (!isUnlocked && !context.isDeviceProtectedStorage) {
+            context.createDeviceProtectedStorageContext()
+        } else {
+            context
+        }
+    }
+
+    private val sharedPreferences = getSafeContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val encryptedVault = EncryptedDataVault(context, securityManager)
 
     fun getHardwareSecurityLevel(): HardwareSecurityLevel {
@@ -123,11 +140,16 @@ class SecureSettingsRepository(
     fun retrieveSensitiveData(tokenKey: String): String? {
         val vaultPayloadBase64 = sharedPreferences.getString("${tokenKey}_vault", null)
         if (vaultPayloadBase64 != null) {
-            val record = EncryptedVaultRecord.fromBase64(
-                recordId = tokenKey,
-                domain = DOMAIN_SETTINGS,
-                base64Payload = vaultPayloadBase64
-            )
+            val record = try {
+                EncryptedVaultRecord.fromBase64(
+                    recordId = tokenKey,
+                    domain = DOMAIN_SETTINGS,
+                    base64Payload = vaultPayloadBase64
+                )
+            } catch (e: IllegalArgumentException) {
+                Log.e(TAG, "Corrupt vault record for key: $tokenKey", e)
+                return null
+            }
             return encryptedVault.decryptToString(record)
         }
 
@@ -163,7 +185,7 @@ class SecureSettingsRepository(
             Log.e(TAG, "Legacy decryption failed for key $tokenKey: verification mismatch", e)
             null
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to retrieve legacy sensitive data for key $tokenKey", e)
+            Log.e(TAG, "Failed to retrieve legacy sensitive data for key $tokenKey: ${e.message}")
             null
         }
     }

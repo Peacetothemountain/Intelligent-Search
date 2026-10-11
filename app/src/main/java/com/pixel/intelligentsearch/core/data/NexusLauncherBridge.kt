@@ -45,9 +45,9 @@ class NexusLauncherBridge(private val context: Context) {
                 val titleIndex = c.getColumnIndex("title")
 
                 while (c.moveToNext()) {
-                    val pkg = if (pkgIndex >= 0) c.getString(pkgIndex) else continue
-                    val cls = if (classIndex >= 0) c.getString(classIndex) else ""
-                    val title = if (titleIndex >= 0) c.getString(titleIndex) else pkg
+                    val pkg = (if (pkgIndex >= 0) c.getString(pkgIndex) else null) ?: continue
+                    val cls = (if (classIndex >= 0) c.getString(classIndex) else null) ?: ""
+                    val title = (if (titleIndex >= 0) c.getString(titleIndex) else null) ?: pkg
 
                     list.add(NexusPredictionApp(packageName = pkg, className = cls, displayName = title))
                 }

@@ -163,58 +163,20 @@ class MultiProfileManager @Inject constructor(
     private fun resolveProfileType(user: UserHandle, currentUser: UserHandle): ProfileType {
         if (user == currentUser) return ProfileType.PERSONAL
 
-        val um = userManager ?: return ProfileType.PERSONAL
-
-        // 1. Android 15/16/17 Private Space Direct API
-        if (Build.VERSION.SDK_INT >= 35) {
+        // Android 15+ exposes the profile's user type through LauncherUserInfo. UserManager's
+        // isPrivateProfile()/isManagedProfile() describe the *calling* user rather than [user], so they
+        // cannot classify other profiles.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM && launcherApps != null) {
             try {
-                val isPrivateMethod = UserManager::class.java.getMethod("isPrivateProfile")
-                val isPrivate = isPrivateMethod.invoke(um) as? Boolean
-                if (isPrivate == true) return ProfileType.PRIVATE
-            } catch (_: Throwable) {}
-        }
-
-        // 2. LauncherUserInfo userType check
-        if (Build.VERSION.SDK_INT >= 35 && launcherApps != null) {
-            try {
-                val getInfoMethod = launcherApps.javaClass.getMethod("getLauncherUserInfo", UserHandle::class.java)
-                val info = getInfoMethod.invoke(launcherApps, user)
-                if (info != null) {
-                    val getUserTypeMethod = info.javaClass.getMethod("getUserType")
-                    val userType = getUserTypeMethod.invoke(info) as? String
-                    when (userType) {
-                        USER_TYPE_PRIVATE -> return ProfileType.PRIVATE
-                        USER_TYPE_MANAGED -> return ProfileType.WORK
-                        USER_TYPE_CLONE -> return ProfileType.CLONE
-                    }
+                when (launcherApps.getLauncherUserInfo(user)?.userType) {
+                    USER_TYPE_PRIVATE -> return ProfileType.PRIVATE
+                    USER_TYPE_MANAGED -> return ProfileType.WORK
+                    USER_TYPE_CLONE -> return ProfileType.CLONE
                 }
             } catch (_: Throwable) {}
         }
 
-        // 3. UserProperties reflection for Android 14+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            try {
-                val getUserProps = um.javaClass.getMethod("getUserProperties", UserHandle::class.java)
-                val props = getUserProps.invoke(um, user)
-                if (props != null) {
-                    val getProfileType = props.javaClass.getMethod("getProfileType")
-                    val profileTypeStr = getProfileType.invoke(props) as? String
-                    when (profileTypeStr) {
-                        USER_TYPE_PRIVATE -> return ProfileType.PRIVATE
-                        USER_TYPE_MANAGED -> return ProfileType.WORK
-                        USER_TYPE_CLONE -> return ProfileType.CLONE
-                    }
-                }
-            } catch (_: Throwable) {}
-        }
-
-        // 4. Managed profile fallback check
-        try {
-            if (um.isManagedProfile) {
-                return ProfileType.WORK
-            }
-        } catch (_: Throwable) {}
-
+        // Before Android 15 the only secondary profile LauncherApps exposes is effectively a work profile.
         return ProfileType.WORK
     }
 
@@ -245,13 +207,8 @@ class MultiProfileManager @Inject constructor(
                     val packageName = activity.applicationInfo.packageName
                     val activityName = activity.componentName.className
 
-                    // Obtain platform-badged icon for this specific profile
-                    val originalIcon: Drawable = activity.getBadgedIcon(0)
-                    val badgedIcon = try {
-                        appContext.packageManager.getUserBadgedIcon(originalIcon, desc.userHandle)
-                    } catch (_: Throwable) {
-                        originalIcon
-                    }
+                    // getBadgedIcon already applies the profile badge; badging it again would draw two badges.
+                    val badgedIcon: Drawable = activity.getBadgedIcon(0)
 
                     appList.add(
                         AppItem(
@@ -287,12 +244,7 @@ class MultiProfileManager @Inject constructor(
     fun requestUnlockProfile(userHandle: UserHandle, activity: Activity) {
         val um = userManager ?: return
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                um.requestQuietModeEnabled(false, userHandle)
-            } else {
-                @Suppress("DEPRECATION")
-                um.requestQuietModeEnabled(false, userHandle)
-            }
+            um.requestQuietModeEnabled(false, userHandle)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to request quiet mode disabled", e)
             // Fallback: Launch a component from that profile to prompt system keyguard/biometric gate

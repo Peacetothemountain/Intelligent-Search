@@ -1,5 +1,8 @@
 package com.pixel.intelligentsearch.core.search
 
+import java.text.Normalizer
+import java.util.Locale
+
 /**
  * Pure Kotlin implementation of the Double Metaphone phonetic encoding algorithm.
  * Generates primary and alternate phonetic representations for contacts, names,
@@ -9,6 +12,7 @@ package com.pixel.intelligentsearch.core.search
 object DoubleMetaphone {
 
     private const val MAX_CODE_LENGTH = 4
+    private val REGEX_COMBINING_MARKS = Regex("\\p{M}")
 
     data class MetaphoneResult(
         val primary: String,
@@ -28,7 +32,21 @@ object DoubleMetaphone {
             return MetaphoneResult("", "")
         }
 
-        val input = rawInput.trim().uppercase()
+        // Map non-NFD characters to ASCII base approximations before NFD normalization
+        val preCleaned = rawInput.trim()
+            .replace("ß", "SS").replace("ẞ", "SS")
+            .replace("œ", "oe").replace("Œ", "OE")
+            .replace('Ł', 'L').replace('ł', 'l')
+            .replace('Ø', 'O').replace('ø', 'o')
+            .replace('Đ', 'D').replace('đ', 'd')
+            .replace('Æ', 'A').replace('æ', 'a')
+            .replace('Þ', 'T').replace('þ', 't')
+            .replace('Ð', 'D').replace('ð', 'd')
+            .replace('ı', 'i').replace('İ', 'I')
+
+        val input = Normalizer.normalize(preCleaned, Normalizer.Form.NFD)
+            .replace(REGEX_COMBINING_MARKS, "")
+            .uppercase(Locale.ROOT)
         val length = input.length
         if (length == 0) return MetaphoneResult("", "")
 
@@ -43,7 +61,7 @@ object DoubleMetaphone {
         }
 
         // Initial 'X' sounds like 'S'
-        if (input[0] == 'X') {
+        if (input.isNotEmpty() && input[0] == 'X') {
             primary.append('S')
             alternate.append('S')
             current++
@@ -106,7 +124,7 @@ object DoubleMetaphone {
                         primary.append('X')
                         alternate.append('X')
                         current += 3
-                    } else if (stringAt(input, current, 2, "CC") && !(current == 1 && input[0] == 'M')) {
+                    } else if (stringAt(input, current, 2, "CC") && !(current == 1 && input.isNotEmpty() && input[0] == 'M')) {
                         if (stringAt(input, current + 2, 1, "I", "E", "H") && !stringAt(input, current + 2, 2, "HU")) {
                             primary.append('X')
                             alternate.append('X')
@@ -199,7 +217,7 @@ object DoubleMetaphone {
                         if (current == 1 && isVowel(input, 0) && !isSlavoGermanic(input)) {
                             primary.append("KN")
                             alternate.append('N')
-                        } else if (!stringAt(input, current + 2, 2, "EY") && input.getOrNull(current + 1) != 'Y' && !isSlavoGermanic(input)) {
+                        } else if (!stringAt(input, current + 2, 2, "EY") && input.getOrNull(current + 2) != 'Y' && !isSlavoGermanic(input)) {
                             primary.append('N')
                             alternate.append("KN")
                         } else {
@@ -399,7 +417,16 @@ object DoubleMetaphone {
                         primary.append('X')
                         alternate.append('X')
                         current += 3
-                    } else if (stringAt(input, current, 2, "TH") || stringAt(input, current, 3, "TTH")) {
+                    } else if (stringAt(input, current, 3, "TTH")) {
+                        if (stringAt(input, current + 3, 2, "OM", "AM") || stringAt(input, 0, 4, "VAN ", "VON ") || stringAt(input, 0, 3, "SCH")) {
+                            primary.append('T')
+                            alternate.append('T')
+                        } else {
+                            primary.append('0') // Metaphone 'theta' representation
+                            alternate.append('T')
+                        }
+                        current += 3
+                    } else if (stringAt(input, current, 2, "TH")) {
                         if (stringAt(input, current + 2, 2, "OM", "AM") || stringAt(input, 0, 4, "VAN ", "VON ") || stringAt(input, 0, 3, "SCH")) {
                             primary.append('T')
                             alternate.append('T')
@@ -486,7 +513,7 @@ object DoubleMetaphone {
     }
 
     private fun conditionSpanishLl(input: String, current: Int, length: Int): Boolean {
-        if (current == length - 2 && stringAt(input, current - 1, 4, "ILLO", "ILLA", "ALLE")) return true
+        if (current == length - 3 && stringAt(input, current - 1, 4, "ILLO", "ILLA", "ALLE")) return true
         if ((stringAt(input, length - 2, 2, "AS", "OS") || stringAt(input, length - 1, 1, "A", "O")) &&
             stringAt(input, current - 1, 4, "ALLE")
         ) return true

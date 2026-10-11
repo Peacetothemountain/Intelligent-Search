@@ -19,4 +19,25 @@ sealed class Route {
     @Serializable @SerialName("custom_icons") data object CustomIcons : Route()
     @Serializable @SerialName("debug") data object Debug : Route()
     @Serializable @SerialName("backup_restore") data object BackupRestore : Route()
+
+    companion object {
+        fun fromKey(key: String?): Route = when (key?.lowercase()?.trim()) {
+            "main" -> Main
+            "appearance" -> Appearance
+            "search_sources" -> SearchSources
+            "search_behavior" -> SearchBehavior
+            "launch_portal" -> LaunchPortal
+            "app_search" -> AppSearch
+            "search_pills" -> SearchPills
+            "web_search" -> WebSearch
+            "contact_search" -> ContactSearch
+            "file_search" -> FileSearch
+            "widget", "widget_customization" -> WidgetCustomization
+            "manage_hidden_apps" -> ManageHiddenApps
+            "custom_icons" -> CustomIcons
+            "backup_restore" -> BackupRestore
+            "debug" -> Debug
+            else -> Main
+        }
+    }
 }

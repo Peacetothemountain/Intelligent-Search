@@ -48,7 +48,7 @@ class App : Application() {
                 } else {
                     this
                 }
-                val dir = getExternalFilesDir(null) ?: deContext.filesDir
+                val dir = deContext.filesDir
                 val file = File(dir, "crash_log.txt")
                 file.writeText(sw.toString())
                 Log.e("CrashLogger", "Crash caught", throwable)
@@ -73,7 +73,9 @@ class App : Application() {
     private fun warmupServices() {
         appScope.launch {
             try {
+                com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this@App)
                 if (directBootManager.checkIsUserUnlocked()) {
+                    systemToggleManager.clearLegacyAppNightModeOverride()
                     multiProfileManager.refreshProfiles()
                     SystemDataProvider.getAllApps(this@App, forceRefresh = false)
                 }

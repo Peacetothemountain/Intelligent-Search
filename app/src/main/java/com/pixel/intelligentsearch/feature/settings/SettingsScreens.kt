@@ -84,11 +84,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.animation.*
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.NavDestination.Companion.hasRoute
-
-
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -120,6 +118,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -152,6 +151,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.semantics.*
+import com.pixel.intelligentsearch.core.ui.materialYouMeshGradientBackground
+import com.pixel.intelligentsearch.core.ui.expressive.SquircleShape
+import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -1145,6 +1147,7 @@ fun SettingsScreensHub(
                     }
                 }
                 .background(MaterialTheme.colorScheme.background)
+                .materialYouMeshGradientBackground(alpha = if (isSystemInDarkTheme()) 0.16f else 0.08f)
         ) {
             var showTutorial by remember { mutableStateOf(TutorialManager.isTutorialActive(prefs)) }
             val tutorialCompleted by rememberBooleanPreference(prefs, "tutorial_completed", false) {}
@@ -2031,8 +2034,16 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val primaryColor = MaterialTheme.colorScheme.primary
-                    val tertiaryColor = MaterialTheme.colorScheme.tertiary
+                    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+                    val scheme = MaterialTheme.colorScheme
+                    // Lighter Material You accented color from the user's dynamic palette (tone ~65: balanced between light & dark, never yellowish-white)
+                    val waveAccentColor = remember(scheme, isDark) {
+                        if (isDark) {
+                            androidx.compose.ui.graphics.lerp(scheme.primary, scheme.primaryContainer, 0.35f)
+                        } else {
+                            androidx.compose.ui.graphics.lerp(scheme.primary, scheme.primaryContainer, 0.50f)
+                        }
+                    }
                     Box(
                         modifier = Modifier
                             .weight(1.2f)
@@ -2062,7 +2073,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             drawPath(
                                 path = path,
                                 brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                    listOf(primaryColor.copy(alpha = 0.70f), tertiaryColor.copy(alpha = 0.90f))
+                                    listOf(waveAccentColor.copy(alpha = 0.85f), waveAccentColor)
                                 )
                             )
                         }
@@ -2070,7 +2081,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             text = "$batteryLevel%",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = if (isDark) Color.White else scheme.onPrimaryContainer
                         )
                     }
 
@@ -3194,8 +3205,8 @@ fun MainSettingsScreen(
                 .verticalScroll(scrollState)
                 .padding(16.dp)
                 .graphicsLayer { alpha = if (showTutorial) 0f else 1f },
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
             SettingsCard {
                 SettingsRow(
                     title = "Appearance",
@@ -3445,7 +3456,7 @@ fun MainSettingsScreen(
 fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
 
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
@@ -3461,14 +3472,10 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
                     SettingsCard {
                         val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
                         var rawThemeMode by rememberStringPreference(prefs, "night.mode", "System")
@@ -3630,7 +3637,6 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
             }
         }
     }
-}
 
 // -----------------------------------------------------------------------------------------
 // SEARCH SOURCES SCREEN
@@ -3640,7 +3646,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligen
 fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     val viewModel = LocalSettingsViewModel.current
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(modifier = Modifier.fillMaxSize()) {
         val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
         Scaffold(
             containerColor = Color.Transparent,
@@ -3658,13 +3664,13 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (com.pixel.intelli
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
             SettingsCard {
                 var searchApps by rememberBooleanPreference(prefs, "search.apps", false)
                 SettingsRowToggle(
@@ -6094,7 +6100,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 @Composable
 fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(modifier = Modifier.fillMaxSize()) {
         val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
         Scaffold(
             containerColor = Color.Transparent,
@@ -6220,7 +6226,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 fun SettingsCard(
     modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
-    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(28.dp),
+    shape: androidx.compose.ui.graphics.Shape = ExpressiveCornerTokens.ShapeExtraLarge,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
@@ -6228,7 +6234,9 @@ fun SettingsCard(
         colors = CardDefaults.cardColors(containerColor = containerColor),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        modifier = modifier.semantics { isTraversalGroup = true }
+        modifier = modifier
+            .semantics { isTraversalGroup = true }
+            .clip(shape)
     ) {
         Column(modifier = Modifier.padding(vertical = 12.dp)) {
             content()
@@ -6482,8 +6490,8 @@ fun SettingsRowToggle(
     onCheckedChange: (Boolean) -> Unit,
     onClick: (() -> Unit)? = null,
     showDivider: Boolean = true,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
-    shape: androidx.compose.ui.graphics.Shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+    containerColor: Color = Color.Transparent,
+    shape: androidx.compose.ui.graphics.Shape = ExpressiveCornerTokens.ShapeLarge,
     modifier: Modifier = Modifier
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -6537,13 +6545,22 @@ fun SettingsRowToggle(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 3.dp)
+            .then(
+                if (containerColor != Color.Transparent) {
+                    Modifier.padding(horizontal = 16.dp, vertical = 3.dp)
+                } else Modifier
+            )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(shape)
-                .background(color = containerColor, shape = shape)
+                .then(
+                    if (containerColor != Color.Transparent) {
+                        Modifier
+                            .clip(shape)
+                            .background(color = containerColor, shape = shape)
+                    } else Modifier
+                )
                 .then(
                     if (onLongClick != null) {
                         Modifier.combinedClickable(
@@ -7811,14 +7828,18 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             }
 
             // Scrollable Content for Active Tab
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .verticalScroll(rememberScrollState(), enabled = draggingSlotKey == null)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState(), enabled = draggingSlotKey == null)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                 val activeTabName = tabs.getOrNull(selectedTab)?.first ?: "Appearance"
                 when (activeTabName) {
                     "Appearance" -> {
@@ -9177,6 +9198,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             }
         }
     }
+}
 
 
 private val searchActionPath1 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10.5,4 A 6.5,6.5 0 0 0 4,10.5 A 6.5,6.5 0 0 0 10.5,17 A 6.5,6.5 0 0 0 15,15").toPath() }
@@ -9666,6 +9688,19 @@ fun SearchPillsScreen(
     val viewModel = LocalSettingsViewModel.current
     val defaultPills = "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files"
 
+    // One-time restore of Profile 1 back to default state as requested by user
+    if (!prefs.getBoolean("profile_1_restored_to_default_v919", false)) {
+        prefs.edit()
+            .putString("app_search_profile_1", defaultPills)
+            .putString("app_search_profile_1_saved", defaultPills)
+            .putString("search.pills", defaultPills)
+            .putInt("shortcut_results_count", 6)
+            .putBoolean("profile_1_restored_to_default_v919", true)
+            .apply()
+        viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, defaultPills)
+        viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, 6)
+    }
+
     var activeProfile by remember { mutableIntStateOf(prefs.getInt("active_app_search_profile", 1)) }
 
     fun getSavedProfilePills(id: Int): String {
@@ -9750,6 +9785,12 @@ fun SearchPillsScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        if (!prefs.contains("app_search_profile_1_saved")) {
+            prefs.edit().putString("app_search_profile_1_saved", defaultPills).apply()
+        }
+    }
+
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
@@ -9786,6 +9827,7 @@ fun SearchPillsScreen(
                                 showMaxWarning = true
                             } else {
                                 currentList.addAll(newApps)
+                                resetCounter++
                                 persistPills(currentList)
                                 multiSelectMode = false
                                 selectedApps = emptySet()
@@ -9902,6 +9944,7 @@ fun SearchPillsScreen(
                                                     showMaxWarning = true
                                                 } else {
                                                     val updated = localPillList + packageName
+                                                    resetCounter++
                                                     persistPills(updated)
                                                     showAppPicker = false
                                                 }
@@ -10008,17 +10051,33 @@ fun SearchPillsScreen(
                     val view = LocalView.current
                     val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
                     var draggingPackage by remember { mutableStateOf<String?>(null) }
+                    var dragStartIndex by remember { mutableIntStateOf(-1) }
+                    var targetSlotIndex by remember { mutableIntStateOf(-1) }
                     var itemDragOffset by remember { mutableFloatStateOf(0f) }
+                    var isDropping by remember { mutableStateOf(false) }
+                    var dropJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+                    var wasReordered by remember { mutableStateOf(false) }
+                    val density = LocalDensity.current
+                    val defaultItemHeight = with(density) { 86.dp.toPx() }
+                    var measuredItemHeight by remember { mutableFloatStateOf(defaultItemHeight) }
                     var autoScrollVelocity by remember { mutableFloatStateOf(0f) }
                     val listState = rememberLazyListState()
                     val coroutineScope = rememberCoroutineScope()
+
+                    LaunchedEffect(wasReordered) {
+                        if (wasReordered) {
+                            kotlinx.coroutines.delay(50)
+                            wasReordered = false
+                        }
+                    }
 
                     LaunchedEffect(draggingPackage, autoScrollVelocity) {
                         if (draggingPackage != null && autoScrollVelocity != 0f) {
                             while (isActive && draggingPackage != null && autoScrollVelocity != 0f) {
                                 val canScroll = if (autoScrollVelocity < 0f) listState.canScrollBackward else listState.canScrollForward
                                 if (!canScroll) break
-                                listState.scrollBy(autoScrollVelocity)
+                                val scrolled = listState.scrollBy(autoScrollVelocity)
+                                itemDragOffset += scrolled
                                 kotlinx.coroutines.delay(16)
                             }
                         }
@@ -10028,25 +10087,33 @@ fun SearchPillsScreen(
                     LaunchedEffect(localPillList) {
                         withContext(Dispatchers.IO) {
                             val pm = context.packageManager
-                            val map = mutableMapOf<String, String>()
+                            val map = pillAppLabels.toMutableMap()
+                            var changed = false
                             localPillList.forEach { pkg ->
-                                try {
-                                    val info = pm.getApplicationInfo(pkg, 0)
-                                    map[pkg] = pm.getApplicationLabel(info).toString()
-                                    getNativeAppIcon(context, pkg)
-                                } catch (_: Exception) {
-                                    map[pkg] = pkg
+                                if (!map.containsKey(pkg)) {
+                                    try {
+                                        val info = pm.getApplicationInfo(pkg, 0)
+                                        map[pkg] = pm.getApplicationLabel(info).toString()
+                                        getNativeAppIcon(context, pkg)
+                                    } catch (_: Exception) {
+                                        map[pkg] = pkg
+                                    }
+                                    changed = true
                                 }
                             }
-                            withContext(Dispatchers.Main) {
-                                pillAppLabels = map
+                            if (changed || pillAppLabels.isEmpty()) {
+                                withContext(Dispatchers.Main) {
+                                    pillAppLabels = map
+                                }
                             }
                         }
                     }
 
+                    val isReordering = draggingPackage != null || isDropping
+
                     androidx.compose.foundation.lazy.LazyColumn(
                         state = listState,
-                        userScrollEnabled = draggingPackage == null,
+                        userScrollEnabled = !isReordering,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 16.dp),
@@ -10054,188 +10121,305 @@ fun SearchPillsScreen(
                         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp)
                     ) {
                         items(localPillList, key = { it }) { packageName ->
+                            val itemIndex = localPillList.indexOf(packageName)
                             val isDragging = draggingPackage == packageName
-                            val elevation by androidx.compose.animation.core.animateDpAsState(
-                                targetValue = if (isDragging) 8.dp else 0.dp,
-                                label = "elevation"
-                            )
-                            val scale by androidx.compose.animation.core.animateFloatAsState(
-                                targetValue = if (isDragging) 1.03f else 1f,
-                                label = "scale"
-                            )
 
-                            val draggingModifier = if (isDragging) {
-                                Modifier.zIndex(10f).graphicsLayer {
-                                    translationY = itemDragOffset
-                                    scaleX = scale
-                                    scaleY = scale
+                            val itemShiftAnim = remember(packageName) { androidx.compose.animation.core.Animatable(0f) }
+
+                            val targetShiftY = when {
+                                isDragging -> 0f
+                                draggingPackage != null && dragStartIndex != -1 && targetSlotIndex != -1 && measuredItemHeight > 10f -> {
+                                    val startIdx = dragStartIndex
+                                    val targetIdx = targetSlotIndex
+                                    if (startIdx < targetIdx && itemIndex in (startIdx + 1)..targetIdx) {
+                                        -measuredItemHeight
+                                    } else if (startIdx > targetIdx && itemIndex in targetIdx until startIdx) {
+                                        measuredItemHeight
+                                    } else {
+                                        0f
+                                    }
                                 }
-                            } else {
-                                Modifier.animateItem().zIndex(0f).graphicsLayer {
-                                    translationY = 0f
-                                    scaleX = scale
-                                    scaleY = scale
+                                else -> 0f
+                            }
+
+                            LaunchedEffect(targetShiftY, isReordering) {
+                                if (!isReordering) {
+                                    itemShiftAnim.snapTo(0f)
+                                } else {
+                                    itemShiftAnim.animateTo(
+                                        targetValue = targetShiftY,
+                                        animationSpec = androidx.compose.animation.core.spring(
+                                            stiffness = 850f,
+                                            dampingRatio = 0.70f
+                                        )
+                                    )
                                 }
                             }
 
-                            Box(modifier = draggingModifier) {
-                                val dismissState = rememberSwipeToDismissBoxState(
-                                    positionalThreshold = { it * 0.5f }
-                                )
-                                LaunchedEffect(dismissState.currentValue) {
-                                    if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
-                                        hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
-                                        val updated = localPillList.toMutableList()
-                                        updated.remove(packageName)
-                                        persistPills(updated)
-                                    }
-                                }
+                            val displayShiftY = if (isReordering) itemShiftAnim.value else 0f
 
-                                SwipeToDismissBox(
-                                    state = dismissState,
-                                    enableDismissFromStartToEnd = !isDragging,
-                                    enableDismissFromEndToStart = !isDragging,
-                                    backgroundContent = {
-                                        val direction = dismissState.dismissDirection
-                                        val isDismissing = dismissState.targetValue != SwipeToDismissBoxValue.Settled
-                                        val bgColor by androidx.compose.animation.animateColorAsState(
-                                            targetValue = if (isDismissing) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant,
-                                            label = "pill_dismiss_color"
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .clip(RoundedCornerShape(24.dp))
-                                                .background(bgColor)
-                                                .padding(horizontal = 24.dp),
-                                            contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Delete,
-                                                contentDescription = "Remove from Quick Launch",
-                                                tint = MaterialTheme.colorScheme.onErrorContainer,
-                                                modifier = Modifier.size(24.dp)
+                            val itemModifier = if (isDragging) {
+                                Modifier
+                                    .zIndex(10f)
+                                    .graphicsLayer {
+                                        translationY = itemDragOffset
+                                    }
+                            } else {
+                                Modifier
+                                    .then(
+                                        if (isReordering || wasReordered) {
+                                            Modifier
+                                        } else {
+                                            Modifier.animateItem(
+                                                fadeInSpec = null,
+                                                fadeOutSpec = null,
+                                                placementSpec = androidx.compose.animation.core.spring(
+                                                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow,
+                                                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioLowBouncy
+                                                )
                                             )
                                         }
+                                    )
+                                    .zIndex(0f)
+                                    .graphicsLayer {
+                                        translationY = displayShiftY
                                     }
-                                ) {
-                                    val appName = pillAppLabels[packageName] ?: packageName
-                                    val appIcon = remember(packageName) {
-                                        getNativeAppIcon(context, packageName)
+                            }
+
+                            Box(modifier = itemModifier) {
+                                key(packageName, resetCounter) {
+                                    val dismissState = rememberSwipeToDismissBoxState(
+                                        positionalThreshold = { it * 0.5f }
+                                    )
+                                    LaunchedEffect(dismissState.currentValue) {
+                                        if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
+                                            hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
+                                            val updated = localPillList.toMutableList()
+                                            updated.remove(packageName)
+                                            persistPills(updated)
+                                        }
                                     }
 
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(24.dp),
-                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)),
-                                        elevation = CardDefaults.cardElevation(defaultElevation = elevation)
+                                    SwipeToDismissBox(
+                                        state = dismissState,
+                                        enableDismissFromStartToEnd = !isReordering,
+                                        enableDismissFromEndToStart = !isReordering,
+                                        backgroundContent = {
+                                            Box(modifier = Modifier.fillMaxSize())
+                                        }
                                     ) {
-                                        Row(
+                                        val appName = pillAppLabels[packageName] ?: packageName
+                                        val appIcon = remember(packageName) {
+                                            getNativeAppIcon(context, packageName)
+                                        }
+
+                                        val containerBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                            .compositeOver(MaterialTheme.colorScheme.background)
+
+                                        Surface(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(16.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
+                                                .clip(RoundedCornerShape(24.dp))
+                                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
+                                            color = containerBg,
+                                            shape = RoundedCornerShape(24.dp)
                                         ) {
                                             Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(16.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.weight(1f)
+                                                horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
-                                                if (appIcon != null) {
-                                                    Image(
-                                                        bitmap = appIcon,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(36.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(16.dp))
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    if (appIcon != null) {
+                                                        Image(
+                                                            bitmap = appIcon,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(36.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(16.dp))
+                                                    }
+                                                    Column {
+                                                        Text(
+                                                            text = appName,
+                                                            style = MaterialTheme.typography.titleMedium,
+                                                            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                                                            fontWeight = FontWeight.Medium,
+                                                            color = MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                        Text(
+                                                            text = packageName,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                        )
+                                                    }
                                                 }
-                                                Column {
-                                                    Text(
-                                                        text = appName,
-                                                        style = MaterialTheme.typography.titleMedium,
-                                                        fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
-                                                        fontWeight = FontWeight.Medium,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                    Text(
-                                                        text = packageName,
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+
+                                                val currentPkg by rememberUpdatedState(packageName)
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(48.dp)
+                                                        .pointerInput(currentPkg, localPillList.size) {
+                                                            awaitEachGesture {
+                                                                val down = awaitFirstDown(requireUnconsumed = false)
+
+                                                                dropJob?.cancel()
+                                                                dropJob = null
+                                                                if (isDropping && draggingPackage != null && dragStartIndex != -1 && targetSlotIndex != -1 && dragStartIndex != targetSlotIndex) {
+                                                                    val currentList = localPillList.toMutableList()
+                                                                    if (dragStartIndex in currentList.indices) {
+                                                                        val item = currentList.removeAt(dragStartIndex)
+                                                                        val safeTarget = targetSlotIndex.coerceIn(0, currentList.size)
+                                                                        currentList.add(safeTarget, item)
+                                                                        persistPills(currentList)
+                                                                    }
+                                                                }
+                                                                isDropping = false
+
+                                                                val startIdx = localPillList.indexOf(currentPkg)
+                                                                if (startIdx == -1) return@awaitEachGesture
+
+                                                                down.consume()
+
+                                                                val info = listState.layoutInfo.visibleItemsInfo.find {
+                                                                    it.key == currentPkg || it.key.toString().endsWith(currentPkg)
+                                                                }
+                                                                val spacing = listState.layoutInfo.mainAxisItemSpacing.toFloat()
+                                                                if (info != null && info.size > 0) {
+                                                                    measuredItemHeight = info.size.toFloat() + spacing
+                                                                }
+
+                                                                draggingPackage = currentPkg
+                                                                dragStartIndex = startIdx
+                                                                targetSlotIndex = startIdx
+                                                                itemDragOffset = 0f
+                                                                autoScrollVelocity = 0f
+                                                                hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
+
+                                                                val pointerId = down.id
+                                                                while (true) {
+                                                                    val event = awaitPointerEvent()
+                                                                    val dragChange = event.changes.firstOrNull { it.id == pointerId } ?: break
+                                                                    if (!dragChange.pressed) {
+                                                                        dragChange.consume()
+                                                                        break
+                                                                    }
+
+                                                                    val deltaY = dragChange.positionChange().y
+                                                                    dragChange.consume()
+                                                                    itemDragOffset += deltaY
+
+                                                                    val currentHeight = if (measuredItemHeight > 10f) measuredItemHeight else defaultItemHeight
+                                                                    val totalSlots = localPillList.size
+                                                                    val rawDelta = kotlin.math.round(itemDragOffset / currentHeight).toInt()
+                                                                    val newTarget = (startIdx + rawDelta).coerceIn(0, totalSlots - 1)
+                                                                    if (newTarget != targetSlotIndex) {
+                                                                        hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.REORDER_SWAP)
+                                                                        targetSlotIndex = newTarget
+                                                                    }
+
+                                                                    val draggingItem = listState.layoutInfo.visibleItemsInfo.find {
+                                                                        it.key == draggingPackage || it.key.toString().endsWith(draggingPackage ?: "")
+                                                                    }
+                                                                    if (draggingItem != null) {
+                                                                        val currentItemTop = draggingItem.offset + itemDragOffset
+                                                                        val currentItemBottom = currentItemTop + draggingItem.size
+                                                                        val viewportHeight = listState.layoutInfo.viewportSize.height.toFloat()
+                                                                        val hotZonePx = with(density) { 72.dp.toPx() }
+
+                                                                        if (currentItemTop < hotZonePx && listState.canScrollBackward) {
+                                                                            val proximity = (1f - (currentItemTop / hotZonePx).coerceIn(0f, 1f))
+                                                                            autoScrollVelocity = -22f * proximity
+                                                                        } else if (currentItemBottom > viewportHeight - hotZonePx && listState.canScrollForward) {
+                                                                            val distanceFromEdge = viewportHeight - currentItemBottom
+                                                                            val proximity = (1f - (distanceFromEdge / hotZonePx).coerceIn(0f, 1f))
+                                                                            autoScrollVelocity = 22f * proximity
+                                                                        } else {
+                                                                            autoScrollVelocity = 0f
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                // GESTURE FINISHED (Finger lifted)
+                                                                autoScrollVelocity = 0f
+                                                                val activePkg = draggingPackage
+                                                                val sIdx = dragStartIndex
+                                                                val tIdx = targetSlotIndex
+                                                                val currentHeight = if (measuredItemHeight > 10f) measuredItemHeight else defaultItemHeight
+
+                                                                if (activePkg != null && sIdx != -1 && tIdx != -1 && sIdx != tIdx && currentHeight > 10f) {
+                                                                    dropJob = coroutineScope.launch {
+                                                                        isDropping = true
+                                                                        val settleTargetOffset = (tIdx - sIdx) * currentHeight
+                                                                        androidx.compose.animation.core.Animatable(itemDragOffset).animateTo(
+                                                                            targetValue = settleTargetOffset,
+                                                                            animationSpec = androidx.compose.animation.core.spring(
+                                                                                stiffness = 850f,
+                                                                                dampingRatio = 0.70f
+                                                                            )
+                                                                        ) {
+                                                                            itemDragOffset = value
+                                                                        }
+                                                                        hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
+
+                                                                        wasReordered = true
+                                                                        val currentList = localPillList.toMutableList()
+                                                                        if (sIdx in currentList.indices) {
+                                                                            val item = currentList.removeAt(sIdx)
+                                                                            val safeTarget = tIdx.coerceIn(0, currentList.size)
+                                                                            currentList.add(safeTarget, item)
+                                                                            persistPills(currentList)
+                                                                        }
+
+                                                                        draggingPackage = null
+                                                                        dragStartIndex = -1
+                                                                        targetSlotIndex = -1
+                                                                        itemDragOffset = 0f
+                                                                        isDropping = false
+                                                                    }
+                                                                } else if (activePkg != null) {
+                                                                    dropJob = coroutineScope.launch {
+                                                                        isDropping = true
+                                                                        if (kotlin.math.abs(itemDragOffset) > 1f) {
+                                                                            androidx.compose.animation.core.Animatable(itemDragOffset).animateTo(
+                                                                                targetValue = 0f,
+                                                                                animationSpec = androidx.compose.animation.core.spring(
+                                                                                    stiffness = 850f,
+                                                                                    dampingRatio = 0.70f
+                                                                                )
+                                                                            ) {
+                                                                                itemDragOffset = value
+                                                                            }
+                                                                        }
+                                                                        draggingPackage = null
+                                                                        dragStartIndex = -1
+                                                                        targetSlotIndex = -1
+                                                                        itemDragOffset = 0f
+                                                                        isDropping = false
+                                                                    }
+                                                                } else {
+                                                                    draggingPackage = null
+                                                                    dragStartIndex = -1
+                                                                    targetSlotIndex = -1
+                                                                    itemDragOffset = 0f
+                                                                    isDropping = false
+                                                                }
+                                                            }
+                                                        },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Outlined.DragHandle,
+                                                        contentDescription = "Drag to reorder",
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                                     )
                                                 }
                                             }
-
-                                            val currentPkg by rememberUpdatedState(packageName)
-                                            Icon(
-                                                imageVector = Icons.Outlined.DragHandle,
-                                                contentDescription = "Drag to reorder",
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                                modifier = Modifier.pointerInput(currentPkg) {
-                                                    detectVerticalDragGestures(
-                                                        onDragStart = {
-                                                            hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
-                                                            draggingPackage = currentPkg
-                                                            itemDragOffset = 0f
-                                                            autoScrollVelocity = 0f
-                                                        },
-                                                        onDragEnd = {
-                                                            autoScrollVelocity = 0f
-                                                            draggingPackage = null
-                                                            itemDragOffset = 0f
-                                                            persistPills(localPillList)
-                                                        },
-                                                        onDragCancel = {
-                                                            autoScrollVelocity = 0f
-                                                            draggingPackage = null
-                                                            itemDragOffset = 0f
-                                                        },
-                                                        onVerticalDrag = { change, dragAmount ->
-                                                            change.consume()
-                                                            itemDragOffset += dragAmount
-
-                                                            val currentDraggingPackage = draggingPackage ?: return@detectVerticalDragGestures
-                                                            val draggingItem = listState.layoutInfo.visibleItemsInfo.find {
-                                                                it.key == currentDraggingPackage
-                                                            }
-                                                            if (draggingItem != null) {
-                                                                val spacing = listState.layoutInfo.mainAxisItemSpacing.toFloat()
-                                                                val itemHeight = draggingItem.size.toFloat() + spacing
-                                                                val from = localPillList.indexOf(currentDraggingPackage)
-                                                                val distanceFromBottom = listState.layoutInfo.viewportSize.height - (draggingItem.offset + draggingItem.size)
-                                                                val hotZonePx = 160f
-
-                                                                if (itemDragOffset < 0f && draggingItem.offset < hotZonePx && listState.canScrollBackward) {
-                                                                    val proximity = (1f - (draggingItem.offset / hotZonePx)).coerceIn(0.2f, 1f)
-                                                                    autoScrollVelocity = -22f * proximity
-                                                                } else if (itemDragOffset > 0f && distanceFromBottom < hotZonePx && listState.canScrollForward) {
-                                                                    val proximity = (1f - (distanceFromBottom / hotZonePx)).coerceIn(0.2f, 1f)
-                                                                    autoScrollVelocity = 22f * proximity
-                                                                } else {
-                                                                    autoScrollVelocity = 0f
-                                                                }
-
-                                                                if (from != -1) {
-                                                                    if (itemDragOffset > itemHeight / 2f && from < localPillList.size - 1) {
-                                                                        hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.REORDER_SWAP)
-                                                                        val currentList = localPillList.toMutableList()
-                                                                        java.util.Collections.swap(currentList, from, from + 1)
-                                                                        localPillList = currentList
-                                                                        itemDragOffset -= itemHeight
-                                                                    } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
-                                                                        hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.REORDER_SWAP)
-                                                                        val currentList = localPillList.toMutableList()
-                                                                        java.util.Collections.swap(currentList, from, from - 1)
-                                                                        localPillList = currentList
-                                                                        itemDragOffset += itemHeight
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    )
-                                                }
-                                            )
                                         }
                                     }
                                 }
@@ -10775,6 +10959,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text("Custom Icons", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
@@ -10786,7 +10971,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             )
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Box(modifier = Modifier.fillMaxSize()) {
             if (pendingIconPack != null) {
                 AlertDialog(
                     onDismissRequest = { pendingIconPack = null },

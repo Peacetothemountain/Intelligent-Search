@@ -288,20 +288,25 @@ fun Modifier.meshGradientBackground(
 
 /**
  * Convenience modifier automatically deriving an Android 18 mesh gradient from Material You colorScheme.
+ * Features symmetrical horizontal lighting to eliminate harsh left-to-right color splits,
+ * smoothly transitioning from an ambient top dynamic tint to the deep background surface.
  */
 @Composable
 fun Modifier.materialYouMeshGradientBackground(
-    alpha: Float = 0.18f,
+    alpha: Float = 0.12f,
     isPaused: Boolean = false,
     isInteracting: Boolean = false
 ): Modifier {
     val scheme = MaterialTheme.colorScheme
+    val topTint = androidx.compose.ui.graphics.lerp(scheme.surface, scheme.primaryContainer, 0.20f)
+    val bottomTint = scheme.background
+    val centerTint = androidx.compose.ui.graphics.lerp(scheme.surface, scheme.secondaryContainer, 0.10f)
     return this.meshGradientBackground(
-        colorTL = scheme.primary,
-        colorTR = scheme.secondary,
-        colorBL = scheme.tertiary,
-        colorBR = scheme.primaryContainer,
-        colorCenter = scheme.surfaceContainerHighest,
+        colorTL = topTint,
+        colorTR = topTint,
+        colorBL = bottomTint,
+        colorBR = bottomTint,
+        colorCenter = centerTint,
         alpha = alpha,
         isPaused = isPaused,
         isInteracting = isInteracting

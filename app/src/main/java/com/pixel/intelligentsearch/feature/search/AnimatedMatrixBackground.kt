@@ -65,7 +65,7 @@ const val AGSL_MATRIX_SPARKLE_SHADER = """
         
         // Astroid / 4-point sparkle equation matching vector quadratic bezier
         float dist = (sqrt(max(d.x, 0.0)) + sqrt(max(d.y, 0.0))) / sqrt(max(uSparkleSize, 0.001));
-        float shape = smoothstep(1.0, 0.6, dist);
+        float shape = (1.0 - smoothstep(0.6, 1.0, dist));
         
         if (shape <= 0.0) {
             return half4(0.0);

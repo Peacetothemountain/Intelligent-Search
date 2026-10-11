@@ -41,7 +41,7 @@ class GlobalSearchProvider : ContentProvider() {
 
     private fun getSafeContext(): Context? {
         val ctx = context ?: return null
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !ctx.isDeviceProtectedStorage) {
+        return if (!ctx.isDeviceProtectedStorage) {
             val userManager = ctx.getSystemService(Context.USER_SERVICE) as? UserManager
             if (userManager?.isUserUnlocked == false) {
                 ctx.createDeviceProtectedStorageContext()

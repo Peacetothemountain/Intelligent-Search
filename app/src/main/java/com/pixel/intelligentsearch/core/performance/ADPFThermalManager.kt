@@ -39,11 +39,7 @@ class ADPFThermalManager(private val context: Context) {
     }
 
     private val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-    private val performanceHintManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        context.getSystemService(PerformanceHintManager::class.java)
-    } else {
-        null
-    }
+    private val performanceHintManager = context.getSystemService(PerformanceHintManager::class.java)
 
     private val _thermalThrottleLevel = MutableStateFlow(ThermalThrottleLevel.NORMAL)
     val thermalThrottleLevel: StateFlow<ThermalThrottleLevel> = _thermalThrottleLevel.asStateFlow()
@@ -79,12 +75,8 @@ class ADPFThermalManager(private val context: Context) {
     }
 
     private val thermalStatusListener: PowerManager.OnThermalStatusChangedListener? by lazy {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            PowerManager.OnThermalStatusChangedListener { status ->
-                evaluateThermalState(status)
-            }
-        } else {
-            null
+        PowerManager.OnThermalStatusChangedListener { status ->
+            evaluateThermalState(status)
         }
     }
 
@@ -96,7 +88,7 @@ class ADPFThermalManager(private val context: Context) {
     }
 
     private fun registerThermalListeners() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && powerManager != null && thermalStatusListener != null) {
+        if (powerManager != null && thermalStatusListener != null) {
             try {
                 powerManager.addThermalStatusListener(context.mainExecutor, thermalStatusListener!!)
             } catch (e: Throwable) {
@@ -137,7 +129,7 @@ class ADPFThermalManager(private val context: Context) {
      * Initializes the [PerformanceHintManager.Session] with the process main thread and RenderThread.
      */
     fun initHintSession(targetFps: Int = 120) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || performanceHintManager == null) {
+        if (performanceHintManager == null) {
             return
         }
 
@@ -172,13 +164,11 @@ class ADPFThermalManager(private val context: Context) {
         val targetNanos = getFrameDurationNanosForFps(targetFps)
         currentTargetDurationNanos.set(targetNanos)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val session = hintSession as? PerformanceHintManager.Session ?: return
-            try {
-                session.updateTargetWorkDuration(targetNanos)
-            } catch (e: Throwable) {
-                Log.w(TAG, "Failed to update target work duration: ${e.message}")
-            }
+        val session = hintSession as? PerformanceHintManager.Session ?: return
+        try {
+            session.updateTargetWorkDuration(targetNanos)
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to update target work duration: ${e.message}")
         }
     }
 
@@ -187,7 +177,7 @@ class ADPFThermalManager(private val context: Context) {
      * This directly prevents thermal throttling while guaranteeing frame deadlines.
      */
     fun reportActualWorkDuration(actualDurationNanos: Long) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && actualDurationNanos > 0) {
+        if (actualDurationNanos > 0) {
             val session = hintSession as? PerformanceHintManager.Session ?: return
             try {
                 session.reportActualWorkDuration(actualDurationNanos)
@@ -199,7 +189,7 @@ class ADPFThermalManager(private val context: Context) {
      * Reports detailed frame metrics from HWUI / WindowFrameMetricsListener.
      */
     fun reportFrameMetrics(totalDurationNanos: Long, gpuDurationNanos: Long = 0L) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && totalDurationNanos > 0) {
+        if (totalDurationNanos > 0) {
             val session = hintSession as? PerformanceHintManager.Session ?: return
             try {
                 // WorkDuration and Session.reportActualWorkDuration(WorkDuration) were added in API 35. Guarding
@@ -264,7 +254,7 @@ class ADPFThermalManager(private val context: Context) {
      * Updates and caches thermal headroom from [PowerManager].
      */
     fun updateThermalHeadroom(): Float {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && powerManager != null) {
+        if (powerManager != null) {
             try {
                 val headroom = powerManager.getThermalHeadroom(10)
                 if (!headroom.isNaN() && headroom >= 0.0f) {
@@ -297,7 +287,7 @@ class ADPFThermalManager(private val context: Context) {
     }
 
     private fun evaluateThermalState(status: Int) {
-        val newLevel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val newLevel = run {
             when (status) {
                 PowerManager.THERMAL_STATUS_NONE -> ThermalThrottleLevel.NORMAL
                 PowerManager.THERMAL_STATUS_LIGHT -> ThermalThrottleLevel.LIGHT
@@ -308,8 +298,6 @@ class ADPFThermalManager(private val context: Context) {
                 PowerManager.THERMAL_STATUS_SHUTDOWN -> ThermalThrottleLevel.CRITICAL
                 else -> ThermalThrottleLevel.NORMAL
             }
-        } else {
-            ThermalThrottleLevel.NORMAL
         }
         if (rawThrottleLevel != newLevel) {
             rawThrottleLevel = newLevel
@@ -408,7 +396,7 @@ class ADPFThermalManager(private val context: Context) {
     }
 
     fun release() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && powerManager != null && thermalStatusListener != null) {
+        if (powerManager != null && thermalStatusListener != null) {
             try {
                 powerManager.removeThermalStatusListener(thermalStatusListener!!)
             } catch (_: Throwable) {}
@@ -419,13 +407,11 @@ class ADPFThermalManager(private val context: Context) {
             } catch (_: Throwable) {}
             powerSaveReceiver = null
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val session = hintSession as? PerformanceHintManager.Session
-            try {
-                session?.close()
-            } catch (_: Throwable) {}
-            hintSession = null
-        }
+        val session = hintSession as? PerformanceHintManager.Session
+        try {
+            session?.close()
+        } catch (_: Throwable) {}
+        hintSession = null
         monitorThread.quitSafely()
     }
 

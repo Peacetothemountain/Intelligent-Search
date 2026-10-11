@@ -1,6 +1,8 @@
 package com.pixel.intelligentsearch.core.search
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.AppShortcutItem
 import com.pixel.intelligentsearch.core.data.ContactItem
@@ -681,7 +683,22 @@ class UnifiedSearchCoordinator @Inject constructor(
         val mathResult = MathematicalExpressionEngine.evaluate(query)
 
         // 3. Natural Language Intent Parser
-        val parsedIntent = NaturalLanguageIntentParser.parse(query)
+        val rawParsedIntent = NaturalLanguageIntentParser.parse(query)
+        val parsedIntent = if (rawParsedIntent is NaturalLanguageIntentParser.ParsedIntent.PhoneCall && rawParsedIntent.resolvedPhoneNumber == null) {
+            val matched = searchContacts(rawParsedIntent.contactNameOrNumber, limit = 5).firstOrNull { it.phoneNumber.isNotBlank() }
+            if (matched != null) {
+                val cleanDigits = matched.phoneNumber.filter { it.isDigit() || it == '+' }
+                NaturalLanguageIntentParser.ParsedIntent.PhoneCall(
+                    contactNameOrNumber = matched.name,
+                    intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanDigits")),
+                    resolvedPhoneNumber = matched.phoneNumber
+                )
+            } else {
+                rawParsedIntent
+            }
+        } else {
+            rawParsedIntent
+        }
 
         cancellationCheck?.invoke()
 

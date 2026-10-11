@@ -6,7 +6,7 @@
 
     <!-- Bottom and left part of the ring -->
     <path
-        android:strokeColor="@color/widget_icon_primary"
+        android:strokeColor="@color/widget_icon_tertiary"
         android:strokeWidth="2.5"
         android:strokeLineCap="round"
         android:pathData="M 10.5,4 A 6.5,6.5 0 0 0 4,10.5 A 6.5,6.5 0 0 0 10.5,17 A 6.5,6.5 0 0 0 15,15" />

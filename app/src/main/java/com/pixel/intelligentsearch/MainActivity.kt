@@ -77,8 +77,12 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        window.setWindowAnimations(0)
+        window.decorView.elevation = 0f
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
+            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
         } else {
             @Suppress("DEPRECATION")
             overridePendingTransition(0, 0)
@@ -95,13 +99,6 @@ open class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
-        } else {
-            @Suppress("DEPRECATION")
-            overridePendingTransition(0, 0)
-        }
-
         // Immediately dismiss system splash screen to avoid any black splash or flicker
         splashScreen.setOnExitAnimationListener { splashScreenView ->
             splashScreenView.remove()
@@ -109,6 +106,9 @@ open class MainActivity : AppCompatActivity() {
 
         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         window.setDimAmount(0f)
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        window.setWindowAnimations(0)
+        window.decorView.elevation = 0f
 
         val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
         if (!prefs.getBoolean("profile_1_restored_to_default_v918", false)) {
@@ -146,6 +146,14 @@ open class MainActivity : AppCompatActivity() {
         val isTutorial = com.pixel.intelligentsearch.feature.settings.TutorialManager.isTutorialActive(prefs)
         applySoftInputMode(keyboardVisible = !isTutorial)
         super.onCreate(savedInstanceState)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
+            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        }
 
         runCatching {
             if (initialShowWallpaper && initialBlur > 0) {

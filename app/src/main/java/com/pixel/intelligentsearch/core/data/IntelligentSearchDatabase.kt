@@ -28,38 +28,42 @@ abstract class IntelligentSearchDatabase : RoomDatabase() {
         }
 
         /**
-         * Resolves a Direct Boot safe context (Device Protected Storage) to ensure database
-         * operations are safe even before user unlock. Automatically migrates any legacy CE database
-         * to DE storage upon user unlock.
+         * Resolves the Credential Encrypted (CE) context for personal search history storage.
+         * Search queries are strictly personal and must remain protected behind user authentication (PIN/Pattern/Biometrics).
+         * If a legacy database exists in Device Protected (DE) storage from a previous version,
+         * it is migrated to CE storage upon user unlock and deleted from DE storage.
          */
         fun getSafeContext(context: Context): Context {
             val appContext = context.applicationContext ?: context
 
-            val deContext = if (!appContext.isDeviceProtectedStorage) {
-                appContext.createDeviceProtectedStorageContext()
+            val ceContext = if (appContext.isDeviceProtectedStorage) {
+                appContext
             } else {
                 appContext
             }
 
-            val userManager = appContext.getSystemService(Context.USER_SERVICE) as? UserManager
+            val userManager = ceContext.getSystemService(Context.USER_SERVICE) as? UserManager
             val isUnlocked = userManager?.isUserUnlocked ?: true
 
-            // When user is unlocked, migrate any existing legacy database from Credential Encrypted
-            // storage to Device Protected Storage.
-            if (isUnlocked && !appContext.isDeviceProtectedStorage) {
+            if (isUnlocked && !ceContext.isDeviceProtectedStorage) {
                 try {
-                    val ceDbFile = appContext.getDatabasePath(DATABASE_NAME)
+                    val deContext = ceContext.createDeviceProtectedStorageContext()
                     val deDbFile = deContext.getDatabasePath(DATABASE_NAME)
-                    if (ceDbFile.exists() && !deDbFile.exists()) {
-                        val moved = deContext.moveDatabaseFrom(appContext, DATABASE_NAME)
-                        Log.i(TAG, "Legacy CE database migrated to Device Protected Storage: $moved")
+                    val ceDbFile = ceContext.getDatabasePath(DATABASE_NAME)
+
+                    if (deDbFile.exists() && !ceDbFile.exists()) {
+                        val moved = ceContext.moveDatabaseFrom(deContext, DATABASE_NAME)
+                        Log.i(TAG, "Search history database migrated from DE to CE storage: $moved")
+                    } else if (deDbFile.exists() && ceDbFile.exists()) {
+                        deContext.deleteDatabase(DATABASE_NAME)
+                        Log.i(TAG, "Redundant pre-unlock DE search history database deleted")
                     }
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed migrating CE database to DE storage: ${e.message}")
+                    Log.w(TAG, "Failed migrating database from DE to CE storage: ${e.message}")
                 }
             }
 
-            return deContext
+            return ceContext
         }
 
         fun getDatabase(context: Context): IntelligentSearchDatabase {

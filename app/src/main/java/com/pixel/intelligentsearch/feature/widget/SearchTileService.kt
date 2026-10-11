@@ -175,9 +175,9 @@ class SearchTileService : TileService() {
     private fun createLaunchPendingIntent(context: Context): PendingIntent {
         val intent = Intent(context, WidgetActivity::class.java).apply {
             action = "com.pixel.intelligentsearch.QUICK_TILE_LAUNCH"
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
         }
-        val options = ActivityOptions.makeBasic()
+        val options = ActivityOptions.makeCustomAnimation(context, 0, 0)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             options.setPendingIntentCreatorBackgroundActivityStartMode(
                 ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
@@ -212,7 +212,7 @@ class SearchTileService : TileService() {
         val launchAction = Runnable {
             val intent = Intent(this, WidgetActivity::class.java).apply {
                 action = "com.pixel.intelligentsearch.QUICK_TILE_LAUNCH"
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
 
             try {
@@ -228,7 +228,14 @@ class SearchTileService : TileService() {
                 android.util.Log.e(TAG, "Failed to launch activity from QS Tile via startActivityAndCollapse", e)
                 try {
                     val pendingIntent = createLaunchPendingIntent(this)
-                    pendingIntent.send()
+                    val senderOptions = ActivityOptions.makeCustomAnimation(this, 0, 0)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        @Suppress("DEPRECATION")
+                        senderOptions.setPendingIntentBackgroundActivityStartMode(
+                            ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                        )
+                    }
+                    pendingIntent.send(this, 0, null, null, null, null, senderOptions.toBundle())
                 } catch (fallbackError: Throwable) {
                     try {
                         @Suppress("DEPRECATION")

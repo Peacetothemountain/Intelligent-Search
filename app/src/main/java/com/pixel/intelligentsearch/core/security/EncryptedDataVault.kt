@@ -3,12 +3,12 @@ package com.pixel.intelligentsearch.core.security
 import android.content.Context
 import android.util.Base64
 import android.util.Log
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.nio.ByteBuffer
+import java.nio.CharBuffer
 import java.security.GeneralSecurityException
-import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -79,7 +79,7 @@ data class EncryptedVaultRecord(
  */
 @Singleton
 class EncryptedDataVault @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val securityManager: StrongBoxSecurityManager
 ) {
     constructor(context: Context) : this(context, StrongBoxSecurityManager(context))
@@ -93,8 +93,6 @@ class EncryptedDataVault @Inject constructor(
         private const val TAG_LENGTH_BITS = StrongBoxSecurityManager.GCM_TAG_LENGTH // 128 bits
     }
 
-    private val secureRandom = SecureRandom()
-
     /**
      * Constructs cryptographic Associated Authenticated Data (AAD) mathematically
      * binding the record ID, domain, user profile, and package identifier to
@@ -103,6 +101,34 @@ class EncryptedDataVault @Inject constructor(
     private fun buildAad(domain: String, recordId: String, profileId: String): ByteArray {
         val appPackage = context.packageName
         return "$appPackage:$domain:$recordId:$profileId:v1".toByteArray(Charsets.UTF_8)
+    }
+
+    /**
+     * Assembles the binary vault envelope: magic, version, security level, 96-bit IV, ciphertext + tag.
+     */
+    private fun buildEnvelope(level: HardwareSecurityLevel, iv: ByteArray, ciphertextWithTag: ByteArray): ByteArray {
+        require(iv.size == IV_LENGTH) { "Unexpected GCM IV length: ${iv.size}" }
+        val levelByte: Byte = when (level) {
+            HardwareSecurityLevel.STRONGBOX -> 0x01
+            HardwareSecurityLevel.TEE -> 0x02
+            HardwareSecurityLevel.SOFTWARE -> 0x03
+        }
+        return ByteBuffer.allocate(HEADER_LENGTH + IV_LENGTH + ciphertextWithTag.size)
+            .put(VAULT_MAGIC_BYTE)
+            .put(VAULT_VERSION_BYTE)
+            .put(levelByte)
+            .put(iv)
+            .put(ciphertextWithTag)
+            .array()
+    }
+
+    /**
+     * Validates length, magic byte, and version of an envelope before any cryptographic operation.
+     */
+    private fun requireValidEnvelope(payload: ByteArray) {
+        require(payload.size > HEADER_LENGTH + IV_LENGTH) { "Vault payload is truncated or corrupted." }
+        require(payload[0] == VAULT_MAGIC_BYTE) { "Invalid vault record magic byte: ${payload[0]}" }
+        require(payload[1] == VAULT_VERSION_BYTE) { "Unsupported vault record version: ${payload[1]}" }
     }
 
     /**
@@ -117,41 +143,23 @@ class EncryptedDataVault @Inject constructor(
     ): EncryptedVaultRecord {
         val (secretKey, level) = securityManager.getOrCreateSymmetricKey(StrongBoxSecurityManager.KEY_ALIAS_MASTER)
         val cipher = Cipher.getInstance(StrongBoxSecurityManager.CIPHER_ALGORITHM)
-        
-        // AndroidKeyStore generates random IV internally when initialized with KeyStore key
+
+        // AndroidKeyStore generates the random IV internally when initialized with a KeyStore key.
+        // The IV must come from the cipher itself: an externally generated IV would never be applied
+        // to the operation and would yield a record that can no longer be decrypted.
         cipher.init(Cipher.ENCRYPT_MODE, secretKey)
-        val iv = cipher.iv ?: run {
-            val fallbackIv = ByteArray(IV_LENGTH)
-            secureRandom.nextBytes(fallbackIv)
-            fallbackIv
-        }
+        val iv = checkNotNull(cipher.iv) { "Keystore cipher did not expose its GCM IV." }
 
         // Bind AAD
-        val aad = buildAad(domain, recordId, profileId)
-        cipher.updateAAD(aad)
-
+        cipher.updateAAD(buildAad(domain, recordId, profileId))
         val ciphertextWithTag = cipher.doFinal(plaintext)
-
-        // Assemble binary vault envelope
-        val levelByte: Byte = when (level) {
-            HardwareSecurityLevel.STRONGBOX -> 0x01
-            HardwareSecurityLevel.TEE -> 0x02
-            HardwareSecurityLevel.SOFTWARE -> 0x03
-        }
-
-        val envelopeBuffer = ByteBuffer.allocate(HEADER_LENGTH + IV_LENGTH + ciphertextWithTag.size)
-        envelopeBuffer.put(VAULT_MAGIC_BYTE)
-        envelopeBuffer.put(VAULT_VERSION_BYTE)
-        envelopeBuffer.put(levelByte)
-        envelopeBuffer.put(iv)
-        envelopeBuffer.put(ciphertextWithTag)
 
         val blindIndex = generateBlindIndexFor?.let { securityManager.computeBlindIndex(it) }
 
         return EncryptedVaultRecord(
             recordId = recordId,
             domain = domain,
-            payload = envelopeBuffer.array(),
+            payload = buildEnvelope(level, iv, ciphertextWithTag),
             blindIndex = blindIndex,
             securityLevel = level
         )
@@ -169,34 +177,24 @@ class EncryptedDataVault @Inject constructor(
         generateBlindIndexFor: String? = null
     ): EncryptedVaultRecord {
         val iv = cipher.iv ?: throw IllegalStateException("Biometric cipher must have an initialized initialization vector (IV).")
-        val aad = buildAad(domain, recordId, profileId)
-        cipher.updateAAD(aad)
+        cipher.updateAAD(buildAad(domain, recordId, profileId))
         val ciphertextWithTag = cipher.doFinal(plaintext)
-        val level = if (securityManager.isStrongBoxSupported()) HardwareSecurityLevel.STRONGBOX else HardwareSecurityLevel.TEE
-        val levelByte: Byte = when (level) {
-            HardwareSecurityLevel.STRONGBOX -> 0x01
-            HardwareSecurityLevel.TEE -> 0x02
-            HardwareSecurityLevel.SOFTWARE -> 0x03
-        }
-        val envelopeBuffer = ByteBuffer.allocate(HEADER_LENGTH + IV_LENGTH + ciphertextWithTag.size)
-        envelopeBuffer.put(VAULT_MAGIC_BYTE)
-        envelopeBuffer.put(VAULT_VERSION_BYTE)
-        envelopeBuffer.put(levelByte)
-        envelopeBuffer.put(iv)
-        envelopeBuffer.put(ciphertextWithTag)
+        val level = securityManager.getSecurityLevelForAlias(StrongBoxSecurityManager.KEY_ALIAS_BIOMETRIC_GATE)
 
         val blindIndex = generateBlindIndexFor?.let { securityManager.computeBlindIndex(it) }
         return EncryptedVaultRecord(
             recordId = recordId,
             domain = domain,
-            payload = envelopeBuffer.array(),
+            payload = buildEnvelope(level, iv, ciphertextWithTag),
             blindIndex = blindIndex,
             securityLevel = level
         )
     }
 
     /**
-     * Encrypts a [SecureCharArray] into an [EncryptedVaultRecord] and zeroizes intermediate memory.
+     * Encrypts a [SecureCharArray] into an [EncryptedVaultRecord] and zeroizes the intermediate UTF-8
+     * copies. The caller keeps ownership of [chars] and remains responsible for closing it; the
+     * array is deliberately not wiped here so it stays usable after the call.
      */
     fun encryptChars(
         domain: String,
@@ -204,7 +202,7 @@ class EncryptedDataVault @Inject constructor(
         chars: SecureCharArray,
         profileId: String = "default"
     ): EncryptedVaultRecord {
-        val charBuffer = java.nio.CharBuffer.wrap(chars.data)
+        val charBuffer = CharBuffer.wrap(chars.data)
         val byteBuffer = Charsets.UTF_8.encode(charBuffer)
         val tempBytes = ByteArray(byteBuffer.remaining())
         byteBuffer.get(tempBytes)
@@ -225,15 +223,10 @@ class EncryptedDataVault @Inject constructor(
         profileId: String = "default"
     ): SecureByteArray {
         val payload = record.payload
-        require(payload.size > HEADER_LENGTH + IV_LENGTH) { "Vault payload is truncated or corrupted." }
+        requireValidEnvelope(payload)
 
         val byteBuffer = ByteBuffer.wrap(payload)
-        val magic = byteBuffer.get()
-        val version = byteBuffer.get()
-        val levelByte = byteBuffer.get()
-
-        require(magic == VAULT_MAGIC_BYTE) { "Invalid vault record magic byte: $magic" }
-        require(version == VAULT_VERSION_BYTE) { "Unsupported vault record version: $version" }
+        byteBuffer.position(HEADER_LENGTH)
 
         val iv = ByteArray(IV_LENGTH)
         byteBuffer.get(iv)
@@ -268,7 +261,7 @@ class EncryptedDataVault @Inject constructor(
                 String(secureBytes.data, Charsets.UTF_8)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Decryption failed for record ${record.recordId} in domain ${record.domain}", e)
+            Log.e(TAG, "Decryption failed for record ${record.recordId} in domain ${record.domain}: ${e.message}")
             null
         }
     }
@@ -285,7 +278,7 @@ class EncryptedDataVault @Inject constructor(
 
     /**
      * Decrypts a biometric-locked vault record using the authenticated [Cipher]
-     * returned by [BiometricPrompt.AuthenticationResult.cryptoObject].
+     * returned by [android.hardware.biometrics.BiometricPrompt.AuthenticationResult.cryptoObject].
      */
     fun decryptWithBiometricCipher(
         cipher: Cipher,
@@ -293,7 +286,7 @@ class EncryptedDataVault @Inject constructor(
         profileId: String = "default"
     ): SecureByteArray {
         val payload = record.payload
-        require(payload.size > HEADER_LENGTH + IV_LENGTH) { "Payload too short." }
+        requireValidEnvelope(payload)
 
         val byteBuffer = ByteBuffer.wrap(payload)
         byteBuffer.position(HEADER_LENGTH + IV_LENGTH)

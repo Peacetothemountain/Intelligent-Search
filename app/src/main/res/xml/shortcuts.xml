@@ -1,15 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut
+        android:shortcutId="search"
+        android:enabled="true"
+        android:icon="@drawable/ic_search_lens_expressive"
+        android:shortcutShortLabel="@string/app_name"
+        android:shortcutLongLabel="@string/widget_search_description">
+        <intent
+            android:action="android.intent.action.MAIN"
+            android:targetPackage="com.pixel.intelligentsearch"
+            android:targetClass="com.pixel.intelligentsearch.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="voice_search"
+        android:enabled="true"
+        android:icon="@drawable/ic_mic"
+        android:shortcutShortLabel="@string/widget_talkback_voice_search"
+        android:shortcutLongLabel="@string/widget_talkback_voice_search">
+        <intent
+            android:action="android.intent.action.MAIN"
+            android:targetPackage="com.pixel.intelligentsearch"
+            android:targetClass="com.pixel.intelligentsearch.MainActivity">
+            <extra
+                android:name="auto_voice"
+                android:value="true" />
+        </intent>
+    </shortcut>
+    <shortcut
         android:shortcutId="settings"
         android:enabled="true"
         android:icon="@drawable/ic_settings_shortcut"
         android:shortcutShortLabel="@string/settings_shortcut_label"
-        android:shortcutLongLabel="@string/settings_shortcut_label">
+        android:shortcutLongLabel="@string/search_settings_desc">
         <intent
-            android:action="android.intent.action.VIEW"
+            android:action="android.intent.action.APPLICATION_PREFERENCES"
             android:targetPackage="com.pixel.intelligentsearch"
             android:targetClass="com.pixel.intelligentsearch.feature.settings.SettingsActivity" />
-        <categories android:name="android.shortcut.conversation" />
     </shortcut>
 </shortcuts>

@@ -108,4 +108,32 @@ class BackupCryptoEngineTest {
         assertEquals("INTELLIGENT_SEARCH_ENCRYPTED_BACKUP", envelope.format)
         assertEquals(1, envelope.schemaVersion)
     }
+
+    @Test
+    fun testLegacyIterationBackupsStillDecrypt() {
+        val passphrase = "LegacyPassphrase!".toCharArray()
+        val salt = BackupCryptoEngine.generateRandomSalt()
+        val iv = BackupCryptoEngine.generateRandomIv()
+        val legacyKey = BackupCryptoEngine.deriveKeyFromPassphrase(passphrase, salt, BackupCryptoEngine.LEGACY_PBKDF2_ITERATIONS)
+        val cipher = BackupCryptoEngine.encryptPayload("""{"legacy":true}""", legacyKey, iv)
+
+        val reDerived = BackupCryptoEngine.deriveKeyFromPassphrase(passphrase, salt, BackupCryptoEngine.LEGACY_PBKDF2_ITERATIONS)
+        assertEquals("""{"legacy":true}""", BackupCryptoEngine.decryptPayload(cipher, reDerived, iv))
+
+        val modernKey = BackupCryptoEngine.deriveKeyFromPassphrase(passphrase, salt)
+        assertThrows(AEADBadTagException::class.java) {
+            BackupCryptoEngine.decryptPayload(cipher, modernKey, iv)
+        }
+    }
+
+    @Test
+    fun testOutOfRangeIterationCountRejected() {
+        val salt = BackupCryptoEngine.generateRandomSalt()
+        assertThrows(IllegalArgumentException::class.java) {
+            BackupCryptoEngine.deriveKeyFromPassphrase("x".toCharArray(), salt, 1)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            BackupCryptoEngine.deriveKeyFromPassphrase("x".toCharArray(), salt, Int.MAX_VALUE)
+        }
+    }
 }

@@ -1,39 +1,63 @@
 package com.pixel.intelligentsearch.core.data
-import androidx.room.*
+
+import androidx.room.Dao
+import androidx.room.Delete
+import androidx.room.Query
+import androidx.room.Transaction
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface HistoryDao {
+abstract class HistoryDao {
     @Query("SELECT * FROM search_history ORDER BY timestamp DESC")
-    fun getSearchHistoryFlow(): Flow<List<HistoryEntity>>
+    abstract fun getSearchHistoryFlow(): Flow<List<HistoryEntity>>
 
-    @Query("SELECT * FROM search_history ORDER BY timestamp DESC")
-    suspend fun getSearchHistory(): List<HistoryEntity>
+    @Query("SELECT * FROM search_history ORDER BY timestamp DESC LIMIT :limit")
+    abstract suspend fun getSearchHistory(limit: Int = 25): List<HistoryEntity>
+
+    @Query("SELECT * FROM search_history WHERE query = :query LIMIT 1")
+    abstract suspend fun findByQuery(query: String): HistoryEntity?
+
+    @Query("SELECT * FROM search_history WHERE query LIKE :prefix || '%' ORDER BY timestamp DESC LIMIT :limit")
+    abstract suspend fun getSuggestions(prefix: String, limit: Int = 10): List<HistoryEntity>
 
     @Upsert
-    suspend fun insertSearch(search: HistoryEntity)
+    abstract suspend fun insertSearch(search: HistoryEntity)
 
     @Upsert
-    suspend fun insertSearches(searches: List<HistoryEntity>)
+    abstract suspend fun insertSearches(searches: List<HistoryEntity>)
 
     @Delete
-    suspend fun deleteSearch(search: HistoryEntity)
+    abstract suspend fun deleteSearch(search: HistoryEntity)
 
     @Query("DELETE FROM search_history WHERE query = :query")
-    suspend fun deleteByQuery(query: String)
+    abstract suspend fun deleteByQuery(query: String)
 
     @Query("DELETE FROM search_history")
-    suspend fun clearHistory()
+    abstract suspend fun clearHistory()
 
     @Query("SELECT COUNT(*) FROM search_history")
-    suspend fun getCount(): Int
+    abstract suspend fun getCount(): Int
 
-    @Query("DELETE FROM search_history WHERE timestamp < (SELECT timestamp FROM search_history ORDER BY timestamp DESC LIMIT 1 OFFSET :limit - 1)")
-    suspend fun pruneHistory(limit: Int)
+    @Query("SELECT COUNT(*) FROM search_history")
+    abstract fun getCountFlow(): Flow<Int>
+
+    @Query("""
+        DELETE FROM search_history 
+        WHERE query NOT IN (
+            SELECT query FROM search_history 
+            ORDER BY timestamp DESC, query ASC 
+            LIMIT :limit
+        )
+    """)
+    abstract suspend fun pruneHistory(limit: Int)
 
     @Transaction
-    suspend fun recordAndPrune(query: String, timestamp: Long, limit: Int = 10) {
-        insertSearch(HistoryEntity(query, timestamp))
-        pruneHistory(limit)
+    open suspend fun recordAndPrune(query: String, timestamp: Long, limit: Int = 10) {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return
+        val safeLimit = limit.coerceIn(1, 1000)
+        insertSearch(HistoryEntity(trimmed, timestamp))
+        pruneHistory(safeLimit)
     }
 }

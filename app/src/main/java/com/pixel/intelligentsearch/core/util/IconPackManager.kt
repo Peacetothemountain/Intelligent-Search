@@ -151,7 +151,7 @@ object IconPackManager {
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("IntelligentSearch", "Unexpected error", e)
         }
 
         return null
@@ -166,8 +166,7 @@ object IconPackManager {
             // Attempt 1: Parse res/xml/appfilter.xml
             val resId = iconPackRes.getIdentifier("appfilter", "xml", iconPackPackage)
             if (resId != 0) {
-                val xpp = iconPackRes.getXml(resId)
-                parseXmlParser(xpp, map)
+                iconPackRes.getXml(resId).use { xpp -> parseXmlParser(xpp, map) }
             }
 
             // Attempt 2: Parse assets/appfilter.xml if XML resource produced empty or failed
@@ -175,18 +174,19 @@ object IconPackManager {
                 try {
                     val iconPackContext = context.createPackageContext(iconPackPackage, Context.CONTEXT_IGNORE_SECURITY)
                     val assetStream: InputStream = iconPackContext.assets.open("appfilter.xml")
-                    val factory = XmlPullParserFactory.newInstance()
-                    factory.isNamespaceAware = true
-                    val xpp = factory.newPullParser()
-                    xpp.setInput(assetStream, "UTF-8")
-                    parseXmlParser(xpp, map)
-                    assetStream.close()
+                    assetStream.use { stream ->
+                        val factory = XmlPullParserFactory.newInstance()
+                        factory.isNamespaceAware = true
+                        val xpp = factory.newPullParser()
+                        xpp.setInput(stream, "UTF-8")
+                        parseXmlParser(xpp, map)
+                    }
                 } catch (e: Exception) {
                     // Asset appfilter.xml not present
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("IntelligentSearch", "Unexpected error", e)
         }
         return map
     }

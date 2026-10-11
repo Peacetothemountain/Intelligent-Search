@@ -6,6 +6,31 @@ import java.util.Calendar
 
 class NaturalLanguageIntentParserTest {
 
+    @org.junit.Test
+    fun timerRejectsDurationsBeyondAlarmClockLimitInsteadOfOverflowing() {
+        // 71_582_789 * 60 wraps a 32-bit Int to 44; it must be rejected, not turned into a 44s timer.
+        org.junit.Assert.assertNull(NaturalLanguageIntentParser.parse("timer 71582789"))
+        org.junit.Assert.assertNull(NaturalLanguageIntentParser.parse("timer 99999999999 minutes"))
+        org.junit.Assert.assertNull(NaturalLanguageIntentParser.parse("timer 25 hours"))
+    }
+
+    @org.junit.Test
+    fun timerAcceptsUpToTwentyFourHours() {
+        val day = NaturalLanguageIntentParser.parse("timer 24 hours") as NaturalLanguageIntentParser.ParsedIntent.Timer
+        org.junit.Assert.assertEquals(86_400, day.durationSeconds)
+        val mixed = NaturalLanguageIntentParser.parse("timer 1h 30m 15s") as NaturalLanguageIntentParser.ParsedIntent.Timer
+        org.junit.Assert.assertEquals(5_415, mixed.durationSeconds)
+    }
+
+    @org.junit.Test
+    fun directMessageSupportsUnicodeRecipientNames() {
+        val intent = NaturalLanguageIntentParser.parse("text José saying see you soon")
+            as NaturalLanguageIntentParser.ParsedIntent.DirectMessage
+        org.junit.Assert.assertEquals("José", intent.recipientName)
+        org.junit.Assert.assertEquals("see you soon", intent.body)
+    }
+
+
     @Test
     fun testTimerParsing() {
         val res15m = NaturalLanguageIntentParser.parse("set timer 15m")

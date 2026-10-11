@@ -82,8 +82,18 @@ object SearchScoringEngine {
             return ScoreBreakdown(0f, 0f, 0f, 0f, 0f, metadata.domain.weight * domainWeightMultiplier)
         }
 
-        // 1. Text & Structural Match Scoring
-        val matchScore = computeMatchScore(q, title, rawTitle, precomputedQueryMetaphone, precomputedTargetMetaphone)
+        // 1. Text & Structural Match Scoring. Accent/punctuation-folded forms are scored too, so "cafe"
+        // ranks "Café" as an exact match rather than relying on the weaker phonetic fallback.
+        val rawMatchScore = computeMatchScore(q, title, rawTitle, precomputedQueryMetaphone, precomputedTargetMetaphone)
+        val foldedQuery = QueryNormalizer.normalize(q)
+        val foldedTitle = QueryNormalizer.normalize(title)
+        val matchScore = if (rawMatchScore < SCORE_EXACT_MATCH && foldedQuery.isNotEmpty() && foldedTitle.isNotEmpty() &&
+            (foldedQuery != q || foldedTitle != title)
+        ) {
+            maxOf(rawMatchScore, computeMatchScore(foldedQuery, foldedTitle, rawTitle, precomputedQueryMetaphone, precomputedTargetMetaphone))
+        } else {
+            rawMatchScore
+        }
 
         // 2. Frequency Scoring (Logarithmic compression)
         val frequencyScore = if (metadata.launchCount > 0) {
@@ -161,10 +171,12 @@ object SearchScoringEngine {
             }
         }
 
-        // F. Typo-Tolerant Edit Distance
-        val editDistance = LevenshteinDistance.computeDistance(query, title, maxDistance = 2)
-        if (editDistance <= 2) {
-            return (SCORE_FUZZY_BASE - (editDistance * PENALTY_PER_EDIT_DISTANCE)).coerceAtLeast(10.0f)
+        // F. Typo-Tolerant Edit Distance (applied for queries length >= 3 to avoid 1-2 character false positives)
+        if (query.length >= 3) {
+            val editDistance = LevenshteinDistance.computeDistance(query, title, maxDistance = 2)
+            if (editDistance <= 2) {
+                return (SCORE_FUZZY_BASE - (editDistance * PENALTY_PER_EDIT_DISTANCE)).coerceAtLeast(10.0f)
+            }
         }
 
         // Check edit distance on word tokens for queries length >= 3

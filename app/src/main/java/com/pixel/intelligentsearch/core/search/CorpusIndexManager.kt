@@ -10,18 +10,26 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.ContactsContract
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.pixel.intelligentsearch.core.data.ShortcutProvider
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -51,9 +59,15 @@ class CorpusIndexManager @Inject constructor(
     val isIndexReady: StateFlow<Boolean> = _isIndexReady.asStateFlow()
     private val isInitialized = java.util.concurrent.atomic.AtomicBoolean(false)
 
+    // Observer registration runs on the IO scope while cleanup() may arrive from the main thread, so
+    // both are serialized on observerLock. The debounce job is also touched from the main-thread
+    // ContentObserver callback and therefore stays volatile.
+    private val observerLock = Any()
     private var contactsObserver: ContentObserver? = null
     private var packageReceiver: BroadcastReceiver? = null
+    @Volatile
     private var contactsDebounceJob: Job? = null
+    private val contactsMutex = Mutex()
 
     /**
      * Bootstraps eager background indexing of all corpuses.
@@ -67,17 +81,14 @@ class CorpusIndexManager @Inject constructor(
             try {
                 val startMs = System.currentTimeMillis()
 
-                // 1. Eagerly index applications (avoid forced cache invalidation on initial cold launch)
-                reindexAppsInternal(forceRefresh = force)
-
-                // 2. Eagerly index app shortcuts
-                reindexShortcutsInternal()
-
-                // 3. Eagerly index contacts
-                reindexContactsInternal()
-
-                // 4. Eagerly index recent files
-                reindexFilesInternal()
+                // Concurrently index all corpuses using Kotlin coroutines for instant readiness
+                coroutineScope {
+                    val appsDeferred = async { reindexAppsInternal(forceRefresh = force) }
+                    val shortcutsDeferred = async { reindexShortcutsInternal() }
+                    val contactsDeferred = async { reindexContactsInternal() }
+                    val filesDeferred = async { reindexFilesInternal() }
+                    awaitAll(appsDeferred, shortcutsDeferred, contactsDeferred, filesDeferred)
+                }
 
                 _isIndexReady.value = true
                 val totalMs = System.currentTimeMillis() - startMs
@@ -85,6 +96,10 @@ class CorpusIndexManager @Inject constructor(
 
                 // Register live system listeners
                 registerObservers()
+            } catch (e: CancellationException) {
+                // Cancelled (e.g. by cleanup()): allow a later initialize() to start over.
+                isInitialized.set(false)
+                throw e
             } catch (e: Exception) {
                 isInitialized.set(false)
                 Log.e(TAG, "Error during corpus indexing initialization", e)
@@ -121,10 +136,9 @@ class CorpusIndexManager @Inject constructor(
             if (forceRefresh) {
                 SystemDataProvider.invalidateAppsCache()
             }
-            val apps = SystemDataProvider.getAllApps(context, forceRefresh = forceRefresh)
-            for (app in apps) {
-                searchCoordinator.indexApp(app)
-            }
+            searchCoordinator.bulkIndexApps(SystemDataProvider.getAllApps(context, forceRefresh = forceRefresh))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Failed indexing apps", e)
         }
@@ -133,39 +147,39 @@ class CorpusIndexManager @Inject constructor(
     private fun reindexShortcutsInternal() {
         try {
             val shortcuts = ShortcutProvider.getAllShortcuts(context)
-            for (shortcut in shortcuts) {
-                searchCoordinator.indexShortcut(shortcut)
-            }
+            searchCoordinator.replaceShortcuts(shortcuts)
         } catch (e: Exception) {
             Log.e(TAG, "Failed indexing shortcuts", e)
         }
     }
 
     private suspend fun reindexContactsInternal() {
-        try {
-            searchCoordinator.clearContacts()
-            val contacts = SystemDataProvider.getAllContacts(context)
-            for (contact in contacts) {
-                searchCoordinator.indexContact(contact)
+        contactsMutex.withLock {
+            try {
+                val contacts = SystemDataProvider.getAllContacts(context)
+                // Atomic swap: searches never observe an empty or partially rebuilt contact index.
+                searchCoordinator.replaceContacts(contacts)
+                Log.d(TAG, "Indexed ${contacts.size} contacts into memory")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed indexing contacts", e)
             }
-            Log.d(TAG, "Indexed ${contacts.size} contacts into memory")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed indexing contacts", e)
         }
     }
 
     private suspend fun reindexFilesInternal() {
         try {
             val files = SystemDataProvider.getAllRecentFiles(context, limit = 300)
-            for (file in files) {
-                searchCoordinator.indexFile(file)
-            }
+            searchCoordinator.replaceFiles(files)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Failed indexing files", e)
         }
     }
 
-    private fun registerObservers() {
+    private fun registerObservers() = synchronized(observerLock) {
         // Register ContentObserver for Contacts changes with 1000ms conflated debounce
         try {
             if (contactsObserver == null) {
@@ -213,7 +227,16 @@ class CorpusIndexManager @Inject constructor(
                     addAction(Intent.ACTION_PACKAGE_REPLACED)
                     addDataScheme("package")
                 }
-                context.registerReceiver(packageReceiver, filter)
+                try {
+                    ContextCompat.registerReceiver(
+                        context,
+                        packageReceiver!!,
+                        filter,
+                        ContextCompat.RECEIVER_NOT_EXPORTED
+                    )
+                } catch (e: Exception) {
+                    context.registerReceiver(packageReceiver, filter)
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Could not register package BroadcastReceiver", e)
@@ -226,21 +249,27 @@ class CorpusIndexManager @Inject constructor(
     fun cleanup() {
         contactsDebounceJob?.cancel()
         contactsDebounceJob = null
-        try {
-            contactsObserver?.let {
-                context.contentResolver.unregisterContentObserver(it)
-                contactsObserver = null
+        scope.coroutineContext.cancelChildren()
+        synchronized(observerLock) {
+            try {
+                contactsObserver?.let {
+                    context.contentResolver.unregisterContentObserver(it)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to unregister contacts observer", e)
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to unregister contacts observer", e)
-        }
-        try {
-            packageReceiver?.let {
-                context.unregisterReceiver(it)
-                packageReceiver = null
+            contactsObserver = null
+            try {
+                packageReceiver?.let {
+                    context.unregisterReceiver(it)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to unregister package receiver", e)
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to unregister package receiver", e)
+            packageReceiver = null
         }
+        // Observers are gone, so the index will no longer track changes: require a fresh initialize().
+        _isIndexReady.value = false
+        isInitialized.set(false)
     }
 }

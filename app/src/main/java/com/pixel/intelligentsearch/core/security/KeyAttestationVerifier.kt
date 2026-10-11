@@ -6,17 +6,16 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
 import android.security.keystore.StrongBoxUnavailableException
+import android.util.Base64
 import android.util.Log
-import java.io.ByteArrayInputStream
 import java.security.KeyFactory
 import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.ProviderException
-import java.security.cert.CertificateFactory
+import java.security.SecureRandom
 import java.security.cert.X509Certificate
-import java.util.Arrays
 
 data class AttestationResult(
     val isHardwareAttested: Boolean,
@@ -54,14 +53,14 @@ class KeyAttestationVerifier(private val context: Context) {
         const val ATTESTATION_OID = "1.3.6.1.4.1.11129.2.1.17"
         private const val ATTESTATION_ALIAS = "is_hardware_attestation_key_v2"
         private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24-hour flash protection TTL
-        private const val GOOGLE_ROOT_SHA256 = "2417A2069E66F42F995D7A942F2D9C55CDA3F29C280FB06DF7B09FEE13A28F58"
+        private const val GOOGLE_HW_ROOT_SHA256 = "2417A2069E66F42F995D7A942F2D9C55CDA3F29C280FB06DF7B09FEE13A28F58"
+        private const val GOOGLE_SW_ROOT_SHA256 = "CE0EB739F57CF586E80EE7ED0E21D0D27F51D68ECDAFEFEE824E31671569B752"
+        private const val SAMSUNG_ROOT_SHA256 = "717CC80CE5CF852BDE1F33F6E8FE3D634842E5E6DEE3E5B5D829A09FD0DECE8B"
 
-        // Known Root Subject DN patterns
-        private val TRUSTED_ROOT_PATTERNS = listOf(
-            "Google Hardware Attestation Root",
-            "Android Keystore Software Attestation Root",
-            "Samsung Knox Attestation Root",
-            "Samsung Keystore"
+        private val TRUSTED_ROOT_FINGERPRINTS = setOf(
+            GOOGLE_HW_ROOT_SHA256,
+            GOOGLE_SW_ROOT_SHA256,
+            SAMSUNG_ROOT_SHA256
         )
 
         @Volatile
@@ -81,38 +80,50 @@ class KeyAttestationVerifier(private val context: Context) {
      */
     @Synchronized
     fun generateAndVerifyAttestation(
-        challenge: ByteArray = "INTELLIGENT_SEARCH_HW_ATTESTATION".toByteArray(),
+        challenge: ByteArray? = null,
         forceRefresh: Boolean = false
     ): AttestationResult {
         val now = System.currentTimeMillis()
-        if (!forceRefresh && cachedResult != null && (now - cacheTimestamp < CACHE_TTL_MS)) {
-            return cachedResult!!
+        // The cache only ever holds results for a self-generated challenge. A caller-supplied challenge
+        // must always be attested (and echoed back) fresh, otherwise it would receive a stale result
+        // that was bound to a different challenge.
+        val useCache = challenge == null && !forceRefresh
+        val cached = cachedResult
+        if (useCache && cached != null && (now - cacheTimestamp < CACHE_TTL_MS)) {
+            return cached
         }
+
+        val actualChallenge = challenge ?: ByteArray(32).apply { SecureRandom().nextBytes(this) }
+        val challengeDisplay = Base64.encodeToString(actualChallenge, Base64.NO_WRAP)
 
         return try {
             if (keyStore.containsAlias(ATTESTATION_ALIAS)) {
                 keyStore.deleteEntry(ATTESTATION_ALIAS)
             }
 
-            val hasStrongBox = context.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
+            val hasStrongBox = try {
+                context.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
+            } catch (_: Exception) {
+                false
+            }
+
             val keyPair: KeyPair = if (hasStrongBox) {
                 try {
-                    generateEcKeyPair(challenge, isStrongBox = true)
+                    generateEcKeyPair(actualChallenge, isStrongBox = true)
                 } catch (e: Exception) {
-                    when (e) {
-                        is StrongBoxUnavailableException, is ProviderException -> {
-                            Log.w(TAG, "StrongBox attestation key generation failed; falling back to TEE", e)
-                            keyStore.deleteEntry(ATTESTATION_ALIAS)
-                            generateEcKeyPair(challenge, isStrongBox = false)
-                        }
-                        else -> {
-                            keyStore.deleteEntry(ATTESTATION_ALIAS)
-                            generateEcKeyPair(challenge, isStrongBox = false)
-                        }
+                    // StrongBoxUnavailableException / ProviderException are the expected causes, but any
+                    // failure here should degrade to a TEE-backed attestation rather than abort.
+                    val reason = if (e is StrongBoxUnavailableException || e is ProviderException) {
+                        "StrongBox attestation key generation failed"
+                    } else {
+                        "StrongBox attestation attempt encountered an unexpected exception"
                     }
+                    Log.w(TAG, "$reason; falling back to TEE", e)
+                    if (keyStore.containsAlias(ATTESTATION_ALIAS)) keyStore.deleteEntry(ATTESTATION_ALIAS)
+                    generateEcKeyPair(actualChallenge, isStrongBox = false)
                 }
             } else {
-                generateEcKeyPair(challenge, isStrongBox = false)
+                generateEcKeyPair(actualChallenge, isStrongBox = false)
             }
 
             val certChain = keyStore.getCertificateChain(ATTESTATION_ALIAS)
@@ -120,7 +131,7 @@ class KeyAttestationVerifier(private val context: Context) {
                 return AttestationResult(
                     isHardwareAttested = false,
                     securityLevel = HardwareSecurityLevel.SOFTWARE,
-                    attestationChallenge = String(challenge),
+                    attestationChallenge = challengeDisplay,
                     certificateCount = 0,
                     issuerName = "Unknown",
                     verifiedBootState = "UNKNOWN",
@@ -139,7 +150,7 @@ class KeyAttestationVerifier(private val context: Context) {
                         current.verify(parent.publicKey)
                         current.checkValidity()
                     } catch (certEx: Exception) {
-                        Log.w(TAG, "Certificate verification failed at chain index $i", certEx)
+                        Log.w(TAG, "Certificate verification failed at chain index $i: ${certEx.message}")
                         isChainValid = false
                         break
                     }
@@ -158,18 +169,9 @@ class KeyAttestationVerifier(private val context: Context) {
                     val rootFingerprint = MessageDigest.getInstance("SHA-256").digest(rootCert.encoded)
                         .joinToString("") { "%02X".format(it) }
 
-                    if (rootFingerprint.equals(GOOGLE_ROOT_SHA256, ignoreCase = true)) {
-                        isRootVerified = true
-                    } else {
-                        for (pattern in TRUSTED_ROOT_PATTERNS) {
-                            if (rootSubject.contains(pattern, ignoreCase = true)) {
-                                isRootVerified = true
-                                break
-                            }
-                        }
-                    }
+                    isRootVerified = rootFingerprint in TRUSTED_ROOT_FINGERPRINTS
                 } catch (e: Exception) {
-                    Log.w(TAG, "Root certificate verification failed", e)
+                    Log.w(TAG, "Root certificate verification failed: ${e.message}")
                 }
             }
 
@@ -177,19 +179,24 @@ class KeyAttestationVerifier(private val context: Context) {
             val extensionBytes = leafCert?.getExtensionValue(ATTESTATION_OID)
             val parsedExtension = extensionBytes?.let { parseAttestationExtension(it) }
 
-            val factory = KeyFactory.getInstance(KeyProperties.KEY_ALGORITHM_EC, ANDROID_KEYSTORE)
-            val keyInfo = factory.getKeySpec(keyPair.private, KeyInfo::class.java)
-            val hardwareSecurityLevel = when (keyInfo.securityLevel) {
-                KeyProperties.SECURITY_LEVEL_STRONGBOX -> HardwareSecurityLevel.STRONGBOX
-                KeyProperties.SECURITY_LEVEL_TRUSTED_ENVIRONMENT -> HardwareSecurityLevel.TEE
-                else -> HardwareSecurityLevel.SOFTWARE
+            val hardwareSecurityLevel = try {
+                val factory = KeyFactory.getInstance(KeyProperties.KEY_ALGORITHM_EC, ANDROID_KEYSTORE)
+                val keyInfo = factory.getKeySpec(keyPair.private, KeyInfo::class.java)
+                when (keyInfo.securityLevel) {
+                    KeyProperties.SECURITY_LEVEL_STRONGBOX -> HardwareSecurityLevel.STRONGBOX
+                    KeyProperties.SECURITY_LEVEL_TRUSTED_ENVIRONMENT -> HardwareSecurityLevel.TEE
+                    else -> HardwareSecurityLevel.SOFTWARE
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed retrieving KeyInfo for attestation key: ${e.message}")
+                if (hasStrongBox) HardwareSecurityLevel.STRONGBOX else HardwareSecurityLevel.TEE
             }
 
-            val challengeMatches = parsedExtension?.attestationChallenge?.contentEquals(challenge) == true
+            val challengeMatches = parsedExtension?.attestationChallenge?.contentEquals(actualChallenge) == true
             val result = AttestationResult(
-                isHardwareAttested = isChainValid && parsedExtension != null && challengeMatches && parsedExtension.attestationSecurityLevel != HardwareSecurityLevel.SOFTWARE,
+                isHardwareAttested = isChainValid && isRootVerified && parsedExtension != null && challengeMatches && parsedExtension.attestationSecurityLevel != HardwareSecurityLevel.SOFTWARE,
                 securityLevel = hardwareSecurityLevel,
-                attestationChallenge = String(challenge),
+                attestationChallenge = challengeDisplay,
                 certificateCount = certChain.size,
                 issuerName = leafCert?.issuerX500Principal?.name ?: "Unknown",
                 verifiedBootState = parsedExtension?.verifiedBootState ?: "UNVERIFIED",
@@ -202,15 +209,17 @@ class KeyAttestationVerifier(private val context: Context) {
                 rootCaSubject = rootSubject
             )
 
-            cachedResult = result
-            cacheTimestamp = now
+            if (challenge == null) {
+                cachedResult = result
+                cacheTimestamp = now
+            }
             result
         } catch (e: Exception) {
             Log.e(TAG, "Hardware attestation failed: ${e.message}", e)
             AttestationResult(
                 isHardwareAttested = false,
                 securityLevel = HardwareSecurityLevel.SOFTWARE,
-                attestationChallenge = String(challenge),
+                attestationChallenge = challengeDisplay,
                 certificateCount = 0,
                 issuerName = "Unverified",
                 verifiedBootState = "UNVERIFIED",
@@ -310,8 +319,8 @@ class KeyAttestationVerifier(private val context: Context) {
             parser.skipElement()
 
             // 8. teeEnforced / hardwareEnforced (AuthorizationList SEQUENCE)
-            var verifiedBootState = "VERIFIED"
-            var deviceLocked = true
+            var verifiedBootState = "UNKNOWN"
+            var deviceLocked = false
             var osVersion = 0
             var osPatchLevel = 0
 
@@ -349,7 +358,7 @@ class KeyAttestationVerifier(private val context: Context) {
                                             1 -> "SELF_SIGNED"
                                             2 -> "UNVERIFIED"
                                             else -> "FAILED"
-                                        }
+                                         }
                                     }
                                 }
                             }

@@ -18,7 +18,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class NativeAppPredictionProvider @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) {
     companion object {
         private const val TAG = "NativeAppPredictionProvider"

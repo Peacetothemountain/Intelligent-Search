@@ -43,6 +43,7 @@ class SystemToggleManager @Inject constructor(
 
     companion object {
         private const val TAG = "SystemToggleManager"
+        private const val KEY_APP_NIGHT_MODE_RESET = "app_night_mode_override_cleared_v1"
     }
 
     private val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager
@@ -87,6 +88,14 @@ class SystemToggleManager @Inject constructor(
     // 6. Live Location State
     private val _isLocationEnabled = MutableStateFlow(checkLocationEnabled())
     val isLocationEnabled: StateFlow<Boolean> = _isLocationEnabled.asStateFlow()
+
+    // 7. Live Battery Saver State
+    private val _isBatterySaverEnabled = MutableStateFlow(isBatterySaverEnabled())
+    val isBatterySaverEnabled: StateFlow<Boolean> = _isBatterySaverEnabled.asStateFlow()
+
+    // 8. Live Airplane Mode State
+    private val _isAirplaneModeEnabled = MutableStateFlow(isAirplaneModeEnabled())
+    val isAirplaneModeEnabled: StateFlow<Boolean> = _isAirplaneModeEnabled.asStateFlow()
 
     private var torchCallback: CameraManager.TorchCallback? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
@@ -135,7 +144,7 @@ class SystemToggleManager @Inject constructor(
                         }
                     }
                 }
-                cm.registerTorchCallback(callback, null)
+                cm.registerTorchCallback(callback, android.os.Handler(android.os.Looper.getMainLooper()))
                 torchCallback = callback
             }
         } catch (e: Exception) {
@@ -186,6 +195,7 @@ class SystemToggleManager @Inject constructor(
                 addAction(LocationManager.MODE_CHANGED_ACTION)
             }
             addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
+            addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED)
         }
 
         val receiver = object : BroadcastReceiver() {
@@ -202,6 +212,12 @@ class SystemToggleManager @Inject constructor(
                     }
                     LocationManager.PROVIDERS_CHANGED_ACTION, LocationManager.MODE_CHANGED_ACTION -> {
                         _isLocationEnabled.value = checkLocationEnabled()
+                    }
+                    PowerManager.ACTION_POWER_SAVE_MODE_CHANGED -> {
+                        _isBatterySaverEnabled.value = isBatterySaverEnabled()
+                    }
+                    Intent.ACTION_AIRPLANE_MODE_CHANGED -> {
+                        _isAirplaneModeEnabled.value = isAirplaneModeEnabled()
                     }
                 }
             }
@@ -255,7 +271,13 @@ class SystemToggleManager @Inject constructor(
 
     fun toggleTorch(enabled: Boolean, strengthLevel: Int? = null) {
         try {
-            val camId = primaryCameraId ?: return
+            if (primaryCameraId == null) {
+                setupCameraTorch()
+            }
+            val camId = primaryCameraId ?: run {
+                safeToast("Flashlight unavailable", Toast.LENGTH_SHORT)
+                return
+            }
             if (enabled && strengthLevel != null && strengthLevel > 1 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && maxTorchStrengthLevel > 1) {
                 val clamped = strengthLevel.coerceIn(1, maxTorchStrengthLevel)
                 cameraManager?.turnOnTorchWithStrengthLevel(camId, clamped)
@@ -263,6 +285,9 @@ class SystemToggleManager @Inject constructor(
                 cameraManager?.setTorchMode(camId, enabled)
             }
             _isFlashlightOn.value = enabled
+        } catch (se: SecurityException) {
+            Log.w(TAG, "Camera flashlight access restricted", se)
+            safeToast("Flashlight permission restricted", Toast.LENGTH_SHORT)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to toggle torch", e)
             safeToast("Flashlight unavailable", Toast.LENGTH_SHORT)
@@ -289,7 +314,17 @@ class SystemToggleManager @Inject constructor(
     // 2. BLUETOOTH
     // ==========================================
     private fun checkBluetoothEnabled(): Boolean = try {
-        bluetoothAdapter?.isEnabled == true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                false
+            } else {
+                bluetoothAdapter?.isEnabled == true
+            }
+        } else {
+            bluetoothAdapter?.isEnabled == true
+        }
+    } catch (_: SecurityException) {
+        false
     } catch (_: Exception) {
         false
     }
@@ -304,8 +339,17 @@ class SystemToggleManager @Inject constructor(
                 openBluetoothSettings()
                 return
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    openBluetoothSettings()
+                    return
+                }
+            }
             @Suppress("DEPRECATION")
             if (enabled) bluetoothAdapter?.enable() else bluetoothAdapter?.disable()
+        } catch (se: SecurityException) {
+            Log.w(TAG, "Direct bluetooth toggle restricted; opening settings", se)
+            openBluetoothSettings()
         } catch (e: Exception) {
             Log.w(TAG, "Direct bluetooth toggle unsupported; opening settings", e)
             openBluetoothSettings()
@@ -323,17 +367,19 @@ class SystemToggleManager @Inject constructor(
     // ==========================================
     // 3. WI-FI
     // ==========================================
-    fun isWifiEnabled(): Boolean = try { wifiManager?.isWifiEnabled == true } catch (_: Exception) { false }
+    fun isWifiEnabled(): Boolean = try { wifiManager?.isWifiEnabled == true } catch (_: SecurityException) { false } catch (_: Exception) { false }
 
     fun toggleWifiDirect(enabled: Boolean) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val intent = Intent(Settings.Panel.ACTION_WIFI).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                context.startActivity(intent)
-            } else {
-                openWifiSettings()
+                if (intent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(intent)
+                    return
+                }
             }
-        } catch (e: Exception) {
+            openWifiSettings()
+        } catch (_: Exception) {
             openWifiSettings()
         }
     }
@@ -443,6 +489,8 @@ class SystemToggleManager @Inject constructor(
             } else {
                 openAutoRotateSettings()
             }
+        } catch (_: SecurityException) {
+            openAutoRotateSettings()
         } catch (_: Exception) {
             openAutoRotateSettings()
         }
@@ -454,15 +502,29 @@ class SystemToggleManager @Inject constructor(
 
     fun openAutoRotateSettings() {
         if (!Settings.System.canWrite(context)) {
-            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
-                data = Uri.parse("package:${context.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            safeToast("Grant write settings permission to toggle Auto-Rotate directly", Toast.LENGTH_LONG)
-        } else {
-            openSettingsIntent(Settings.ACTION_DISPLAY_SETTINGS)
+            try {
+                val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (intent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(intent)
+                    safeToast("Grant write settings permission to toggle Auto-Rotate directly", Toast.LENGTH_LONG)
+                    return
+                }
+            } catch (_: Exception) {}
+            try {
+                val fallbackIntent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (fallbackIntent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(fallbackIntent)
+                    safeToast("Grant write settings permission to toggle Auto-Rotate directly", Toast.LENGTH_LONG)
+                    return
+                }
+            } catch (_: Exception) {}
         }
+        openSettingsIntent(Settings.ACTION_DISPLAY_SETTINGS)
     }
 
     // ==========================================
@@ -490,6 +552,9 @@ class SystemToggleManager @Inject constructor(
             } else {
                 openDndSettings()
             }
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Notification policy access restricted by system", e)
+            openDndSettings()
         } catch (e: Exception) {
             openDndSettings()
         }
@@ -501,11 +566,17 @@ class SystemToggleManager @Inject constructor(
 
     fun openDndSettings() {
         if (notificationManager?.isNotificationPolicyAccessGranted != true) {
-            val intent = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            safeToast("Grant Do Not Disturb access", Toast.LENGTH_LONG)
+            try {
+                val intent = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (intent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(intent)
+                    safeToast("Grant Do Not Disturb access", Toast.LENGTH_LONG)
+                    return
+                }
+            } catch (_: Exception) {}
+            openSettingsIntent(Settings.ACTION_SOUND_SETTINGS)
         } else {
             openSettingsIntent(Settings.ACTION_SOUND_SETTINGS)
         }
@@ -569,17 +640,27 @@ class SystemToggleManager @Inject constructor(
         } catch (_: Exception) { false }
     }
 
-    fun toggleDarkMode(enabled: Boolean) {
+    /**
+     * Third-party apps cannot change the system-wide dark theme (that needs MODIFY_DAY_NIGHT_MODE), so
+     * the toggle opens the system page. UiModeManager.setApplicationNightMode only re-themes this app
+     * and persists, which left the overlay stuck in one theme while reporting the system as switched.
+     */
+    fun toggleDarkMode(@Suppress("UNUSED_PARAMETER") enabled: Boolean) {
+        openDarkModeSettings()
+    }
+
+    /**
+     * Clears a per-app night-mode override persisted by older builds' dark-theme toggle so the app
+     * follows the system theme again. Runs once.
+     */
+    fun clearLegacyAppNightModeOverride() {
+        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_APP_NIGHT_MODE_RESET, false)) return
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && uiModeManager != null) {
-                uiModeManager.setApplicationNightMode(
-                    if (enabled) UiModeManager.MODE_NIGHT_YES else UiModeManager.MODE_NIGHT_NO
-                )
-            } else {
-                openDarkModeSettings()
-            }
-        } catch (_: Exception) {
-            openDarkModeSettings()
+            uiModeManager?.setApplicationNightMode(UiModeManager.MODE_NIGHT_AUTO)
+            prefs.edit().putBoolean(KEY_APP_NIGHT_MODE_RESET, true).apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not clear per-app night mode override", e)
         }
     }
 
@@ -588,6 +669,15 @@ class SystemToggleManager @Inject constructor(
     }
 
     fun openDarkModeSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                val darkIntent = Intent("android.settings.DARK_THEME_SETTINGS").apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                if (darkIntent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(darkIntent)
+                    return
+                }
+            } catch (_: Exception) {}
+        }
         openSettingsIntent(Settings.ACTION_DISPLAY_SETTINGS)
     }
 
@@ -621,15 +711,22 @@ class SystemToggleManager @Inject constructor(
     }
 
     fun toggleSoundMode(makeSilent: Boolean) {
+        val newMode = if (makeSilent) AudioManager.RINGER_MODE_VIBRATE else AudioManager.RINGER_MODE_NORMAL
         try {
             if (notificationManager?.isNotificationPolicyAccessGranted == true) {
-                val newMode = if (makeSilent) AudioManager.RINGER_MODE_VIBRATE else AudioManager.RINGER_MODE_NORMAL
                 audioManager?.ringerMode = newMode
                 _ringerMode.value = newMode
             } else {
-                openSoundSettings()
+                try {
+                    audioManager?.ringerMode = newMode
+                    _ringerMode.value = newMode
+                } catch (se: SecurityException) {
+                    Log.w(TAG, "Changing ringer mode restricted without DND policy access", se)
+                    openSoundSettings()
+                }
             }
         } catch (e: Exception) {
+            Log.w(TAG, "Failed to toggle sound mode", e)
             openSoundSettings()
         }
     }
@@ -646,8 +743,10 @@ class SystemToggleManager @Inject constructor(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
                 val panelIntent = Intent(Settings.Panel.ACTION_VOLUME).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                context.startActivity(panelIntent)
-                return
+                if (panelIntent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(panelIntent)
+                    return
+                }
             } catch (_: Exception) {}
         }
         openSettingsIntent(Settings.ACTION_SOUND_SETTINGS)
@@ -677,10 +776,16 @@ class SystemToggleManager @Inject constructor(
     private fun openSettingsIntent(action: String) {
         try {
             val intent = Intent(action).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-            context.startActivity(intent)
-        } catch (_: Exception) {
+            if (intent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(intent)
+                return
+            }
+        } catch (_: Exception) {}
+        try {
             val fallback = Intent(Settings.ACTION_SETTINGS).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-            context.startActivity(fallback)
-        }
+            if (fallback.resolveActivity(context.packageManager) != null) {
+                context.startActivity(fallback)
+            }
+        } catch (_: Exception) {}
     }
 }

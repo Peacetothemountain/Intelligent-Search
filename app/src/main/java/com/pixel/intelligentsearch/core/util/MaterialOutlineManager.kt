@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.BitmapDrawable
@@ -173,7 +174,7 @@ object MaterialOutlineManager {
             }
 
             // Coverage
-            pkg.contains("coverage") || label.contains("coverage") -> {
+            pkg.endsWith(".coverage") || label == "coverage" -> {
                 // Central antenna mast
                 canvas.drawLine(54f, 36f, 54f, 84f, strokePaint)
                 canvas.drawCircle(54f, 32f, 4f, fillPaint)
@@ -186,7 +187,8 @@ object MaterialOutlineManager {
             }
 
             // Flow / Flow Free
-            pkg.contains("flow") || pkg.contains("bigduckgames") || label.contains("flow") -> {
+            // Exact names only: "flow" alone also matched Stack Overflow, Microsoft Flow, workflow apps...
+            pkg.contains("bigduckgames") || label == "flow" || label == "flow free" -> {
                 // Connected terminal nodes and curved fluid pipe
                 val pipePath = PathParser.createPathFromPathData(
                     "M 32 36 L 64 36 C 74 36 76 46 76 56 L 76 72"
@@ -205,6 +207,8 @@ object MaterialOutlineManager {
             }
         }
 
+        // No precision outline matched: release the unused bitmap immediately
+        bitmap.recycle()
         return null
     }
 
@@ -224,13 +228,17 @@ object MaterialOutlineManager {
             val srcSize = 108
             val srcBitmap = Bitmap.createBitmap(srcSize, srcSize, Bitmap.Config.ARGB_8888)
             val srcCanvas = Canvas(srcBitmap)
+            // Draw without permanently altering the caller's drawable bounds
+            val savedBounds = Rect(sourceDrawable.bounds)
             sourceDrawable.setBounds(0, 0, srcSize, srcSize)
             sourceDrawable.draw(srcCanvas)
+            sourceDrawable.setBounds(savedBounds)
 
             val width = srcBitmap.width
             val height = srcBitmap.height
             val pixels = IntArray(width * height)
             srcBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+            srcBitmap.recycle()
 
             // 1. Detect if image already has transparent outer boundary
             var transparentBorderCount = 0
@@ -335,6 +343,7 @@ object MaterialOutlineManager {
                 postScale(0.72f, 0.72f, srcSize / 2f, srcSize / 2f)
             }
             finalCanvas.drawBitmap(outBitmap, matrix, Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+            outBitmap.recycle()
 
             finalBitmap
         } catch (e: Exception) {

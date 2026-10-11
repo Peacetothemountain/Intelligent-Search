@@ -48,11 +48,22 @@ object MathematicalExpressionEngine {
     private val REGEX_MULTIPLICATION_X = Regex("(?<=[0-9)])\\s*[xX]\\s*(?=[0-9(])")
     private val REGEX_ALLOWED_CHARS = Regex("^[0-9a-zA-Z.+\\-*/%^!()_,]+$")
     private val REGEX_BASE_CONVERSION = Regex("^([0-9a-fA-FxXbBoO]+)\\s+(?:to|in)\\s+(hex|dec|bin|oct)$", RegexOption.IGNORE_CASE)
-    private val REGEX_BITWISE = Regex("^([0-9a-fA-FxXbB]+)\\s+(AND|OR|XOR|SHL|SHR|<<|>>|&|\\|)\\s+([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
-    private val REGEX_UNIT_CONVERSION = Regex("^([0-9.]+)\\s*([a-zA-Z/_]+)\\s*(?:to|in)\\s*([a-zA-Z/_]+)$", RegexOption.IGNORE_CASE)
+    private val REGEX_BITWISE = Regex("^([0-9a-fA-FxXbB]+)\\s+(AND|OR|XOR|SHL|SHR|USHR|<<|>>|>>>|&|\\||\\^)\\s+([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
+    private val REGEX_BITWISE_NOT = Regex("^(?:NOT|~)\\s*([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
+    private val REGEX_UNIT_CONVERSION = Regex("^([-+]?[0-9.]+(?:[eE][-+]?[0-9]+)?)\\s*([a-zA-Z/_°]+)\\s*(?:to|in)\\s*([a-zA-Z/_°]+)$", RegexOption.IGNORE_CASE)
+    private val REGEX_SCIENTIFIC_NUMBER = Regex("^[+-]?[0-9]+(?:\\.[0-9]+)?[eE][+-]?[0-9]+$")
+    private val REGEX_FUNC_NO_PAREN = Regex("^(sqrt|cbrt|sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|ln|log|log10|log2|abs|round|floor|ceil|rad|deg)\\s+([+-]?[0-9.]+(?:[eE][-+]?[0-9]+)?)$", RegexOption.IGNORE_CASE)
 
     private fun evaluateScientific(input: String): MathEvaluationResult.Computation? {
-        var expr = input
+        val trimmed = input.trim()
+        val funcMatch = REGEX_FUNC_NO_PAREN.matchEntire(trimmed)
+        val normalizedInput = if (funcMatch != null) {
+            "${funcMatch.groupValues[1]}(${funcMatch.groupValues[2]})"
+        } else {
+            trimmed
+        }
+
+        var expr = normalizedInput
             .replace("×", "*")
             .replace("÷", "/")
             .replace(REGEX_MULTIPLICATION_X, "*")
@@ -80,11 +91,15 @@ object MathematicalExpressionEngine {
     private fun isLikelyMathExpression(expr: String): Boolean {
         if (expr.isEmpty()) return false
         val lower = expr.lowercase(Locale.ROOT)
+        if (REGEX_SCIENTIFIC_NUMBER.matches(lower)) return true
+
         // Must contain at least one operator or recognized scientific function
         val hasOperatorOrFunc = lower.any { it in "+-*/%^!()" } ||
                 lower.contains("sin") || lower.contains("cos") || lower.contains("tan") ||
                 lower.contains("log") || lower.contains("ln") || lower.contains("sqrt") ||
-                lower.contains("abs") || lower.contains("pi") || lower.contains("deg") || lower.contains("rad")
+                lower.contains("cbrt") || lower.contains("abs") || lower.contains("pi") ||
+                lower.contains("deg") || lower.contains("rad") || lower.contains("round") ||
+                lower.contains("floor") || lower.contains("ceil")
 
         if (!hasOperatorOrFunc) return false
 
@@ -142,10 +157,14 @@ object MathematicalExpressionEngine {
                     eat('*'.code) -> x *= parseFactor()
                     eat('/'.code) -> {
                         val divisor = parseFactor()
-                        if (divisor == 0.0) throw ArithmeticException("Division by zero")
+                        if (divisor == 0.0 || divisor == -0.0) throw ArithmeticException("Division by zero")
                         x /= divisor
                     }
-                    eat('%'.code) -> x %= parseFactor()
+                    eat('%'.code) -> {
+                        val mod = parseFactor()
+                        if (mod == 0.0 || mod == -0.0) throw ArithmeticException("Modulo by zero")
+                        x %= mod
+                    }
                     else -> return x
                 }
             }
@@ -170,16 +189,24 @@ object MathematicalExpressionEngine {
 
                 if (eat('('.code)) {
                     x = parseExpression()
-                    eat(')'.code)
+                    if (!eat(')'.code)) throw IllegalArgumentException("Missing closing parenthesis")
                 } else if (ch in '0'.code..'9'.code || ch == '.'.code) {
                     while (ch in '0'.code..'9'.code || ch == '.'.code) nextChar()
-                    // Check for scientific notation (e.g. 1e6)
+                    // Check for scientific notation (e.g. 1e6, 2.5E-3)
                     if (ch == 'e'.code || ch == 'E'.code) {
+                        val mark = pos
                         nextChar()
                         if (ch == '+'.code || ch == '-'.code) nextChar()
+                        val expDigitsStart = pos
                         while (ch in '0'.code..'9'.code) nextChar()
+                        if (pos == expDigitsStart) {
+                            // Incomplete exponent part (e.g. "1e"), backtrack to before 'e'
+                            pos = mark - 1
+                            nextChar()
+                        }
                     }
-                    x = str.substring(startPos, pos).toDouble()
+                    val numStr = str.substring(startPos, pos)
+                    x = numStr.toDoubleOrNull() ?: throw IllegalArgumentException("Invalid number: $numStr")
                 } else if (ch in 'a'.code..'z'.code || ch in 'A'.code..'Z'.code) {
                     while (ch in 'a'.code..'z'.code || ch in 'A'.code..'Z'.code || ch in '0'.code..'9'.code) nextChar()
                     val func = str.substring(startPos, pos).lowercase(Locale.ROOT)
@@ -193,7 +220,7 @@ object MathematicalExpressionEngine {
                             // Function call with argument in parentheses: func(arg)
                             if (!eat('('.code)) throw IllegalArgumentException("Expected ( after function $func")
                             val arg = parseExpression()
-                            eat(')'.code)
+                            if (!eat(')'.code)) throw IllegalArgumentException("Missing closing parenthesis after $func argument")
 
                             when (func) {
                                 "sqrt" -> sqrt(arg)
@@ -264,7 +291,7 @@ object MathematicalExpressionEngine {
             "hex" -> formattedHex
             "bin" -> formattedBin
             "oct" -> "0o" + java.lang.Long.toOctalString(parsedVal)
-            "dec" -> parsedVal.toString()
+            "dec" -> java.lang.Long.toUnsignedString(parsedVal)
             else -> return null
         }
 
@@ -277,6 +304,20 @@ object MathematicalExpressionEngine {
     }
 
     private fun evaluateBitwise(query: String): MathEvaluationResult.Bitwise? {
+        val notMatch = REGEX_BITWISE_NOT.find(query.trim())
+        if (notMatch != null) {
+            val operand = parseAnyRadix(notMatch.groupValues[1]) ?: return null
+            val resultVal = operand.inv()
+            val formattedHex = "0x" + java.lang.Long.toHexString(resultVal).uppercase()
+            val formattedBin = "0b" + java.lang.Long.toBinaryString(resultVal)
+            return MathEvaluationResult.Bitwise(
+                expression = "$query = $resultVal",
+                decimalValue = resultVal,
+                hexValue = formattedHex,
+                binaryValue = formattedBin
+            )
+        }
+
         val match = REGEX_BITWISE.find(query.trim()) ?: return null
 
         val left = parseAnyRadix(match.groupValues[1]) ?: return null
@@ -289,11 +330,13 @@ object MathematicalExpressionEngine {
             "XOR", "^" -> left xor right
             "SHL", "<<" -> left shl right.toInt()
             "SHR", ">>" -> left shr right.toInt()
+            "USHR", ">>>" -> left ushr right.toInt()
             else -> return null
         }
 
+        val displayVal = if (resultVal >= 0) "$resultVal" else "${java.lang.Long.toUnsignedString(resultVal)} (signed: $resultVal)"
         return MathEvaluationResult.Bitwise(
-            expression = "$query = $resultVal",
+            expression = "$query = $displayVal",
             decimalValue = resultVal,
             hexValue = "0x" + java.lang.Long.toHexString(resultVal).uppercase(),
             binaryValue = "0b" + java.lang.Long.toBinaryString(resultVal)
@@ -304,13 +347,17 @@ object MathematicalExpressionEngine {
         val trimmed = str.trim()
         return try {
             when {
-                trimmed.startsWith("0x", ignoreCase = true) -> trimmed.substring(2).toLong(16)
-                trimmed.startsWith("0b", ignoreCase = true) -> trimmed.substring(2).toLong(2)
-                trimmed.startsWith("0o", ignoreCase = true) -> trimmed.substring(2).toLong(8)
-                else -> trimmed.toLong(10)
+                trimmed.startsWith("0x", ignoreCase = true) -> java.lang.Long.parseUnsignedLong(trimmed.substring(2), 16)
+                trimmed.startsWith("0b", ignoreCase = true) -> java.lang.Long.parseUnsignedLong(trimmed.substring(2), 2)
+                trimmed.startsWith("0o", ignoreCase = true) -> java.lang.Long.parseUnsignedLong(trimmed.substring(2), 8)
+                else -> java.lang.Long.parseUnsignedLong(trimmed, 10)
             }
         } catch (e: Exception) {
-            null
+            try {
+                trimmed.toLong(10)
+            } catch (_: Exception) {
+                null
+            }
         }
     }
 
@@ -415,8 +462,10 @@ object MathematicalExpressionEngine {
         val match = REGEX_UNIT_CONVERSION.find(normalizedQuery) ?: return null
 
         val value = match.groupValues[1].toDoubleOrNull() ?: return null
-        val fromUnit = match.groupValues[2].lowercase(Locale.ROOT)
-        val toUnit = match.groupValues[3].lowercase(Locale.ROOT)
+        val fromRaw = match.groupValues[2]
+        val toRaw = match.groupValues[3]
+        val fromUnit = if (fromRaw == "B") "byte" else fromRaw.lowercase(Locale.ROOT).replace("°", "")
+        val toUnit = if (toRaw == "B") "byte" else toRaw.lowercase(Locale.ROOT).replace("°", "")
 
         // 1. Temperature Check
         if (isTemperature(fromUnit) && isTemperature(toUnit)) {
@@ -455,7 +504,8 @@ object MathematicalExpressionEngine {
                 fromUnit = fromUnit.uppercase(Locale.ROOT),
                 toValue = result,
                 toUnit = toUnit.uppercase(Locale.ROOT),
-                formatted = "${formatNumber(value)} ${fromUnit.uppercase(Locale.ROOT)} = ${formatNumber(result)} ${toUnit.uppercase(Locale.ROOT)}"
+                // Offline reference rates, so the result is an estimate rather than a live quote.
+                formatted = "${formatNumber(value)} ${fromUnit.uppercase(Locale.ROOT)} ≈ ${formatNumber(result)} ${toUnit.uppercase(Locale.ROOT)}"
             )
         }
 
@@ -478,14 +528,16 @@ object MathematicalExpressionEngine {
     }
 
     private fun formatNumber(value: Double): String {
-        if (value == 0.0) return "0"
+        if (value == 0.0 || value == -0.0) return "0"
         val absVal = abs(value)
         return if (value % 1.0 == 0.0 && absVal < 1e15) {
-            value.toLong().toString()
-        } else if (absVal in 1e-15..1e-4 || absVal >= 1e15) {
+            val longVal = value.toLong()
+            if (longVal == 0L) "0" else longVal.toString()
+        } else if (absVal < 1e-4 || absVal >= 1e15) {
             String.format(Locale.ROOT, "%.4e", value)
         } else {
-            String.format(Locale.ROOT, "%.4f", value).trimEnd('0').trimEnd('.')
+            val formatted = String.format(Locale.ROOT, "%.4f", value).trimEnd('0').trimEnd('.')
+            if (formatted.isEmpty() || formatted == "-" || formatted == "-0") "0" else formatted
         }
     }
 }

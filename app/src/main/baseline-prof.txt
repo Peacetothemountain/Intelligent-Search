@@ -113,10 +113,6 @@ HSPLcom/pixel/intelligentsearch/core/data/SettingsManager;->getSettingsFlow()Lko
 Lcom/pixel/intelligentsearch/core/data/SettingsManager;
 Lcom/pixel/intelligentsearch/core/data/IntelligentSearchSettings;
 
-HSPLcom/pixel/intelligentsearch/core/data/AppSearchEngine;-><init>(Landroid/content/Context;)V
-HSPLcom/pixel/intelligentsearch/core/data/AppSearchEngine;->search(Ljava/lang/String;)Ljava/util/List;
-Lcom/pixel/intelligentsearch/core/data/AppSearchEngine;
-Lcom/pixel/intelligentsearch/core/data/IndexedSearchDocument;
 
 HSPLcom/pixel/intelligentsearch/core/data/HistoryDao;->getSearchHistoryFlow()Lkotlinx/coroutines/flow/Flow;
 Lcom/pixel/intelligentsearch/core/data/HistoryDao;
@@ -134,9 +130,6 @@ Lcom/pixel/intelligentsearch/core/theme/ShapeKt;
 
 HSPLcom/pixel/intelligentsearch/core/ui/expressive/ExpressiveMotionTokens;-><clinit>()V
 Lcom/pixel/intelligentsearch/core/ui/expressive/ExpressiveMotionTokens;
-Lcom/pixel/intelligentsearch/core/ui/expressive/ExpressiveCardKt;
-Lcom/pixel/intelligentsearch/core/ui/expressive/ExpressiveSegmentedTabKt;
-Lcom/pixel/intelligentsearch/core/ui/expressive/ExpressiveShapeMorphLoaderKt;
 
 # ----------------------------------------------------------------------
 # 8. Compose Runtime Core & Fast Skipping

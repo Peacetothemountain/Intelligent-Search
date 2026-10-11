@@ -1,7 +1,6 @@
-# PERMANENT SPECIFICATION: Gemini Search Plate AGSL Shader & Visuals
+# PERMANENT SPECIFICATION: Search Pill Design AGSL Shader & Visuals
 > **STATUS: LOCKED & FROZEN — NEVER MODIFY OR OVERWRITE**
 > **Git Tag:** `gemini-search-plate-golden-v1`
-> **Verified Device:** Google Pixel 11 Pro XL
 
 ---
 

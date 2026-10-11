@@ -313,7 +313,7 @@ class SearchViewModel @Inject constructor(
                 val events = eventsDeferred.await()
 
                 val clipboardActions = mutableListOf<DirectAction>()
-                if (settingsState.value.smartClipboardSuggestions) {
+                if (settingsState.value.smartClipboardSuggestions && !isAdvancedProtectionOn()) {
                     try {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                         if (clipboard?.hasPrimaryClip() == true && clipboard.primaryClipDescription != null) {
@@ -462,7 +462,24 @@ class SearchViewModel @Inject constructor(
                         directActions.add(DirectAction("Message ${intent.recipientName} ($app)", intent.body, "message", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.PhoneCall -> {
-                        directActions.add(DirectAction("Call ${intent.contactNameOrNumber}", intent.contactNameOrNumber, "phone", intent.intent))
+                        var callIntent = intent.intent
+                        var displayName = intent.contactNameOrNumber
+                        var displaySubtitle = intent.resolvedPhoneNumber ?: intent.contactNameOrNumber
+
+                        if (intent.resolvedPhoneNumber == null && !intent.contactNameOrNumber.all { it.isDigit() || it in "+- ()" }) {
+                            try {
+                                val contacts = com.pixel.intelligentsearch.core.data.SystemDataProvider.getContacts(context, intent.contactNameOrNumber)
+                                val matched = contacts.firstOrNull { it.phoneNumber.isNotBlank() }
+                                if (matched != null) {
+                                    displayName = matched.name
+                                    displaySubtitle = matched.phoneNumber
+                                    val clean = matched.phoneNumber.filter { it.isDigit() || it == '+' }
+                                    callIntent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$clean"))
+                                }
+                            } catch (_: Throwable) {}
+                        }
+
+                        directActions.add(DirectAction("Call $displayName", displaySubtitle, "phone", callIntent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Navigation -> {
                         directActions.add(DirectAction("Navigate to ${intent.destination}", intent.destination, "navigation", intent.intent))
@@ -515,7 +532,7 @@ class SearchViewModel @Inject constructor(
                 unifiedResults.shortcuts.take(settings.shortcutResultsCount)
             } else emptyList()
 
-            val suggestionsEnabled = customPrefs.getBoolean("search.web.suggestions", true)
+            val suggestionsEnabled = customPrefs.getBoolean("search.web.suggestions", true) && !isAdvancedProtectionOn()
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
                 WebSearchProvider.getCachedSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(5))
@@ -577,6 +594,9 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    private fun isAdvancedProtectionOn(): Boolean =
+        com.pixel.intelligentsearch.core.security.AdvancedProtectionMonitor.isEnabled(context)
+
     /**
      * Text for the calculator card. Unit conversions return null because they render in the dedicated
      * conversion card; showing them in both places duplicated the answer.
@@ -629,7 +649,7 @@ class SearchViewModel @Inject constructor(
         }
 
         val suggestionsEnabled = customPrefs.getBoolean("search.web.suggestions", true)
-        if (!suggestionsEnabled) return
+        if (!suggestionsEnabled || isAdvancedProtectionOn()) return
 
         val maxResults = settings.webResultsCount.coerceAtLeast(5)
 

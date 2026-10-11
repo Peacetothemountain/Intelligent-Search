@@ -79,7 +79,8 @@ object NaturalLanguageIntentParser {
 
         data class PhoneCall(
             val contactNameOrNumber: String,
-            val intent: Intent
+            val intent: Intent,
+            val resolvedPhoneNumber: String? = null
         ) : ParsedIntent()
 
         data class Navigation(
@@ -321,8 +322,10 @@ object NaturalLanguageIntentParser {
         val target = original.substring(matchedTrigger.length).trim()
         if (target.isEmpty()) return null
 
-        val uri = if (target.all { it.isDigit() || it in "+- ()" }) {
-            Uri.parse("tel:${target.filter { it.isDigit() || it == '+' }}")
+        val isNumeric = target.all { it.isDigit() || it in "+- ()" }
+        val cleanNumber = if (isNumeric) target.filter { it.isDigit() || it == '+' } else null
+        val uri = if (!cleanNumber.isNullOrEmpty()) {
+            Uri.parse("tel:$cleanNumber")
         } else {
             Uri.parse("tel:")
         }
@@ -330,7 +333,8 @@ object NaturalLanguageIntentParser {
         val intent = Intent(Intent.ACTION_DIAL, uri)
         return ParsedIntent.PhoneCall(
             contactNameOrNumber = target,
-            intent = intent
+            intent = intent,
+            resolvedPhoneNumber = cleanNumber
         )
     }
 

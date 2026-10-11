@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch
 
 import android.app.Application
+import android.os.StrictMode
 import android.util.Log
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.profile.MultiProfileManager
@@ -33,8 +34,32 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
 
+        setupStrictMode()
         setupCrashHandler()
         warmupServices()
+    }
+
+    private fun setupStrictMode() {
+        val isDebug = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        if (isDebug) {
+            val builder = StrictMode.VmPolicy.Builder()
+                .detectLeakedSqlLiteObjects()
+                .detectLeakedClosableObjects()
+                .detectActivityLeaks()
+
+            // Android 18 (API 36/37+): detect implicit URI permission grants where the platform
+            // previously granted implicit read/write rights via actions like ACTION_SEND / ACTION_IMAGE_CAPTURE.
+            try {
+                val detectMethod = StrictMode.VmPolicy.Builder::class.java.getMethod("detectImplicitUriPermissionGrant")
+                detectMethod.invoke(builder)
+            } catch (_: NoSuchMethodException) {
+                // Pre-Android 18 platform or method not available on current runtime
+            } catch (t: Throwable) {
+                Log.w("App", "StrictMode detectImplicitUriPermissionGrant activation warning: ${t.message}")
+            }
+
+            StrictMode.setVmPolicy(builder.penaltyLog().build())
+        }
     }
 
     private fun setupCrashHandler() {

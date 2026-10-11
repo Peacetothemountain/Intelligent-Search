@@ -11,19 +11,22 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowIsFloating">false</item>
         <item name="android:backgroundDimEnabled">false</item>
-        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowAnimationStyle">@style/Theme.IntelligentSearch.Animation.None</item>
+        <item name="android:windowElevation">0dp</item>
+        <item name="android:ambientShadowAlpha">0</item>
+        <item name="android:spotShadowAlpha">0</item>
         <item name="android:windowSplashScreenBackground">@android:color/transparent</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/transparent_splash</item>
     </style>
 
     <style name="Theme.IntelligentSearch.Overlay.Widget" parent="Theme.IntelligentSearch.Overlay">
-        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowElevation">0dp</item>
         <item name="android:windowSplashScreenBackground">@android:color/transparent</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/transparent_splash</item>
     </style>
 
     <style name="Theme.IntelligentSearch.Overlay.Launcher" parent="Theme.IntelligentSearch.Overlay">
-        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowElevation">0dp</item>
         <item name="android:windowSplashScreenBackground">@android:color/transparent</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/transparent_splash</item>
     </style>

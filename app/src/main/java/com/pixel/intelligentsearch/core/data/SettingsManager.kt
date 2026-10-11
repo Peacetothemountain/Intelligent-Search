@@ -140,7 +140,13 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val BACK_TO_SEARCH_OVERLAY = booleanPreferencesKey("settings_back_to_search_overlay")
         val DISABLED_WEB_SHORTCUTS = stringSetPreferencesKey("disabled_web_shortcuts")
         val VIBRATION = booleanPreferencesKey("vibration_enabled")
+        val DATASTORE_MIGRATED = booleanPreferencesKey("datastore_migration_v1_completed")
     }
+
+    private val defaultSettings = IntelligentSearchSettings()
+
+    @Volatile
+    private var cachedSettings: IntelligentSearchSettings = defaultSettings
 
     private fun getSafeContext(): Context {
         val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
@@ -159,80 +165,87 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
     val settingsFlow: Flow<IntelligentSearchSettings> = context.dataStore.data
         .catch { exception ->
             if (exception is IOException) {
-                Log.w(TAG, "DataStore read error, falling back to defaults/SharedPreferences: ${exception.message}")
+                Log.w(TAG, "DataStore read error, falling back to defaults: ${exception.message}")
                 emit(emptyPreferences())
             } else {
                 throw exception
             }
         }
         .map { preferences ->
-            val legacy = readLegacySettings()
-            IntelligentSearchSettings(
-                theme = preferences[THEME] ?: legacy.theme,
-                searchApps = preferences[SEARCH_APPS] ?: legacy.searchApps,
-                searchContacts = preferences[SEARCH_CONTACTS] ?: legacy.searchContacts,
-                searchFiles = preferences[SEARCH_FILES] ?: legacy.searchFiles,
-                searchWeb = preferences[SEARCH_WEB] ?: legacy.searchWeb,
-                searchCalculator = preferences[SEARCH_CALCULATOR] ?: legacy.searchCalculator,
-                searchCalendar = preferences[SEARCH_CALENDAR] ?: legacy.searchCalendar,
-                searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: legacy.searchShortcuts,
-                backgroundBlur = preferences[BACKGROUND_BLUR] ?: legacy.backgroundBlur,
-                showWallpaper = preferences[SHOW_WALLPAPER] ?: legacy.showWallpaper,
-                backgroundTransparency = preferences[BACKGROUND_TRANSPARENCY] ?: legacy.backgroundTransparency,
-                pillOpacity = preferences[PILL_OPACITY] ?: legacy.pillOpacity,
-                searchEngine = preferences[SEARCH_ENGINE] ?: legacy.searchEngine,
-                customSearchEngineUrl = preferences[CUSTOM_SEARCH_ENGINE_URL] ?: legacy.customSearchEngineUrl,
-                filesHiddenFiles = preferences[FILES_HIDDEN_FILES] ?: legacy.filesHiddenFiles,
-                filesThumbnails = preferences[FILES_THUMBNAILS] ?: legacy.filesThumbnails,
-                appAnimations = preferences[APP_ANIMATIONS] ?: legacy.appAnimations,
-                bottomSearch = preferences[BOTTOM_SEARCH] ?: legacy.bottomSearch,
-                bottomSearchResult = preferences[BOTTOM_SEARCH_RESULT] ?: legacy.bottomSearchResult,
-                tutorialCompleted = preferences[TUTORIAL_COMPLETED] ?: legacy.tutorialCompleted,
-                forceTutorial = preferences[FORCE_TUTORIAL] ?: legacy.forceTutorial,
-                tutorialStep = preferences[TUTORIAL_STEP] ?: legacy.tutorialStep,
-                gIconEnabled = preferences[G_ICON_ENABLED] ?: legacy.gIconEnabled,
-                widgetShowVoice = preferences[WIDGET_SHOW_VOICE] ?: legacy.widgetShowVoice,
-                widgetShowGemini = preferences[WIDGET_SHOW_GEMINI] ?: legacy.widgetShowGemini,
-                quickSearchYoutube = preferences[QUICK_SEARCH_YOUTUBE] ?: legacy.quickSearchYoutube,
-                quickSearchWikipedia = preferences[QUICK_SEARCH_WIKIPEDIA] ?: legacy.quickSearchWikipedia,
-                quickSearchPlayStore = preferences[QUICK_SEARCH_PLAY_STORE] ?: legacy.quickSearchPlayStore,
-                quickSearchMaps = preferences[QUICK_SEARCH_MAPS] ?: legacy.quickSearchMaps,
-                searchPills = preferences[SEARCH_PILLS] ?: legacy.searchPills,
-                widgetThemeStyle = preferences[WIDGET_THEME_STYLE] ?: legacy.widgetThemeStyle,
-                hiddenApps = preferences[HIDDEN_APPS] ?: legacy.hiddenApps,
-                appQuickLaunch = preferences[APP_QUICK_LAUNCH] ?: legacy.appQuickLaunch,
-                contactDirectCall = preferences[CONTACT_DIRECT_CALL] ?: legacy.contactDirectCall,
-                shortcutInline = preferences[SHORTCUT_INLINE] ?: legacy.shortcutInline,
-                appFuzzySearch = preferences[APP_FUZZY_SEARCH] ?: legacy.appFuzzySearch,
-                quickSearchHorizontal = preferences[QUICK_SEARCH_HORIZONTAL] ?: legacy.quickSearchHorizontal,
-                webResultsCount = preferences[WEB_RESULTS_COUNT] ?: legacy.webResultsCount,
-                contactResultsCount = preferences[CONTACT_RESULTS_COUNT] ?: legacy.contactResultsCount,
-                fileResultsCount = preferences[FILE_RESULTS_COUNT] ?: legacy.fileResultsCount,
-                shortcutResultsCount = preferences[SHORTCUT_RESULTS_COUNT] ?: legacy.shortcutResultsCount,
-                contextAwareQuickApps = preferences[CONTEXT_AWARE_QUICK_APPS] ?: legacy.contextAwareQuickApps,
-                smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: legacy.smartClipboardSuggestions,
-                activeIconPack = preferences[ACTIVE_ICON_PACK] ?: legacy.activeIconPack,
-                customIconPills = preferences[CUSTOM_ICON_PILLS] ?: legacy.customIconPills,
-                neverShowIconPackWarning = preferences[NEVER_SHOW_ICON_PACK_WARNING] ?: legacy.neverShowIconPackWarning,
-                searchPreviousSearches = preferences[SEARCH_PREVIOUS_SEARCHES] ?: legacy.searchPreviousSearches,
-                customBangsJson = preferences[CUSTOM_BANGS_JSON] ?: legacy.customBangsJson,
-                searchSectionsConfigJson = preferences[SEARCH_SECTIONS_CONFIG_JSON] ?: legacy.searchSectionsConfigJson,
-                adaptiveIconShape = preferences[ADAPTIVE_ICON_SHAPE] ?: legacy.adaptiveIconShape,
-                dynamicIconMasking = preferences[DYNAMIC_ICON_MASKING] ?: legacy.dynamicIconMasking,
-                diagnosticsOverlayEnabled = preferences[DIAGNOSTICS_OVERLAY_ENABLED] ?: legacy.diagnosticsOverlayEnabled,
-                searchOverlayEnabled = preferences[SEARCH_OVERLAY_ENABLED] ?: legacy.searchOverlayEnabled,
-                matrixAnimationEnabled = preferences[MATRIX_ANIMATION_ENABLED] ?: legacy.matrixAnimationEnabled,
-                backToSearchOverlay = preferences[BACK_TO_SEARCH_OVERLAY] ?: legacy.backToSearchOverlay,
-                disabledWebShortcuts = preferences[DISABLED_WEB_SHORTCUTS] ?: legacy.disabledWebShortcuts,
-                vibrationEnabled = preferences[VIBRATION] ?: legacy.vibrationEnabled
+            val s = IntelligentSearchSettings(
+                theme = preferences[THEME] ?: defaultSettings.theme,
+                searchApps = preferences[SEARCH_APPS] ?: defaultSettings.searchApps,
+                searchContacts = preferences[SEARCH_CONTACTS] ?: defaultSettings.searchContacts,
+                searchFiles = preferences[SEARCH_FILES] ?: defaultSettings.searchFiles,
+                searchWeb = preferences[SEARCH_WEB] ?: defaultSettings.searchWeb,
+                searchCalculator = preferences[SEARCH_CALCULATOR] ?: defaultSettings.searchCalculator,
+                searchCalendar = preferences[SEARCH_CALENDAR] ?: defaultSettings.searchCalendar,
+                searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: defaultSettings.searchShortcuts,
+                backgroundBlur = preferences[BACKGROUND_BLUR] ?: defaultSettings.backgroundBlur,
+                showWallpaper = preferences[SHOW_WALLPAPER] ?: defaultSettings.showWallpaper,
+                backgroundTransparency = preferences[BACKGROUND_TRANSPARENCY] ?: defaultSettings.backgroundTransparency,
+                pillOpacity = preferences[PILL_OPACITY] ?: defaultSettings.pillOpacity,
+                searchEngine = preferences[SEARCH_ENGINE] ?: defaultSettings.searchEngine,
+                customSearchEngineUrl = preferences[CUSTOM_SEARCH_ENGINE_URL] ?: defaultSettings.customSearchEngineUrl,
+                filesHiddenFiles = preferences[FILES_HIDDEN_FILES] ?: defaultSettings.filesHiddenFiles,
+                filesThumbnails = preferences[FILES_THUMBNAILS] ?: defaultSettings.filesThumbnails,
+                appAnimations = preferences[APP_ANIMATIONS] ?: defaultSettings.appAnimations,
+                bottomSearch = preferences[BOTTOM_SEARCH] ?: defaultSettings.bottomSearch,
+                bottomSearchResult = preferences[BOTTOM_SEARCH_RESULT] ?: defaultSettings.bottomSearchResult,
+                tutorialCompleted = preferences[TUTORIAL_COMPLETED] ?: defaultSettings.tutorialCompleted,
+                forceTutorial = preferences[FORCE_TUTORIAL] ?: defaultSettings.forceTutorial,
+                tutorialStep = preferences[TUTORIAL_STEP] ?: defaultSettings.tutorialStep,
+                gIconEnabled = preferences[G_ICON_ENABLED] ?: defaultSettings.gIconEnabled,
+                widgetShowVoice = preferences[WIDGET_SHOW_VOICE] ?: defaultSettings.widgetShowVoice,
+                widgetShowGemini = preferences[WIDGET_SHOW_GEMINI] ?: defaultSettings.widgetShowGemini,
+                quickSearchYoutube = preferences[QUICK_SEARCH_YOUTUBE] ?: defaultSettings.quickSearchYoutube,
+                quickSearchWikipedia = preferences[QUICK_SEARCH_WIKIPEDIA] ?: defaultSettings.quickSearchWikipedia,
+                quickSearchPlayStore = preferences[QUICK_SEARCH_PLAY_STORE] ?: defaultSettings.quickSearchPlayStore,
+                quickSearchMaps = preferences[QUICK_SEARCH_MAPS] ?: defaultSettings.quickSearchMaps,
+                searchPills = preferences[SEARCH_PILLS] ?: defaultSettings.searchPills,
+                widgetThemeStyle = preferences[WIDGET_THEME_STYLE] ?: defaultSettings.widgetThemeStyle,
+                hiddenApps = preferences[HIDDEN_APPS] ?: defaultSettings.hiddenApps,
+                appQuickLaunch = preferences[APP_QUICK_LAUNCH] ?: defaultSettings.appQuickLaunch,
+                contactDirectCall = preferences[CONTACT_DIRECT_CALL] ?: defaultSettings.contactDirectCall,
+                shortcutInline = preferences[SHORTCUT_INLINE] ?: defaultSettings.shortcutInline,
+                appFuzzySearch = preferences[APP_FUZZY_SEARCH] ?: defaultSettings.appFuzzySearch,
+                quickSearchHorizontal = preferences[QUICK_SEARCH_HORIZONTAL] ?: defaultSettings.quickSearchHorizontal,
+                webResultsCount = preferences[WEB_RESULTS_COUNT] ?: defaultSettings.webResultsCount,
+                contactResultsCount = preferences[CONTACT_RESULTS_COUNT] ?: defaultSettings.contactResultsCount,
+                fileResultsCount = preferences[FILE_RESULTS_COUNT] ?: defaultSettings.fileResultsCount,
+                shortcutResultsCount = preferences[SHORTCUT_RESULTS_COUNT] ?: defaultSettings.shortcutResultsCount,
+                contextAwareQuickApps = preferences[CONTEXT_AWARE_QUICK_APPS] ?: defaultSettings.contextAwareQuickApps,
+                smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: defaultSettings.smartClipboardSuggestions,
+                activeIconPack = preferences[ACTIVE_ICON_PACK] ?: defaultSettings.activeIconPack,
+                customIconPills = preferences[CUSTOM_ICON_PILLS] ?: defaultSettings.customIconPills,
+                neverShowIconPackWarning = preferences[NEVER_SHOW_ICON_PACK_WARNING] ?: defaultSettings.neverShowIconPackWarning,
+                searchPreviousSearches = preferences[SEARCH_PREVIOUS_SEARCHES] ?: defaultSettings.searchPreviousSearches,
+                customBangsJson = preferences[CUSTOM_BANGS_JSON] ?: defaultSettings.customBangsJson,
+                searchSectionsConfigJson = preferences[SEARCH_SECTIONS_CONFIG_JSON] ?: defaultSettings.searchSectionsConfigJson,
+                adaptiveIconShape = preferences[ADAPTIVE_ICON_SHAPE] ?: defaultSettings.adaptiveIconShape,
+                dynamicIconMasking = preferences[DYNAMIC_ICON_MASKING] ?: defaultSettings.dynamicIconMasking,
+                diagnosticsOverlayEnabled = preferences[DIAGNOSTICS_OVERLAY_ENABLED] ?: defaultSettings.diagnosticsOverlayEnabled,
+                searchOverlayEnabled = preferences[SEARCH_OVERLAY_ENABLED] ?: defaultSettings.searchOverlayEnabled,
+                matrixAnimationEnabled = preferences[MATRIX_ANIMATION_ENABLED] ?: defaultSettings.matrixAnimationEnabled,
+                backToSearchOverlay = preferences[BACK_TO_SEARCH_OVERLAY] ?: defaultSettings.backToSearchOverlay,
+                disabledWebShortcuts = preferences[DISABLED_WEB_SHORTCUTS] ?: defaultSettings.disabledWebShortcuts,
+                vibrationEnabled = preferences[VIBRATION] ?: defaultSettings.vibrationEnabled
             )
+            cachedSettings = s
+            s
         }
 
     /**
-     * Synchronous snapshot backed by the SharedPreferences mirror that [updateSetting] keeps in step with
-     * DataStore, so the first frame renders with the user's settings before DataStore emits.
+     * Synchronous snapshot backed by memory or SharedPreferences migration fallback,
+     * ensuring fast first-frame rendering without desynchronization.
      */
-    fun getInitialSettings(): IntelligentSearchSettings = readLegacySettings()
+    fun getInitialSettings(): IntelligentSearchSettings {
+        return if (cachedSettings != defaultSettings) {
+            cachedSettings
+        } else {
+            readLegacySettings()
+        }
+    }
 
     /** Reads settings from the SharedPreferences mirror, honouring every historical key spelling. */
     private fun readLegacySettings(): IntelligentSearchSettings {
@@ -307,6 +320,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         try {
             val sp = getSafePrefs()
             context.dataStore.edit { preferences ->
+                if (!overwrite && preferences[DATASTORE_MIGRATED] == true) {
+                    return@edit
+                }
                 if ((overwrite || !preferences.contains(THEME)) && sp.contains("night.mode")) sp.getString("night.mode", null)?.let { preferences[THEME] = it }
                 if ((overwrite || !preferences.contains(SEARCH_APPS)) && (sp.contains("search.apps") || sp.contains("search_apps"))) preferences[SEARCH_APPS] = sp.getBoolean("search.apps", sp.getBoolean("search_apps", true))
                 if ((overwrite || !preferences.contains(SEARCH_CONTACTS)) && (sp.contains("search.contacts") || sp.contains("search_contacts"))) preferences[SEARCH_CONTACTS] = sp.getBoolean("search.contacts", sp.getBoolean("search_contacts", false))
@@ -364,6 +380,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
                 if ((overwrite || !preferences.contains(BACK_TO_SEARCH_OVERLAY)) && sp.contains("settings_back_to_search_overlay")) preferences[BACK_TO_SEARCH_OVERLAY] = sp.getBoolean("settings_back_to_search_overlay", true)
                 if ((overwrite || !preferences.contains(DISABLED_WEB_SHORTCUTS)) && sp.contains("disabled_web_shortcuts")) sp.getStringSet("disabled_web_shortcuts", null)?.let { preferences[DISABLED_WEB_SHORTCUTS] = it }
                 if ((overwrite || !preferences.contains(VIBRATION)) && sp.contains("vibration_enabled")) preferences[VIBRATION] = sp.getBoolean("vibration_enabled", true)
+                preferences[DATASTORE_MIGRATED] = true
             }
         } catch (e: Exception) {
             Log.w(TAG, "Error syncing SharedPreferences to DataStore", e)

@@ -9,6 +9,31 @@
     <style name="Theme.IntelligentSearch" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowAnimationStyle">@style/Theme.IntelligentSearch.Animation</item>
     </style>
+    <style name="Theme.IntelligentSearch.Animation.None">
+        <item name="android:windowEnterAnimation">@anim/no_anim</item>
+        <item name="android:windowExitAnimation">@anim/no_anim</item>
+        <item name="android:activityOpenEnterAnimation">@anim/no_anim</item>
+        <item name="android:activityOpenExitAnimation">@anim/no_anim</item>
+        <item name="android:activityCloseEnterAnimation">@anim/no_anim</item>
+        <item name="android:activityCloseExitAnimation">@anim/no_anim</item>
+        <item name="android:taskOpenEnterAnimation">@anim/no_anim</item>
+        <item name="android:taskOpenExitAnimation">@anim/no_anim</item>
+        <item name="android:taskCloseEnterAnimation">@anim/no_anim</item>
+        <item name="android:taskCloseExitAnimation">@anim/no_anim</item>
+        <item name="android:taskToFrontEnterAnimation">@anim/no_anim</item>
+        <item name="android:taskToFrontExitAnimation">@anim/no_anim</item>
+        <item name="android:taskToBackEnterAnimation">@anim/no_anim</item>
+        <item name="android:taskToBackExitAnimation">@anim/no_anim</item>
+        <item name="android:wallpaperOpenEnterAnimation">@anim/no_anim</item>
+        <item name="android:wallpaperOpenExitAnimation">@anim/no_anim</item>
+        <item name="android:wallpaperCloseEnterAnimation">@anim/no_anim</item>
+        <item name="android:wallpaperCloseExitAnimation">@anim/no_anim</item>
+        <item name="android:wallpaperIntraOpenEnterAnimation">@anim/no_anim</item>
+        <item name="android:wallpaperIntraOpenExitAnimation">@anim/no_anim</item>
+        <item name="android:wallpaperIntraCloseEnterAnimation">@anim/no_anim</item>
+        <item name="android:wallpaperIntraCloseExitAnimation">@anim/no_anim</item>
+    </style>
+
     <style name="Theme.IntelligentSearch.Overlay" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowShowWallpaper">true</item>
@@ -19,7 +44,10 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowIsFloating">false</item>
         <item name="android:backgroundDimEnabled">false</item>
-        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowAnimationStyle">@style/Theme.IntelligentSearch.Animation.None</item>
+        <item name="android:windowElevation">0dp</item>
+        <item name="android:ambientShadowAlpha">0</item>
+        <item name="android:spotShadowAlpha">0</item>
         <item name="android:windowSplashScreenBackground">@android:color/transparent</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/transparent_splash</item>
         <item name="android:enforceNavigationBarContrast">false</item>
@@ -27,13 +55,13 @@
     </style>
 
     <style name="Theme.IntelligentSearch.Overlay.Widget" parent="Theme.IntelligentSearch.Overlay">
-        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowElevation">0dp</item>
         <item name="android:windowSplashScreenBackground">@android:color/transparent</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/transparent_splash</item>
     </style>
 
     <style name="Theme.IntelligentSearch.Overlay.Launcher" parent="Theme.IntelligentSearch.Overlay">
-        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowElevation">0dp</item>
         <item name="android:windowSplashScreenBackground">@android:color/transparent</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/transparent_splash</item>
     </style>

@@ -15,28 +15,26 @@ import dagger.hilt.android.AndroidEntryPoint
 class WidgetActivity : MainActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
-        } else {
-            @Suppress("DEPRECATION")
-            overridePendingTransition(0, 0)
-        }
         super.onCreate(savedInstanceState)
+        applyZeroTransitions()
     }
 
     override fun onNewIntent(intent: Intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
-        } else {
-            @Suppress("DEPRECATION")
-            overridePendingTransition(0, 0)
-        }
         super.onNewIntent(intent)
+        applyZeroTransitions()
     }
 
     override fun finish() {
         super.finish()
+        applyZeroTransitions()
+    }
+
+    private fun applyZeroTransitions() {
+        window.setWindowAnimations(0)
+        window.decorView.elevation = 0f
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
             overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
         } else {
             @Suppress("DEPRECATION")

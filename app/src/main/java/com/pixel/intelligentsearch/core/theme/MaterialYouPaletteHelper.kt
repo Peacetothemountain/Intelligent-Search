@@ -404,4 +404,122 @@ object MaterialYouPaletteHelper {
         )
         return darkened.toInt() or 0xFF000000.toInt()
     }
+
+    data class ThreeTierAccentedPalette(
+        @get:ColorInt val primaryDarker: Int,    // 1st: Darker accented
+        @get:ColorInt val secondLighter: Int,    // 2nd: A little lighter than primary
+        @get:ColorInt val thirdLighter: Int      // 3rd: A little lighter than second (grounded in darker accented, never bright)
+    )
+
+    /**
+     * Resolves an authentic three-tier Material Design darker-accented color palette:
+     * 1. Primary: Darker accented (Tone ~54 on dark surfaces, Tone ~36 on light surfaces)
+     * 2. Second: A little lighter than primary (Tone ~68 on dark, Tone ~48 on light)
+     * 3. Third: A little lighter than second (Tone ~80 on dark, Tone ~60 on light)
+     *
+     * Focuses on darker accented tones without washed-out bright accented highlights.
+     */
+    fun getThreeTierAccentedPalette(
+        @ColorInt primaryColor: Int,
+        @ColorInt secondaryColor: Int = primaryColor,
+        isPillLight: Boolean = false
+    ): ThreeTierAccentedPalette {
+        return try {
+            val hctP = Hct.fromInt(primaryColor)
+            val hctS = if (secondaryColor != primaryColor && secondaryColor != 0) Hct.fromInt(secondaryColor) else hctP
+
+            val pTone = if (isPillLight) 34.0 else 50.0
+            val sTone = if (isPillLight) 46.0 else 64.0
+            val tTone = if (isPillLight) 58.0 else 76.0
+
+            val pChroma = max(hctP.chroma, 32.0).coerceIn(24.0, 52.0)
+            val sChroma = max(hctS.chroma, 26.0).coerceIn(20.0, 44.0)
+            val tChroma = max(hctP.chroma * 0.8, 18.0).coerceIn(16.0, 36.0)
+
+            val p = Hct.from(hctP.hue, pChroma, pTone).toInt() or 0xFF000000.toInt()
+            val s = Hct.from(hctS.hue, sChroma, sTone).toInt() or 0xFF000000.toInt()
+            val t = Hct.from(hctP.hue, tChroma, tTone).toInt() or 0xFF000000.toInt()
+
+            ThreeTierAccentedPalette(p, s, t)
+        } catch (_: Throwable) {
+            if (isPillLight) {
+                ThreeTierAccentedPalette(0xFF004D40.toInt(), 0xFF00695C.toInt(), 0xFF00897B.toInt())
+            } else {
+                ThreeTierAccentedPalette(0xFF00796B.toInt(), 0xFF009688.toInt(), 0xFF26A69A.toInt())
+            }
+        }
+    }
+
+    /**
+     * Resolves the authentic light accented Material Design 3 color from the primary theme color.
+     * Uses Tone 80 (grounded in darker accented, never bright/washed-out white)
+     * and Tone 60 on light surfaces.
+     *
+     * @param primaryColor The primary theme color ARGB.
+     * @param isPillLight True if the container pill is light-themed, false if dark.
+     */
+    @ColorInt
+    fun getLightAccentedColor(@ColorInt primaryColor: Int, isPillLight: Boolean): Int {
+        return getThreeTierAccentedPalette(primaryColor, primaryColor, isPillLight).thirdLighter
+    }
+
+    data class FourColorMaterialGPalette(
+        @get:ColorInt val rightArcAndBar: Int,  // Quadrant 1: Horizontal crossbar & right arc (Google Blue position)
+        @get:ColorInt val bottomArc: Int,        // Quadrant 2: Bottom arc (Google Green position)
+        @get:ColorInt val leftArc: Int,          // Quadrant 3: Left arc (Google Yellow position)
+        @get:ColorInt val topArc: Int            // Quadrant 4: Top arc (Google Red position)
+    )
+
+    /**
+     * Resolves an authentic 4-color Material You G Icon palette that maps harmoniously
+     * to the quadrants and continuous sweep gradient of the Material G Logo:
+     * - Quadrant 1 / Right Arc & Crossbar (0° to 30° / 330° to 360°): Primary anchor color
+     * - Quadrant 2 / Bottom Arc (30° to 135°): Secondary harmonized tone from user's theme palette
+     * - Quadrant 3 / Left Arc (135° to 225°): Tertiary accented tone from user's theme palette
+     * - Quadrant 4 / Top Arc (225° to 330°): Lighter tonal accent from user's theme palette
+     *
+     * In HCT color space, all 4 quadrants strictly stay within the user's Material You
+     * theme palette without artificial rainbow hue rotations (+135°, +220°), ensuring the
+     * 4 colors sync together as elegant Material accented colors rather than striped blocks.
+     */
+    fun getFourColorMaterialGPalette(
+        @ColorInt primaryColor: Int,
+        @ColorInt secondaryColor: Int = primaryColor,
+        @ColorInt tertiaryColor: Int = 0,
+        isPillLight: Boolean = false
+    ): FourColorMaterialGPalette {
+        return try {
+            val hctP = Hct.fromInt(primaryColor)
+            val hctS = if (secondaryColor != primaryColor && secondaryColor != 0) Hct.fromInt(secondaryColor) else hctP
+            val hctT = if (tertiaryColor != 0 && tertiaryColor != primaryColor) Hct.fromInt(tertiaryColor) else hctP
+
+            val pTone = if (isPillLight) 36.0 else 58.0
+            val sTone = if (isPillLight) 44.0 else 66.0
+            val tTone = if (isPillLight) 52.0 else 74.0
+            val qTone = if (isPillLight) 60.0 else 82.0
+
+            val pChroma = max(hctP.chroma, 30.0).coerceIn(24.0, 52.0)
+            val sChroma = max(hctS.chroma, 22.0).coerceIn(18.0, 44.0)
+            val tChroma = max(hctT.chroma, 20.0).coerceIn(16.0, 40.0)
+            val qChroma = max(hctP.chroma * 0.75, 18.0).coerceIn(16.0, 36.0)
+
+            // Quadrant 1: Primary anchor hue (Right Arc & Crossbar)
+            val c1 = Hct.from(hctP.hue, pChroma, pTone).toInt() or 0xFF000000.toInt()
+
+            // Quadrant 2: Secondary harmonized tone from user's secondary palette (Bottom Arc)
+            val c2 = Hct.from(hctS.hue, sChroma, sTone).toInt() or 0xFF000000.toInt()
+
+            // Quadrant 3: Tertiary dynamic tone from user's tertiary palette (Left Arc)
+            val c3 = Hct.from(hctT.hue, tChroma, tTone).toInt() or 0xFF000000.toInt()
+
+            // Quadrant 4: Lighter tonal accent from user's primary/tertiary palette (Top Arc)
+            val c4 = Hct.from(hctP.hue, qChroma, qTone).toInt() or 0xFF000000.toInt()
+
+            FourColorMaterialGPalette(c1, c2, c3, c4)
+        } catch (_: Throwable) {
+            val tier = getThreeTierAccentedPalette(primaryColor, secondaryColor, isPillLight)
+            FourColorMaterialGPalette(tier.primaryDarker, tier.secondLighter, tier.thirdLighter, tier.primaryDarker)
+        }
+    }
 }
+

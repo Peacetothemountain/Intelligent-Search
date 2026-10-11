@@ -74,6 +74,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
@@ -83,6 +85,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
+import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -223,6 +227,91 @@ fun ShortcutRow(iconRes: Int, title: String, onClick: () -> Unit) {
             fontWeight = FontWeight.Medium,
             fontFamily = GoogleSansFlex
         )
+    }
+}
+
+@Composable
+fun SearchOverlayLensIcon(
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val scheme = MaterialTheme.colorScheme
+    val isLight = scheme.surface.luminance() >= 0.5f
+
+    val prefs = remember(context) { context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE) }
+    val effectiveTheme = prefs.getString("widget_icon_theme", "Material G Icon") ?: "Material G Icon"
+    val isCustomSync = prefs.getBoolean("widget_custom_sync_colors", false)
+    val customColor = if (isCustomSync) {
+        prefs.getInt("widget_custom_g_icon_color", scheme.primary.toArgb())
+    } else {
+        prefs.getInt("widget_custom_action_icon_color", prefs.getInt("widget_custom_shortcuts_color", scheme.primary.toArgb()))
+    }
+
+    val resolvedColors = remember(context, isLight) {
+        DynamicThemeDetector.resolveWidgetColors(context, isDark = !isLight)
+    }
+
+    val pColor = if (resolvedColors.isDynamicActive) resolvedColors.primary else scheme.primary.toArgb()
+    val sColor = if (resolvedColors.isDynamicActive) resolvedColors.secondary else scheme.secondary.toArgb()
+    val tColor = if (resolvedColors.isDynamicActive) resolvedColors.tertiary else scheme.tertiary.toArgb()
+
+    val palette = remember(pColor, sColor, isLight) {
+        MaterialYouPaletteHelper.getThreeTierAccentedPalette(
+            pColor,
+            sColor,
+            isPillLight = isLight
+        )
+    }
+
+    val path1 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10.5,4 A 6.5,6.5 0 0 0 4,10.5 A 6.5,6.5 0 0 0 10.5,17 A 6.5,6.5 0 0 0 15,15").toPath() }
+    val path2 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 14,5 A 6.5,6.5 0 0 0 10.5,4 A 6.5,6.5 0 0 0 5,7.5").toPath() }
+    val path3 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 15.5,15.5 L 20,20").toPath() }
+    val path4 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 18,0.5 C 18,4 21,6.5 24,6.5 C 21,6.5 18,9 18,12.5 C 18,9 15,6.5 12,6.5 C 15,6.5 18,4 18,0.5 Z").toPath() }
+
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        val scaleX = size.width / 24f
+        val scaleY = size.height / 24f
+        scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
+            when (effectiveTheme) {
+                "Custom G Icon" -> {
+                    val color = Color(customColor)
+                    drawPath(path = path1, color = color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawPath(path = path2, color = color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawPath(path = path3, color = color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawPath(path = path4, color = color)
+                }
+                "Accented G Icon" -> {
+                    val color = Color(pColor)
+                    drawPath(path = path1, color = color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawPath(path = path2, color = color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawPath(path = path3, color = color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawPath(path = path4, color = color)
+                }
+                "System G Icon" -> {
+                    // Google 4-color Search Lens: Blue rim, Yellow sparkle, Green handle, Red dot
+                    drawPath(path = path1, color = Color(0xFF4285F4), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawPath(path = path2, color = Color(0xFFFBBC05), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawPath(path = path3, color = Color(0xFF34A853), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawPath(path = path4, color = Color(0xFFEA4335))
+                }
+                else -> { // "Material G Icon" or default dynamic
+                    val fourPalette = MaterialYouPaletteHelper.getFourColorMaterialGPalette(pColor, sColor, tColor, isLight)
+                    val cRight = Color(fourPalette.rightArcAndBar)
+                    val cBottom = Color(fourPalette.bottomArc)
+                    val cLeft = Color(fourPalette.leftArc)
+                    val cTop = Color(fourPalette.topArc)
+
+                    // Lens rim: primary right color
+                    drawPath(path = path1, color = cRight, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    // Top arc: top accent
+                    drawPath(path = path2, color = cTop, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    // Handle: secondary bottom color
+                    drawPath(path = path3, color = cBottom, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    // Sparkle: tertiary left color
+                    drawPath(path = path4, color = cLeft)
+                }
+            }
+        }
     }
 }
 
@@ -1112,9 +1201,7 @@ fun SearchOverlayScreen(
                     .padding(horizontal = 24.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_search_lens_expressive),
-                    contentDescription = "Search",
+                SearchOverlayLensIcon(
                     modifier = Modifier.size(28.dp)
                 )
                 Spacer(modifier = Modifier.width(16.dp))
@@ -2778,7 +2865,7 @@ fun SearchOverlayScreen(
                             alpha = overlayProgressAnim.value.coerceIn(0f, 1f)
                         }
                 ) {
-                    AnimatedMatrixBackground(isPaused = uiState.query.isNotBlank())
+                    AnimatedMatrixBackground(isPaused = uiState.query.isNotBlank() || overlayProgressAnim.value <= 0.001f)
                 }
             }
             

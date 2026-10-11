@@ -45,6 +45,44 @@ class MaterialYouPaletteHelperTest {
     }
 
     @Test
+    fun testThreeTierAccentedPaletteProgression() {
+        val cyanPrimary = 0xFF00BCD4.toInt() // Cyan primary
+        val paletteDark = MaterialYouPaletteHelper.getThreeTierAccentedPalette(cyanPrimary, isPillLight = false)
+
+        val pLum = MaterialYouPaletteHelper.calculateLuminance(paletteDark.primaryDarker)
+        val sLum = MaterialYouPaletteHelper.calculateLuminance(paletteDark.secondLighter)
+        val tLum = MaterialYouPaletteHelper.calculateLuminance(paletteDark.thirdLighter)
+
+        // 1. Primary must be darker than second
+        assertTrue("Primary must be darker than second: pLum=$pLum, sLum=$sLum", pLum < sLum)
+        // 2. Second must be darker than third (third is a little lighter than second)
+        assertTrue("Second must be darker than third: sLum=$sLum, tLum=$tLum", sLum < tLum)
+
+        // 3. Must NOT be pure white (0xFFFFFFFF) or washed-out bright (> 0.80 luminance)
+        assertNotEquals(0xFFFFFFFF.toInt(), paletteDark.thirdLighter)
+        assertTrue("Third must focus on darker accented, not bright washed-out: tLum=$tLum", tLum < 0.75)
+
+        // 4. Primary must be focused on darker accented
+        assertTrue("Primary must be darker accented: pLum=$pLum", pLum < 0.35)
+
+        // 5. Must be fully opaque
+        assertEquals(0xFF000000.toInt(), paletteDark.primaryDarker and 0xFF000000.toInt())
+        assertEquals(0xFF000000.toInt(), paletteDark.secondLighter and 0xFF000000.toInt())
+        assertEquals(0xFF000000.toInt(), paletteDark.thirdLighter and 0xFF000000.toInt())
+
+        // 6. Light surface palette
+        val paletteLight = MaterialYouPaletteHelper.getThreeTierAccentedPalette(cyanPrimary, isPillLight = true)
+        val lumLight1 = MaterialYouPaletteHelper.calculateLuminance(paletteLight.primaryDarker)
+        val lumLight2 = MaterialYouPaletteHelper.calculateLuminance(paletteLight.secondLighter)
+        val lumLight3 = MaterialYouPaletteHelper.calculateLuminance(paletteLight.thirdLighter)
+
+        assertTrue("Light pill: Second ($lumLight2) must be lighter than primary ($lumLight1)", lumLight2 > lumLight1)
+        assertTrue("Light pill: Third ($lumLight3) must be lighter than second ($lumLight2)", lumLight3 > lumLight2)
+        assertNotEquals("Light pill: Third must never be pure white", 0xFFFFFFFF.toInt(), paletteLight.thirdLighter)
+        assertTrue("Light pill: Third must be darker accented (< 0.50 luminance), was $lumLight3", lumLight3 < 0.50)
+    }
+
+    @Test
     fun testMemoizationAndCacheClear() {
         MaterialYouPaletteHelper.clearCache()
         val c1 = MaterialYouPaletteHelper.getMaterialYouTonalColors(120f, 60f, true)
@@ -176,4 +214,39 @@ class MaterialYouPaletteHelperTest {
         val lumDark = MaterialYouPaletteHelper.calculateLuminance(darkenedPrimary)
         assertTrue("Darkened luminance ($lumDark) must be much lower than light ($lumLight)", lumDark < lumLight / 2.0)
     }
+
+    @Test
+    fun testFourColorMaterialGPalette_strictlyPreservesUserThemePalette() {
+        // Test with a user's theme color: Purple primary (0xFF7950F2), Secondary (0xFF845EF7), Tertiary (0xFF9775FA)
+        val p = 0xFF7950F2.toInt()
+        val s = 0xFF845EF7.toInt()
+        val t = 0xFF9775FA.toInt()
+
+        val paletteDark = MaterialYouPaletteHelper.getFourColorMaterialGPalette(p, s, t, isPillLight = false)
+        val paletteLight = MaterialYouPaletteHelper.getFourColorMaterialGPalette(p, s, t, isPillLight = true)
+
+        // 1. All colors must have full opacity
+        assertEquals(0xFF000000.toInt(), paletteDark.rightArcAndBar and 0xFF000000.toInt())
+        assertEquals(0xFF000000.toInt(), paletteDark.bottomArc and 0xFF000000.toInt())
+        assertEquals(0xFF000000.toInt(), paletteDark.leftArc and 0xFF000000.toInt())
+        assertEquals(0xFF000000.toInt(), paletteDark.topArc and 0xFF000000.toInt())
+
+        assertEquals(0xFF000000.toInt(), paletteLight.rightArcAndBar and 0xFF000000.toInt())
+        assertEquals(0xFF000000.toInt(), paletteLight.bottomArc and 0xFF000000.toInt())
+        assertEquals(0xFF000000.toInt(), paletteLight.leftArc and 0xFF000000.toInt())
+        assertEquals(0xFF000000.toInt(), paletteLight.topArc and 0xFF000000.toInt())
+
+        // 2. Quadrants must strictly share the user's theme hues (no arbitrary +135° or +220° rainbow rotation)
+        val hctP = com.google.android.material.color.utilities.Hct.fromInt(p)
+        val hctC1 = com.google.android.material.color.utilities.Hct.fromInt(paletteDark.rightArcAndBar)
+        val hctC4 = com.google.android.material.color.utilities.Hct.fromInt(paletteDark.topArc)
+
+        assertEquals("Right arc anchor must match primary hue", hctP.hue, hctC1.hue, 1.0)
+        assertEquals("Top arc must share user's primary hue family", hctP.hue, hctC4.hue, 1.0)
+
+        // 3. Tonal progression in dark mode: tones should be readable on dark background
+        assertTrue(hctC1.tone >= 50.0)
+        assertTrue(hctC4.tone >= hctC1.tone)
+    }
 }
+

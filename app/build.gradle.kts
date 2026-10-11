@@ -164,6 +164,10 @@ dependencies {
 
   // Graphics Shapes for Material Morph Animations
   implementation(libs.androidx.graphics.shapes)
+
+  // AppFunctions: exposes local search to on-device assistants
+  implementation(libs.androidx.appfunctions)
+  ksp(libs.androidx.appfunctions.compiler)
 }
 
 tasks.register<Zip>("packageNativeDebugSymbols") {

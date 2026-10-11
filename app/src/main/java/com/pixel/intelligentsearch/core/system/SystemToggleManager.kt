@@ -191,9 +191,7 @@ class SystemToggleManager @Inject constructor(
             addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
             addAction(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED)
             addAction(LocationManager.PROVIDERS_CHANGED_ACTION)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                addAction(LocationManager.MODE_CHANGED_ACTION)
-            }
+            addAction(LocationManager.MODE_CHANGED_ACTION)
             addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
             addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED)
         }
@@ -314,12 +312,8 @@ class SystemToggleManager @Inject constructor(
     // 2. BLUETOOTH
     // ==========================================
     private fun checkBluetoothEnabled(): Boolean = try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                false
-            } else {
-                bluetoothAdapter?.isEnabled == true
-            }
+        if (context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            false
         } else {
             bluetoothAdapter?.isEnabled == true
         }
@@ -339,11 +333,9 @@ class SystemToggleManager @Inject constructor(
                 openBluetoothSettings()
                 return
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    openBluetoothSettings()
-                    return
-                }
+            if (context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                openBluetoothSettings()
+                return
             }
             @Suppress("DEPRECATION")
             if (enabled) bluetoothAdapter?.enable() else bluetoothAdapter?.disable()
@@ -371,12 +363,10 @@ class SystemToggleManager @Inject constructor(
 
     fun toggleWifiDirect(enabled: Boolean) {
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val intent = Intent(Settings.Panel.ACTION_WIFI).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                if (intent.resolveActivity(context.packageManager) != null) {
-                    context.startActivity(intent)
-                    return
-                }
+            val intent = Intent(Settings.Panel.ACTION_WIFI).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            if (intent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(intent)
+                return
             }
             openWifiSettings()
         } catch (_: Exception) {
@@ -390,12 +380,10 @@ class SystemToggleManager @Inject constructor(
             val caps = connectivityManager?.getNetworkCapabilities(activeNet)
             if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
                 var foundSsid: String? = null
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val wifiInfo = caps.transportInfo as? android.net.wifi.WifiInfo
-                    val tSsid = wifiInfo?.ssid?.replace("\"", "")?.trim()
-                    if (!tSsid.isNullOrBlank() && tSsid != "<unknown ssid>" && tSsid != "0x") {
-                        foundSsid = tSsid
-                    }
+                val wifiInfo = caps.transportInfo as? android.net.wifi.WifiInfo
+                val tSsid = wifiInfo?.ssid?.replace("\"", "")?.trim()
+                if (!tSsid.isNullOrBlank() && tSsid != "<unknown ssid>" && tSsid != "0x") {
+                    foundSsid = tSsid
                 }
                 if (foundSsid == null) {
                     @Suppress("DEPRECATION")
@@ -445,11 +433,7 @@ class SystemToggleManager @Inject constructor(
     }
 
     fun openMobileDataSettings() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            openSettingsIntent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
-        } else {
-            openSettingsIntent(Settings.ACTION_DATA_ROAMING_SETTINGS)
-        }
+        openSettingsIntent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
     }
 
     // ==========================================
@@ -602,12 +586,7 @@ class SystemToggleManager @Inject constructor(
     // ==========================================
     private fun checkLocationEnabled(): Boolean {
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                locationManager?.isLocationEnabled == true
-            } else {
-                @Suppress("DEPRECATION")
-                Settings.Secure.getInt(context.contentResolver, Settings.Secure.LOCATION_MODE, Settings.Secure.LOCATION_MODE_OFF) != Settings.Secure.LOCATION_MODE_OFF
-            }
+            locationManager?.isLocationEnabled == true
         } catch (_: Exception) { false }
     }
 
@@ -669,15 +648,13 @@ class SystemToggleManager @Inject constructor(
     }
 
     fun openDarkModeSettings() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            try {
-                val darkIntent = Intent("android.settings.DARK_THEME_SETTINGS").apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                if (darkIntent.resolveActivity(context.packageManager) != null) {
-                    context.startActivity(darkIntent)
-                    return
-                }
-            } catch (_: Exception) {}
-        }
+        try {
+            val darkIntent = Intent("android.settings.DARK_THEME_SETTINGS").apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            if (darkIntent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(darkIntent)
+                return
+            }
+        } catch (_: Exception) {}
         openSettingsIntent(Settings.ACTION_DISPLAY_SETTINGS)
     }
 
@@ -740,15 +717,13 @@ class SystemToggleManager @Inject constructor(
     }
 
     fun openSoundSettings() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            try {
-                val panelIntent = Intent(Settings.Panel.ACTION_VOLUME).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                if (panelIntent.resolveActivity(context.packageManager) != null) {
-                    context.startActivity(panelIntent)
-                    return
-                }
-            } catch (_: Exception) {}
-        }
+        try {
+            val panelIntent = Intent(Settings.Panel.ACTION_VOLUME).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            if (panelIntent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(panelIntent)
+                return
+            }
+        } catch (_: Exception) {}
         openSettingsIntent(Settings.ACTION_SOUND_SETTINGS)
     }
 

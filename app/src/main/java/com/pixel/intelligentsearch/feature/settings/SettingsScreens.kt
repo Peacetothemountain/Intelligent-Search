@@ -334,9 +334,9 @@ private const val GEMINI_CORNER_SWIPE_SHADER = """
         float dLeft = length(float2(uv.x * 1.15, y * 1.85));
         float dRight = length(float2((1.0 - uv.x) * 1.15, y * 1.85));
         
-        float bottomGlow = smoothstep(0.85, 0.0, y - wave1 - wave2);
-        float cornerLeft = smoothstep(0.95, 0.0, dLeft - wave3);
-        float cornerRight = smoothstep(0.95, 0.0, dRight + wave3);
+        float bottomGlow = 1.0 - smoothstep(0.0, 0.85, y - wave1 - wave2);
+        float cornerLeft = 1.0 - smoothstep(0.0, 0.95, dLeft - wave3);
+        float cornerRight = 1.0 - smoothstep(0.0, 0.95, dRight + wave3);
         
         float intensity = clamp(bottomGlow * 0.90 + cornerLeft * 0.85 + cornerRight * 0.85, 0.0, 1.0);
         
@@ -1027,7 +1027,9 @@ fun SettingsScreensHub(
                     repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
                     volume = 0f
                     prepare()
-                    playWhenReady = true
+                    // MainSettingsScreen starts playback while it is resumed; deep links into other
+                    // settings pages must not decode the looping video in the background.
+                    playWhenReady = false
                 }
             }.getOrNull()
         }
@@ -1338,25 +1340,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                 showDivider = true
             )
             
-            var simulateLatency by rememberBooleanPreference(prefs, "debug.simulate_latency", false)
-            SettingsRowToggle(
-                title = "Simulate Web Latency",
-                subtitle = "Adds a 2-Second Artificial Delay to Search Suggestions.",
-                icon = Icons.Outlined.HourglassEmpty,
-                isChecked = simulateLatency,
-                onCheckedChange = { simulateLatency = it },
-                showDivider = true
-            )
             
-            var mockLargeDataset by rememberBooleanPreference(prefs, "debug.mock_large_dataset", false)
-            SettingsRowToggle(
-                title = "Mock Large Dataset",
-                subtitle = "Injects 50 Mock Contacts and Files into Search Lists.",
-                icon = Icons.Outlined.Layers,
-                isChecked = mockLargeDataset,
-                onCheckedChange = { mockLargeDataset = it },
-                showDivider = true
-            )
             
             var verboseLogging by rememberBooleanPreference(prefs, "debug.verbose_logging", false)
             SettingsRowToggle(
@@ -1379,15 +1363,6 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                 showDivider = true
             )
             
-            var mockZeroState by rememberBooleanPreference(prefs, "debug.mock_zero_state", false)
-            SettingsRowToggle(
-                title = "Mock Trending Queries",
-                subtitle = "Force Mock Trending Query Topics When Search Bar Is Empty.",
-                icon = Icons.AutoMirrored.Outlined.TrendingUp,
-                isChecked = mockZeroState,
-                onCheckedChange = { mockZeroState = it },
-                showDivider = true
-            )
             
             var forceSearchError by rememberBooleanPreference(prefs, "debug.force_search_error", false)
             SettingsRowToggle(
@@ -1706,11 +1681,9 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             bTimeEstimateStr = "Fully Charged"
                         } else {
                             var sysTimeRemainingMs = -1L
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                                try {
-                                    sysTimeRemainingMs = bm?.computeChargeTimeRemaining() ?: -1L
-                                } catch (_: Throwable) {}
-                            }
+                            try {
+                                sysTimeRemainingMs = bm?.computeChargeTimeRemaining() ?: -1L
+                            } catch (_: Throwable) {}
                             if (sysTimeRemainingMs > 60_000L) {
                                 val totalMinutes = (sysTimeRemainingMs / 60_000L).toInt()
                                 val hours = totalMinutes / 60
@@ -1852,9 +1825,10 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     }
 
                     val swapUsedKb = (procSwapTotalKb - procSwapFreeKb).coerceAtLeast(0L)
-                    val zRamUsedGb = swapUsedKb.toDouble() / 1_000_000_000.0
-                    val zRamTotGb = procSwapTotalKb.toDouble() / 1_000_000_000.0
-                    val cacheGb = (procBuffersKb + procCachedKb + procKReclaimableKb).toDouble() / 1_000_000_000.0
+                    // /proc/meminfo reports kB; convert to bytes before scaling to decimal GB.
+                    val zRamUsedGb = swapUsedKb * 1024.0 / 1_000_000_000.0
+                    val zRamTotGb = procSwapTotalKb * 1024.0 / 1_000_000_000.0
+                    val cacheGb = (procBuffersKb + procCachedKb + procKReclaimableKb) * 1024.0 / 1_000_000_000.0
 
                     val isLow = memInfo.lowMemory
                     val threshMb = (memInfo.threshold / (1024L * 1024L)).toInt()
@@ -3964,7 +3938,8 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         triggerAuth()
         kotlinx.coroutines.delay(100)
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val apps = SystemDataProvider.getAllApps(context).sortedBy { it.name }
+            // Hiding works per package, and work/private-profile copies share it; duplicate LazyColumn keys crash.
+            val apps = SystemDataProvider.getAllApps(context).distinctBy { it.packageName }.sortedBy { it.name.lowercase() }
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                 installedApps = apps
             }
@@ -4808,6 +4783,7 @@ fun SlideToRemoveAllBar(
 @Composable
 fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
+    val settingsViewModel = LocalSettingsViewModel.current
     Scaffold(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.ime),
@@ -4845,6 +4821,15 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 showTorDialog = true
                                 return@SettingsDropdownRow
                             }
+                        }
+                        if (selected == "Custom" && settingsViewModel != null &&
+                            prefs.getString("custom_search_engine_url", null).isNullOrBlank()
+                        ) {
+                            // The URL field shows this default; persist it so searches use what is displayed
+                            // instead of silently falling back to the generic web-search intent.
+                            val defaultUrl = "https://duckduckgo.com/?q=%s"
+                            prefs.edit().putString("custom_search_engine_url", defaultUrl).apply()
+                            settingsViewModel.updateSetting(SettingsManager.CUSTOM_SEARCH_ENGINE_URL, defaultUrl)
                         }
                         searchEngine = selected
                     },
@@ -6452,7 +6437,7 @@ fun SettingsDropdownRow(
                                         )
                                     } else {
                                         Icon(
-                                            painter = androidx.compose.ui.res.painterResource(id = optionIcons[option]!!),
+                                            painter = androidx.compose.ui.res.painterResource(id = optionIcons[option] ?: R.drawable.ic_search_lens_expressive),
                                             contentDescription = option,
                                             modifier = Modifier.size(24.dp),
                                             tint = androidx.compose.ui.graphics.Color.Unspecified
@@ -6757,6 +6742,7 @@ private data class CustomElementTarget(val key: String, val label: String, val c
 @Composable
 fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
+    val widgetSettingsViewModel = LocalSettingsViewModel.current
     var showShortcutSheet by remember { mutableStateOf(false) }
     var showCustomUrlDialogFor by remember { mutableStateOf<String?>(null) }
     var showCustomAppDialogFor by remember { mutableStateOf<String?>(null) }
@@ -7317,6 +7303,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .putString("widget_system_shortcut_order", sysSlotOrderStr)
                                 .putString("widget.theme.style", "System Default")
                                 .apply()
+                            // Keep DataStore in step, or its stale value reverts the style picker on the next emission.
+                            widgetSettingsViewModel?.updateSetting(SettingsManager.WIDGET_THEME_STYLE, "System Default")
                             updateWidgets(context)
                             android.widget.Toast.makeText(context, "System Design Saved", android.widget.Toast.LENGTH_SHORT).show()
                         } else {
@@ -7358,6 +7346,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 .putString("widget_material_shortcut_order", matSlotOrderStr)
                                 .putString("widget.theme.style", "Material You (Minimal)")
                                 .apply()
+                            widgetSettingsViewModel?.updateSetting(SettingsManager.WIDGET_THEME_STYLE, "Material You (Minimal)")
                             updateWidgets(context)
                             android.widget.Toast.makeText(context, "Material Design Saved", android.widget.Toast.LENGTH_SHORT).show()
                         }
@@ -7456,11 +7445,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     }
                     
-                    val materialDarkCompose = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        androidx.compose.ui.res.colorResource(android.R.color.system_accent1_700)
-                    } else {
-                        androidx.compose.ui.graphics.Color(0xFF1F1F1F)
-                    }
+                    val materialDarkCompose = androidx.compose.ui.res.colorResource(android.R.color.system_accent1_700)
 
                     val rimBrush = if (previewIsMaterialYou && localSubtheme == "Custom") {
                         androidx.compose.ui.graphics.SolidColor(accentColor.copy(alpha = effectiveColorAlpha))
@@ -10475,15 +10460,14 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onClick = {
                         if (android.os.Build.VERSION.SDK_INT >= 33) {
                             try {
-                                @android.annotation.SuppressLint("WrongConstant")
-                                val statusBarManager = context.getSystemService("statusbar") as? android.app.StatusBarManager
+                                val statusBarManager = context.getSystemService(android.app.StatusBarManager::class.java)
                                 val componentName = android.content.ComponentName(context, com.pixel.intelligentsearch.feature.widget.SearchTileService::class.java)
                                 val icon = android.graphics.drawable.Icon.createWithResource(context, com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive)
                                 statusBarManager?.requestAddTileService(
                                     componentName,
                                     "Intelligent Search",
                                     icon,
-                                    java.util.concurrent.Executors.newSingleThreadExecutor(),
+                                    context.mainExecutor,
                                     { _ -> }
                                 )
                             } catch (e: Exception) {
@@ -11248,7 +11232,7 @@ fun BackupRestoreScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val activity = context as? android.app.Activity
+    val activity = context.findActivity()
     val viewModel = LocalSettingsViewModel.current
     val hapticEngine = remember { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
 
@@ -11295,7 +11279,8 @@ fun BackupRestoreScreen(
     var dialogErrorMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        val saved = viewModel?.getSavedPassphraseFromSecurityChip()
+        // Keystore (StrongBox) decryption can take hundreds of milliseconds; keep it off the main thread.
+        val saved = withContext(Dispatchers.IO) { viewModel?.getSavedPassphraseFromSecurityChip() }
         if (!saved.isNullOrBlank()) {
             passphrase = saved
             isPassphraseSavedOnChip = true
@@ -11359,7 +11344,13 @@ fun BackupRestoreScreen(
                 passphrase = passphrase.ifBlank { null },
                 onSuccess = {
                     android.util.Log.d("BackupRestoreScreen", "exportBackup onSuccess callback")
-                    safeShowToast(if (passphrase.isBlank()) "Backup exported (no passphrase: not securely encrypted)" else "Encrypted backup exported successfully!")
+                    safeShowToast(
+                        when {
+                            passphrase.isNotBlank() -> "Encrypted backup exported successfully!"
+                            hardwareInfo.isStrongBox -> "Backup exported. Without a passphrase it can only be restored on this phone."
+                            else -> "Backup exported (no passphrase: not securely encrypted)"
+                        }
+                    )
                 },
                 onError = { err ->
                     android.util.Log.e("BackupRestoreScreen", "exportBackup onError: $err")
@@ -11398,7 +11389,9 @@ fun BackupRestoreScreen(
                 pendingEnvelope = envelope
                 val needsPass = envelope?.kdf != null
                 if (needsPass) {
-                    val effectivePass = passphrase.ifBlank { viewModel?.getSavedPassphraseFromSecurityChip() ?: "" }
+                    val effectivePass = passphrase.ifBlank {
+                        withContext(Dispatchers.IO) { viewModel?.getSavedPassphraseFromSecurityChip() } ?: ""
+                    }
                     if (effectivePass.isNotBlank()) {
                         performRestore(uri, effectivePass)
                     } else {

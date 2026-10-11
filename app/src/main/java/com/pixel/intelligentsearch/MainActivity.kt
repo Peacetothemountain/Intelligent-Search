@@ -113,6 +113,16 @@ open class MainActivity : AppCompatActivity() {
         window.setDimAmount(0f)
 
         val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("profile_1_restored_to_default_v918", false)) {
+            val defaultPills = "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files"
+            prefs.edit()
+                .putString("app_search_profile_1", defaultPills)
+                .putString("app_search_profile_1_saved", defaultPills)
+                .putString("search.pills", defaultPills)
+                .putInt("shortcut_results_count", 6)
+                .putBoolean("profile_1_restored_to_default_v918", true)
+                .apply()
+        }
         val initialShowWallpaper = prefs.getBoolean("search.background.show.wall", prefs.getBoolean("show.wallpaper", true))
         val initialBlur = prefs.getInt("search.background.blur", prefs.getInt("background.blur", 50))
         if (initialShowWallpaper) {

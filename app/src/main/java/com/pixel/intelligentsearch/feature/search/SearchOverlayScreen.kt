@@ -239,7 +239,13 @@ fun SearchOverlayLensIcon(
     val isLight = scheme.surface.luminance() >= 0.5f
 
     val prefs = remember(context) { context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE) }
-    val effectiveTheme = prefs.getString("widget_icon_theme", "Material G Icon") ?: "Material G Icon"
+    // Follow the icon theme of whichever widget design is active, as saved by Widget Customization.
+    val isMaterialWidget = prefs.getString("widget.theme.style", "System Default")?.startsWith("Material") == true
+    val effectiveTheme = (if (isMaterialWidget) {
+        prefs.getString("widget_material_material_g_icon", prefs.getString("widget_material_g_icon", null))
+    } else {
+        prefs.getString("widget_system_material_g_icon", null)
+    }) ?: "Material G Icon"
     val isCustomSync = prefs.getBoolean("widget_custom_sync_colors", false)
     val customColor = if (isCustomSync) {
         prefs.getInt("widget_custom_g_icon_color", scheme.primary.toArgb())
@@ -255,12 +261,8 @@ fun SearchOverlayLensIcon(
     val sColor = if (resolvedColors.isDynamicActive) resolvedColors.secondary else scheme.secondary.toArgb()
     val tColor = if (resolvedColors.isDynamicActive) resolvedColors.tertiary else scheme.tertiary.toArgb()
 
-    val palette = remember(pColor, sColor, isLight) {
-        MaterialYouPaletteHelper.getThreeTierAccentedPalette(
-            pColor,
-            sColor,
-            isPillLight = isLight
-        )
+    val fourPalette = remember(pColor, sColor, tColor, isLight) {
+        MaterialYouPaletteHelper.getFourColorMaterialGPalette(pColor, sColor, tColor, isLight)
     }
 
     val path1 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10.5,4 A 6.5,6.5 0 0 0 4,10.5 A 6.5,6.5 0 0 0 10.5,17 A 6.5,6.5 0 0 0 15,15").toPath() }
@@ -295,7 +297,6 @@ fun SearchOverlayLensIcon(
                     drawPath(path = path4, color = Color(0xFFEA4335))
                 }
                 else -> { // "Material G Icon" or default dynamic
-                    val fourPalette = MaterialYouPaletteHelper.getFourColorMaterialGPalette(pColor, sColor, tColor, isLight)
                     val cRight = Color(fourPalette.rightArcAndBar)
                     val cBottom = Color(fourPalette.bottomArc)
                     val cLeft = Color(fourPalette.leftArc)
@@ -2858,6 +2859,9 @@ fun SearchOverlayScreen(
             contentAlignment = Alignment.BottomCenter
         ) {
             if (settingsState.matrixAnimationEnabled) {
+                // derivedStateOf so this only recomposes when the overlay crosses fully-hidden, not on
+                // every frame of the open/close animation.
+                val overlayFullyHidden by remember { derivedStateOf { overlayProgressAnim.value <= 0.001f } }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -2865,7 +2869,7 @@ fun SearchOverlayScreen(
                             alpha = overlayProgressAnim.value.coerceIn(0f, 1f)
                         }
                 ) {
-                    AnimatedMatrixBackground(isPaused = uiState.query.isNotBlank() || overlayProgressAnim.value <= 0.001f)
+                    AnimatedMatrixBackground(isPaused = uiState.query.isNotBlank() || overlayFullyHidden)
                 }
             }
             
@@ -3078,24 +3082,20 @@ fun FileIconThumbnail(uri: String, mimeType: String) {
         if (bitmap == null && (mimeType.startsWith("image/") || mimeType.startsWith("video/"))) {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
-                    val bmp = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                        val parsedUri = android.net.Uri.parse(uri)
-                        val id = android.content.ContentUris.parseId(parsedUri)
-                        val specificUri = if (mimeType.startsWith("image/")) {
-                            android.content.ContentUris.withAppendedId(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
-                        } else {
-                            android.content.ContentUris.withAppendedId(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
-                        }
-                        context.contentResolver.loadThumbnail(specificUri, android.util.Size(96, 96), null)
-                    } else null
-                    
-                    if (bmp != null) {
-                        val img = bmp.asImageBitmap()
-                        fileThumbnailCache.put(uri, img)
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                            bitmap = img
-                        }
+                    val parsedUri = android.net.Uri.parse(uri)
+                    val id = android.content.ContentUris.parseId(parsedUri)
+                    val specificUri = if (mimeType.startsWith("image/")) {
+                        android.content.ContentUris.withAppendedId(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+                    } else {
+                        android.content.ContentUris.withAppendedId(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
                     }
+                    val img = context.contentResolver.loadThumbnail(specificUri, android.util.Size(96, 96), null).asImageBitmap()
+                    fileThumbnailCache.put(uri, img)
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        bitmap = img
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     // Ignore, fallback to standard icon
                 }

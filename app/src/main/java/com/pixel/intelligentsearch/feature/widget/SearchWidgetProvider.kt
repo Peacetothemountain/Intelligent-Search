@@ -192,21 +192,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             return (appWidgetId shl 4) or (slot and 0x0F)
         }
 
-        @Suppress("DEPRECATION")
-        private fun getPendingIntentActivityOptions(context: Context? = null): Bundle? {
+        private fun getPendingIntentActivityOptions(context: Context): Bundle? {
             return try {
-                val opts = if (context != null) {
-                    android.app.ActivityOptions.makeCustomAnimation(context, 0, 0)
-                } else {
-                    android.app.ActivityOptions.makeBasic()
-                }
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-                    opts.setPendingIntentCreatorBackgroundActivityStartMode(android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-                } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    opts.setPendingIntentBackgroundActivityStartMode(android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-                }
-                opts.toBundle()
-            } catch (_: Throwable) {
+                BackgroundLaunchOptions.forCreator(context).toBundle()
+            } catch (e: Exception) {
+                Log.w(TAG, "Widget launch options unavailable", e)
                 null
             }
         }

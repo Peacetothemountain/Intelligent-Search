@@ -407,7 +407,11 @@ fun BackupRestoreScreen(
             },
             text = {
                 Text(
-                    "Without a passphrase, your backup will not be encrypted. Anyone with access to the exported file will be able to read your settings, history, and configuration. Do you want to set a passphrase first, or export without encryption?",
+                    if (hardwareInfo.isStrongBox) {
+                        "Without a passphrase, this backup is locked to this phone's ${hardwareInfo.shortChipName}. It can't be restored on another phone, or on this one after Intelligent Search is reinstalled or its data is cleared. Do you want to set a passphrase first?"
+                    } else {
+                        "Without a passphrase, your backup will not be securely encrypted. Anyone with access to the exported file will be able to read your settings, history, and configuration. Do you want to set a passphrase first, or export without encryption?"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

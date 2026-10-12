@@ -1500,9 +1500,12 @@ fun MainSettingsScreen(
                     }
                 },
                 text = {
-                    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-                    val pagerHeight = remember(configuration.screenHeightDp) {
-                        (configuration.screenHeightDp * 0.54f).coerceIn(368f, 480f).dp
+                    // Window size rather than Configuration.screenHeightDp, so split-screen and
+                    // freeform windows size the pager to the space the dialog actually has.
+                    val windowHeightPx = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.height
+                    val pagerDensity = androidx.compose.ui.platform.LocalDensity.current
+                    val pagerHeight = remember(windowHeightPx, pagerDensity) {
+                        with(pagerDensity) { (windowHeightPx.toDp().value * 0.54f).coerceIn(368f, 480f).dp }
                     }
                     androidx.compose.foundation.pager.HorizontalPager(
                         state = pagerState,

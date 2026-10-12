@@ -94,7 +94,6 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -157,12 +156,12 @@ fun AnimatedBugdroidEmoji(
         )
         return
     }
-    val context = LocalContext.current
+    val resources = androidx.compose.ui.platform.LocalResources.current
     val density = LocalDensity.current
 
-    val balloonBitmap = remember(context) {
+    val balloonBitmap = remember(resources) {
         android.graphics.BitmapFactory.decodeResource(
-            context.resources,
+            resources,
             R.drawable.ic_bugdroid_balloon,
             android.graphics.BitmapFactory.Options().apply {
                 inScaled = false
@@ -170,9 +169,9 @@ fun AnimatedBugdroidEmoji(
         ).asImageBitmap()
     }
 
-    val bodyOpenBitmap = remember(context) {
+    val bodyOpenBitmap = remember(resources) {
         android.graphics.BitmapFactory.decodeResource(
-            context.resources,
+            resources,
             R.drawable.ic_bugdroid_body,
             android.graphics.BitmapFactory.Options().apply {
                 inScaled = false
@@ -180,9 +179,9 @@ fun AnimatedBugdroidEmoji(
         ).asImageBitmap()
     }
 
-    val bodyHalfBitmap = remember(context) {
+    val bodyHalfBitmap = remember(resources) {
         android.graphics.BitmapFactory.decodeResource(
-            context.resources,
+            resources,
             R.drawable.ic_bugdroid_body_half,
             android.graphics.BitmapFactory.Options().apply {
                 inScaled = false
@@ -190,9 +189,9 @@ fun AnimatedBugdroidEmoji(
         )?.asImageBitmap() ?: bodyOpenBitmap
     }
 
-    val bodyBlinkBitmap = remember(context) {
+    val bodyBlinkBitmap = remember(resources) {
         android.graphics.BitmapFactory.decodeResource(
-            context.resources,
+            resources,
             R.drawable.ic_bugdroid_body_blink,
             android.graphics.BitmapFactory.Options().apply {
                 inScaled = false

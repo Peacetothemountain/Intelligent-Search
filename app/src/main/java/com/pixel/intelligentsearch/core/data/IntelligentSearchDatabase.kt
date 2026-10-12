@@ -34,13 +34,9 @@ abstract class IntelligentSearchDatabase : RoomDatabase() {
          * it is migrated to CE storage upon user unlock and deleted from DE storage.
          */
         fun getSafeContext(context: Context): Context {
-            val appContext = context.applicationContext ?: context
-
-            val ceContext = if (appContext.isDeviceProtectedStorage) {
-                appContext
-            } else {
-                appContext
-            }
+            // The Application context is credential-protected (the manifest doesn't set
+            // defaultToDeviceProtectedStorage), even when the caller holds a DE context.
+            val ceContext = context.applicationContext ?: context
 
             val userManager = ceContext.getSystemService(Context.USER_SERVICE) as? UserManager
             val isUnlocked = userManager?.isUserUnlocked ?: true

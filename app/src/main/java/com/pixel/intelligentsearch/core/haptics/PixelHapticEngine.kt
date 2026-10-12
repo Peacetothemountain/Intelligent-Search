@@ -506,7 +506,7 @@ class PixelHapticEngine(private val context: Context) {
             PixelHapticType.REJECT ->
                 HapticFeedbackConstants.REJECT
             PixelHapticType.GESTURE_THRESHOLD ->
-                HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE else HapticFeedbackConstants.CONTEXT_CLICK
             PixelHapticType.REORDER_SWAP ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.DRAG_START else HapticFeedbackConstants.KEYBOARD_TAP
             PixelHapticType.TOGGLE_ON ->

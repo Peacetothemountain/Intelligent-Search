@@ -148,6 +148,8 @@ class SearchViewModel @Inject constructor(
                         historyDao.getSearchHistoryFlow().collect { historyEntities ->
                             _uiState.update { it.copy(recentSearches = historyEntities.map { entity -> entity.query }) }
                         }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         android.util.Log.w("SearchViewModel", "Error collecting search history", e)
                     }
@@ -466,7 +468,11 @@ class SearchViewModel @Inject constructor(
                         var displayName = intent.contactNameOrNumber
                         var displaySubtitle = intent.resolvedPhoneNumber ?: intent.contactNameOrNumber
 
-                        if (intent.resolvedPhoneNumber == null && !intent.contactNameOrNumber.all { it.isDigit() || it in "+- ()" }) {
+                        // The coordinator resolves names from the in-memory index; this provider lookup only
+                        // covers the window before that index has loaded, and only if contact search is on.
+                        if (intent.resolvedPhoneNumber == null && settings.searchContacts &&
+                            !intent.contactNameOrNumber.all { it.isDigit() || it in "+- ()" }
+                        ) {
                             try {
                                 val contacts = com.pixel.intelligentsearch.core.data.SystemDataProvider.getContacts(context, intent.contactNameOrNumber)
                                 val matched = contacts.firstOrNull { it.phoneNumber.isNotBlank() }
@@ -476,7 +482,11 @@ class SearchViewModel @Inject constructor(
                                     val clean = matched.phoneNumber.filter { it.isDigit() || it == '+' }
                                     callIntent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$clean"))
                                 }
-                            } catch (_: Throwable) {}
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                android.util.Log.w("SearchViewModel", "Contact lookup for call action failed", e)
+                            }
                         }
 
                         directActions.add(DirectAction("Call $displayName", displaySubtitle, "phone", callIntent))
@@ -760,7 +770,6 @@ class SearchViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        super.onCleared()
         searchJob?.cancel()
         searchJob = null
         initialDataJob?.cancel()

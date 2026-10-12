@@ -137,7 +137,22 @@ private data class WidgetCustomizationSnapshot(
     val matShortcut2: String,
     val matShortcut3: String,
     val matSlotOrderStr: String
-)
+) {
+    fun systemDesign(): List<Any> = listOf(
+        sysSubtheme, sysMaterialGIconTheme, sysCustomGIconColor, sysCustomMicColor,
+        sysCustomShortcut1Color, sysCustomShortcut2Color, sysCustomShortcut3Color, sysCustomActionColor,
+        sysCustomSyncColors, sysKeepSystemG, sysHue, sysSaturation, sysLightness, sysColorOpacity,
+        sysTransparency, sysShowGIcon, sysShowVoice, sysShortcut1, sysShortcut2, sysShortcut3, sysSlotOrderStr
+    )
+
+    fun materialDesign(): List<Any> = listOf(
+        matSubtheme, matMaterialGIconTheme, matCustomGIconColor, matCustomMicColor,
+        matCustomShortcut1Color, matCustomShortcut2Color, matCustomShortcut3Color, matCustomActionColor,
+        matCustomSyncColors, matKeepSystemG, matLockBlack, matActionIcon, matHue, matSaturation,
+        matLightness, matColorOpacity, matTransparency, matShowGIcon, matShowVoice,
+        matShortcut1, matShortcut2, matShortcut3, matSlotOrderStr
+    )
+}
 private data class CustomElementTarget(val key: String, val label: String, val color: Int)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -634,7 +649,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         pendingCustomShortcutTypes.clear()
         pendingCustomShortcutValues.clear()
 
-        if (isSystem) {
+        // Both designs are persisted so edits made on the other tab before switching aren't lost.
+        // A design only counts as saved once it differs from what was loaded, which keeps the
+        // legacy-key fallbacks intact for a design the user never touched.
+        val current = captureCurrentSnapshot()
+        val sysEdited = isSystem || current.systemDesign() != savedSnapshot.systemDesign()
+        val matEdited = !isSystem || current.materialDesign() != savedSnapshot.materialDesign()
+
+        if (sysEdited) {
             val sysColorInt = android.graphics.Color.HSVToColor(
                 (sysColorOpacity / 100f * 255).toInt().coerceIn(0, 255),
                 floatArrayOf(sysHue, (sysSaturation / 100f).coerceIn(0f, 1f), (sysLightness / 100f).coerceIn(0f, 1f))
@@ -651,14 +673,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .putInt("widget_system_custom_action_icon_color", sysCustomActionColor)
                 .putBoolean("widget_system_custom_sync_colors", sysCustomSyncColors)
                 .putBoolean("widget_system_custom_keep_system_g", sysKeepSystemG)
-                .putBoolean("widget_custom_keep_system_g", sysKeepSystemG)
-                .putInt("widget_custom_g_icon_color", sysCustomGIconColor)
-                .putInt("widget_custom_mic_color", sysCustomMicColor)
-                .putInt("widget_custom_shortcut1_color", sysCustomShortcut1Color)
-                .putInt("widget_custom_shortcut2_color", sysCustomShortcut2Color)
-                .putInt("widget_custom_shortcut3_color", sysCustomShortcut3Color)
-                .putInt("widget_custom_action_icon_color", sysCustomActionColor)
-                .putBoolean("widget_custom_sync_colors", sysCustomSyncColors)
                 .putInt("widget_system_custom_hue", sysHue.toInt())
                 .putInt("widget_system_custom_saturation", sysSaturation.toInt())
                 .putInt("widget_system_custom_lightness", sysLightness.toInt())
@@ -671,12 +685,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .putString("widget_system_shortcut_2", sysShortcut2)
                 .putString("widget_system_shortcut_3", sysShortcut3)
                 .putString("widget_system_shortcut_order", sysSlotOrderStr)
-                .putString("widget.theme.style", "System Default")
-                .apply()
-            widgetSettingsViewModel?.updateSetting(SettingsManager.WIDGET_THEME_STYLE, "System Default")
-            updateWidgets(context)
-            android.widget.Toast.makeText(context, "System Design Saved", android.widget.Toast.LENGTH_SHORT).show()
-        } else {
+        }
+        if (matEdited) {
             val matColorInt = android.graphics.Color.HSVToColor(
                 (matColorOpacity / 100f * 255).toInt().coerceIn(0, 255),
                 floatArrayOf(matHue, (matSaturation / 100f).coerceIn(0f, 1f), (matLightness / 100f).coerceIn(0f, 1f))
@@ -693,14 +703,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .putInt("widget_material_custom_action_icon_color", matCustomActionColor)
                 .putBoolean("widget_material_custom_sync_colors", matCustomSyncColors)
                 .putBoolean("widget_material_custom_keep_system_g", matKeepSystemG)
-                .putBoolean("widget_custom_keep_system_g", matKeepSystemG)
-                .putInt("widget_custom_g_icon_color", matCustomGIconColor)
-                .putInt("widget_custom_mic_color", matCustomMicColor)
-                .putInt("widget_custom_shortcut1_color", matCustomShortcut1Color)
-                .putInt("widget_custom_shortcut2_color", matCustomShortcut2Color)
-                .putInt("widget_custom_shortcut3_color", matCustomShortcut3Color)
-                .putInt("widget_custom_action_icon_color", matCustomActionColor)
-                .putBoolean("widget_custom_sync_colors", matCustomSyncColors)
                 .putInt("widget_material_custom_hue", matHue.toInt())
                 .putInt("widget_material_custom_saturation", matSaturation.toInt())
                 .putInt("widget_material_custom_lightness", matLightness.toInt())
@@ -715,13 +717,29 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .putString("widget_material_shortcut_2", matShortcut2)
                 .putString("widget_material_shortcut_3", matShortcut3)
                 .putString("widget_material_shortcut_order", matSlotOrderStr)
-                .putString("widget.theme.style", "Material You (Minimal)")
-                .apply()
-            widgetSettingsViewModel?.updateSetting(SettingsManager.WIDGET_THEME_STYLE, "Material You (Minimal)")
-            updateWidgets(context)
-            android.widget.Toast.makeText(context, "Material Design Saved", android.widget.Toast.LENGTH_SHORT).show()
         }
-        savedSnapshot = captureCurrentSnapshot()
+
+        // The widget renderer reads these unprefixed keys for the active design.
+        val activeStyle = if (isSystem) "System Default" else "Material You (Minimal)"
+        editor
+            .putBoolean("widget_custom_keep_system_g", if (isSystem) sysKeepSystemG else matKeepSystemG)
+            .putInt("widget_custom_g_icon_color", if (isSystem) sysCustomGIconColor else matCustomGIconColor)
+            .putInt("widget_custom_mic_color", if (isSystem) sysCustomMicColor else matCustomMicColor)
+            .putInt("widget_custom_shortcut1_color", if (isSystem) sysCustomShortcut1Color else matCustomShortcut1Color)
+            .putInt("widget_custom_shortcut2_color", if (isSystem) sysCustomShortcut2Color else matCustomShortcut2Color)
+            .putInt("widget_custom_shortcut3_color", if (isSystem) sysCustomShortcut3Color else matCustomShortcut3Color)
+            .putInt("widget_custom_action_icon_color", if (isSystem) sysCustomActionColor else matCustomActionColor)
+            .putBoolean("widget_custom_sync_colors", if (isSystem) sysCustomSyncColors else matCustomSyncColors)
+            .putString("widget.theme.style", activeStyle)
+            .apply()
+        widgetSettingsViewModel?.updateSetting(SettingsManager.WIDGET_THEME_STYLE, activeStyle)
+        updateWidgets(context)
+        android.widget.Toast.makeText(
+            context,
+            if (isSystem) "System Design Saved" else "Material Design Saved",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
+        savedSnapshot = current
     }
 
     val handleBack = {
@@ -841,6 +859,28 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     IconButton(onClick = handleBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
+                    val canPinWidget = remember(context) {
+                        android.appwidget.AppWidgetManager.getInstance(context)?.isRequestPinAppWidgetSupported == true
+                    }
+                    if (canPinWidget) {
+                        IconButton(
+                            onClick = {
+                                // Pin the design shown in the preview, so apply any pending edits first.
+                                if (hasUnsavedChanges) saveSettings()
+                                val requested = com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
+                                    .requestPinWidget(context, isMaterial = !isSystem)
+                                if (!requested) {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "Your launcher doesn't support adding widgets from apps",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        ) {
+                            Icon(Icons.AutoMirrored.Outlined.AddToHomeScreen, contentDescription = "Add widget to Home screen")
+                        }
+                    }
                     TextButton(onClick = saveSettings) {
                         Text("Save", color = MaterialTheme.colorScheme.onSurface)
                     }

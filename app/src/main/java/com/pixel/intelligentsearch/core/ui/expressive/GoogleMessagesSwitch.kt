@@ -202,7 +202,9 @@ fun GoogleMessagesSwitch(
         // Switch Thumb (Icon-free, clean Google Messages 20261002 pill)
         Box(
             modifier = Modifier
-                .offset(x = animatedThumbOffset)
+                // Lambda offset reads the animated value in the layout phase, so the thumb slides
+                // without recomposing the switch on every animation frame.
+                .offset { IntOffset(animatedThumbOffset.roundToPx(), 0) }
                 .size(width = animatedThumbWidth, height = animatedThumbHeight)
                 .shadow(
                     elevation = if (checked) 2.dp else 0.dp,

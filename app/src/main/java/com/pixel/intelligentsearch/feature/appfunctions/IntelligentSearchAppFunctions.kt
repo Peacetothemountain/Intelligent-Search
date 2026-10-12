@@ -7,6 +7,7 @@ import androidx.appfunctions.AppFunctionDeclaration
 import androidx.appfunctions.AppFunctionSerializable
 import androidx.appfunctions.AppFunctionService
 import androidx.appfunctions.AppFunctionServiceEntryPoint
+import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine
@@ -15,6 +16,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 
 /** An installed app that matched a search. */
@@ -62,13 +64,18 @@ abstract class IntelligentSearchAppFunctions : AppFunctionService() {
         fun settingsManager(): SettingsManager
     }
 
-    private suspend fun hiddenApps(): Set<String> = runCatching {
+    private suspend fun currentSettings(): IntelligentSearchSettings? = try {
         EntryPointAccessors.fromApplication(applicationContext, SettingsEntryPoint::class.java)
             .settingsManager()
             .settingsFlow
             .first()
-            .hiddenApps
-    }.getOrDefault(emptySet())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+
+    private suspend fun hiddenApps(): Set<String> = currentSettings()?.hiddenApps ?: emptySet()
 
     /**
      * Searches the apps installed on this device by name.
@@ -101,8 +108,8 @@ abstract class IntelligentSearchAppFunctions : AppFunctionService() {
     /**
      * Searches the user's contacts by name or number.
      *
-     * Returns an empty list if contacts access hasn't been granted or Android Advanced Protection
-     * is on.
+     * Returns an empty list if contact search is turned off in Intelligent Search, contacts access
+     * hasn't been granted, or Android Advanced Protection is on.
      *
      * @param query Part of a name or phone number, for example "alex" or "555".
      * @param limit The maximum number of contacts to return, between 1 and 10.
@@ -113,6 +120,8 @@ abstract class IntelligentSearchAppFunctions : AppFunctionService() {
         val needle = query.trim()
         if (needle.isEmpty()) return emptyList()
         if (AdvancedProtectionMonitor.isEnabled(applicationContext)) return emptyList()
+        // Respect the in-app contact search switch; fail closed if settings can't be read.
+        if (currentSettings()?.searchContacts != true) return emptyList()
         if (applicationContext.checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
             return emptyList()
         }

@@ -191,6 +191,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                 modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp)
             )
             
+            val settingsViewModel = LocalSettingsViewModel.current
             var forceTutorial by rememberBooleanPreference(prefs, "force_tutorial", false)
             SettingsRowToggle(
                 title = "Force Tutorial Mode",
@@ -209,21 +210,20 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                         .putInt("tutorial_step", 0)
                         .putBoolean("tutorial_completed", false)
                         .apply()
+                    // Settings screens read tutorial state from DataStore, not the prefs mirror.
+                    settingsViewModel?.updateSetting(SettingsManager.TUTORIAL_STEP, 0)
+                    settingsViewModel?.updateSetting(SettingsManager.TUTORIAL_COMPLETED, false)
                 },
                 showDivider = true
             )
             val context = androidx.compose.ui.platform.LocalContext.current
-            val scope = androidx.compose.runtime.rememberCoroutineScope()
-
 
             SettingsRow(
                 title = "Clear Search History Cache",
                 subtitle = "Reset and clear all saved recent queries",
                 icon = Icons.Outlined.Delete,
                 onClick = {
-                    scope.launch {
-                        com.pixel.intelligentsearch.core.data.IntelligentSearchDatabase.getDatabase(context).historyDao().clearHistory()
-                    }
+                    settingsViewModel?.clearSearchHistory()
                     android.widget.Toast.makeText(context, "Search history cleared", android.widget.Toast.LENGTH_SHORT).show()
                 },
                 showDivider = true
@@ -437,20 +437,18 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
 
                     // Thermals
                     val pmPower = appContext.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
-                    val osThermal = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                        try {
-                            when (pmPower?.currentThermalStatus) {
-                                android.os.PowerManager.THERMAL_STATUS_NONE -> "Cool"
-                                android.os.PowerManager.THERMAL_STATUS_LIGHT -> "Optimal"
-                                android.os.PowerManager.THERMAL_STATUS_MODERATE -> "Warm"
-                                android.os.PowerManager.THERMAL_STATUS_SEVERE -> "Hot"
-                                android.os.PowerManager.THERMAL_STATUS_CRITICAL -> "Critical"
-                                android.os.PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
-                                android.os.PowerManager.THERMAL_STATUS_SHUTDOWN -> "Overheat"
-                                else -> null
-                            }
-                        } catch (_: Throwable) { null }
-                    } else null
+                    val osThermal = try {
+                        when (pmPower?.currentThermalStatus) {
+                            android.os.PowerManager.THERMAL_STATUS_NONE -> "Cool"
+                            android.os.PowerManager.THERMAL_STATUS_LIGHT -> "Optimal"
+                            android.os.PowerManager.THERMAL_STATUS_MODERATE -> "Warm"
+                            android.os.PowerManager.THERMAL_STATUS_SEVERE -> "Hot"
+                            android.os.PowerManager.THERMAL_STATUS_CRITICAL -> "Critical"
+                            android.os.PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
+                            android.os.PowerManager.THERMAL_STATUS_SHUTDOWN -> "Overheat"
+                            else -> null
+                        }
+                    } catch (_: Exception) { null }
 
                     val bThermalStatus = osThermal ?: when {
                         bTemp < 20f -> "Cool"

@@ -63,13 +63,14 @@ class KeyAttestationVerifier(private val context: Context) {
         private const val GOOGLE_RKP_RSA_ROOT_SHA256 = "CEDB1CB6DC896AE5EC797348BCE9286753C2B38EE71CE0FBE34A9A1248800DFC"
         private const val SAMSUNG_ROOT_SHA256 = "717CC80CE5CF852BDE1F33F6E8FE3D634842E5E6DEE3E5B5D829A09FD0DECE8B"
 
-        private val TRUSTED_ROOT_FINGERPRINTS = setOf(
+        private val TRUSTED_HARDWARE_ROOT_FINGERPRINTS = setOf(
             GOOGLE_HW_ROOT_SHA256,
-            GOOGLE_SW_ROOT_SHA256,
             GOOGLE_2026_ECDSA_ROOT_SHA256,
             GOOGLE_RKP_RSA_ROOT_SHA256,
             SAMSUNG_ROOT_SHA256
         )
+
+        private val TRUSTED_ROOT_FINGERPRINTS = TRUSTED_HARDWARE_ROOT_FINGERPRINTS + GOOGLE_SW_ROOT_SHA256
 
         @Volatile
         private var cachedResult: AttestationResult? = null
@@ -168,6 +169,7 @@ class KeyAttestationVerifier(private val context: Context) {
             // Verify Root Certificate
             val rootCert = certChain.last() as? X509Certificate
             var isRootVerified = false
+            var isHardwareRootVerified = false
             var rootSubject = rootCert?.subjectX500Principal?.name ?: "Unknown"
             if (rootCert != null) {
                 try {
@@ -178,6 +180,7 @@ class KeyAttestationVerifier(private val context: Context) {
                         .joinToString("") { "%02X".format(it) }
 
                     isRootVerified = rootFingerprint in TRUSTED_ROOT_FINGERPRINTS
+                    isHardwareRootVerified = rootFingerprint in TRUSTED_HARDWARE_ROOT_FINGERPRINTS
                 } catch (e: Exception) {
                     Log.w(TAG, "Root certificate verification failed: ${e.message}")
                 }
@@ -202,7 +205,7 @@ class KeyAttestationVerifier(private val context: Context) {
 
             val challengeMatches = parsedExtension?.attestationChallenge?.contentEquals(actualChallenge) == true
             val result = AttestationResult(
-                isHardwareAttested = isChainValid && isRootVerified && parsedExtension != null && challengeMatches && parsedExtension.attestationSecurityLevel != HardwareSecurityLevel.SOFTWARE,
+                isHardwareAttested = certChain.size >= 2 && isChainValid && isHardwareRootVerified && parsedExtension != null && challengeMatches && parsedExtension.attestationSecurityLevel != HardwareSecurityLevel.SOFTWARE,
                 securityLevel = hardwareSecurityLevel,
                 attestationChallenge = challengeDisplay,
                 certificateCount = certChain.size,
@@ -435,12 +438,21 @@ class KeyAttestationVerifier(private val context: Context) {
         fun readLength(): Int {
             val b = bytes[offset++].toInt() and 0xFF
             if ((b and 0x80) == 0) {
+                if (b > bytes.size - offset) {
+                    throw IllegalArgumentException("DER length out of bounds: $b")
+                }
                 return b
             }
             val numBytes = b and 0x7F
+            if (numBytes < 1 || numBytes > 4) {
+                throw IllegalArgumentException("Invalid DER length byte count: $numBytes")
+            }
             var len = 0
             for (i in 0 until numBytes) {
                 len = (len shl 8) or (bytes[offset++].toInt() and 0xFF)
+            }
+            if (len < 0 || len > bytes.size - offset) {
+                throw IllegalArgumentException("DER length out of bounds: $len")
             }
             return len
         }

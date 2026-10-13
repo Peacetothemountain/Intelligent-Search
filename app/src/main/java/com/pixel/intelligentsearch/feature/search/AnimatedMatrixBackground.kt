@@ -248,16 +248,28 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
             }
 
             val spritePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = animatedBaseColor.toArgb()
+                color = android.graphics.Color.WHITE
                 style = Paint.Style.FILL
             }
             spriteCanvas.drawPath(spritePath, spritePaint)
 
             val blitPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            var lastBlitColor = 0
+            var cachedColorFilter: android.graphics.PorterDuffColorFilter? = null
 
             onDrawBehind {
-                if (isPaused || isSevereThrottled) {
+                if (isPaused || isCurrentSevere) {
                     return@onDrawBehind
+                }
+
+                val currentColorInt = animatedBaseColor.toArgb()
+                if (cachedColorFilter == null || currentColorInt != lastBlitColor) {
+                    lastBlitColor = currentColorInt
+                    cachedColorFilter = android.graphics.PorterDuffColorFilter(
+                        currentColorInt,
+                        android.graphics.PorterDuff.Mode.SRC_IN
+                    )
+                    blitPaint.colorFilter = cachedColorFilter
                 }
 
                 val currentPhase = phaseState.floatValue

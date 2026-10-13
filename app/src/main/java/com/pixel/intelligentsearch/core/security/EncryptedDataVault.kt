@@ -123,12 +123,15 @@ class EncryptedDataVault @Inject constructor(
     }
 
     /**
-     * Validates length, magic byte, and version of an envelope before any cryptographic operation.
+     * Validates length, magic byte, version, and security level of an envelope before any cryptographic operation.
      */
     private fun requireValidEnvelope(payload: ByteArray) {
-        require(payload.size > HEADER_LENGTH + IV_LENGTH) { "Vault payload is truncated or corrupted." }
+        require(payload.size >= HEADER_LENGTH + IV_LENGTH + (TAG_LENGTH_BITS / 8)) {
+            "Vault payload is truncated or corrupted."
+        }
         require(payload[0] == VAULT_MAGIC_BYTE) { "Invalid vault record magic byte: ${payload[0]}" }
         require(payload[1] == VAULT_VERSION_BYTE) { "Unsupported vault record version: ${payload[1]}" }
+        require(payload[2] in 1..3) { "Unsupported vault record security level: ${payload[2]}" }
     }
 
     /**

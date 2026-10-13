@@ -377,6 +377,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     }
                     Android17Slider(
+                        label = "Web results",
                         value = webResultsCount.toFloat(),
                         onValueChange = { webResultsCount = it.toInt() },
                         valueRange = 1f..20f,
@@ -423,6 +424,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Android17Slider(
+                        label = "Web priority weight",
                         value = webLevelIndex.toFloat(),
                         onValueChange = { newValue ->
                             val idx = Math.round(newValue).coerceIn(0, PriorityWeightHelper.LEVELS.size - 1)

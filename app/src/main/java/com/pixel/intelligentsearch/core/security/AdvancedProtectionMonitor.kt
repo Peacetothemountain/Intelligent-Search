@@ -33,22 +33,28 @@ object AdvancedProtectionMonitor {
         if (registered || Build.VERSION.SDK_INT < Build.VERSION_CODES.BAKLAVA) return
         synchronized(this) {
             if (registered) return
-            registered = true
             val manager = try {
                 context.applicationContext.getSystemService(AdvancedProtectionManager::class.java)
             } catch (e: Exception) {
                 Log.w(TAG, "Advanced Protection service unavailable: ${e.message}")
                 null
-            } ?: return
+            }
+            if (manager == null) {
+                registered = true // Not present on this build; nothing to retry.
+                return
+            }
 
             try {
                 _enabled.value = manager.isAdvancedProtectionEnabled
                 manager.registerAdvancedProtectionCallback(context.applicationContext.mainExecutor) { on ->
                     _enabled.value = on
                 }
+                registered = true
             } catch (e: SecurityException) {
+                registered = true // Permission state will not change at runtime.
                 Log.w(TAG, "Missing QUERY_ADVANCED_PROTECTION_MODE permission: ${e.message}")
             } catch (e: Exception) {
+                // Transient service failure: leave unregistered so the next check retries.
                 Log.w(TAG, "Failed to query Advanced Protection state: ${e.message}")
             }
         }

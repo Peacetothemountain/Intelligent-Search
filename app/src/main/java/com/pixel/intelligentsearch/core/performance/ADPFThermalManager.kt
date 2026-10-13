@@ -47,13 +47,17 @@ class ADPFThermalManager(private val context: Context) {
     private val _thermalHeadroom = MutableStateFlow(0.0f)
     val thermalHeadroom: StateFlow<Float> = _thermalHeadroom.asStateFlow()
 
-    // Active PerformanceHintManager.Session on Android 12+ (API 31+)
+    // Active PerformanceHintManager.Session on Android 12+ (API 31+). Written on the monitor thread
+    // and read from the frame-metrics thread, so it must be volatile.
+    @Volatile
     private var hintSession: Any? = null // Type erased for API compatibility
     private val isSessionInitialized = AtomicBoolean(false)
 
     // Current target frame duration in nanoseconds (Default: 120 FPS -> 8.333ms)
     private val currentTargetDurationNanos = AtomicLong(FRAME_DURATION_120HZ_NANOS)
     private var registeredTids: IntArray = intArrayOf(Process.myTid())
+    @Volatile
+    private var renderThreadTid: Int = -1
 
     // Dedicated background handler for thermal polling & ADPF maintenance
     private val monitorThread = HandlerThread("ADPF-Thermal-Monitor").apply { start() }
@@ -69,6 +73,9 @@ class ADPFThermalManager(private val context: Context) {
 
     private val headroomPoll = object : Runnable {
         override fun run() {
+            if (renderThreadTid == -1) {
+                ensureRenderThreadRegistered()
+            }
             updateThermalHeadroom()
             monitorHandler.postDelayed(this, HEADROOM_POLL_INTERVAL_MS)
         }
@@ -137,23 +144,42 @@ class ADPFThermalManager(private val context: Context) {
         currentTargetDurationNanos.set(targetNanos)
 
         monitorHandler.post {
-            try {
-                val mainTid = Process.myPid()
-                val renderTid = findRenderThreadTid()
-                val tids = if (renderTid != null && renderTid != mainTid) {
-                    intArrayOf(mainTid, renderTid)
-                } else {
-                    intArrayOf(mainTid)
-                }
-                registeredTids = tids
+            rebuildHintSessionOnMonitorThread(targetNanos)
+        }
+    }
 
-                val session = performanceHintManager.createHintSession(tids, targetNanos)
-                hintSession = session
-                isSessionInitialized.set(true)
-                Log.i(TAG, "ADPF HintSession initialized with tids=${tids.contentToString()} target=${targetNanos / 1_000_000f}ms")
-            } catch (e: Throwable) {
-                Log.w(TAG, "Failed to create HintSession: ${e.message}")
+    private fun ensureRenderThreadRegistered() {
+        if (renderThreadTid != -1 || performanceHintManager == null) return
+        val discoveredTid = findRenderThreadTid() ?: return
+        renderThreadTid = discoveredTid
+        rebuildHintSessionOnMonitorThread(currentTargetDurationNanos.get())
+    }
+
+    private fun rebuildHintSessionOnMonitorThread(targetNanos: Long) {
+        if (performanceHintManager == null) return
+        try {
+            val mainTid = Process.myPid()
+            val resolvedRenderTid = if (renderThreadTid != -1) renderThreadTid else (findRenderThreadTid() ?: -1)
+            if (resolvedRenderTid != -1) {
+                renderThreadTid = resolvedRenderTid
             }
+            val tids = if (resolvedRenderTid != -1 && resolvedRenderTid != mainTid) {
+                intArrayOf(mainTid, resolvedRenderTid)
+            } else {
+                intArrayOf(mainTid)
+            }
+            registeredTids = tids
+
+            val oldSession = hintSession as? PerformanceHintManager.Session
+            val session = performanceHintManager.createHintSession(tids, targetNanos)
+            hintSession = session
+            try {
+                oldSession?.close()
+            } catch (_: Throwable) {}
+            isSessionInitialized.set(true)
+            Log.i(TAG, "ADPF HintSession initialized with tids=${tids.contentToString()} target=${targetNanos / 1_000_000f}ms")
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to create HintSession: ${e.message}")
         }
     }
 
@@ -163,6 +189,10 @@ class ADPFThermalManager(private val context: Context) {
     fun updateTargetFps(targetFps: Int) {
         val targetNanos = getFrameDurationNanosForFps(targetFps)
         currentTargetDurationNanos.set(targetNanos)
+
+        if (renderThreadTid == -1) {
+            monitorHandler.post { ensureRenderThreadRegistered() }
+        }
 
         val session = hintSession as? PerformanceHintManager.Session ?: return
         try {
@@ -190,6 +220,9 @@ class ADPFThermalManager(private val context: Context) {
      */
     fun reportFrameMetrics(totalDurationNanos: Long, gpuDurationNanos: Long = 0L) {
         if (totalDurationNanos > 0) {
+            if (renderThreadTid == -1) {
+                monitorHandler.post { ensureRenderThreadRegistered() }
+            }
             val session = hintSession as? PerformanceHintManager.Session ?: return
             try {
                 // WorkDuration and Session.reportActualWorkDuration(WorkDuration) were added in API 35. Guarding
@@ -417,7 +450,7 @@ class ADPFThermalManager(private val context: Context) {
 
     companion object {
         private const val TAG = "ADPFThermalManager"
-        private const val HEADROOM_POLL_INTERVAL_MS = 2500L
+        private const val HEADROOM_POLL_INTERVAL_MS = 10_500L
 
         const val FRAME_DURATION_144HZ_NANOS = 6_944_444L
         const val FRAME_DURATION_120HZ_NANOS = 8_333_333L

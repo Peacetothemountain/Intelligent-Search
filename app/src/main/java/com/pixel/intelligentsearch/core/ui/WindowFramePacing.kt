@@ -186,7 +186,7 @@ object WindowFramePacing {
                         view.setFrameContentVelocity(abs(velocityPxPerSec))
                     }
                 } else {
-                    view.setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_LOW)
+                    view.setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT)
                     view.setFrameContentVelocity(0f)
                 }
             } catch (_: Throwable) {}

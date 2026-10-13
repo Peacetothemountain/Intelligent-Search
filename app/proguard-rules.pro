@@ -16,9 +16,6 @@
     public static int i(...);
 }
 
-# Titan M3+ Hardware Security, Keystore & Biometrics
--keep,allowobfuscation class com.pixel.intelligentsearch.core.security.** { *; }
-
 # Kotlin Serialization
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.SerializationKt

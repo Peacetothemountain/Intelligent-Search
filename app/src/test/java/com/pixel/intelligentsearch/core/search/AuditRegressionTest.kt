@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.core.search
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Calendar
@@ -57,5 +58,58 @@ class AuditRegressionTest {
         val length = MathematicalExpressionEngine.evaluate("1 km to m")
             as MathematicalExpressionEngine.MathEvaluationResult.UnitConversion
         assertTrue(length.formatted, length.formatted.contains(" = "))
+    }
+
+    @Test
+    fun subtitlePhoneAndPackageMatchesScoreAboveZero() {
+        val contactMeta = SearchScoringEngine.ScoringMetadata(domain = SearchScoringEngine.EntityDomain.CONTACT)
+        val phoneScore = SearchScoringEngine.evaluateScore(
+            query = "5551234",
+            targetTitle = "John Smith",
+            metadata = contactMeta,
+            targetSubtitle = "+1 (800) 555-1234"
+        )
+        assertTrue("Phone number match on subtitle must score > 0", phoneScore.totalScore > 0f)
+
+        val appMeta = SearchScoringEngine.ScoringMetadata(domain = SearchScoringEngine.EntityDomain.APPLICATION)
+        val pkgScore = SearchScoringEngine.evaluateScore(
+            query = "whatsapp",
+            targetTitle = "Messenger",
+            metadata = appMeta,
+            targetSubtitle = "com.whatsapp"
+        )
+        assertTrue("Package name match on subtitle must score > 0", pkgScore.totalScore > 0f)
+    }
+
+    @Test
+    fun spacedCaretEvaluatesAsExponentiationWhileXorKeywordEvaluatesBitwise() {
+        val expSpaced = MathematicalExpressionEngine.evaluate("2 ^ 3")
+            as MathematicalExpressionEngine.MathEvaluationResult.Computation
+        assertEquals(8.0, expSpaced.numericValue, 1e-6)
+
+        val expCompact = MathematicalExpressionEngine.evaluate("2^3")
+            as MathematicalExpressionEngine.MathEvaluationResult.Computation
+        assertEquals(8.0, expCompact.numericValue, 1e-6)
+
+        val xorRes = MathematicalExpressionEngine.evaluate("12 XOR 4")
+            as MathematicalExpressionEngine.MathEvaluationResult.Bitwise
+        assertEquals(8L, xorRes.decimalValue)
+    }
+
+    @Test
+    fun barePiAndSpaceSeparatedNumbersDoNotTriggerFalsePositiveMath() {
+        assertNull(MathematicalExpressionEngine.evaluate("pi"))
+        assertNull(MathematicalExpressionEngine.evaluate("10 20 - 5"))
+    }
+
+    @Test
+    fun nlpTimeBoundaryAndPhoneCallValidation() {
+        val base = Calendar.getInstance().apply { set(2026, Calendar.OCTOBER, 7, 9, 0, 0) }
+        val reminder = NaturalLanguageIntentParser.parse("remind me to meet 10 americans at 3pm", base.timeInMillis)
+            as NaturalLanguageIntentParser.ParsedIntent.Reminder
+        assertEquals("meet 10 americans", reminder.task)
+
+        // "phone settings" without digits or matched contact should not produce a broken PhoneCall intent
+        assertNull(NaturalLanguageIntentParser.parse("phone settings", base.timeInMillis))
     }
 }

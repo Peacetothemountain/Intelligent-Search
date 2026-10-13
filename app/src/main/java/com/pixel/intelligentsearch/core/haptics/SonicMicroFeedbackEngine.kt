@@ -56,8 +56,37 @@ class SonicMicroFeedbackEngine private constructor(private val context: Context)
     @Volatile
     var isEnabled: Boolean = false
 
+    @Volatile
+    private var soundEffectsEnabled: Boolean = true
+
+    private val soundEffectsObserver = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            refreshSoundEffectsSetting()
+        }
+    }
+
     init {
+        refreshSoundEffectsSetting()
+        try {
+            context.contentResolver.registerContentObserver(
+                Settings.System.getUriFor(Settings.System.SOUND_EFFECTS_ENABLED),
+                false,
+                soundEffectsObserver
+            )
+        } catch (_: Throwable) {}
         precomputeAndWarmBuffers()
+    }
+
+    private fun refreshSoundEffectsSetting() {
+        soundEffectsEnabled = try {
+            Settings.System.getInt(
+                context.contentResolver,
+                Settings.System.SOUND_EFFECTS_ENABLED,
+                1
+            ) != 0
+        } catch (_: Throwable) {
+            true
+        }
     }
 
     /**
@@ -340,12 +369,7 @@ class SonicMicroFeedbackEngine private constructor(private val context: Context)
             return
         }
 
-        // Respect system sound effects toggle
-        val soundEffectsEnabled = Settings.System.getInt(
-            context.contentResolver,
-            Settings.System.SOUND_EFFECTS_ENABLED,
-            1
-        ) != 0
+        // Respect system sound effects toggle (cached via ContentObserver)
         if (!soundEffectsEnabled) {
             return
         }
@@ -374,6 +398,9 @@ class SonicMicroFeedbackEngine private constructor(private val context: Context)
      * Release static audio tracks when shutting down engine.
      */
     fun release() {
+        try {
+            context.contentResolver.unregisterContentObserver(soundEffectsObserver)
+        } catch (_: Throwable) {}
         trackPool.values.flatten().forEach { track ->
             try {
                 if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {

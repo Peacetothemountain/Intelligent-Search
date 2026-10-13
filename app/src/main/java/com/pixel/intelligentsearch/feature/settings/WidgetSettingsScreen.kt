@@ -2353,7 +2353,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                     slotItemHeightPx = it.height.toFloat() + with(density) { 12.dp.toPx() }
                                                 }
                                             }
-                                            .pointerInput(slotKey, isDragging) {
+                                            .pointerInput(slotKey, isDragging, isSystem) {
                                                 if (!isDragging) {
                                                     detectHorizontalDragGestures(
                                                         onDragEnd = {
@@ -2458,7 +2458,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                     imageVector = Icons.Outlined.DragHandle,
                                                     contentDescription = "Drag to reorder",
                                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                                    modifier = Modifier.pointerInput(currentSlot) {
+                                                    modifier = Modifier.pointerInput(currentSlot, isSystem) {
                                                         detectVerticalDragGestures(
                                                             onDragStart = {
                                                                 hapticEngine.performPredictiveBackHaptic(view)
@@ -2580,6 +2580,15 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 androidx.compose.material3.DropdownMenuItem(
                                                     text = { Text("Default (Google)") },
                                                     onClick = {
+                                                        // Drop any custom URL/app override so the slot really returns to the default target.
+                                                        val shortcutKey = option.first
+                                                        if (prefs.getString("${shortcutKey}_custom_type", "default") == "default") {
+                                                            pendingCustomShortcutTypes.remove(shortcutKey)
+                                                            pendingCustomShortcutValues.remove(shortcutKey)
+                                                        } else {
+                                                            pendingCustomShortcutTypes[shortcutKey] = "default"
+                                                            pendingCustomShortcutValues.remove(shortcutKey)
+                                                        }
                                                         when (activeShortcutSlot) {
                                                             1 -> localShortcut1 = option.first
                                                             2 -> localShortcut2 = option.first
@@ -2592,6 +2601,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 androidx.compose.material3.DropdownMenuItem(
                                                     text = { Text("Custom Website (URL)") },
                                                     onClick = {
+                                                        customInputValue = ""
                                                         showCustomUrlDialogFor = option.first
                                                         expandedDropdownFor = null
                                                     }
@@ -2599,6 +2609,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 androidx.compose.material3.DropdownMenuItem(
                                                     text = { Text("Custom App (APK)") },
                                                     onClick = {
+                                                        customInputValue = ""
                                                         showCustomAppDialogFor = option.first
                                                         expandedDropdownFor = null
                                                     }
@@ -2706,18 +2717,24 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onDismissRequest = { showCustomUrlDialogFor = null },
                     title = { Text("Custom URL for ${showCustomUrlDialogFor}") },
                     text = {
+                        val candidate = customInputValue.trim()
                         androidx.compose.material3.OutlinedTextField(
                             value = customInputValue,
                             onValueChange = { customInputValue = it },
-                            label = { Text("Enter URL") }
+                            label = { Text("Enter URL") },
+                            singleLine = true,
+                            isError = candidate.isNotEmpty() && !isValidShortcutUrl(candidate),
+                            supportingText = if (candidate.isNotEmpty() && !isValidShortcutUrl(candidate)) {
+                                { Text("Enter a web address, e.g. example.com or https://example.com") }
+                            } else null
                         )
                     },
                     confirmButton = {
-                        TextButton(onClick = {
+                        TextButton(enabled = isValidShortcutUrl(customInputValue.trim()), onClick = {
                             val slot = showCustomUrlDialogFor
                             if (slot != null) {
                                 pendingCustomShortcutTypes[slot] = "url"
-                                pendingCustomShortcutValues[slot] = customInputValue
+                                pendingCustomShortcutValues[slot] = customInputValue.trim()
                                 when (activeShortcutSlot) {
                                     1 -> localShortcut1 = slot
                                     2 -> localShortcut2 = slot
@@ -2742,15 +2759,16 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         androidx.compose.material3.OutlinedTextField(
                             value = customInputValue,
                             onValueChange = { customInputValue = it },
-                            label = { Text("Enter Package Name") }
+                            label = { Text("Enter Package Name") },
+                            singleLine = true
                         )
                     },
                     confirmButton = {
-                        TextButton(onClick = {
+                        TextButton(enabled = PACKAGE_NAME_REGEX.matches(customInputValue.trim()), onClick = {
                             val slot = showCustomAppDialogFor
                             if (slot != null) {
                                 pendingCustomShortcutTypes[slot] = "app"
-                                pendingCustomShortcutValues[slot] = customInputValue
+                                pendingCustomShortcutValues[slot] = customInputValue.trim()
                                 when (activeShortcutSlot) {
                                     1 -> localShortcut1 = slot
                                     2 -> localShortcut2 = slot
@@ -2770,6 +2788,23 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
 }
 
+
+private val PACKAGE_NAME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$")
+
+/**
+ * The widget opens custom shortcut URLs as https unless they start with http(s)://, so anything
+ * else with a scheme (javascript:, intent:, file:) or without a host is rejected up front.
+ */
+private fun isValidShortcutUrl(raw: String): Boolean {
+    if (raw.isEmpty() || raw.any { it.isWhitespace() }) return false
+    val withScheme = when {
+        raw.startsWith("https://", ignoreCase = true) || raw.startsWith("http://", ignoreCase = true) -> raw
+        raw.contains(':') -> return false
+        else -> "https://$raw"
+    }
+    val host = android.net.Uri.parse(withScheme).host ?: return false
+    return host.contains('.') && !host.startsWith('.') && !host.endsWith('.')
+}
 
 private val searchActionPath1 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10.5,4 A 6.5,6.5 0 0 0 4,10.5 A 6.5,6.5 0 0 0 10.5,17 A 6.5,6.5 0 0 0 15,15").toPath() }
 private val searchActionPath2 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 14,5 A 6.5,6.5 0 0 0 10.5,4 A 6.5,6.5 0 0 0 5,7.5").toPath() }

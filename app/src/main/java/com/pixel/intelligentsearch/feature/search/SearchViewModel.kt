@@ -158,9 +158,31 @@ class SearchViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            var previousLocked = false
             multiProfileManager.profilesState.collect { profiles ->
                 val hasLocked = profiles.any { it.profileType == ProfileType.PRIVATE && it.isLocked }
-                _uiState.update { it.copy(hasLockedPrivateSpace = hasLocked) }
+                if (hasLocked) {
+                    unifiedSearchCoordinator.purgePrivateProfileItems()
+                    _uiState.update { current ->
+                        current.copy(
+                            hasLockedPrivateSpace = true,
+                            allApps = current.allApps.filterNot { it.isPrivateProfile || it.profileType == ProfileType.PRIVATE },
+                            recentApps = current.recentApps.filterNot { it.isPrivateProfile || it.profileType == ProfileType.PRIVATE },
+                            filteredApps = current.filteredApps.filterNot { it.isPrivateProfile || it.profileType == ProfileType.PRIVATE }
+                        )
+                    }
+                    if (!previousLocked) {
+                        corpusIndexManager.reindexApps(forceRefresh = true)
+                        corpusIndexManager.reindexShortcuts()
+                    }
+                } else {
+                    _uiState.update { it.copy(hasLockedPrivateSpace = false) }
+                    if (previousLocked) {
+                        corpusIndexManager.reindexApps(forceRefresh = true)
+                        corpusIndexManager.reindexShortcuts()
+                    }
+                }
+                previousLocked = hasLocked
             }
         }
 
@@ -347,12 +369,14 @@ class SearchViewModel @Inject constructor(
                     directActions = clipboardActions
                 ) }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 android.util.Log.w("IntelligentSearch", "Unexpected error", e)
             }
         }
     }
 
     fun onQueryChanged(newQuery: String) {
+        val previousQuery = _uiState.value.query
         _uiState.update { it.copy(query = newQuery) }
         
         if (newQuery.isBlank()) {
@@ -409,13 +433,18 @@ class SearchViewModel @Inject constructor(
         }
 
         // TIER 1: ZERO-DEBOUNCE (0ms) Immediate Local Execution across all corpuses
-        executeLocalSearch(newQuery)
+        executeLocalSearch(newQuery, previousQuery)
 
         // TIER 2: Debounced Web Suggestions (80ms human-pause debounce)
-        _remoteSearchQueryFlow.value = newQuery
+        if (settingsState.value.searchWeb) {
+            _remoteSearchQueryFlow.value = newQuery
+        } else {
+            _remoteSearchQueryFlow.value = ""
+            _uiState.update { it.copy(webSuggestions = emptyList()) }
+        }
     }
 
-    private fun executeLocalSearch(newQuery: String) {
+    private fun executeLocalSearch(newQuery: String, previousQuery: String = "") {
         val prefs = customPrefs
         val verboseLogging = prefs.getBoolean("debug.verbose_logging", false)
         val forceSearchError = prefs.getBoolean("debug.force_search_error", false)
@@ -471,6 +500,7 @@ class SearchViewModel @Inject constructor(
                         // The coordinator resolves names from the in-memory index; this provider lookup only
                         // covers the window before that index has loaded, and only if contact search is on.
                         if (intent.resolvedPhoneNumber == null && settings.searchContacts &&
+                            !corpusIndexManager.isIndexReady.value &&
                             !intent.contactNameOrNumber.all { it.isDigit() || it in "+- ()" }
                         ) {
                             try {
@@ -524,7 +554,7 @@ class SearchViewModel @Inject constructor(
 
             currentCoroutineContext().ensureActive()
             val localContacts = if (settings.searchContacts) {
-                if (unifiedResults.contacts.isNotEmpty()) {
+                if (unifiedResults.contacts.isNotEmpty() || corpusIndexManager.isIndexReady.value) {
                     unifiedResults.contacts.take(settings.contactResultsCount)
                 } else if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                     SystemDataProvider.getContacts(context, newQuery).take(settings.contactResultsCount)
@@ -539,10 +569,10 @@ class SearchViewModel @Inject constructor(
             } else emptyList()
 
             val localShortcuts = if (settings.searchShortcuts) {
-                unifiedResults.shortcuts.take(settings.shortcutResultsCount)
+                unifiedResults.shortcuts.filter { it.packageName !in settings.hiddenApps }.take(settings.shortcutResultsCount)
             } else emptyList()
 
-            val suggestionsEnabled = customPrefs.getBoolean("search.web.suggestions", true) && !isAdvancedProtectionOn()
+            val suggestionsEnabled = settings.searchWeb && customPrefs.getBoolean("search.web.suggestions", true) && !isAdvancedProtectionOn()
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
                 WebSearchProvider.getCachedSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(5))
@@ -577,10 +607,14 @@ class SearchViewModel @Inject constructor(
             // TIER 1 UPDATE: Instant local results (<3ms) + Instant cached suggestions
             _uiState.update { current ->
                 if (current.query != newQuery) return@update current
-                val resolvedSuggestions = cachedWebSuggestions ?: if (current.query.isNotBlank() && newQuery.startsWith(current.query, ignoreCase = true)) {
-                    current.webSuggestions.filter { it.contains(newQuery, ignoreCase = true) }
-                } else {
+                val resolvedSuggestions = if (!suggestionsEnabled) {
                     emptyList()
+                } else {
+                    cachedWebSuggestions ?: if (previousQuery.isNotBlank() && newQuery.startsWith(previousQuery, ignoreCase = true)) {
+                        current.webSuggestions.filter { it.contains(newQuery, ignoreCase = true) }
+                    } else {
+                        emptyList()
+                    }
                 }
                 current.copy(
                     filteredApps = resolvedApps,
@@ -652,6 +686,10 @@ class SearchViewModel @Inject constructor(
     private suspend fun fetchRemoteWebSuggestions(query: String) {
         if (query.isBlank()) return
         val settings = settingsState.value
+        if (!settings.searchWeb) {
+            _uiState.update { it.copy(webSuggestions = emptyList()) }
+            return
+        }
         val engine = settings.searchEngine
         if (engine == "Tor Project" || engine == "Tor Browser") {
             _uiState.update { it.copy(webSuggestions = emptyList()) }
@@ -659,7 +697,10 @@ class SearchViewModel @Inject constructor(
         }
 
         val suggestionsEnabled = customPrefs.getBoolean("search.web.suggestions", true)
-        if (!suggestionsEnabled || isAdvancedProtectionOn()) return
+        if (!suggestionsEnabled || isAdvancedProtectionOn()) {
+            _uiState.update { it.copy(webSuggestions = emptyList()) }
+            return
+        }
 
         val maxResults = settings.webResultsCount.coerceAtLeast(5)
 
@@ -678,7 +719,9 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    @Volatile
     private var lastClearedHistory: List<HistoryEntity> = emptyList()
+    private var historyClearJob: Job? = null
 
     fun addSearchHistory(query: String) {
         val trimmed = query.trim()
@@ -709,37 +752,41 @@ class SearchViewModel @Inject constructor(
 
     fun clearSearchHistory() {
         val currentSearches = _uiState.value.recentSearches
+        // Snapshot before going async so an immediate Undo restores this clear, not an older one.
+        // Descending timestamps keep the original most-recent-first order on restore.
+        val now = System.currentTimeMillis()
+        lastClearedHistory = currentSearches.mapIndexed { index, query -> HistoryEntity(query, now - index) }
         _uiState.update { state -> state.copy(recentSearches = emptyList()) }
-        viewModelScope.launch(Dispatchers.IO) {
+        historyClearJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 if (directBootManager.isUserUnlocked.value) {
                     val dbHistory = historyDao.getSearchHistory()
-                    lastClearedHistory = if (dbHistory.isNotEmpty()) {
-                        dbHistory
-                    } else {
-                        currentSearches.map { HistoryEntity(it, System.currentTimeMillis()) }
-                    }
+                    if (dbHistory.isNotEmpty()) lastClearedHistory = dbHistory
                     historyDao.clearHistory()
-                } else {
-                    lastClearedHistory = currentSearches.map { HistoryEntity(it, System.currentTimeMillis()) }
                 }
-            } catch (_: Exception) {
-                lastClearedHistory = currentSearches.map { HistoryEntity(it, System.currentTimeMillis()) }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                android.util.Log.w("IntelligentSearch", "Failed to clear search history", e)
             }
         }
     }
 
     fun undoClearSearchHistory() {
         val toRestore = lastClearedHistory
-        if (toRestore.isNotEmpty()) {
-            _uiState.update { state -> state.copy(recentSearches = toRestore.map { it.query }) }
-            viewModelScope.launch(Dispatchers.IO) {
-                try {
-                    if (directBootManager.isUserUnlocked.value) {
-                        historyDao.insertSearches(toRestore)
-                        lastClearedHistory = emptyList()
-                    }
-                } catch (_: Exception) {}
+        if (toRestore.isEmpty()) return
+        lastClearedHistory = emptyList()
+        _uiState.update { state -> state.copy(recentSearches = toRestore.map { it.query }) }
+        val pendingClear = historyClearJob
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // The clear may still be running; restoring first would let it wipe the restored rows.
+                pendingClear?.join()
+                if (directBootManager.isUserUnlocked.value) {
+                    historyDao.insertSearches(toRestore)
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                android.util.Log.w("IntelligentSearch", "Failed to restore search history", e)
             }
         }
     }

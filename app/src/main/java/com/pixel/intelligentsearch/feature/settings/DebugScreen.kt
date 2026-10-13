@@ -729,11 +729,12 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     }
 
                     val rt = Runtime.getRuntime()
-                    val myHeapMb = ((rt.totalMemory() - rt.freeMemory()) + android.os.Debug.getNativeHeapAllocatedSize()) / (1024f * 1024f)
+                    // Decimal MB (10^6 bytes) to match the GB figures above; /proc/meminfo kB are KiB.
+                    val myHeapMb = ((rt.totalMemory() - rt.freeMemory()) + android.os.Debug.getNativeHeapAllocatedSize()) / 1_000_000f
 
-                    val activeAppsMb = (procActiveAnonKb.takeIf { it > 0 } ?: (procAnonPagesKb - procInactiveAnonKb).coerceAtLeast(0L)) / 1024f
-                    val sysCacheMb = (procCachedKb + procBuffersKb + procKReclaimableKb) / 1024f
-                    val kernelMb = (procSlabKb + procKernelStackKb + procPageTablesKb) / 1024f
+                    val activeAppsMb = (procActiveAnonKb.takeIf { it > 0 } ?: (procAnonPagesKb - procInactiveAnonKb).coerceAtLeast(0L)) * 1.024f / 1000f
+                    val sysCacheMb = (procCachedKb + procBuffersKb + procKReclaimableKb) * 1.024f / 1000f
+                    val kernelMb = (procSlabKb + procKernelStackKb + procPageTablesKb) * 1.024f / 1000f
 
                     val topProcessesList = listOf(
                         ProcessRamEntry(name = "Active Apps", ramMb = activeAppsMb),
@@ -1372,7 +1373,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                     .padding(bottom = 10.dp)
                             )
                             Text(
-                                text = "Top Apps by RAM",
+                                text = "RAM by Category",
                                 fontSize = 7.5.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
@@ -1428,8 +1429,8 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = if (entry.ramMb >= 1024f) {
-                                            String.format(java.util.Locale.US, "%.1f GB", entry.ramMb / 1024f)
+                                        text = if (entry.ramMb >= 1000f) {
+                                            String.format(java.util.Locale.US, "%.1f GB", entry.ramMb / 1000f)
                                         } else {
                                             "${entry.ramMb.toInt()} MB"
                                         },

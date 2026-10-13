@@ -46,7 +46,8 @@ class SecureSettingsRepository @Inject constructor(
         }
     }
 
-    private val sharedPreferences = getSafeContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val sharedPreferences: android.content.SharedPreferences
+        get() = getSafeContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val encryptedVault = EncryptedDataVault(context, securityManager)
 
     fun getHardwareSecurityLevel(): HardwareSecurityLevel {

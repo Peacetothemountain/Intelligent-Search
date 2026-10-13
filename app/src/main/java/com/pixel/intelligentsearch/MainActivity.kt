@@ -128,7 +128,7 @@ open class MainActivity : AppCompatActivity() {
                 .putBoolean("profile_1_restored_to_default_v918", true)
                 .apply()
         }
-        val initialShowWallpaper = prefs.getBoolean("search.background.show.wall", prefs.getBoolean("show.wallpaper", true))
+        val initialShowWallpaper = prefs.getBoolean("search.background.show.wall", prefs.getBoolean("show_wallpaper", prefs.getBoolean("show.wallpaper", true)))
         val initialBlur = prefs.getInt("search.background.blur", prefs.getInt("background.blur", 50))
         if (initialShowWallpaper) {
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
@@ -305,6 +305,9 @@ open class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIntent(intent: Intent?): Boolean {
+        if (this is com.pixel.intelligentsearch.feature.search.SearchActivity) {
+            return false
+        }
         if (intent?.action == "com.pixel.intelligentsearch.LAUNCH_GEMINI_OVERLAY" ||
             intent?.getBooleanExtra("launch_gemini_overlay", false) == true) {
             com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.launchGeminiCornerOverlay(this)

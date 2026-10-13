@@ -34,9 +34,40 @@ object QueryNormalizer {
         return !previousWasSpace // also rejects the empty string and a trailing space
     }
 
+    private fun isPureAscii(s: String): Boolean {
+        for (i in 0 until s.length) {
+            if (s[i].code >= 0x80) return false
+        }
+        return true
+    }
+
+    private fun normalizeAscii(s: String): String {
+        val sb = StringBuilder(s.length)
+        var pendingSpace = false
+        for (i in 0 until s.length) {
+            when (val c = s[i]) {
+                in 'a'..'z', in '0'..'9' -> {
+                    if (pendingSpace && sb.isNotEmpty()) sb.append(' ')
+                    sb.append(c)
+                    pendingSpace = false
+                }
+                in 'A'..'Z' -> {
+                    if (pendingSpace && sb.isNotEmpty()) sb.append(' ')
+                    sb.append((c.code + 32).toChar())
+                    pendingSpace = false
+                }
+                else -> {
+                    pendingSpace = true
+                }
+            }
+        }
+        return sb.toString()
+    }
+
     fun normalize(input: String?): String {
         if (input.isNullOrBlank()) return ""
         if (isCanonicalAscii(input)) return input
+        if (isPureAscii(input)) return normalizeAscii(input)
         val preCleaned = input
             .replace("ß", "ss").replace("ẞ", "ss")
             .replace("œ", "oe").replace("Œ", "oe")

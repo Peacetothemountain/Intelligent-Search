@@ -101,6 +101,19 @@ class StrongBoxSecurityManager @Inject constructor(
         }
     }
 
+    /**
+     * A busy or briefly unavailable Keystore must not be mistaken for a corrupt key: purging the alias
+     * would permanently orphan every backup and saved passphrase it protects.
+     */
+    private fun throwIfTransientKeystoreFailure(error: Exception) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return
+        var cause: Throwable? = error
+        while (cause != null) {
+            if (cause is android.security.KeyStoreException && cause.isTransientFailure) throw error
+            cause = cause.cause
+        }
+    }
+
     fun isStrongBoxSupported(): Boolean {
         if (strongBoxDisabledDueToFailure) return false
         return try {
@@ -124,6 +137,7 @@ class StrongBoxSecurityManager @Inject constructor(
             val entry = try {
                 keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry
             } catch (e: Exception) {
+                throwIfTransientKeystoreFailure(e)
                 Log.w(TAG, "Keystore getEntry failed for $alias: ${e.message}")
                 null
             }
@@ -134,6 +148,7 @@ class StrongBoxSecurityManager @Inject constructor(
             val key = try {
                 keyStore.getKey(alias, null) as? SecretKey
             } catch (e: Exception) {
+                throwIfTransientKeystoreFailure(e)
                 Log.w(TAG, "Keystore getKey failed for $alias: ${e.message}")
                 null
             }
@@ -153,6 +168,10 @@ class StrongBoxSecurityManager @Inject constructor(
                 val key = generateAesKey(alias, isStrongBox = true, requireBiometric, authTimeoutSeconds)
                 Pair(key, getHardwareSecurityLevel(key))
             } catch (e: Exception) {
+                throwIfTransientKeystoreFailure(e)
+                if (requireBiometric && e is java.security.InvalidAlgorithmParameterException) {
+                    throw e
+                }
                 Log.w(TAG, "StrongBox key provisioning failed (${e.javaClass.simpleName}); executing atomic TEE fallback.", e)
                 strongBoxDisabledDueToFailure = true
                 deleteKey(alias)
@@ -334,7 +353,8 @@ class StrongBoxSecurityManager @Inject constructor(
         if (keyStore.containsAlias(alias)) {
             val entry = try {
                 keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                throwIfTransientKeystoreFailure(e)
                 null
             }
             if (entry != null) {
@@ -342,7 +362,8 @@ class StrongBoxSecurityManager @Inject constructor(
             }
             val existingKey = try {
                 keyStore.getKey(alias, null) as? SecretKey
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                throwIfTransientKeystoreFailure(e)
                 null
             }
             if (existingKey != null) {
@@ -356,16 +377,22 @@ class StrongBoxSecurityManager @Inject constructor(
                 val key = generateHmacKey(alias, isStrongBox = true)
                 Pair(key, getHardwareSecurityLevel(key))
             } catch (e: Exception) {
+                throwIfTransientKeystoreFailure(e)
                 Log.w(TAG, "StrongBox HMAC unavailable on device; falling back to TEE: ${e.message}")
                 deleteKey(alias)
                 try {
                     val key = generateHmacKey(alias, isStrongBox = false)
                     Pair(key, getHardwareSecurityLevel(key))
                 } catch (teeEx: Exception) {
+                    throwIfTransientKeystoreFailure(teeEx)
                     Log.w(TAG, "TEE HMAC generation failed; utilizing device-isolated entropy seed", teeEx)
                     val seed = getOrCreateSoftwareBlindIndexSeed()
-                    val key = SecretKeySpec(seed, HMAC_ALGORITHM)
-                    Pair(key, HardwareSecurityLevel.SOFTWARE)
+                    try {
+                        val key = SecretKeySpec(seed, HMAC_ALGORITHM)
+                        Pair(key, HardwareSecurityLevel.SOFTWARE)
+                    } finally {
+                        MemorySanitizer.wipe(seed)
+                    }
                 }
             }
         } else {
@@ -373,10 +400,15 @@ class StrongBoxSecurityManager @Inject constructor(
                 val key = generateHmacKey(alias, isStrongBox = false)
                 Pair(key, getHardwareSecurityLevel(key))
             } catch (teeEx: Exception) {
+                throwIfTransientKeystoreFailure(teeEx)
                 Log.w(TAG, "TEE HMAC generation failed; utilizing device-isolated entropy seed", teeEx)
                 val seed = getOrCreateSoftwareBlindIndexSeed()
-                val key = SecretKeySpec(seed, HMAC_ALGORITHM)
-                Pair(key, HardwareSecurityLevel.SOFTWARE)
+                try {
+                    val key = SecretKeySpec(seed, HMAC_ALGORITHM)
+                    Pair(key, HardwareSecurityLevel.SOFTWARE)
+                } finally {
+                    MemorySanitizer.wipe(seed)
+                }
             }
         }
     }
@@ -419,12 +451,17 @@ class StrongBoxSecurityManager @Inject constructor(
             val hmac = mac.doFinal(input.lowercase().trim().toByteArray(Charsets.UTF_8))
             bytesToHex(hmac.copyOf(16))
         } catch (e: Exception) {
+            throwIfTransientKeystoreFailure(e)
             Log.w(TAG, "Hardware KeyStore HMAC signing unavailable; utilizing device-isolated entropy seed: ${e.message}")
             val seed = getOrCreateSoftwareBlindIndexSeed()
-            val keySpec = SecretKeySpec(seed, HMAC_ALGORITHM)
-            mac.init(keySpec)
-            val hmac = mac.doFinal(input.lowercase().trim().toByteArray(Charsets.UTF_8))
-            bytesToHex(hmac.copyOf(16))
+            try {
+                val keySpec = SecretKeySpec(seed, HMAC_ALGORITHM)
+                mac.init(keySpec)
+                val hmac = mac.doFinal(input.lowercase().trim().toByteArray(Charsets.UTF_8))
+                bytesToHex(hmac.copyOf(16))
+            } finally {
+                MemorySanitizer.wipe(seed)
+            }
         }
     }
 

@@ -96,12 +96,15 @@ private fun ExpressiveOneBoxCard(
     val isPressed by interactionSource.collectIsPressedAsState()
 
     val cardShape = remember(cornerRadius) { SquircleShape(cornerRadius) }
+    var wasPressed by remember { androidx.compose.runtime.mutableStateOf(false) }
 
     LaunchedEffect(isPressed, isClickable) {
         if (isPressed && isClickable) {
+            wasPressed = true
             sensoryEngine.tick(view)
             WindowFramePacing.setDynamicLtpoPacing(view, isMoving = true)
-        } else {
+        } else if (wasPressed) {
+            wasPressed = false
             WindowFramePacing.setDynamicLtpoPacing(view, isMoving = false)
         }
     }
@@ -200,9 +203,13 @@ fun AnimatedCopyChip(
     LaunchedEffect(isCopied) {
         if (isCopied) {
             WindowFramePacing.setDynamicLtpoPacing(view, isMoving = true)
-            delay(2000L)
-            isCopied = false
-            WindowFramePacing.setDynamicLtpoPacing(view, isMoving = false)
+            try {
+                delay(2000L)
+                isCopied = false
+            } finally {
+                // Also runs if the card leaves composition mid-delay, so the view never stays at high refresh.
+                WindowFramePacing.setDynamicLtpoPacing(view, isMoving = false)
+            }
         }
     }
 

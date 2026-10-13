@@ -49,8 +49,8 @@ class SettingsActivity : AppCompatActivity() {
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         super.onCreate(savedInstanceState)
 
-        // Android 17 QPR2 native ROLE_SEARCH_ENGINE request (also refreshes the user_setup allowlist)
-        requestSearchEngineRole()
+        // Refresh the user_setup allowlist without unconditionally launching the system RoleManager dialog
+        com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this)
         
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(
@@ -80,17 +80,23 @@ class SettingsActivity : AppCompatActivity() {
         }
         val isWidgetConfigure = intent.action == android.appwidget.AppWidgetManager.ACTION_APPWIDGET_CONFIGURE ||
                 appWidgetId != android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
-        if (isWidgetConfigure) {
+        if (appWidgetId != android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID) {
             val resultValue = android.content.Intent().putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             setResult(RESULT_OK, resultValue)
         }
 
-        val initialRoute = if (isWidgetConfigure && intent.getStringExtra("extra_screen") == null) {
+        val fromSearchOverlay = intent.getBooleanExtra("FROM_SEARCH_OVERLAY", false)
+        val rawScreenKey = intent.getStringExtra("extra_screen")
+        val sanitizedScreenKey = when {
+            rawScreenKey == "debug" && (!fromSearchOverlay || !com.pixel.intelligentsearch.BuildConfig.DEBUG) -> null
+            rawScreenKey == "manage_hidden_apps" && !fromSearchOverlay -> null
+            else -> rawScreenKey
+        }
+        val initialRoute = if (isWidgetConfigure && sanitizedScreenKey == null) {
             Route.WidgetCustomization
         } else {
-            Route.fromKey(intent.getStringExtra("extra_screen"))
+            Route.fromKey(sanitizedScreenKey)
         }
-        val fromSearchOverlay = intent.getBooleanExtra("FROM_SEARCH_OVERLAY", false)
 
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()

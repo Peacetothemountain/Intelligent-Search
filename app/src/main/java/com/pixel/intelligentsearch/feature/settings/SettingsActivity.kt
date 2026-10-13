@@ -109,58 +109,44 @@ class SettingsActivity : AppCompatActivity() {
                 else -> isSystemInDarkTheme()
             }
 
-            val appTheme = when (themeMode) {
-                "Material Dark", "Material Light" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.MATERIAL
-                "Dark mode", "Dark" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.DARK
-                "Light mode", "Light" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.LIGHT
-                "System", "System App Theme", "System Default", "system" -> com.pixel.intelligentsearch.core.ui.AppColorTheme.SYSTEM
-                else -> com.pixel.intelligentsearch.core.ui.AppColorTheme.SYSTEM
-            }
-
             IntelligentSearchTheme(darkTheme = darkTheme) {
-                com.pixel.intelligentsearch.core.ui.DynamicAtmosphericBackgroundContainer(
-                    appDesign = com.pixel.intelligentsearch.core.ui.AppDesignTheme.SYSTEM,
-                    appTheme = appTheme,
-                    customColor = null
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
                 ) {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = androidx.compose.ui.graphics.Color.Transparent
+                    val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        com.pixel.intelligentsearch.feature.settings.LocalSettingsViewModel provides settingsViewModel,
+                        com.pixel.intelligentsearch.feature.settings.LocalSettingsState provides settingsState
                     ) {
-                        val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-                        androidx.compose.runtime.CompositionLocalProvider(
-                            com.pixel.intelligentsearch.feature.settings.LocalSettingsViewModel provides settingsViewModel,
-                            com.pixel.intelligentsearch.feature.settings.LocalSettingsState provides settingsState
-                        ) {
-                            SettingsScreensHub(
-                                initialRoute = initialRoute,
-                                fromSearchOverlay = fromSearchOverlay,
-                                prefs = prefs,
-                                onBackToLauncher = {
-                                    val isBackToOverlay = prefs.getBoolean("settings_back_to_search_overlay", true)
-                                    if (isBackToOverlay) {
-                                        if (isTaskRoot || !fromSearchOverlay) {
-                                            val searchIntent = Intent(this@SettingsActivity, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java).apply {
-                                                putExtra("FROM_BACK_SWIPE", true)
-                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                            }
-                                            startActivity(searchIntent)
+                        SettingsScreensHub(
+                            initialRoute = initialRoute,
+                            fromSearchOverlay = fromSearchOverlay,
+                            prefs = prefs,
+                            onBackToLauncher = {
+                                val isBackToOverlay = prefs.getBoolean("settings_back_to_search_overlay", true)
+                                if (isBackToOverlay) {
+                                    if (isTaskRoot || !fromSearchOverlay) {
+                                        val searchIntent = Intent(this@SettingsActivity, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java).apply {
+                                            putExtra("FROM_BACK_SWIPE", true)
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                                         }
-                                        finish()
-                                    } else {
-                                        isExitingToHome = true
-                                        sendBroadcast(Intent("com.pixel.intelligentsearch.DISMISS_OVERLAY").setPackage(packageName))
-                                        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                                            addCategory(Intent.CATEGORY_HOME)
-                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                        }
-                                        startActivity(homeIntent)
-                                        finishAffinity()
+                                        startActivity(searchIntent)
                                     }
-                                },
-                                context = this@SettingsActivity
-                            )
-                        }
+                                    finish()
+                                } else {
+                                    isExitingToHome = true
+                                    sendBroadcast(Intent("com.pixel.intelligentsearch.DISMISS_OVERLAY").setPackage(packageName))
+                                    val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                                        addCategory(Intent.CATEGORY_HOME)
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    startActivity(homeIntent)
+                                    finishAffinity()
+                                }
+                            },
+                            context = this@SettingsActivity
+                        )
                     }
                 }
             }

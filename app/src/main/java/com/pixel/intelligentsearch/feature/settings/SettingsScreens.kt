@@ -1167,6 +1167,8 @@ fun SettingsScreensHub(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .materialYouMeshGradientBackground(alpha = 0.08f)
                 .graphicsLayer {
                     val p = exitBackProgress.value
                     if (p > 0f) {

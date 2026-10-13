@@ -274,18 +274,6 @@ fun DynamicAtmosphericBackgroundContainer(
     isInteracting: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val activeColor = resolveGlobalStardustColor(appDesign, appTheme, customColor)
-
-    // Material 3 Expressive motion curve for smooth, non-popping dark/light & dynamic color transitions
-    val animatedStardustColor = animateColorAsState(
-        targetValue = activeColor,
-        animationSpec = tween(
-            durationMillis = 600,
-            easing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)
-        ),
-        label = "stardust_color_transition"
-    )
-
     val animatedBgColor = animateColorAsState(
         targetValue = MaterialTheme.colorScheme.background,
         animationSpec = tween(
@@ -303,10 +291,6 @@ fun DynamicAtmosphericBackgroundContainer(
             }
             .materialYouMeshGradientBackground(
                 alpha = 0.08f,
-                isInteracting = isInteracting
-            )
-            .appWideStardustShader(
-                colorProducer = { animatedStardustColor.value },
                 isInteracting = isInteracting
             )
     ) {

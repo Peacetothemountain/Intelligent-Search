@@ -39,6 +39,23 @@ class BiometricSearchGate @Inject constructor(
 
     private val sessionLock = SecuritySessionLock.instance
 
+    @Volatile
+    private var shieldedActivityRef: java.lang.ref.WeakReference<Activity>? = null
+
+    private val sessionLockListener: () -> Unit = {
+        val activity = shieldedActivityRef?.get()
+        shieldedActivityRef = null
+        if (activity != null) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                WindowSecurityGuard.disableScreenShield(activity)
+            }
+        }
+    }
+
+    init {
+        sessionLock.registerLockListener(sessionLockListener)
+    }
+
     fun getActivity(providedContext: Context? = null): Activity? {
         var currentContext = providedContext ?: context
         while (currentContext is ContextWrapper) {
@@ -84,7 +101,10 @@ class BiometricSearchGate @Inject constructor(
     }
 
     fun lockSession() {
+        val activity = shieldedActivityRef?.get() ?: getActivity()
+        shieldedActivityRef = null
         sessionLock.lockdown()
+        WindowSecurityGuard.disableScreenShield(activity)
     }
 
     /**
@@ -103,7 +123,15 @@ class BiometricSearchGate @Inject constructor(
         onCancel: () -> Unit = {}
     ) {
         if (enableScreenShield) {
+            shieldedActivityRef = java.lang.ref.WeakReference(activity)
             WindowSecurityGuard.enableScreenShield(activity)
+        }
+
+        cancellationSignal.setOnCancelListener {
+            if (enableScreenShield && !sessionLock.isUnlocked()) {
+                shieldedActivityRef = null
+                WindowSecurityGuard.disableScreenShield(activity)
+            }
         }
 
         val executor = activity.mainExecutor
@@ -115,6 +143,7 @@ class BiometricSearchGate @Inject constructor(
             builder.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
             builder.setNegativeButton("Cancel", executor) { _, _ ->
                 if (enableScreenShield && !sessionLock.isUnlocked()) {
+                    shieldedActivityRef = null
                     WindowSecurityGuard.disableScreenShield(activity)
                 }
                 onCancel()
@@ -135,6 +164,7 @@ class BiometricSearchGate @Inject constructor(
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
                 super.onAuthenticationError(errorCode, errString)
                 if (enableScreenShield && !sessionLock.isUnlocked()) {
+                    shieldedActivityRef = null
                     WindowSecurityGuard.disableScreenShield(activity)
                 }
                 if (errorCode == BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED ||
@@ -161,6 +191,7 @@ class BiometricSearchGate @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch BiometricPrompt", e)
             if (enableScreenShield && !sessionLock.isUnlocked()) {
+                shieldedActivityRef = null
                 WindowSecurityGuard.disableScreenShield(activity)
             }
             onError(-1, e.message ?: "Authentication initialization failed")
@@ -206,6 +237,7 @@ class BiometricSearchGate @Inject constructor(
                 onSuccess = { result ->
                     val cipher = result.cryptoObject?.cipher
                     if (cipher == null) {
+                        lockSession()
                         onError("Hardware cipher is null after authentication.")
                         return@authenticate
                     }
@@ -219,6 +251,7 @@ class BiometricSearchGate @Inject constructor(
                             encryptedVault.decrypt(record, profileId)
                         } catch (masterEx: Exception) {
                             Log.e(TAG, "Biometric decryption failed", masterEx)
+                            lockSession()
                             onError("Decryption failed: ${masterEx.message}")
                             return@authenticate
                         }
@@ -246,6 +279,7 @@ class BiometricSearchGate @Inject constructor(
                         encryptedVault.decrypt(record, profileId)
                     } catch (masterEx: Exception) {
                         Log.e(TAG, "Master vault decryption fallback failed", masterEx)
+                        lockSession()
                         onError("Decryption failed: ${masterEx.message}")
                         return@authenticate
                     }

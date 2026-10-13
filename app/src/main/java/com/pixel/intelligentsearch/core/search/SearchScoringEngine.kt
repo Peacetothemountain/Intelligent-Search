@@ -72,27 +72,43 @@ object SearchScoringEngine {
         currentTimeMs: Long = System.currentTimeMillis(),
         domainWeightMultiplier: Float = 1.0f,
         precomputedQueryMetaphone: DoubleMetaphone.MetaphoneResult? = null,
-        precomputedTargetMetaphone: DoubleMetaphone.MetaphoneResult? = null
+        precomputedTargetMetaphone: DoubleMetaphone.MetaphoneResult? = null,
+        targetSubtitle: String? = null
     ): ScoreBreakdown {
         val q = query.trim().lowercase()
         val title = targetTitle.trim().lowercase()
         val rawTitle = targetTitle.trim()
 
-        if (q.isEmpty() || title.isEmpty()) {
+        if (q.isEmpty() || (title.isEmpty() && targetSubtitle.isNullOrBlank())) {
             return ScoreBreakdown(0f, 0f, 0f, 0f, 0f, metadata.domain.weight * domainWeightMultiplier)
         }
 
         // 1. Text & Structural Match Scoring. Accent/punctuation-folded forms are scored too, so "cafe"
         // ranks "Café" as an exact match rather than relying on the weaker phonetic fallback.
-        val rawMatchScore = computeMatchScore(q, title, rawTitle, precomputedQueryMetaphone, precomputedTargetMetaphone)
         val foldedQuery = QueryNormalizer.normalize(q)
-        val foldedTitle = QueryNormalizer.normalize(title)
-        val matchScore = if (rawMatchScore < SCORE_EXACT_MATCH && foldedQuery.isNotEmpty() && foldedTitle.isNotEmpty() &&
-            (foldedQuery != q || foldedTitle != title)
-        ) {
-            maxOf(rawMatchScore, computeMatchScore(foldedQuery, foldedTitle, rawTitle, precomputedQueryMetaphone, precomputedTargetMetaphone))
+        val titleMatchScore = if (title.isNotEmpty()) {
+            val rawMatchScore = computeMatchScore(q, title, rawTitle, precomputedQueryMetaphone, precomputedTargetMetaphone)
+            val foldedTitle = QueryNormalizer.normalize(title)
+            if (rawMatchScore < SCORE_EXACT_MATCH && foldedQuery.isNotEmpty() && foldedTitle.isNotEmpty() &&
+                (foldedQuery != q || foldedTitle != title)
+            ) {
+                maxOf(rawMatchScore, computeMatchScore(foldedQuery, foldedTitle, rawTitle, precomputedQueryMetaphone, precomputedTargetMetaphone))
+            } else {
+                rawMatchScore
+            }
         } else {
-            rawMatchScore
+            0.0f
+        }
+
+        val subtitleMatchScore = if (!targetSubtitle.isNullOrBlank()) {
+            computeSubtitleMatchScore(q, foldedQuery, targetSubtitle)
+        } else {
+            0.0f
+        }
+
+        val matchScore = maxOf(titleMatchScore, subtitleMatchScore)
+        if (matchScore <= 0.0f) {
+            return ScoreBreakdown(0f, 0f, 0f, 0f, 0f, metadata.domain.weight * domainWeightMultiplier)
         }
 
         // 2. Frequency Scoring (Logarithmic compression)
@@ -121,6 +137,38 @@ object SearchScoringEngine {
             pinScore = pinScore,
             domainMultiplier = effectiveMultiplier
         )
+    }
+
+    private fun computeSubtitleMatchScore(
+        query: String,
+        foldedQuery: String,
+        targetSubtitle: String
+    ): Float {
+        val rawSub = targetSubtitle.trim()
+        val sub = rawSub.lowercase()
+        if (sub.isEmpty()) return 0.0f
+
+        var score = computeMatchScore(query, sub, rawSub) * 0.85f
+        val foldedSub = QueryNormalizer.normalize(sub)
+        if (foldedQuery.isNotEmpty() && foldedSub.isNotEmpty() && (foldedQuery != query || foldedSub != sub)) {
+            score = maxOf(score, computeMatchScore(foldedQuery, foldedSub, rawSub) * 0.85f)
+        }
+
+        val queryDigits = query.filter { it.isDigit() }
+        if (queryDigits.length >= 3) {
+            val subDigits = sub.filter { it.isDigit() }
+            if (subDigits.isNotEmpty()) {
+                val digitScore = when {
+                    subDigits == queryDigits -> SCORE_EXACT_MATCH * 0.85f
+                    subDigits.startsWith(queryDigits) -> SCORE_PREFIX_MAX * 0.85f
+                    subDigits.contains(queryDigits) -> SCORE_SUBSTRING_MAX * 0.75f
+                    else -> 0.0f
+                }
+                score = maxOf(score, digitScore)
+            }
+        }
+
+        return score
     }
 
     private fun computeMatchScore(

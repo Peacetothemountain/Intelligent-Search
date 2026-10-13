@@ -70,7 +70,9 @@ data class AppItem(
 @Immutable
 data class CalendarEvent(
     val title: String,
-    val startTime: String
+    val startTime: String,
+    val eventId: Long = 0L,
+    val beginMillis: Long = 0L
 )
 
 @Immutable
@@ -85,7 +87,8 @@ data class FileItem(
     val name: String,
     val path: String,
     val mimeType: String,
-    val uri: String
+    val uri: String,
+    val lastModifiedMs: Long = 0L
 )
 
 object SystemDataProvider {
@@ -114,49 +117,9 @@ object SystemDataProvider {
             cachedApps?.let { return@withContext it }
         }
 
-        // 1. Universal PackageManager query guarantees all installed apps on any device/OEM are found
-        val pm = context.packageManager
-        val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-        }
-        val resolveInfos = try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                pm.queryIntentActivities(mainIntent, PackageManager.ResolveInfoFlags.of(0))
-            } else {
-                @Suppress("DEPRECATION")
-                pm.queryIntentActivities(mainIntent, 0)
-            }
-        } catch (e: Throwable) {
-            android.util.Log.w("SystemDataProvider", "IPC binder transaction error querying activities", e)
-            cachedApps?.let { return@withContext it }
-            emptyList()
-        }
-        val baseApps = resolveInfos.asSequence()
-            .distinctBy { it.activityInfo.packageName }
-            .mapNotNull {
-                try {
-                    val label = it.loadLabel(pm).toString()
-                    val packageName = it.activityInfo.packageName
-                    val icon = it.loadIcon(pm)
-                    AppItem(
-                        name = label,
-                        packageName = packageName,
-                        icon = icon,
-                        actions = getAppActions(packageName),
-                        activityName = it.activityInfo.name
-                    )
-                } catch (e: Throwable) {
-                    null
-                }
-            }
-            .toList()
-
-        // 2. Discover multi-profile apps (Work Profile, Private Space, Dual Apps) and merge
         val mergedMap = LinkedHashMap<String, AppItem>()
-        for (app in baseApps) {
-            mergedMap[app.packageName] = app
-        }
 
+        // 1. Discover multi-profile apps (Personal, Work Profile, Private Space, Dual Apps) first via LauncherApps
         try {
             val multiProfileManager = getMultiProfileManager(context)
             val profileApps = multiProfileManager.getAllProfileApps(forceRefresh)
@@ -164,12 +127,55 @@ object SystemDataProvider {
                 val key = if (app.profileType != ProfileType.PERSONAL) "${app.packageName}_${app.userHandle}" else app.packageName
                 mergedMap[key] = app
             }
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
-            // Non-fatal, base apps remain intact
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Fall through to PackageManager fallback below
+        }
+
+        // 2. Only query PackageManager for personal apps if MultiProfileManager returned no personal apps
+        val hasPersonalApps = mergedMap.values.any { it.profileType == ProfileType.PERSONAL }
+        if (!hasPersonalApps) {
+            val pm = context.packageManager
+            val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            }
+            val resolveInfos = try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    pm.queryIntentActivities(mainIntent, PackageManager.ResolveInfoFlags.of(0))
+                } else {
+                    @Suppress("DEPRECATION")
+                    pm.queryIntentActivities(mainIntent, 0)
+                }
+            } catch (e: Throwable) {
+                android.util.Log.w("SystemDataProvider", "IPC binder transaction error querying activities", e)
+                if (mergedMap.isEmpty()) {
+                    cachedApps?.let { return@withContext it }
+                }
+                emptyList()
+            }
+            resolveInfos.asSequence()
+                .distinctBy { it.activityInfo.packageName }
+                .forEach {
+                    try {
+                        val label = it.loadLabel(pm).toString()
+                        val packageName = it.activityInfo.packageName
+                        val icon = it.loadIcon(pm)
+                        mergedMap[packageName] = AppItem(
+                            name = label,
+                            packageName = packageName,
+                            icon = icon,
+                            actions = getAppActions(packageName),
+                            activityName = it.activityInfo.name
+                        )
+                    } catch (_: Throwable) {}
+                }
         }
 
         val finalApps = mergedMap.values.sortedBy { it.name.lowercase() }
-        cachedApps = finalApps
+        if (finalApps.isNotEmpty() || cachedApps == null) {
+            cachedApps = finalApps
+        }
         finalApps
     }
 
@@ -258,7 +264,8 @@ object SystemDataProvider {
 
             val projection = arrayOf(
                 CalendarContract.Instances.TITLE,
-                CalendarContract.Instances.BEGIN
+                CalendarContract.Instances.BEGIN,
+                CalendarContract.Instances.EVENT_ID
             )
 
             context.contentResolver.query(
@@ -270,15 +277,17 @@ object SystemDataProvider {
             )?.use { cursor ->
                 val titleIndex = cursor.getColumnIndex(CalendarContract.Instances.TITLE)
                 val dtStartIndex = cursor.getColumnIndex(CalendarContract.Instances.BEGIN)
+                val eventIdIndex = cursor.getColumnIndex(CalendarContract.Instances.EVENT_ID)
                 // Honours the user's 12/24-hour preference and locale instead of always printing AM/PM.
                 val timeFormat = android.text.format.DateFormat.getTimeFormat(context)
 
                 while (cursor.moveToNext() && events.size < 3) { // Max 3 events
                     val title = if (titleIndex >= 0) cursor.getString(titleIndex) else null
                     val startTimeMillis = if (dtStartIndex >= 0) cursor.getLong(dtStartIndex) else 0L
+                    val eventId = if (eventIdIndex >= 0) cursor.getLong(eventIdIndex) else 0L
                     val timeString = timeFormat.format(java.util.Date(startTimeMillis))
 
-                    events.add(CalendarEvent(title ?: "Event", timeString))
+                    events.add(CalendarEvent(title ?: "Event", timeString, eventId, startTimeMillis))
                 }
             }
         } catch (_: Throwable) {}
@@ -329,21 +338,7 @@ object SystemDataProvider {
             }
         } catch (_: Throwable) {}
 
-        if (contacts.isEmpty()) {
-            try {
-                val all = getAllContacts(context)
-                val q = query.trim()
-                val qDigits = q.filter { it.isDigit() }
-                return@withContext all.filter { c ->
-                    c.name.contains(q, ignoreCase = true) ||
-                    (qDigits.length >= 3 && c.phoneNumber.filter { it.isDigit() }.contains(qDigits))
-                }.take(15)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (_: Throwable) {}
-        }
-
-        contacts.distinctBy { it.phoneNumber }
+        contacts.distinctBy { it.lookupUri.ifEmpty { "${it.name}:${it.phoneNumber}" } }
     }
 
     suspend fun getAllContacts(context: Context): List<ContactItem> = withContext(Dispatchers.IO) {
@@ -385,32 +380,49 @@ object SystemDataProvider {
         } catch (e: Exception) {
             android.util.Log.w("IntelligentSearch", "Unexpected error", e)
         }
-        contacts.distinctBy { it.phoneNumber }
+        contacts.distinctBy { it.lookupUri.ifEmpty { "${it.name}:${it.phoneNumber}" } }
     }
 
     suspend fun getAllRecentFiles(context: Context, limit: Int = 300, includeHidden: Boolean = false): List<FileItem> = withContext(Dispatchers.IO) {
         val files = mutableListOf<FileItem>()
         try {
+            val safeLimit = limit.coerceAtLeast(1)
             val projection = arrayOf(
                 MediaStore.Files.FileColumns.DISPLAY_NAME,
                 MediaStore.Files.FileColumns.DATA,
                 MediaStore.Files.FileColumns.MIME_TYPE,
-                MediaStore.Files.FileColumns._ID
+                MediaStore.Files.FileColumns._ID,
+                MediaStore.Files.FileColumns.DATE_MODIFIED
             )
+
+            val queryArgs = android.os.Bundle().apply {
+                putStringArray(
+                    android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS,
+                    arrayOf(MediaStore.Files.FileColumns.DATE_MODIFIED)
+                )
+                putInt(
+                    android.content.ContentResolver.QUERY_ARG_SORT_DIRECTION,
+                    android.content.ContentResolver.QUERY_SORT_DIRECTION_DESCENDING
+                )
+                putInt(
+                    android.content.ContentResolver.QUERY_ARG_LIMIT,
+                    if (includeHidden) safeLimit else safeLimit * 2
+                )
+            }
 
             context.contentResolver.query(
                 MediaStore.Files.getContentUri("external"),
                 projection,
-                null,
-                null,
-                "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+                queryArgs,
+                null
             )?.use { cursor ->
                 val nameIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
                 val dataIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATA)
                 val mimeIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.MIME_TYPE)
                 val idIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns._ID)
+                val modifiedIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATE_MODIFIED)
 
-                while (cursor.moveToNext() && files.size < limit) {
+                while (cursor.moveToNext() && files.size < safeLimit) {
                     if (nameIndex != -1) {
                         val name = cursor.getString(nameIndex) ?: continue
                         if (!includeHidden && name.startsWith(".")) continue
@@ -418,9 +430,11 @@ object SystemDataProvider {
                         val path = if (dataIndex != -1) cursor.getString(dataIndex) ?: "" else ""
                         val mimeType = if (mimeIndex != -1) cursor.getString(mimeIndex) ?: "*/*" else "*/*"
                         val id = if (idIndex != -1) cursor.getLong(idIndex) else 0L
+                        val modifiedSec = if (modifiedIndex != -1) cursor.getLong(modifiedIndex) else 0L
+                        val lastModifiedMs = if (modifiedSec > 0L) modifiedSec * 1000L else 0L
                         val uri = android.content.ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), id).toString()
 
-                        files.add(FileItem(name, path, mimeType, uri))
+                        files.add(FileItem(name, path, mimeType, uri, lastModifiedMs))
                     }
                 }
             }
@@ -439,7 +453,8 @@ object SystemDataProvider {
                 MediaStore.Files.FileColumns.DISPLAY_NAME,
                 MediaStore.Files.FileColumns.DATA,
                 MediaStore.Files.FileColumns.MIME_TYPE,
-                MediaStore.Files.FileColumns._ID
+                MediaStore.Files.FileColumns._ID,
+                MediaStore.Files.FileColumns.DATE_MODIFIED
             )
 
             // Escape LIKE wildcards so a query such as "50%" or "my_file" matches literally.
@@ -458,6 +473,7 @@ object SystemDataProvider {
                 val dataIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATA)
                 val mimeIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.MIME_TYPE)
                 val idIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns._ID)
+                val modifiedIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATE_MODIFIED)
 
                 while (cursor.moveToNext() && files.size < 15) {
                     if (nameIndex != -1) {
@@ -467,9 +483,11 @@ object SystemDataProvider {
                         val path = if (dataIndex != -1) cursor.getString(dataIndex) ?: "" else ""
                         val mimeType = if (mimeIndex != -1) cursor.getString(mimeIndex) ?: "*/*" else "*/*"
                         val id = if (idIndex != -1) cursor.getLong(idIndex) else 0L
+                        val modifiedSec = if (modifiedIndex != -1) cursor.getLong(modifiedIndex) else 0L
+                        val lastModifiedMs = if (modifiedSec > 0L) modifiedSec * 1000L else 0L
                         val uri = android.content.ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), id).toString()
                         
-                        files.add(FileItem(name, path, mimeType, uri))
+                        files.add(FileItem(name, path, mimeType, uri, lastModifiedMs))
                     }
                 }
             }

@@ -26,6 +26,10 @@ class SearchBangManager @Inject constructor(
 ) {
 
     companion object {
+        private val BLOCKED_APP_URI_SCHEMES = setOf(
+            "file", "content", "javascript", "data", "intent", "vbscript"
+        )
+
         val BUILT_IN_BANGS = listOf(
             SearchBang(
                 prefix = "!g",
@@ -303,17 +307,28 @@ class SearchBangManager @Inject constructor(
         val pm = context.packageManager
 
         // Priority 1: Native Application Intent Deep Link (if installed)
-        if (!bang.targetPackage.isNullOrBlank()) {
+        if (!bang.targetPackage.isNullOrBlank() && !bang.targetPackage.equals(context.packageName, ignoreCase = true)) {
             val isInstalled = isPackageInstalled(pm, bang.targetPackage)
             if (isInstalled) {
                 val appUri = bang.buildAppUri(query)
-                if (appUri != null) {
+                val appScheme = appUri?.scheme?.lowercase(Locale.ROOT)
+                if (appUri != null && !appScheme.isNullOrBlank() && appScheme !in BLOCKED_APP_URI_SCHEMES) {
                     val nativeIntent = Intent(Intent.ACTION_VIEW, appUri).apply {
+                        addCategory(Intent.CATEGORY_BROWSABLE)
                         setPackage(bang.targetPackage)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
-                    if (nativeIntent.resolveActivity(pm) != null) {
+                    val resolvedBrowsable = nativeIntent.resolveActivity(pm)
+                    if (resolvedBrowsable != null && isActivityExported(pm, resolvedBrowsable)) {
                         return nativeIntent
+                    }
+                    val fallbackNativeIntent = Intent(Intent.ACTION_VIEW, appUri).apply {
+                        setPackage(bang.targetPackage)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    val resolvedNative = fallbackNativeIntent.resolveActivity(pm)
+                    if (resolvedNative != null && isActivityExported(pm, resolvedNative)) {
+                        return fallbackNativeIntent
                     }
                 }
 
@@ -324,18 +339,8 @@ class SearchBangManager @Inject constructor(
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 val resolved = pkgSearchIntent.resolveActivity(pm)
-                if (resolved != null) {
-                    try {
-                        val activityInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            pm.getActivityInfo(resolved, PackageManager.ComponentInfoFlags.of(0))
-                        } else {
-                            @Suppress("DEPRECATION")
-                            pm.getActivityInfo(resolved, 0)
-                        }
-                        if (activityInfo.exported) {
-                            return pkgSearchIntent
-                        }
-                    } catch (_: Exception) {}
+                if (resolved != null && isActivityExported(pm, resolved)) {
+                    return pkgSearchIntent
                 }
             }
         }
@@ -348,6 +353,20 @@ class SearchBangManager @Inject constructor(
         }
         return Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+    }
+
+    private fun isActivityExported(pm: PackageManager, component: android.content.ComponentName): Boolean {
+        return try {
+            val activityInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getActivityInfo(component, PackageManager.ComponentInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getActivityInfo(component, 0)
+            }
+            activityInfo.exported
+        } catch (_: Exception) {
+            false
         }
     }
 

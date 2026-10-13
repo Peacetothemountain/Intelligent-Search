@@ -164,7 +164,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
 
     val settingsFlow: Flow<IntelligentSearchSettings> = context.dataStore.data
         .catch { exception ->
-            if (exception is IOException) {
+            if (exception is kotlinx.coroutines.CancellationException) throw exception
+            if (exception is Exception) {
                 Log.w(TAG, "DataStore read error, falling back to defaults: ${exception.message}")
                 emit(emptyPreferences())
             } else {

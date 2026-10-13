@@ -257,6 +257,12 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
     }
 
     private fun launchFullSearch(query: String) {
+        val keyguardManager = context.getSystemService(android.app.KeyguardManager::class.java)
+        if (keyguardManager?.isKeyguardLocked == true) {
+            Log.w(TAG, "Blocked launching full search over locked keyguard without authentication")
+            hide()
+            return
+        }
         val intent = Intent(context, WidgetActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             putExtra("query", query)
@@ -600,42 +606,65 @@ fun VoiceWaveformCanvas(
         label = "WaveformAmplitude"
     )
 
-    val infiniteTransition = rememberInfiniteTransition(label = "WaveMotion")
-    val phaseState = infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2 * Math.PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "WavePhase"
-    )
-
-    val processingAngleState = infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "ProcessingAngle"
-    )
-
-    val rippleProgressState = infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1800, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "RippleProgress"
-    )
-
     val processingProgressState = animateFloatAsState(
         targetValue = if (isProcessing) 1f else 0f,
         animationSpec = tween(durationMillis = 280),
         label = "ProcessingProgress"
     )
+
+    val isWaveActive = isListening ||
+        isProcessing ||
+        state == VoiceRecognitionState.INITIALIZING ||
+        animatedAmpState.value > 0.001f ||
+        processingProgressState.value > 0.001f
+
+    val idleZeroState = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val phaseState: androidx.compose.runtime.State<Float>
+    val processingAngleState: androidx.compose.runtime.State<Float>
+    val rippleProgressState: androidx.compose.runtime.State<Float>
+
+    if (isWaveActive) {
+        val infiniteTransition = rememberInfiniteTransition(label = "WaveMotion")
+        phaseState = infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = (2 * Math.PI).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 2200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "WavePhase"
+        )
+        processingAngleState = if (isProcessing || processingProgressState.value > 0.001f) {
+            infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 1400, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "ProcessingAngle"
+            )
+        } else {
+            idleZeroState
+        }
+        rippleProgressState = if (isListening) {
+            infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 1800, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "RippleProgress"
+            )
+        } else {
+            idleZeroState
+        }
+    } else {
+        phaseState = idleZeroState
+        processingAngleState = idleZeroState
+        rippleProgressState = idleZeroState
+    }
 
     val density = androidx.compose.ui.platform.LocalDensity.current
     val glowStroke = remember(density) {
@@ -685,7 +714,7 @@ fun VoiceWaveformCanvas(
         val centerY = height / 2f
         val centerX = width / 2f
 
-        if (width <= 0f || height <= 0f) return@Canvas
+        if (width <= 0f || height <= 0f || !isWaveActive) return@Canvas
 
         val phase = phaseState.value
         val processingAngle = processingAngleState.value
@@ -737,7 +766,7 @@ fun VoiceWaveformCanvas(
         }
 
         // Multi-harmonic waveforms (rendered when waveAlpha > 0)
-        if (waveAlpha > 0.01f) {
+        if (waveAlpha > 0.01f && isWaveActive) {
             val steps = 60
             val stepX = width / steps
             val totalAmp = (baseAmpPx + (animatedAmp * maxDynamicAmpPx)) * waveAlpha
@@ -1002,10 +1031,8 @@ fun VoiceAssistantBottomSheet(
                     }
 
                     FilledTonalIconButton(
-                        onClick = {
-                            val query = spokenText.ifBlank { "Intelligent Search" }
-                            onOpenFullSearch(query)
-                        },
+                        // Nothing heard yet opens an empty search box rather than a placeholder query.
+                        onClick = { onOpenFullSearch(spokenText) },
                         modifier = Modifier.size(48.dp)
                     ) {
                         Icon(

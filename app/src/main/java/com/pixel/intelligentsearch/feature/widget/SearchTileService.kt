@@ -125,11 +125,10 @@ class SearchTileService : TileService() {
 
         val isDeviceLocked = try { isLocked } catch (_: Throwable) { false }
         val lastQuery = cachedLastQuery
-        val sanitizedQuery = lastQuery
-            ?.replace(NEWLINE_RUNS, " ")
-            ?.trim()
+        val collapsedQuery = lastQuery?.replace(NEWLINE_RUNS, " ")?.trim()
+        val sanitizedQuery = collapsedQuery
             ?.take(24)
-            ?.let { if (it.length < (lastQuery.trim().length)) "$it…" else it }
+            ?.let { if (it.length < collapsedQuery.length) "$it…" else it }
 
         val subtitle = if (!isDeviceLocked && !sanitizedQuery.isNullOrBlank()) {
             getString(R.string.tile_subtitle_last_query, sanitizedQuery)
@@ -171,29 +170,17 @@ class SearchTileService : TileService() {
     /**
      * Constructs a hardened PendingIntent equipped with Android 15+ / 14+ Background Activity Launch (BAL) permissions.
      */
-    @Suppress("DEPRECATION")
     private fun createLaunchPendingIntent(context: Context): PendingIntent {
         val intent = Intent(context, WidgetActivity::class.java).apply {
             action = "com.pixel.intelligentsearch.QUICK_TILE_LAUNCH"
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
-        }
-        val options = ActivityOptions.makeCustomAnimation(context, 0, 0)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            options.setPendingIntentCreatorBackgroundActivityStartMode(
-                ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
-            )
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            @Suppress("DEPRECATION")
-            options.setPendingIntentBackgroundActivityStartMode(
-                ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
-            )
         }
         return PendingIntent.getActivity(
             context,
             REQUEST_CODE_TILE_LAUNCH,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            options.toBundle()
+            BackgroundLaunchOptions.forCreator(context).toBundle()
         )
     }
 
@@ -228,20 +215,18 @@ class SearchTileService : TileService() {
                 android.util.Log.e(TAG, "Failed to launch activity from QS Tile via startActivityAndCollapse", e)
                 try {
                     val pendingIntent = createLaunchPendingIntent(this)
-                    val senderOptions = ActivityOptions.makeCustomAnimation(this, 0, 0)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                        @Suppress("DEPRECATION")
-                        senderOptions.setPendingIntentBackgroundActivityStartMode(
-                            ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
-                        )
-                    }
-                    pendingIntent.send(this, 0, null, null, null, null, senderOptions.toBundle())
+                    pendingIntent.send(this, 0, null, null, null, null, BackgroundLaunchOptions.forSender(this).toBundle())
                 } catch (fallbackError: Throwable) {
-                    try {
-                        @Suppress("DEPRECATION")
-                        startActivityAndCollapse(intent)
-                    } catch (lastError: Throwable) {
-                        android.util.Log.e(TAG, "Guarded fallback activity launch also failed", lastError)
+                    // The Intent overload throws UnsupportedOperationException when targeting API 34+.
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        try {
+                            @Suppress("DEPRECATION")
+                            startActivityAndCollapse(intent)
+                        } catch (lastError: Throwable) {
+                            android.util.Log.e(TAG, "Guarded fallback activity launch also failed", lastError)
+                        }
+                    } else {
+                        android.util.Log.e(TAG, "Guarded fallback activity launch also failed", fallbackError)
                     }
                 }
             }

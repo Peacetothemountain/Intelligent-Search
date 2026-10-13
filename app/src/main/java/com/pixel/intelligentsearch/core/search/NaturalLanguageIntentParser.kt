@@ -25,6 +25,7 @@ object NaturalLanguageIntentParser {
     private val TIMER_HOURS_REGEX = Regex("(\\d+)\\s*(?:h|hr|hours?)")
     private val TIMER_MINUTES_REGEX = Regex("(\\d+)\\s*(?:m|min|mins|minutes?)")
     private val TIMER_SECONDS_REGEX = Regex("(\\d+)\\s*(?:s|sec|secs|seconds?)")
+    private val TIMER_CLOCK_REGEX = Regex("(\\d{1,2}):(\\d{2})(?::(\\d{2}))?")
 
     // Recipient names are Unicode letters/digits so "text José hi" and "message Zoë saying ok" parse.
     private val MESSAGE_REGEX = Regex(
@@ -33,8 +34,8 @@ object NaturalLanguageIntentParser {
     )
 
     private val RELATIVE_TIME_REGEX = Regex("in\\s+(\\d+)\\s*(mins?|minutes?|hours?|hrs?)", RegexOption.IGNORE_CASE)
-    private val EXPLICIT_TIME_REGEX = Regex("(?:at\\s+)?(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?", RegexOption.IGNORE_CASE)
-    private val CLOCK_TIME_REGEX = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?", RegexOption.IGNORE_CASE)
+    private val EXPLICIT_TIME_REGEX = Regex("\\b(?:(at)\\s+)?(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?\\b", RegexOption.IGNORE_CASE)
+    private val CLOCK_TIME_REGEX = Regex("\\b(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?\\b", RegexOption.IGNORE_CASE)
     private val WHITESPACE_REGEX = Regex("\\s+")
     private val WEEKDAYS = listOf("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")
     private val WEEKDAY_REGEX = Regex("(?:\\bon\\s+)?\\b(${WEEKDAYS.joinToString("|")})\\b", RegexOption.IGNORE_CASE)
@@ -89,7 +90,12 @@ object NaturalLanguageIntentParser {
         ) : ParsedIntent()
     }
 
-    fun parse(rawQuery: String, currentTimeMs: Long = System.currentTimeMillis()): ParsedIntent? {
+    fun parse(
+        rawQuery: String,
+        currentTimeMs: Long = System.currentTimeMillis(),
+        contacts: List<com.pixel.intelligentsearch.core.data.ContactItem> = emptyList(),
+        contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)? = null
+    ): ParsedIntent? {
         val query = rawQuery.trim()
         if (query.isEmpty()) return null
         val lower = query.lowercase(Locale.ROOT)
@@ -110,7 +116,7 @@ object NaturalLanguageIntentParser {
         parseDirectMessage(query)?.let { return it }
 
         // 6. Direct Phone Call Intent ("call ...", "dial ...")
-        parsePhoneCall(lower, query)?.let { return it }
+        parsePhoneCall(lower, query, contacts, contactLookup)?.let { return it }
 
         // 7. Direct Navigation Intent ("directions to ...", "navigate to ...")
         parseNavigation(lower, query)?.let { return it }
@@ -147,12 +153,26 @@ object NaturalLanguageIntentParser {
             matched = true
         }
 
-        // Simple number fallback e.g. "timer 15" -> 15 minutes
+        // Fallbacks: "timer 15" -> 15 minutes, "timer 1:30" -> 1m 30s, "timer 1:05:00" -> 1h 5m.
+        // Only a single number or a clock form is accepted; concatenating every digit turned
+        // "timer 1:30" into 130 minutes.
         if (!matched) {
-            val simpleDigits = remainder.filter { it.isDigit() }.toLongOrNull()
-            if (simpleDigits != null && simpleDigits > 0) {
-                totalSeconds = simpleDigits.coerceAtMost(MAX_TIMER_SECONDS) * 60L
+            val clock = TIMER_CLOCK_REGEX.matchEntire(remainder)
+            if (clock != null) {
+                val parts = clock.groupValues.drop(1).filter { it.isNotEmpty() }.map { it.toLong() }
+                if (parts.drop(1).any { it >= 60L }) return null
+                totalSeconds = if (parts.size == 3) {
+                    parts[0] * 3600L + parts[1] * 60L + parts[2]
+                } else {
+                    parts[0] * 60L + parts[1]
+                }
                 matched = true
+            } else {
+                val minutes = remainder.toLongOrNull()
+                if (minutes != null && minutes > 0) {
+                    totalSeconds = minutes.coerceAtMost(MAX_TIMER_SECONDS) * 60L
+                    matched = true
+                }
             }
         }
 
@@ -316,25 +336,40 @@ object NaturalLanguageIntentParser {
         )
     }
 
-    private fun parsePhoneCall(lower: String, original: String): ParsedIntent.PhoneCall? {
+    private fun parsePhoneCall(
+        lower: String,
+        original: String,
+        contacts: List<com.pixel.intelligentsearch.core.data.ContactItem> = emptyList(),
+        contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)? = null
+    ): ParsedIntent.PhoneCall? {
         val callTriggers = listOf("call ", "dial ", "phone ")
         val matchedTrigger = callTriggers.firstOrNull { lower.startsWith(it) } ?: return null
         val target = original.substring(matchedTrigger.length).trim()
         if (target.isEmpty()) return null
 
         val isNumeric = target.all { it.isDigit() || it in "+- ()" }
-        val cleanNumber = if (isNumeric) target.filter { it.isDigit() || it == '+' } else null
-        val uri = if (!cleanNumber.isNullOrEmpty()) {
-            Uri.parse("tel:$cleanNumber")
-        } else {
-            Uri.parse("tel:")
-        }
+        val cleanNumber = if (isNumeric) {
+            target.filter { it.isDigit() || it == '+' }.takeIf { it.count(Char::isDigit) >= 3 }
+        } else null
 
+        val matchedContact = if (cleanNumber == null) {
+            contactLookup?.invoke(target)?.takeIf { it.phoneNumber.isNotBlank() }
+                ?: contacts.firstOrNull {
+                    it.phoneNumber.isNotBlank() && it.name.contains(target, ignoreCase = true)
+                }
+        } else null
+
+        if (cleanNumber == null && matchedContact == null) return null
+
+        val dialDigits = cleanNumber ?: matchedContact!!.phoneNumber.filter { it.isDigit() || it == '+' }
+        if (dialDigits.isEmpty()) return null
+
+        val uri = Uri.parse("tel:$dialDigits")
         val intent = Intent(Intent.ACTION_DIAL, uri)
         return ParsedIntent.PhoneCall(
-            contactNameOrNumber = target,
+            contactNameOrNumber = matchedContact?.name ?: target,
             intent = intent,
-            resolvedPhoneNumber = cleanNumber
+            resolvedPhoneNumber = matchedContact?.phoneNumber ?: cleanNumber
         )
     }
 
@@ -368,18 +403,22 @@ object NaturalLanguageIntentParser {
     private fun extractTemporalInfo(rawText: String, baseTimeMs: Long): TemporalResult {
         val cal = Calendar.getInstance().apply { timeInMillis = baseTimeMs }
         var text = rawText
+        var hasExplicitDay = false
 
         // Check relative days
         val weekdayMatch = WEEKDAY_REGEX.find(text)
         if (text.contains("tomorrow", ignoreCase = true)) {
             cal.add(Calendar.DAY_OF_YEAR, 1)
             text = text.replace("tomorrow", "", ignoreCase = true)
+            hasExplicitDay = true
         } else if (text.contains("tonight", ignoreCase = true)) {
             cal.set(Calendar.HOUR_OF_DAY, 20)
             cal.set(Calendar.MINUTE, 0)
             text = text.replace("tonight", "", ignoreCase = true)
+            hasExplicitDay = true
         } else if (text.contains("today", ignoreCase = true)) {
             text = text.replace("today", "", ignoreCase = true)
+            hasExplicitDay = true
         } else if (weekdayMatch != null) {
             // "on Friday" means the next Friday; naming today's weekday means a week from today.
             val target = WEEKDAYS.indexOf(weekdayMatch.groupValues[1].lowercase(Locale.ROOT)) + Calendar.SUNDAY
@@ -387,6 +426,7 @@ object NaturalLanguageIntentParser {
             if (daysAhead == 0) daysAhead = 7
             cal.add(Calendar.DAY_OF_YEAR, daysAhead)
             text = text.replace(weekdayMatch.value, "")
+            hasExplicitDay = true
         }
 
         // Relative duration "in X minutes / hours"
@@ -402,12 +442,14 @@ object NaturalLanguageIntentParser {
             text = text.replace(relativeMatch.value, "")
         }
 
-        // Explicit time "at 3pm", "at 15:30", "at 10:00 am"
-        val timeMatch = EXPLICIT_TIME_REGEX.findAll(text).firstOrNull { it.groupValues[3].isNotEmpty() || it.groupValues[2].isNotEmpty() }
+        // Explicit time "at 3pm", "at 15:30", "at 10:00 am", "at 3"
+        val timeMatch = EXPLICIT_TIME_REGEX.findAll(text).firstOrNull {
+            it.groupValues[1].isNotEmpty() || it.groupValues[3].isNotEmpty() || it.groupValues[4].isNotEmpty()
+        }
         if (timeMatch != null) {
-            var hour = timeMatch.groupValues[1].toIntOrNull() ?: 9
-            val minute = timeMatch.groupValues[2].toIntOrNull() ?: 0
-            val amPm = timeMatch.groupValues[3].lowercase()
+            var hour = timeMatch.groupValues[2].toIntOrNull() ?: 9
+            val minute = timeMatch.groupValues[3].toIntOrNull() ?: 0
+            val amPm = timeMatch.groupValues[4].lowercase()
 
             if (amPm == "pm" && hour < 12) hour += 12
             if (amPm == "am" && hour == 12) hour = 0
@@ -417,6 +459,10 @@ object NaturalLanguageIntentParser {
             cal.set(Calendar.MINUTE, minute.coerceIn(0, 59))
             cal.set(Calendar.SECOND, 0)
             text = text.replace(timeMatch.value, "")
+
+            if (!hasExplicitDay && relativeMatch == null && cal.timeInMillis < baseTimeMs) {
+                cal.add(Calendar.DAY_OF_YEAR, 1)
+            }
         }
 
         val cleanTitle = text.replace(WHITESPACE_REGEX, " ").trim()
@@ -430,9 +476,11 @@ object NaturalLanguageIntentParser {
         val minute = match.groupValues[2].toIntOrNull() ?: 0
         val amPm = match.groupValues[3].lowercase()
 
+        if (amPm.isNotEmpty() && hour !in 1..12) return null
         if (amPm == "pm" && hour < 12) hour += 12
         if (amPm == "am" && hour == 12) hour = 0
 
-        return Pair(hour.coerceIn(0, 23), minute.coerceIn(0, 59))
+        if (hour !in 0..23 || minute !in 0..59) return null
+        return Pair(hour, minute)
     }
 }

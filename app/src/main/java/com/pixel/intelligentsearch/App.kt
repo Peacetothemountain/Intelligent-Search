@@ -1,8 +1,10 @@
 package com.pixel.intelligentsearch
 
 import android.app.Application
+import android.os.Build
 import android.os.StrictMode
 import android.util.Log
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.profile.MultiProfileManager
 import com.pixel.intelligentsearch.core.system.DirectBootManager
@@ -11,6 +13,8 @@ import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.PrintWriter
@@ -29,6 +33,9 @@ class App : Application() {
     @Inject
     lateinit var systemToggleManager: SystemToggleManager
 
+    @Inject
+    lateinit var settingsManager: SettingsManager
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
@@ -46,16 +53,12 @@ class App : Application() {
                 .detectLeakedSqlLiteObjects()
                 .detectLeakedClosableObjects()
                 .detectActivityLeaks()
+                .detectUnsafeIntentLaunch()
+                .detectCredentialProtectedWhileLocked()
 
-            // Android 18 (API 36/37+): detect implicit URI permission grants where the platform
-            // previously granted implicit read/write rights via actions like ACTION_SEND / ACTION_IMAGE_CAPTURE.
-            try {
-                val detectMethod = StrictMode.VmPolicy.Builder::class.java.getMethod("detectImplicitUriPermissionGrant")
-                detectMethod.invoke(builder)
-            } catch (_: NoSuchMethodException) {
-                // Pre-Android 18 platform or method not available on current runtime
-            } catch (t: Throwable) {
-                Log.w("App", "StrictMode detectImplicitUriPermissionGrant activation warning: ${t.message}")
+            // Android 18 stops granting URI access implicitly for ACTION_SEND / ACTION_IMAGE_CAPTURE.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
+                builder.detectImplicitUriPermissionGrant()
             }
 
             StrictMode.setVmPolicy(builder.penaltyLog().build())
@@ -71,7 +74,7 @@ class App : Application() {
                 val deContext = createDeviceProtectedStorageContext()
                 val dir = deContext.filesDir
                 val file = File(dir, "crash_log.txt")
-                file.writeText(sw.toString())
+                file.writeText(sw.toString().take(16_384))
                 Log.e("CrashLogger", "Crash caught", throwable)
             } catch (e: Exception) {
                 Log.e("CrashLogger", "Failed to write crash log: ${e.message}")
@@ -95,11 +98,15 @@ class App : Application() {
         appScope.launch {
             try {
                 com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this@App)
-                if (directBootManager.checkIsUserUnlocked()) {
-                    systemToggleManager.clearLegacyAppNightModeOverride()
-                    multiProfileManager.refreshProfiles()
-                    SystemDataProvider.getAllApps(this@App, forceRefresh = false)
+                if (!directBootManager.checkIsUserUnlocked()) {
+                    directBootManager.isUserUnlocked.filter { it }.first()
                 }
+                // DataStore is the source of truth for settings; carry over any values that only
+                // exist in the legacy SharedPreferences before the overlay first reads them.
+                settingsManager.syncSharedPreferencesToDataStore()
+                systemToggleManager.clearLegacyAppNightModeOverride()
+                multiProfileManager.refreshProfiles()
+                SystemDataProvider.getAllApps(this@App, forceRefresh = false)
             } catch (e: Exception) {
                 Log.w("AppWarmup", "Background service warm-up non-fatal error", e)
             }

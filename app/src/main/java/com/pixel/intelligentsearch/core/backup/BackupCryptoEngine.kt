@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.backup
 
+import com.pixel.intelligentsearch.core.security.MemorySanitizer
 import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.Cipher
@@ -16,7 +17,7 @@ object BackupCryptoEngine {
     const val LEGACY_PBKDF2_ITERATIONS = 65536
     const val PBKDF2_ITERATIONS = 600_000
     private const val MIN_ACCEPTED_ITERATIONS = 10_000
-    private const val MAX_ACCEPTED_ITERATIONS = 2_000_000
+    private const val MAX_ACCEPTED_ITERATIONS = 5_000_000
     private const val PBKDF2_KEY_LENGTH_BITS = 256
     private const val SALT_LENGTH_BYTES = 16
 
@@ -30,18 +31,25 @@ object BackupCryptoEngine {
     )
 
     fun getPortableDefaultKey(): SecretKey {
-        return deriveKeyFromPassphrase("PORTABLE_BACKUP_INTELLIGENT_SEARCH_V2".toCharArray(), PORTABLE_DEFAULT_SALT, LEGACY_PBKDF2_ITERATIONS)
+        val pass = "PORTABLE_BACKUP_INTELLIGENT_SEARCH_V2".toCharArray()
+        return try {
+            deriveKeyFromPassphrase(pass, PORTABLE_DEFAULT_SALT, LEGACY_PBKDF2_ITERATIONS)
+        } finally {
+            MemorySanitizer.wipe(pass)
+        }
     }
 
     fun deriveKeyFromPassphrase(passphrase: CharArray, salt: ByteArray, iterations: Int = PBKDF2_ITERATIONS): SecretKey {
         require(iterations in MIN_ACCEPTED_ITERATIONS..MAX_ACCEPTED_ITERATIONS) { "Unsupported KDF iteration count" }
         val spec = PBEKeySpec(passphrase, salt, iterations, PBKDF2_KEY_LENGTH_BITS)
+        var keyBytes: ByteArray? = null
         try {
-            val keyBytes = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+            keyBytes = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
             return SecretKeySpec(keyBytes, "AES")
         } finally {
-            // PBEKeySpec keeps its own copy of the passphrase; wipe it as soon as the key is derived.
+            // PBEKeySpec keeps its own copy of the passphrase; wipe it and intermediate keyBytes as soon as the key is derived.
             spec.clearPassword()
+            MemorySanitizer.wipe(keyBytes)
         }
     }
 
@@ -57,10 +65,17 @@ object BackupCryptoEngine {
         return iv
     }
 
-    fun encryptPayload(plainTextJson: String, secretKey: SecretKey, iv: ByteArray): ByteArray {
+    fun encryptPayload(
+        plainTextJson: String,
+        secretKey: SecretKey,
+        iv: ByteArray,
+        aad: ByteArray? = null
+    ): ByteArray {
+        require(iv.size == GCM_IV_LENGTH_BYTES) { "Invalid GCM IV length: ${iv.size}" }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
         cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec)
+        if (aad != null) cipher.updateAAD(aad)
         return cipher.doFinal(plainTextJson.toByteArray(Charsets.UTF_8))
     }
 
@@ -68,17 +83,29 @@ object BackupCryptoEngine {
      * Encrypts with a cipher-generated IV, as required for Android Keystore keys created with
      * randomized encryption. Returns the IV and the ciphertext.
      */
-    fun encryptPayloadWithGeneratedIv(plainTextJson: String, secretKey: SecretKey): Pair<ByteArray, ByteArray> {
+    fun encryptPayloadWithGeneratedIv(
+        plainTextJson: String,
+        secretKey: SecretKey,
+        aad: ByteArray? = null
+    ): Pair<ByteArray, ByteArray> {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+        if (aad != null) cipher.updateAAD(aad)
         val cipherBytes = cipher.doFinal(plainTextJson.toByteArray(Charsets.UTF_8))
         return cipher.iv to cipherBytes
     }
 
-    fun decryptPayload(cipherBytes: ByteArray, secretKey: SecretKey, iv: ByteArray): String {
+    fun decryptPayload(
+        cipherBytes: ByteArray,
+        secretKey: SecretKey,
+        iv: ByteArray,
+        aad: ByteArray? = null
+    ): String {
+        require(iv.size == GCM_IV_LENGTH_BYTES) { "Invalid GCM IV length: ${iv.size}" }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
         cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec)
+        if (aad != null) cipher.updateAAD(aad)
         val decryptedBytes = cipher.doFinal(cipherBytes)
         return String(decryptedBytes, Charsets.UTF_8)
     }

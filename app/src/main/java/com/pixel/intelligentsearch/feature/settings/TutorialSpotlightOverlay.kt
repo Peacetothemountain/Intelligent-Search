@@ -94,7 +94,6 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -157,12 +156,12 @@ fun AnimatedBugdroidEmoji(
         )
         return
     }
-    val context = LocalContext.current
+    val resources = androidx.compose.ui.platform.LocalResources.current
     val density = LocalDensity.current
 
-    val balloonBitmap = remember(context) {
+    val balloonBitmap = remember(resources) {
         android.graphics.BitmapFactory.decodeResource(
-            context.resources,
+            resources,
             R.drawable.ic_bugdroid_balloon,
             android.graphics.BitmapFactory.Options().apply {
                 inScaled = false
@@ -170,9 +169,9 @@ fun AnimatedBugdroidEmoji(
         ).asImageBitmap()
     }
 
-    val bodyOpenBitmap = remember(context) {
+    val bodyOpenBitmap = remember(resources) {
         android.graphics.BitmapFactory.decodeResource(
-            context.resources,
+            resources,
             R.drawable.ic_bugdroid_body,
             android.graphics.BitmapFactory.Options().apply {
                 inScaled = false
@@ -180,9 +179,9 @@ fun AnimatedBugdroidEmoji(
         ).asImageBitmap()
     }
 
-    val bodyHalfBitmap = remember(context) {
+    val bodyHalfBitmap = remember(resources) {
         android.graphics.BitmapFactory.decodeResource(
-            context.resources,
+            resources,
             R.drawable.ic_bugdroid_body_half,
             android.graphics.BitmapFactory.Options().apply {
                 inScaled = false
@@ -190,9 +189,9 @@ fun AnimatedBugdroidEmoji(
         )?.asImageBitmap() ?: bodyOpenBitmap
     }
 
-    val bodyBlinkBitmap = remember(context) {
+    val bodyBlinkBitmap = remember(resources) {
         android.graphics.BitmapFactory.decodeResource(
-            context.resources,
+            resources,
             R.drawable.ic_bugdroid_body_blink,
             android.graphics.BitmapFactory.Options().apply {
                 inScaled = false
@@ -426,7 +425,23 @@ fun TutorialSpotlightOverlay(
 ) {
     if (!TutorialManager.isTutorialActive(prefs)) return
 
-    var currentStep by rememberIntPreference(prefs, TutorialManager.KEY_TUTORIAL_STEP, 0)
+    // TutorialManager's SharedPreferences are the single source of truth for the step. Inside Settings,
+    // rememberIntPreference would follow DataStore instead, which never sees the step the Search
+    // overlay wrote, so Settings reset it to 0 and dismissed steps 4-5.
+    val stepState = remember(prefs) {
+        val backing = mutableIntStateOf(TutorialManager.getStep(prefs))
+        object : androidx.compose.runtime.MutableState<Int> {
+            override var value: Int
+                get() = backing.intValue
+                set(step) {
+                    backing.intValue = step
+                    TutorialManager.setStep(prefs, step)
+                }
+            override fun component1() = value
+            override fun component2(): (Int) -> Unit = { value = it }
+        }
+    }
+    var currentStep by stepState
     val stepInfo = stepsInfo[currentStep]
     if (stepInfo == null) {
         LaunchedEffect(currentStep) {

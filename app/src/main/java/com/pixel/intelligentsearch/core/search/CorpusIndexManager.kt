@@ -67,7 +67,10 @@ class CorpusIndexManager @Inject constructor(
     private var packageReceiver: BroadcastReceiver? = null
     @Volatile
     private var contactsDebounceJob: Job? = null
+    private val appsMutex = Mutex()
+    private val shortcutsMutex = Mutex()
     private val contactsMutex = Mutex()
+    private val filesMutex = Mutex()
 
     /**
      * Bootstraps eager background indexing of all corpuses.
@@ -132,24 +135,30 @@ class CorpusIndexManager @Inject constructor(
     }
 
     private suspend fun reindexAppsInternal(forceRefresh: Boolean = false) {
-        try {
-            if (forceRefresh) {
-                SystemDataProvider.invalidateAppsCache()
+        appsMutex.withLock {
+            try {
+                if (forceRefresh) {
+                    SystemDataProvider.invalidateAppsCache()
+                }
+                searchCoordinator.bulkIndexApps(SystemDataProvider.getAllApps(context, forceRefresh = forceRefresh))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed indexing apps", e)
             }
-            searchCoordinator.bulkIndexApps(SystemDataProvider.getAllApps(context, forceRefresh = forceRefresh))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed indexing apps", e)
         }
     }
 
-    private fun reindexShortcutsInternal() {
-        try {
-            val shortcuts = ShortcutProvider.getAllShortcuts(context)
-            searchCoordinator.replaceShortcuts(shortcuts)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed indexing shortcuts", e)
+    private suspend fun reindexShortcutsInternal() {
+        shortcutsMutex.withLock {
+            try {
+                val shortcuts = ShortcutProvider.getAllShortcuts(context)
+                searchCoordinator.replaceShortcuts(shortcuts)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed indexing shortcuts", e)
+            }
         }
     }
 
@@ -169,13 +178,15 @@ class CorpusIndexManager @Inject constructor(
     }
 
     private suspend fun reindexFilesInternal() {
-        try {
-            val files = SystemDataProvider.getAllRecentFiles(context, limit = 300)
-            searchCoordinator.replaceFiles(files)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed indexing files", e)
+        filesMutex.withLock {
+            try {
+                val files = SystemDataProvider.getAllRecentFiles(context, limit = 300)
+                searchCoordinator.replaceFiles(files)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed indexing files", e)
+            }
         }
     }
 

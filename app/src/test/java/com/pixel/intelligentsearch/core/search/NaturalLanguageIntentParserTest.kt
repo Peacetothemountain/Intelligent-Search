@@ -15,6 +15,18 @@ class NaturalLanguageIntentParserTest {
     }
 
     @org.junit.Test
+    fun timerReadsClockFormsInsteadOfConcatenatingDigits() {
+        val ninetySeconds = NaturalLanguageIntentParser.parse("timer 1:30") as NaturalLanguageIntentParser.ParsedIntent.Timer
+        assertEquals(90, ninetySeconds.durationSeconds)
+        val hourAndFive = NaturalLanguageIntentParser.parse("timer 1:05:00") as NaturalLanguageIntentParser.ParsedIntent.Timer
+        assertEquals(3_900, hourAndFive.durationSeconds)
+        assertNull(NaturalLanguageIntentParser.parse("timer 2 3"))
+        assertNull(NaturalLanguageIntentParser.parse("timer 1:75"))
+        val fifteen = NaturalLanguageIntentParser.parse("timer 15") as NaturalLanguageIntentParser.ParsedIntent.Timer
+        assertEquals(900, fifteen.durationSeconds)
+    }
+
+    @org.junit.Test
     fun timerAcceptsUpToTwentyFourHours() {
         val day = NaturalLanguageIntentParser.parse("timer 24 hours") as NaturalLanguageIntentParser.ParsedIntent.Timer
         org.junit.Assert.assertEquals(86_400, day.durationSeconds)

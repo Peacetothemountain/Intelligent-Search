@@ -45,13 +45,23 @@ object MathematicalExpressionEngine {
     // SCIENTIFIC EXPRESSION PARSER
     // ---------------------------------------------------------------------------------------------
 
-    private val REGEX_MULTIPLICATION_X = Regex("(?<=[0-9)])\\s*[xX]\\s*(?=[0-9(])")
+    private val REGEX_MULTIPLICATION_X = Regex("(?<=[0-9)])(?:(?<!(?<![0-9.])0)\\s*[xX]|\\s+[xX])\\s*(?=[0-9(])")
     private val REGEX_ALLOWED_CHARS = Regex("^[0-9a-zA-Z.+\\-*/%^!()_,]+$")
     private val REGEX_BASE_CONVERSION = Regex("^([0-9a-fA-FxXbBoO]+)\\s+(?:to|in)\\s+(hex|dec|bin|oct)$", RegexOption.IGNORE_CASE)
-    private val REGEX_BITWISE = Regex("^([0-9a-fA-FxXbB]+)\\s+(AND|OR|XOR|SHL|SHR|USHR|<<|>>|>>>|&|\\||\\^)\\s+([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
+    private val REGEX_BITWISE = Regex("^([0-9a-fA-FxXbB]+)\\s+(AND|OR|XOR|SHL|SHR|USHR|<<|>>|>>>|&|\\|)\\s+([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
     private val REGEX_BITWISE_NOT = Regex("^(?:NOT|~)\\s*([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
     private val REGEX_UNIT_CONVERSION = Regex("^([-+]?[0-9.]+(?:[eE][-+]?[0-9]+)?)\\s*([a-zA-Z/_°]+)\\s*(?:to|in)\\s*([a-zA-Z/_°]+)$", RegexOption.IGNORE_CASE)
     private val REGEX_SCIENTIFIC_NUMBER = Regex("^[+-]?[0-9]+(?:\\.[0-9]+)?[eE][+-]?[0-9]+$")
+    private val REGEX_SPACE_SEPARATED_NUMBERS = Regex("\\d\\s+\\d")
+    // Phone numbers and dates look like subtraction ("555-1234" would show -679). Matched after
+    // whitespace is stripped, so these shapes never become a calculator card.
+    private val REGEX_PHONE_OR_DATE = Regex(
+        "^\\d{3}-\\d{4}$" +                          // 555-1234
+            "|^\\+?1?-?\\d{3}-\\d{3}-\\d{4}$" +      // 1-800-555-1234, 800-555-1234
+            "|^\\+?1?\\(\\d{3}\\)\\d{3}-?\\d{4}$" +  // (800)555-1234
+            "|^\\d{4}-\\d{1,2}-\\d{1,2}$" +          // 2024-01-31
+            "|^\\d{1,2}-\\d{1,2}-\\d{2,4}$"          // 01-31-2024
+    )
     private val REGEX_FUNC_NO_PAREN = Regex("^(sqrt|cbrt|sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|ln|log|log10|log2|abs|round|floor|ceil|rad|deg)\\s+([+-]?[0-9.]+(?:[eE][-+]?[0-9]+)?)$", RegexOption.IGNORE_CASE)
 
     private fun evaluateScientific(input: String): MathEvaluationResult.Computation? {
@@ -63,19 +73,22 @@ object MathematicalExpressionEngine {
             trimmed
         }
 
-        var expr = normalizedInput
+        val withNormalizedOperators = normalizedInput
             .replace("×", "*")
             .replace("÷", "/")
             .replace(REGEX_MULTIPLICATION_X, "*")
             .replace("π", "pi")
-            .replace(" ", "")
+
+        if (REGEX_SPACE_SEPARATED_NUMBERS.containsMatchIn(withNormalizedOperators)) return null
+
+        val expr = withNormalizedOperators.replace(" ", "")
 
         if (!isLikelyMathExpression(expr)) return null
 
         return try {
             val parser = ExpressionParser(expr)
             val result = parser.parse()
-            if (result.isInfinite() || result.isNaN()) return null
+            if (!result.isFinite()) return null
 
             val formatted = formatNumber(result)
             MathEvaluationResult.Computation(
@@ -92,16 +105,12 @@ object MathematicalExpressionEngine {
         if (expr.isEmpty()) return false
         val lower = expr.lowercase(Locale.ROOT)
         if (REGEX_SCIENTIFIC_NUMBER.matches(lower)) return true
+        if (REGEX_PHONE_OR_DATE.matches(lower)) return false
 
-        // Must contain at least one operator or recognized scientific function
-        val hasOperatorOrFunc = lower.any { it in "+-*/%^!()" } ||
-                lower.contains("sin") || lower.contains("cos") || lower.contains("tan") ||
-                lower.contains("log") || lower.contains("ln") || lower.contains("sqrt") ||
-                lower.contains("cbrt") || lower.contains("abs") || lower.contains("pi") ||
-                lower.contains("deg") || lower.contains("rad") || lower.contains("round") ||
-                lower.contains("floor") || lower.contains("ceil")
-
-        if (!hasOperatorOrFunc) return false
+        // Must contain at least one arithmetic operator or parenthesized function call;
+        // bare constants ("pi", "e") or function names without arguments are not evaluated as math.
+        val hasOperatorOrParens = lower.any { it in "+-*/%^!()" }
+        if (!hasOperatorOrParens) return false
 
         // Check for disallowed characters
         return REGEX_ALLOWED_CHARS.matches(expr)
@@ -238,7 +247,8 @@ object MathematicalExpressionEngine {
                                 "log", "log10" -> log10(arg)
                                 "log2" -> ln(arg) / ln(2.0)
                                 "abs" -> abs(arg)
-                                "round" -> round(arg)
+                                // Half away from zero like spreadsheets; kotlin.math.round is half-to-even (2.5 -> 2).
+                                "round" -> sign(arg) * floor(abs(arg) + 0.5)
                                 "floor" -> floor(arg)
                                 "ceil" -> ceil(arg)
                                 "rad" -> Math.toRadians(arg)
@@ -462,6 +472,7 @@ object MathematicalExpressionEngine {
         val match = REGEX_UNIT_CONVERSION.find(normalizedQuery) ?: return null
 
         val value = match.groupValues[1].toDoubleOrNull() ?: return null
+        if (!value.isFinite()) return null
         val fromRaw = match.groupValues[2]
         val toRaw = match.groupValues[3]
         val fromUnit = if (fromRaw == "B") "byte" else fromRaw.lowercase(Locale.ROOT).replace("°", "")
@@ -470,6 +481,7 @@ object MathematicalExpressionEngine {
         // 1. Temperature Check
         if (isTemperature(fromUnit) && isTemperature(toUnit)) {
             val converted = convertTemperature(value, fromUnit, toUnit)
+            if (!converted.isFinite()) return null
             return MathEvaluationResult.UnitConversion(
                 fromValue = value,
                 fromUnit = fromUnit.uppercase(Locale.ROOT),
@@ -485,6 +497,7 @@ object MathematicalExpressionEngine {
             if (table.containsKey(fromUnit) && table.containsKey(toUnit)) {
                 val base = value * table[fromUnit]!!
                 val result = base / table[toUnit]!!
+                if (!result.isFinite()) return null
                 return MathEvaluationResult.UnitConversion(
                     fromValue = value,
                     fromUnit = fromUnit,
@@ -499,6 +512,7 @@ object MathematicalExpressionEngine {
         if (currencyRatios.containsKey(fromUnit) && currencyRatios.containsKey(toUnit)) {
             val inUsd = value / currencyRatios[fromUnit]!!
             val result = inUsd * currencyRatios[toUnit]!!
+            if (!result.isFinite()) return null
             return MathEvaluationResult.UnitConversion(
                 fromValue = value,
                 fromUnit = fromUnit.uppercase(Locale.ROOT),
@@ -528,13 +542,16 @@ object MathematicalExpressionEngine {
     }
 
     private fun formatNumber(value: Double): String {
-        if (value == 0.0 || value == -0.0) return "0"
+        if (!value.isFinite() || value == 0.0 || value == -0.0) return "0"
         val absVal = abs(value)
         return if (value % 1.0 == 0.0 && absVal < 1e15) {
             val longVal = value.toLong()
             if (longVal == 0L) "0" else longVal.toString()
         } else if (absVal < 1e-4 || absVal >= 1e15) {
             String.format(Locale.ROOT, "%.4e", value)
+        } else if (absVal < 1.0) {
+            // Four significant digits, not four decimals: 1/3000 is 0.0003333, not 0.0003.
+            java.math.BigDecimal(value).round(java.math.MathContext(4)).stripTrailingZeros().toPlainString()
         } else {
             val formatted = String.format(Locale.ROOT, "%.4f", value).trimEnd('0').trimEnd('.')
             if (formatted.isEmpty() || formatted == "-" || formatted == "-0") "0" else formatted

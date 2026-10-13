@@ -191,6 +191,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                 modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp)
             )
             
+            val settingsViewModel = LocalSettingsViewModel.current
             var forceTutorial by rememberBooleanPreference(prefs, "force_tutorial", false)
             SettingsRowToggle(
                 title = "Force Tutorial Mode",
@@ -209,21 +210,20 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                         .putInt("tutorial_step", 0)
                         .putBoolean("tutorial_completed", false)
                         .apply()
+                    // Settings screens read tutorial state from DataStore, not the prefs mirror.
+                    settingsViewModel?.updateSetting(SettingsManager.TUTORIAL_STEP, 0)
+                    settingsViewModel?.updateSetting(SettingsManager.TUTORIAL_COMPLETED, false)
                 },
                 showDivider = true
             )
             val context = androidx.compose.ui.platform.LocalContext.current
-            val scope = androidx.compose.runtime.rememberCoroutineScope()
-
 
             SettingsRow(
                 title = "Clear Search History Cache",
                 subtitle = "Reset and clear all saved recent queries",
                 icon = Icons.Outlined.Delete,
                 onClick = {
-                    scope.launch {
-                        com.pixel.intelligentsearch.core.data.IntelligentSearchDatabase.getDatabase(context).historyDao().clearHistory()
-                    }
+                    settingsViewModel?.clearSearchHistory()
                     android.widget.Toast.makeText(context, "Search history cleared", android.widget.Toast.LENGTH_SHORT).show()
                 },
                 showDivider = true
@@ -437,20 +437,18 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
 
                     // Thermals
                     val pmPower = appContext.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
-                    val osThermal = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                        try {
-                            when (pmPower?.currentThermalStatus) {
-                                android.os.PowerManager.THERMAL_STATUS_NONE -> "Cool"
-                                android.os.PowerManager.THERMAL_STATUS_LIGHT -> "Optimal"
-                                android.os.PowerManager.THERMAL_STATUS_MODERATE -> "Warm"
-                                android.os.PowerManager.THERMAL_STATUS_SEVERE -> "Hot"
-                                android.os.PowerManager.THERMAL_STATUS_CRITICAL -> "Critical"
-                                android.os.PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
-                                android.os.PowerManager.THERMAL_STATUS_SHUTDOWN -> "Overheat"
-                                else -> null
-                            }
-                        } catch (_: Throwable) { null }
-                    } else null
+                    val osThermal = try {
+                        when (pmPower?.currentThermalStatus) {
+                            android.os.PowerManager.THERMAL_STATUS_NONE -> "Cool"
+                            android.os.PowerManager.THERMAL_STATUS_LIGHT -> "Optimal"
+                            android.os.PowerManager.THERMAL_STATUS_MODERATE -> "Warm"
+                            android.os.PowerManager.THERMAL_STATUS_SEVERE -> "Hot"
+                            android.os.PowerManager.THERMAL_STATUS_CRITICAL -> "Critical"
+                            android.os.PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
+                            android.os.PowerManager.THERMAL_STATUS_SHUTDOWN -> "Overheat"
+                            else -> null
+                        }
+                    } catch (_: Exception) { null }
 
                     val bThermalStatus = osThermal ?: when {
                         bTemp < 20f -> "Cool"
@@ -731,11 +729,12 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     }
 
                     val rt = Runtime.getRuntime()
-                    val myHeapMb = ((rt.totalMemory() - rt.freeMemory()) + android.os.Debug.getNativeHeapAllocatedSize()) / (1024f * 1024f)
+                    // Decimal MB (10^6 bytes) to match the GB figures above; /proc/meminfo kB are KiB.
+                    val myHeapMb = ((rt.totalMemory() - rt.freeMemory()) + android.os.Debug.getNativeHeapAllocatedSize()) / 1_000_000f
 
-                    val activeAppsMb = (procActiveAnonKb.takeIf { it > 0 } ?: (procAnonPagesKb - procInactiveAnonKb).coerceAtLeast(0L)) / 1024f
-                    val sysCacheMb = (procCachedKb + procBuffersKb + procKReclaimableKb) / 1024f
-                    val kernelMb = (procSlabKb + procKernelStackKb + procPageTablesKb) / 1024f
+                    val activeAppsMb = (procActiveAnonKb.takeIf { it > 0 } ?: (procAnonPagesKb - procInactiveAnonKb).coerceAtLeast(0L)) * 1.024f / 1000f
+                    val sysCacheMb = (procCachedKb + procBuffersKb + procKReclaimableKb) * 1.024f / 1000f
+                    val kernelMb = (procSlabKb + procKernelStackKb + procPageTablesKb) * 1.024f / 1000f
 
                     val topProcessesList = listOf(
                         ProcessRamEntry(name = "Active Apps", ramMb = activeAppsMb),
@@ -1374,7 +1373,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                     .padding(bottom = 10.dp)
                             )
                             Text(
-                                text = "Top Apps by RAM",
+                                text = "RAM by Category",
                                 fontSize = 7.5.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
@@ -1430,8 +1429,8 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = if (entry.ramMb >= 1024f) {
-                                            String.format(java.util.Locale.US, "%.1f GB", entry.ramMb / 1024f)
+                                        text = if (entry.ramMb >= 1000f) {
+                                            String.format(java.util.Locale.US, "%.1f GB", entry.ramMb / 1000f)
                                         } else {
                                             "${entry.ramMb.toInt()} MB"
                                         },

@@ -81,13 +81,16 @@ fun SystemToggleCard(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
+    var wasPressed by remember { mutableStateOf(false) }
 
     // 120Hz / 144Hz LTPO OLED Dynamic Refresh Rate Pacing
     LaunchedEffect(isPressed) {
         if (isPressed) {
+            wasPressed = true
             sensoryEngine.tick(view)
             WindowFramePacing.setDynamicLtpoPacing(view, isMoving = true)
-        } else {
+        } else if (wasPressed) {
+            wasPressed = false
             WindowFramePacing.setDynamicLtpoPacing(view, isMoving = false)
         }
     }
@@ -373,6 +376,9 @@ fun VolumeSliderCard(
     val sensoryEngine = remember(context) { TactileSonicEngine.get(context) }
     val safeMax = maxLevel.coerceAtLeast(1)
     var level by remember(streamType) { mutableFloatStateOf(currentLevel.coerceIn(0, safeMax).toFloat()) }
+    LaunchedEffect(currentLevel, safeMax) {
+        level = currentLevel.coerceIn(0, safeMax).toFloat()
+    }
     val icon = when (streamType) {
         android.media.AudioManager.STREAM_RING -> Icons.Outlined.NotificationsActive
         android.media.AudioManager.STREAM_ALARM -> Icons.Outlined.Alarm

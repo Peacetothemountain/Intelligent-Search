@@ -153,6 +153,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text("$shortcutResultsCount", modifier = Modifier.padding(end = 16.dp), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Android17Slider(
+                            label = "Max shortcut suggestions",
                             value = shortcutResultsCount.toFloat(),
                             onValueChange = { newValue -> 
                                 val newCount = newValue.toInt().coerceIn(1, 20)
@@ -217,6 +218,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Android17Slider(
+                        label = "App priority weight",
                         value = appLevelIndex.toFloat(),
                         onValueChange = { newValue ->
                             val idx = Math.round(newValue).coerceIn(0, PriorityWeightHelper.LEVELS.size - 1)

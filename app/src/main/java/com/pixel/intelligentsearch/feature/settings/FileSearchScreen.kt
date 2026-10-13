@@ -153,6 +153,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                     }
                     Android17Slider(
+                        label = "File results",
                         value = fileResultsCount.toFloat(),
                         onValueChange = { fileResultsCount = it.toInt() },
                         valueRange = 1f..20f,
@@ -199,6 +200,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Android17Slider(
+                        label = "File priority weight",
                         value = fileLevelIndex.toFloat(),
                         onValueChange = { newValue ->
                             val idx = Math.round(newValue).coerceIn(0, PriorityWeightHelper.LEVELS.size - 1)

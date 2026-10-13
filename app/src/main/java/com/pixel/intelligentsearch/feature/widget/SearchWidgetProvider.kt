@@ -68,10 +68,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 val pendingResult = goAsync()
                 updateAllWidgets(context, pendingResult)
             }
-            "com.pixel.intelligentsearch.ACTION_LAUNCH_GEMINI_OVERLAY",
-            "com.pixel.intelligentsearch.LAUNCH_GEMINI_OVERLAY" -> {
-                launchGeminiCornerOverlay(context)
-            }
         }
     }
 
@@ -192,21 +188,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             return (appWidgetId shl 4) or (slot and 0x0F)
         }
 
-        @Suppress("DEPRECATION")
-        private fun getPendingIntentActivityOptions(context: Context? = null): Bundle? {
+        private fun getPendingIntentActivityOptions(context: Context): Bundle? {
             return try {
-                val opts = if (context != null) {
-                    android.app.ActivityOptions.makeCustomAnimation(context, 0, 0)
-                } else {
-                    android.app.ActivityOptions.makeBasic()
-                }
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-                    opts.setPendingIntentCreatorBackgroundActivityStartMode(android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-                } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    opts.setPendingIntentBackgroundActivityStartMode(android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-                }
-                opts.toBundle()
-            } catch (_: Throwable) {
+                BackgroundLaunchOptions.forCreator(context).toBundle()
+            } catch (e: Exception) {
+                Log.w(TAG, "Widget launch options unavailable", e)
                 null
             }
         }
@@ -418,6 +404,13 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             }
         }
 
+        private data class ActiveShortcutItem(
+            val slotKey: String,
+            val actionName: String,
+            val iconRes: Int,
+            val intent: Intent
+        )
+
         /**
          * Encapsulates all resolved design and dynamic color attributes for widget rendering.
          */
@@ -436,7 +429,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val themeTColor: Int,
             val effectiveIconTheme: String,
             val actionIconStr: String,
-            val allActiveItems: List<Triple<String, Int, Intent>>,
+            val allActiveItems: List<ActiveShortcutItem>,
             val isPillLight: Boolean,
             val customSubtheme: Boolean
         )
@@ -602,21 +595,21 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 } else "shortcut1,mic,shortcut2,shortcut3"
                 val slotOrder = slotOrderStr.split(",").filter { it.isNotBlank() }
 
-                val allActiveItems = mutableListOf<Triple<String, Int, Intent>>()
+                val allActiveItems = mutableListOf<ActiveShortcutItem>()
                 for (key in slotOrder) {
                     when (key) {
                         "mic" -> if (showVoice) {
                             val micIcon = if (useMaterialYouIcons) R.drawable.ic_mic else R.drawable.ic_mic_original
-                            allActiveItems.add(Triple("mic", micIcon, getVoiceSearchIntent(context)))
+                            allActiveItems.add(ActiveShortcutItem("mic", "mic", micIcon, getVoiceSearchIntent(context)))
                         }
                         "shortcut1" -> if (shortcut1Str != "None") {
-                            allActiveItems.add(Triple(shortcut1Str, getShortcutIconRes(shortcut1Str, useMaterialYouIcons), getShortcutIntent(context, shortcut1Str)))
+                            allActiveItems.add(ActiveShortcutItem("shortcut1", shortcut1Str, getShortcutIconRes(shortcut1Str, useMaterialYouIcons), getShortcutIntent(context, shortcut1Str)))
                         }
                         "shortcut2" -> if (shortcut2Str != "None") {
-                            allActiveItems.add(Triple(shortcut2Str, getShortcutIconRes(shortcut2Str, useMaterialYouIcons), getShortcutIntent(context, shortcut2Str)))
+                            allActiveItems.add(ActiveShortcutItem("shortcut2", shortcut2Str, getShortcutIconRes(shortcut2Str, useMaterialYouIcons), getShortcutIntent(context, shortcut2Str)))
                         }
                         "shortcut3" -> if (shortcut3Str != "None") {
-                            allActiveItems.add(Triple(shortcut3Str, getShortcutIconRes(shortcut3Str, useMaterialYouIcons), getShortcutIntent(context, shortcut3Str)))
+                            allActiveItems.add(ActiveShortcutItem("shortcut3", shortcut3Str, getShortcutIconRes(shortcut3Str, useMaterialYouIcons), getShortcutIntent(context, shortcut3Str)))
                         }
                     }
                 }
@@ -751,20 +744,20 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 } else "shortcut1,mic,shortcut2,shortcut3"
                 val slotOrder = slotOrderStr.split(",").filter { it.isNotBlank() }
 
-                val allActiveItems = mutableListOf<Triple<String, Int, Intent>>()
+                val allActiveItems = mutableListOf<ActiveShortcutItem>()
                 for (key in slotOrder) {
                     when (key) {
                         "mic" -> if (showVoice) {
-                            allActiveItems.add(Triple("mic", R.drawable.ic_mic, getVoiceSearchIntent(context)))
+                            allActiveItems.add(ActiveShortcutItem("mic", "mic", R.drawable.ic_mic, getVoiceSearchIntent(context)))
                         }
                         "shortcut1" -> if (shortcut1Str != "None") {
-                            allActiveItems.add(Triple(shortcut1Str, getShortcutIconRes(shortcut1Str, true), getShortcutIntent(context, shortcut1Str)))
+                            allActiveItems.add(ActiveShortcutItem("shortcut1", shortcut1Str, getShortcutIconRes(shortcut1Str, true), getShortcutIntent(context, shortcut1Str)))
                         }
                         "shortcut2" -> if (shortcut2Str != "None") {
-                            allActiveItems.add(Triple(shortcut2Str, getShortcutIconRes(shortcut2Str, true), getShortcutIntent(context, shortcut2Str)))
+                            allActiveItems.add(ActiveShortcutItem("shortcut2", shortcut2Str, getShortcutIconRes(shortcut2Str, true), getShortcutIntent(context, shortcut2Str)))
                         }
                         "shortcut3" -> if (shortcut3Str != "None") {
-                            allActiveItems.add(Triple(shortcut3Str, getShortcutIconRes(shortcut3Str, true), getShortcutIntent(context, shortcut3Str)))
+                            allActiveItems.add(ActiveShortcutItem("shortcut3", shortcut3Str, getShortcutIconRes(shortcut3Str, true), getShortcutIntent(context, shortcut3Str)))
                         }
                     }
                 }
@@ -836,7 +829,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     views.setViewVisibility(targetViewId, View.VISIBLE)
 
                     // Dynamic TalkBack Accessibility Content Description
-                    val contentDesc = getShortcutDescription(context, item.first, prefs)
+                    val contentDesc = getShortcutDescription(context, item.actionName, prefs)
                     views.setContentDescription(targetViewId, contentDesc)
 
                     val hasCustomShortcuts = config.effectiveIconTheme == "Custom G Icon"
@@ -846,7 +839,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         val customScColor = if (isSync) {
                             prefs.getInt("widget_custom_g_icon_color", config.themePColor)
                         } else {
-                            when (item.first) {
+                            when (item.slotKey) {
                                 "mic" -> prefs.getInt("widget_custom_mic_color", prefs.getInt("widget_custom_shortcuts_color", config.themePColor))
                                 "shortcut1" -> prefs.getInt("widget_custom_shortcut1_color", prefs.getInt("widget_custom_shortcuts_color", config.themePColor))
                                 "shortcut2" -> prefs.getInt("widget_custom_shortcut2_color", prefs.getInt("widget_custom_shortcuts_color", config.themePColor))
@@ -854,28 +847,28 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                                 else -> prefs.getInt("widget_custom_shortcuts_color", config.themePColor)
                             }
                         }
-                        views.setImageViewResource(targetViewId, item.second)
+                        views.setImageViewResource(targetViewId, item.iconRes)
                         views.setColorStateList(targetViewId, "setImageTintList", ColorStateList.valueOf(customScColor))
                         views.setInt(targetViewId, "setImageAlpha", 255)
                     } else when (config.effectiveIconTheme) {
                         "Accented G Icon" -> {
-                            views.setImageViewResource(targetViewId, item.second)
+                            views.setImageViewResource(targetViewId, item.iconRes)
                             views.setColorStateList(targetViewId, "setImageTintList", ColorStateList.valueOf(config.themePColor))
                             views.setInt(targetViewId, "setImageAlpha", 255)
                         }
                         "Material G Icon" -> {
-                            val themedBitmap = createThemedShortcutBitmap(context, item.second, config.themePColor, config.themeSColor, config.themeTColor, config.isPillLight)
+                            val themedBitmap = createThemedShortcutBitmap(context, item.iconRes, config.themePColor, config.themeSColor, config.themeTColor, config.isPillLight)
                             if (themedBitmap != null) {
                                 views.setImageViewBitmap(targetViewId, themedBitmap)
                                 views.setColorStateList(targetViewId, "setImageTintList", null)
                             } else {
-                                views.setImageViewResource(targetViewId, item.second)
+                                views.setImageViewResource(targetViewId, item.iconRes)
                                 views.setColorStateList(targetViewId, "setImageTintList", ColorStateList.valueOf(config.themePColor))
                             }
                             views.setInt(targetViewId, "setImageAlpha", 255)
                         }
                         else -> { // System G Icon
-                            views.setImageViewResource(targetViewId, item.second)
+                            views.setImageViewResource(targetViewId, item.iconRes)
                             val sysTint = if (config.isPillLight) {
                                 DynamicThemeDetector.resolveWidgetColors(context, false).onSurface
                             } else {
@@ -887,7 +880,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     }
 
                     val slotCode = SLOT_SHORTCUT_0 + i
-                    val targetIntent = Intent(item.third).apply {
+                    val targetIntent = Intent(item.intent).apply {
                         identifier = "widget_${appWidgetId}_slot_$slotCode"
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }

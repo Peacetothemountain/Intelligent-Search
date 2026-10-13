@@ -26,6 +26,8 @@ import dagger.hilt.components.SingletonComponent
 @InstallIn(SingletonComponent::class)
 interface GlobalSearchProviderEntryPoint {
     fun unifiedSearchCoordinator(): UnifiedSearchCoordinator
+    fun corpusIndexManager(): com.pixel.intelligentsearch.core.search.CorpusIndexManager
+    fun multiProfileManager(): com.pixel.intelligentsearch.core.profile.MultiProfileManager
 }
 
 class GlobalSearchProvider : ContentProvider() {
@@ -94,18 +96,30 @@ class GlobalSearchProvider : ContentProvider() {
         if (queryTerm.isBlank()) return cursor
 
         val safeCtx = getSafeContext()
-        val coordinator = try {
+        val entryPoint = try {
             val appCtx = safeCtx?.applicationContext ?: safeCtx
             if (appCtx != null) {
                 EntryPointAccessors.fromApplication(
                     appCtx,
                     GlobalSearchProviderEntryPoint::class.java
-                ).unifiedSearchCoordinator()
+                )
             } else null
         } catch (e: Exception) {
-            Log.w(TAG, "UnifiedSearchCoordinator entry point unavailable: ${e.message}")
+            Log.w(TAG, "GlobalSearchProvider entry point unavailable: ${e.message}")
             null
         }
+        val coordinator = entryPoint?.unifiedSearchCoordinator()
+        val corpusIndexManager = entryPoint?.corpusIndexManager()
+        val multiProfileManager = entryPoint?.multiProfileManager()
+        if (corpusIndexManager != null && !corpusIndexManager.isIndexReady.value) {
+            corpusIndexManager.initialize()
+        }
+        val isPrivateSpaceLocked = multiProfileManager?.isPrivateSpaceLocked() == true
+        val privateUsers = if (isPrivateSpaceLocked) {
+            multiProfileManager.profilesState.value
+                .filter { it.profileType == ProfileType.PRIVATE }
+                .mapTo(HashSet()) { it.userHandle }
+        } else emptySet()
 
         var rowId = 1L
 
@@ -113,6 +127,8 @@ class GlobalSearchProvider : ContentProvider() {
         val suggestionsEnabled = prefs?.getBoolean("search.web.suggestions", true) ?: true
         val engine = prefs?.getString("search.engine", "Google") ?: "Google"
         val customUrl = prefs?.getString("custom_search_engine_url", "") ?: ""
+        // Apps the user hid in-app must not resurface through system global search.
+        val hiddenApps = prefs?.getStringSet("hidden_apps", emptySet()).orEmpty()
 
         val isTorEngine = engine == "Tor Project" || engine == "Tor Browser"
         val isCustomEngine = engine == "Custom"
@@ -174,6 +190,8 @@ class GlobalSearchProvider : ContentProvider() {
                 // 2. Apps - In-memory intent synthesis
                 for (app in results.apps) {
                     if (cancellationSignal?.isCanceled == true) break
+                    if (app.packageName in hiddenApps) continue
+                    if ((app.isPrivateProfile || app.profileType == ProfileType.PRIVATE) && isPrivateSpaceLocked) continue
                     val launchIntentUri = if (app.activityName != null) {
                         "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;component=${app.packageName}/${app.activityName};end"
                     } else {
@@ -232,6 +250,8 @@ class GlobalSearchProvider : ContentProvider() {
                 // 4. App Shortcuts
                 for (shortcut in results.shortcuts) {
                     if (cancellationSignal?.isCanceled == true) break
+                    if (shortcut.packageName in hiddenApps) continue
+                    if (isPrivateSpaceLocked && shortcut.userHandle in privateUsers) continue
                     val shortcutLaunchUri = "intent:#Intent;action=android.intent.action.MAIN;package=${shortcut.packageName};end"
                     cursor.addRow(arrayOf<Any?>(
                         rowId++,

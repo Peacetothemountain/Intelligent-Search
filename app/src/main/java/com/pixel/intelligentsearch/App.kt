@@ -13,6 +13,8 @@ import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.PrintWriter
@@ -72,7 +74,7 @@ class App : Application() {
                 val deContext = createDeviceProtectedStorageContext()
                 val dir = deContext.filesDir
                 val file = File(dir, "crash_log.txt")
-                file.writeText(sw.toString())
+                file.writeText(sw.toString().take(16_384))
                 Log.e("CrashLogger", "Crash caught", throwable)
             } catch (e: Exception) {
                 Log.e("CrashLogger", "Failed to write crash log: ${e.message}")
@@ -96,14 +98,15 @@ class App : Application() {
         appScope.launch {
             try {
                 com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this@App)
-                if (directBootManager.checkIsUserUnlocked()) {
-                    // DataStore is the source of truth for settings; carry over any values that only
-                    // exist in the legacy SharedPreferences before the overlay first reads them.
-                    settingsManager.syncSharedPreferencesToDataStore()
-                    systemToggleManager.clearLegacyAppNightModeOverride()
-                    multiProfileManager.refreshProfiles()
-                    SystemDataProvider.getAllApps(this@App, forceRefresh = false)
+                if (!directBootManager.checkIsUserUnlocked()) {
+                    directBootManager.isUserUnlocked.filter { it }.first()
                 }
+                // DataStore is the source of truth for settings; carry over any values that only
+                // exist in the legacy SharedPreferences before the overlay first reads them.
+                settingsManager.syncSharedPreferencesToDataStore()
+                systemToggleManager.clearLegacyAppNightModeOverride()
+                multiProfileManager.refreshProfiles()
+                SystemDataProvider.getAllApps(this@App, forceRefresh = false)
             } catch (e: Exception) {
                 Log.w("AppWarmup", "Background service warm-up non-fatal error", e)
             }

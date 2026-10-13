@@ -37,8 +37,30 @@ import javax.inject.Singleton
 @Singleton
 class UnifiedSearchCoordinator @Inject constructor(
     @param:ApplicationContext private val context: Context,
-    val systemActionRouter: SystemActionRouter
+    val systemActionRouter: SystemActionRouter,
+    private val multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager
 ) {
+    constructor(
+        context: Context,
+        systemActionRouter: SystemActionRouter
+    ) : this(
+        context,
+        systemActionRouter,
+        com.pixel.intelligentsearch.core.profile.MultiProfileManager(context)
+    )
+
+    companion object {
+        private fun getSafeContext(ctx: Context): Context {
+            val userManager = ctx.getSystemService(Context.USER_SERVICE) as? android.os.UserManager
+            val isUnlocked = userManager?.isUserUnlocked ?: true
+            return if (!isUnlocked && !ctx.isDeviceProtectedStorage) {
+                ctx.createDeviceProtectedStorageContext()
+            } else {
+                ctx
+            }
+        }
+    }
+
     data class RankedSearchResult(
         val item: SearchItem,
         val scoreBreakdown: SearchScoringEngine.ScoreBreakdown
@@ -92,16 +114,18 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val fileRadixTree = RadixTreeIndex<SearchItem>()
     private val phoneticIndex = ConcurrentHashMap<String, MutableSet<SearchItem>>()
 
-    private val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+    private val prefs = getSafeContext(context).getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
     @Volatile private var cachedAppWeightMul: Float = 1.0f
     @Volatile private var cachedContactWeightMul: Float = 1.0f
     @Volatile private var cachedFileWeightMul: Float = 1.0f
+    @Volatile private var cachedFuzzySearchEnabled: Boolean = true
 
     private val prefChangeListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         when (key) {
             "search_weight_apps" -> updateAppWeight()
             "search_weight_contacts" -> updateContactWeight()
             "search_weight_files" -> updateFileWeight()
+            "app.fuzzy.search", "app_fuzzy_search" -> updateFuzzySearch()
         }
     }
 
@@ -109,7 +133,16 @@ class UnifiedSearchCoordinator @Inject constructor(
         updateAppWeight()
         updateContactWeight()
         updateFileWeight()
+        updateFuzzySearch()
         prefs.registerOnSharedPreferenceChangeListener(prefChangeListener)
+    }
+
+    private fun updateFuzzySearch() {
+        cachedFuzzySearchEnabled = if (prefs.contains("app.fuzzy.search")) {
+            prefs.getBoolean("app.fuzzy.search", true)
+        } else {
+            prefs.getBoolean("app_fuzzy_search", true)
+        }
     }
 
     private fun updateAppWeight() {
@@ -200,7 +233,7 @@ class UnifiedSearchCoordinator @Inject constructor(
     /**
      * Indexes a local file.
      */
-    fun indexFile(file: FileItem, modifiedMs: Long = 0L) {
+    fun indexFile(file: FileItem, modifiedMs: Long = file.lastModifiedMs) {
         fileRadixTree.insert(file.name, newFileItem(file, modifiedMs))
     }
 
@@ -211,7 +244,7 @@ class UnifiedSearchCoordinator @Inject constructor(
     fun replaceFiles(files: List<FileItem>) {
         val keys = ArrayList<Pair<String, SearchItem>>(files.size)
         for (file in files) {
-            keys.add(file.name to newFileItem(file, 0L))
+            keys.add(file.name to newFileItem(file, file.lastModifiedMs))
         }
         fileRadixTree.replaceAll(keys)
     }
@@ -361,6 +394,34 @@ class UnifiedSearchCoordinator @Inject constructor(
     }
 
     /**
+     * Immediately purges all Private Space apps and shortcuts from in-memory indices.
+     */
+    fun purgePrivateProfileItems() {
+        val privateUsers = multiProfileManager.profilesState.value
+            .filter { it.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE }
+            .mapTo(HashSet()) { it.userHandle }
+        val isPrivateItem: (SearchItem) -> Boolean = { item ->
+            when (val payload = item.payload) {
+                is AppItem -> payload.isPrivateProfile || payload.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE
+                is AppShortcutItem -> payload.userHandle in privateUsers
+                else -> false
+            }
+        }
+        appRadixTree.removeIf(isPrivateItem)
+        shortcutRadixTree.removeIf(isPrivateItem)
+        removeFromPhoneticIndex(isPrivateItem)
+    }
+
+    private fun isPrivateSpaceItemBlocked(item: SearchItem, isPrivateLocked: Boolean, privateUsers: Set<android.os.UserHandle>): Boolean {
+        if (!isPrivateLocked) return false
+        return when (val payload = item.payload) {
+            is AppItem -> payload.isPrivateProfile || payload.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE
+            is AppShortcutItem -> payload.userHandle in privateUsers
+            else -> false
+        }
+    }
+
+    /**
      * Clears all in-memory indices.
      */
     fun clearIndex() {
@@ -428,8 +489,15 @@ class UnifiedSearchCoordinator @Inject constructor(
 
         val now = System.currentTimeMillis()
         val queryMetaphone = DoubleMetaphone.encode(query)
+        val isPrivateLocked = multiProfileManager.isPrivateSpaceLocked()
+        val privateUsers = if (isPrivateLocked) {
+            multiProfileManager.profilesState.value
+                .filter { it.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE }
+                .mapTo(HashSet()) { it.userHandle }
+        } else emptySet()
         val scoredApps = ArrayList<ScoredCandidate<AppItem>>(candidates.size)
         for (item in candidates) {
+            if (isPrivateSpaceItemBlocked(item, isPrivateLocked, privateUsers)) continue
             val score = SearchScoringEngine.evaluateScore(
                 query = query,
                 targetTitle = item.title,
@@ -437,7 +505,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 currentTimeMs = now,
                 domainWeightMultiplier = 1.0f,
                 precomputedQueryMetaphone = queryMetaphone,
-                precomputedTargetMetaphone = item.precomputedMetaphone
+                precomputedTargetMetaphone = item.precomputedMetaphone,
+                targetSubtitle = item.subtitle
             )
             if (score.totalScore > 0f) {
                 scoredApps.add(ScoredCandidate(item.payload as AppItem, score.totalScore))
@@ -477,8 +546,15 @@ class UnifiedSearchCoordinator @Inject constructor(
 
         val now = System.currentTimeMillis()
         val queryMetaphone = DoubleMetaphone.encode(q)
+        val isPrivateLocked = multiProfileManager.isPrivateSpaceLocked()
+        val privateUsers = if (isPrivateLocked) {
+            multiProfileManager.profilesState.value
+                .filter { it.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE }
+                .mapTo(HashSet()) { it.userHandle }
+        } else emptySet()
         val scoredApps = ArrayList<ScoredCandidate<AppItem>>(candidates.size)
         for (item in candidates) {
+            if (isPrivateSpaceItemBlocked(item, isPrivateLocked, privateUsers)) continue
             val score = SearchScoringEngine.evaluateScore(
                 query = q,
                 targetTitle = item.title,
@@ -486,7 +562,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 currentTimeMs = now,
                 domainWeightMultiplier = cachedAppWeightMul,
                 precomputedQueryMetaphone = queryMetaphone,
-                precomputedTargetMetaphone = item.precomputedMetaphone
+                precomputedTargetMetaphone = item.precomputedMetaphone,
+                targetSubtitle = item.subtitle
             )
             if (score.totalScore > 0f) {
                 scoredApps.add(ScoredCandidate(item.payload as AppItem, score.totalScore))
@@ -530,7 +607,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 currentTimeMs = now,
                 domainWeightMultiplier = cachedContactWeightMul,
                 precomputedQueryMetaphone = queryMetaphone,
-                precomputedTargetMetaphone = item.precomputedMetaphone
+                precomputedTargetMetaphone = item.precomputedMetaphone,
+                targetSubtitle = item.subtitle
             )
             if (score.totalScore > 0f) {
                 scoredContacts.add(ScoredCandidate(item.payload as ContactItem, score.totalScore))
@@ -561,8 +639,15 @@ class UnifiedSearchCoordinator @Inject constructor(
 
         val now = System.currentTimeMillis()
         val queryMetaphone = DoubleMetaphone.encode(q)
+        val isPrivateLocked = multiProfileManager.isPrivateSpaceLocked()
+        val privateUsers = if (isPrivateLocked) {
+            multiProfileManager.profilesState.value
+                .filter { it.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE }
+                .mapTo(HashSet()) { it.userHandle }
+        } else emptySet()
         val scoredShortcuts = ArrayList<ScoredCandidate<AppShortcutItem>>(candidates.size)
         for (item in candidates) {
+            if (isPrivateSpaceItemBlocked(item, isPrivateLocked, privateUsers)) continue
             val score = SearchScoringEngine.evaluateScore(
                 query = q,
                 targetTitle = item.title,
@@ -570,7 +655,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 currentTimeMs = now,
                 domainWeightMultiplier = 1.0f,
                 precomputedQueryMetaphone = queryMetaphone,
-                precomputedTargetMetaphone = item.precomputedMetaphone
+                precomputedTargetMetaphone = item.precomputedMetaphone,
+                targetSubtitle = item.subtitle
             )
             if (score.totalScore > 0f) {
                 scoredShortcuts.add(ScoredCandidate(item.payload as AppShortcutItem, score.totalScore))
@@ -610,7 +696,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 currentTimeMs = now,
                 domainWeightMultiplier = cachedFileWeightMul,
                 precomputedQueryMetaphone = queryMetaphone,
-                precomputedTargetMetaphone = item.precomputedMetaphone
+                precomputedTargetMetaphone = item.precomputedMetaphone,
+                targetSubtitle = item.subtitle
             )
             if (score.totalScore > 0f) {
                 scoredFiles.add(ScoredCandidate(item.payload as FileItem, score.totalScore))
@@ -683,21 +770,8 @@ class UnifiedSearchCoordinator @Inject constructor(
         val mathResult = MathematicalExpressionEngine.evaluate(query)
 
         // 3. Natural Language Intent Parser
-        val rawParsedIntent = NaturalLanguageIntentParser.parse(query)
-        val parsedIntent = if (rawParsedIntent is NaturalLanguageIntentParser.ParsedIntent.PhoneCall && rawParsedIntent.resolvedPhoneNumber == null) {
-            val matched = searchContacts(rawParsedIntent.contactNameOrNumber, limit = 5).firstOrNull { it.phoneNumber.isNotBlank() }
-            if (matched != null) {
-                val cleanDigits = matched.phoneNumber.filter { it.isDigit() || it == '+' }
-                NaturalLanguageIntentParser.ParsedIntent.PhoneCall(
-                    contactNameOrNumber = matched.name,
-                    intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanDigits")),
-                    resolvedPhoneNumber = matched.phoneNumber
-                )
-            } else {
-                rawParsedIntent
-            }
-        } else {
-            rawParsedIntent
+        val parsedIntent = NaturalLanguageIntentParser.parse(query) { target ->
+            searchContacts(target, limit = 5).firstOrNull { it.phoneNumber.isNotBlank() }
         }
 
         cancellationCheck?.invoke()
@@ -726,10 +800,9 @@ class UnifiedSearchCoordinator @Inject constructor(
                 candidates.addAll(shortcutRadixTree.searchPrefix(token, limit = 10))
                 candidates.addAll(fileRadixTree.searchPrefix(token, limit = 10))
             }
-            // Conjunctive filter: ensure matched candidates contain all query tokens
+            // Conjunctive filter: ensure matched candidates contain all query tokens across title + subtitle
             candidates.retainAll { item ->
-                QueryNormalizer.containsAllTokens(item.title, tokens) ||
-                (item.subtitle != null && QueryNormalizer.containsAllTokens(item.subtitle, tokens))
+                QueryNormalizer.containsAllTokens("${item.title} ${item.subtitle.orEmpty()}", tokens)
             }
         }
 
@@ -749,8 +822,9 @@ class UnifiedSearchCoordinator @Inject constructor(
             candidates.addAll(contactRadixTree.searchPrefix(queryDigits, limit = 20))
         }
 
-        // 6. Typo-Tolerant Fuzzy Search if Candidate Pool is Small (< 1.5ms)
-        if (candidates.size < 8 && query.length >= 3) {
+        // 6. Typo-Tolerant Fuzzy Search if App Candidate Pool is Small (< 1.5ms)
+        val appCandidateCount = candidates.count { it.domain == SearchScoringEngine.EntityDomain.APPLICATION }
+        if (cachedFuzzySearchEnabled && appCandidateCount < 8 && query.length >= 3) {
             cancellationCheck?.invoke()
             val fuzzyResults = appRadixTree.searchFuzzy(query, maxDistance = 2, limit = 20)
             for (f in fuzzyResults) {
@@ -764,6 +838,12 @@ class UnifiedSearchCoordinator @Inject constructor(
         val appWeightMul = cachedAppWeightMul
         val contactWeightMul = cachedContactWeightMul
         val fileWeightMul = cachedFileWeightMul
+        val isPrivateLocked = multiProfileManager.isPrivateSpaceLocked()
+        val privateUsers = if (isPrivateLocked) {
+            multiProfileManager.profilesState.value
+                .filter { it.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE }
+                .mapTo(HashSet()) { it.userHandle }
+        } else emptySet()
 
         val rankedResults = ArrayList<RankedSearchResult>(candidates.size)
         var scoredCount = 0
@@ -771,6 +851,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             if ((++scoredCount and 15) == 0) {
                 cancellationCheck?.invoke()
             }
+            if (isPrivateSpaceItemBlocked(item, isPrivateLocked, privateUsers)) continue
             val domainMul = when (item.domain) {
                 SearchScoringEngine.EntityDomain.APPLICATION, SearchScoringEngine.EntityDomain.APP_SHORTCUT -> appWeightMul
                 SearchScoringEngine.EntityDomain.CONTACT -> contactWeightMul
@@ -784,7 +865,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 currentTimeMs = now,
                 domainWeightMultiplier = domainMul,
                 precomputedQueryMetaphone = queryMetaphone,
-                precomputedTargetMetaphone = item.precomputedMetaphone
+                precomputedTargetMetaphone = item.precomputedMetaphone,
+                targetSubtitle = item.subtitle
             )
             if (scoreBreakdown.totalScore > 0f) {
                 rankedResults.add(RankedSearchResult(item, scoreBreakdown))

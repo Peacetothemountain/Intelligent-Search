@@ -110,6 +110,7 @@ import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.scale
@@ -391,12 +392,15 @@ fun GeminiCornerSwipeWaveLayer(
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && shader != null) {
         val brush = remember(shader) { androidx.compose.ui.graphics.ShaderBrush(shader) }
         var time by remember { mutableFloatStateOf(0f) }
-        LaunchedEffect(Unit) {
-            var lastFrame = androidx.compose.runtime.withFrameNanos { it }
-            while (true) {
-                androidx.compose.runtime.withFrameNanos { frameTime ->
-                    time += (frameTime - lastFrame) / 1_000_000_000f
-                    lastFrame = frameTime
+        val lifecycleOwner = LocalLifecycleOwner.current
+        LaunchedEffect(lifecycleOwner) {
+            lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                var lastFrame = androidx.compose.runtime.withFrameNanos { it }
+                while (isActive) {
+                    androidx.compose.runtime.withFrameNanos { frameTime ->
+                        time += (frameTime - lastFrame) / 1_000_000_000f
+                        lastFrame = frameTime
+                    }
                 }
             }
         }
@@ -484,6 +488,8 @@ fun getAlternatePreferenceKey(key: String): String? = when (key) {
     "shortcut_inline" -> "shortcut.inline"
     "app.fuzzy.search" -> "app_fuzzy_search"
     "app_fuzzy_search" -> "app.fuzzy.search"
+    "app.animation" -> "app_animations"
+    "app_animations" -> "app.animation"
     "search.files.hidden.files" -> "search_files_hidden_files"
     "search_files_hidden_files" -> "search.files.hidden.files"
     "search.files.thumbnails" -> "search_files_thumbnails"
@@ -511,6 +517,8 @@ private class DataStoreMirrorGuard<T : Any> {
         pendingAtMs = android.os.SystemClock.uptimeMillis()
     }
 
+    fun markWrite(value: T) = onLocalWrite(value)
+
     /** Returns true when [dsValue] is a genuinely new DataStore value that should be applied. */
     fun shouldApply(dsValue: T): Boolean {
         val changed = lastSeen != dsValue
@@ -527,6 +535,8 @@ private class DataStoreMirrorGuard<T : Any> {
         }
         return false
     }
+
+    fun shouldAcceptEmission(dsValue: T): Boolean = shouldApply(dsValue)
 }
 
 internal fun readBooleanPref(prefs: SharedPreferences, key: String, altKey: String?, fallback: Boolean): Boolean {
@@ -551,6 +561,7 @@ fun rememberBooleanPreference(
     val altKey = remember(key) { getAlternatePreferenceKey(key) }
     val currentOnChanged by rememberUpdatedState(onChanged)
     val currentViewModel by rememberUpdatedState(viewModel)
+    val mirrorGuard = remember(key) { DataStoreMirrorGuard<Boolean>() }
 
     val datastoreKey = when (key) {
         "search.apps" -> SettingsManager.SEARCH_APPS
@@ -561,7 +572,7 @@ fun rememberBooleanPreference(
         "search.calendar" -> SettingsManager.SEARCH_CALENDAR
         "search.shortcuts" -> SettingsManager.SEARCH_SHORTCUTS
         "search.background.show.wall" -> SettingsManager.SHOW_WALLPAPER
-        "app_animations" -> SettingsManager.APP_ANIMATIONS
+        "app_animations", "app.animation" -> SettingsManager.APP_ANIMATIONS
         "settings.bottom.search" -> SettingsManager.BOTTOM_SEARCH
         "settings.bottom.search.result" -> SettingsManager.BOTTOM_SEARCH_RESULT
         "g_icon_enabled" -> SettingsManager.G_ICON_ENABLED
@@ -610,7 +621,7 @@ fun rememberBooleanPreference(
                 "search.calendar" -> settingsState?.searchCalendar
                 "search.shortcuts" -> settingsState?.searchShortcuts
                 "search.background.show.wall" -> settingsState?.showWallpaper
-                "app_animations" -> settingsState?.appAnimations
+                "app_animations", "app.animation" -> settingsState?.appAnimations
                 "settings.bottom.search" -> settingsState?.bottomSearch
                 "settings.bottom.search.result" -> settingsState?.bottomSearchResult
                 "g_icon_enabled" -> settingsState?.gIconEnabled
@@ -662,7 +673,7 @@ fun rememberBooleanPreference(
                 "search.calendar" -> settingsState.searchCalendar
                 "search.shortcuts" -> settingsState.searchShortcuts
                 "search.background.show.wall" -> settingsState.showWallpaper
-                "app_animations" -> settingsState.appAnimations
+                "app_animations", "app.animation" -> settingsState.appAnimations
                 "settings.bottom.search" -> settingsState.bottomSearch
                 "settings.bottom.search.result" -> settingsState.bottomSearchResult
                 "g_icon_enabled" -> settingsState.gIconEnabled
@@ -693,7 +704,7 @@ fun rememberBooleanPreference(
                 "vibration_enabled" -> settingsState.vibrationEnabled
                 else -> null
             }
-            if (dsVal != null && state.value != dsVal) {
+            if (dsVal != null && mirrorGuard.shouldAcceptEmission(dsVal) && state.value != dsVal) {
                 state.value = dsVal
             }
         }
@@ -723,6 +734,7 @@ fun rememberBooleanPreference(
                 set(v) {
                     if (state.value == v) return
                     state.value = v
+                    mirrorGuard.markWrite(v)
                     val vm = currentViewModel
                     if (datastoreKey != null && vm != null) {
                         vm.updateSetting(datastoreKey, v)
@@ -741,6 +753,11 @@ fun rememberBooleanPreference(
     }
 }
 
+private val SEARCH_WEIGHT_APPS_KEY = androidx.datastore.preferences.core.intPreferencesKey("search_weight_apps")
+private val SEARCH_WEIGHT_CONTACTS_KEY = androidx.datastore.preferences.core.intPreferencesKey("search_weight_contacts")
+private val SEARCH_WEIGHT_FILES_KEY = androidx.datastore.preferences.core.intPreferencesKey("search_weight_files")
+private val SEARCH_WEIGHT_WEB_KEY = androidx.datastore.preferences.core.intPreferencesKey("search_weight_web")
+
 @Composable
 fun rememberIntPreference(
     prefs: SharedPreferences,
@@ -754,6 +771,7 @@ fun rememberIntPreference(
     val currentOnChanged by rememberUpdatedState(onChanged)
     val currentViewModel by rememberUpdatedState(viewModel)
     val currentDefaultValue by rememberUpdatedState(defaultValue)
+    val mirrorGuard = remember(key) { DataStoreMirrorGuard<Int>() }
 
     val datastoreKey = when (key) {
         "search.background.blur" -> SettingsManager.BACKGROUND_BLUR
@@ -764,6 +782,10 @@ fun rememberIntPreference(
         "web_results_count" -> SettingsManager.WEB_RESULTS_COUNT
         "contact_results_count" -> SettingsManager.CONTACT_RESULTS_COUNT
         "file_results_count" -> SettingsManager.FILE_RESULTS_COUNT
+        "search_weight_apps" -> SEARCH_WEIGHT_APPS_KEY
+        "search_weight_contacts" -> SEARCH_WEIGHT_CONTACTS_KEY
+        "search_weight_files" -> SEARCH_WEIGHT_FILES_KEY
+        "search_weight_web" -> SEARCH_WEIGHT_WEB_KEY
         else -> null
     }
 
@@ -780,7 +802,13 @@ fun rememberIntPreference(
                 "file_results_count" -> settingsState?.fileResultsCount
                 else -> null
             }
-            dsVal ?: defaultValue
+            dsVal ?: if (prefs.contains(key)) {
+                prefs.getInt(key, defaultValue)
+            } else if (altKey != null && prefs.contains(altKey)) {
+                prefs.getInt(altKey, defaultValue)
+            } else {
+                defaultValue
+            }
         } else if (prefs.contains(key)) {
             prefs.getInt(key, defaultValue)
         } else if (altKey != null && prefs.contains(altKey)) {
@@ -805,7 +833,7 @@ fun rememberIntPreference(
                 "file_results_count" -> settingsState.fileResultsCount
                 else -> null
             }
-            if (dsVal != null && state.intValue != dsVal) {
+            if (dsVal != null && mirrorGuard.shouldAcceptEmission(dsVal) && state.intValue != dsVal) {
                 state.intValue = dsVal
             }
         }
@@ -841,6 +869,7 @@ fun rememberIntPreference(
                 set(v) {
                     if (state.intValue == v) return
                     state.intValue = v
+                    mirrorGuard.markWrite(v)
                     val vm = currentViewModel
                     if (datastoreKey != null && vm != null) {
                         vm.updateSetting(datastoreKey, v)
@@ -872,6 +901,7 @@ fun rememberStringPreference(
     val currentOnChanged by rememberUpdatedState(onChanged)
     val currentViewModel by rememberUpdatedState(viewModel)
     val currentDefaultValue by rememberUpdatedState(defaultValue)
+    val mirrorGuard = remember(key) { DataStoreMirrorGuard<String>() }
 
     val datastoreKey = when (key) {
         "night.mode" -> SettingsManager.THEME
@@ -923,7 +953,7 @@ fun rememberStringPreference(
                 "adaptive_icon_shape" -> settingsState.adaptiveIconShape
                 else -> null
             }
-            if (dsVal != null && state.value != dsVal) {
+            if (dsVal != null && mirrorGuard.shouldAcceptEmission(dsVal) && state.value != dsVal) {
                 state.value = dsVal
             }
         }
@@ -959,6 +989,7 @@ fun rememberStringPreference(
                 set(v) {
                     if (state.value == v) return
                     state.value = v
+                    mirrorGuard.markWrite(v)
                     val vm = currentViewModel
                     if (datastoreKey != null && vm != null) {
                         vm.updateSetting(datastoreKey, v)
@@ -1103,7 +1134,9 @@ fun SettingsScreensHub(
         val hasSubScreensInNavHost = navController.previousBackStackEntry != null
         val isAtRoot = !hasSubScreensInNavHost || currentBackStackEntry?.destination?.hasRoute<com.pixel.intelligentsearch.core.navigation.Route.Main>() == true
 
-        val onBack: () -> Unit = {
+        val onBack: () -> Unit = onBack@{
+            // A quick double tap would pop the sub-page, then see the root and exit Settings entirely.
+            if (!SettingsDebouncer.canClick(cooldownMs = 400L, key = "settings_top_bar_back")) return@onBack
             if (navController.previousBackStackEntry != null) {
                 navController.popBackStack()
             } else {
@@ -1158,8 +1191,6 @@ fun SettingsScreensHub(
                         alpha = 1f
                     }
                 }
-                .background(MaterialTheme.colorScheme.background)
-                .materialYouMeshGradientBackground(alpha = if (isSystemInDarkTheme()) 0.16f else 0.08f)
         ) {
             var showTutorial by remember { mutableStateOf(TutorialManager.isTutorialActive(prefs)) }
             val tutorialCompleted by rememberBooleanPreference(prefs, "tutorial_completed", false) {}
@@ -1236,7 +1267,7 @@ fun SettingsScreensHub(
                     composable<com.pixel.intelligentsearch.core.navigation.Route.ManageHiddenApps> { ManageHiddenAppsScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.BackupRestore> { BackupRestoreScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Debug> {
-                        if (prefs.getBoolean("debug_unlocked", false)) {
+                        if (com.pixel.intelligentsearch.BuildConfig.DEBUG && prefs.getBoolean("debug_unlocked", false)) {
                             DebugScreen(
                                 prefs = prefs,
                                 onBack = onBack,
@@ -1308,6 +1339,12 @@ fun BugdroidPlayer(
         } else null
     }
 
+    val surfaceHolder = remember {
+        object {
+            var currentSurface: android.view.Surface? = null
+        }
+    }
+
     androidx.compose.ui.viewinterop.AndroidView(
         factory = { ctx ->
             android.view.TextureView(ctx).apply {
@@ -1332,16 +1369,15 @@ fun BugdroidPlayer(
                     }
                 }
 
-                var currentSurface: android.view.Surface? = null
-
                 surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
                     override fun onSurfaceTextureAvailable(
                         surfaceTexture: android.graphics.SurfaceTexture,
                         width: Int,
                         height: Int
                     ) {
+                        surfaceHolder.currentSurface?.release()
                         val surface = android.view.Surface(surfaceTexture)
-                        currentSurface = surface
+                        surfaceHolder.currentSurface = surface
                         player?.setVideoSurface(surface)
                         adjustAspectRatio(this@apply)
                     }
@@ -1357,11 +1393,11 @@ fun BugdroidPlayer(
                     override fun onSurfaceTextureDestroyed(
                         surfaceTexture: android.graphics.SurfaceTexture
                     ): Boolean {
-                        currentSurface?.let {
+                        surfaceHolder.currentSurface?.let {
                             player?.clearVideoSurface(it)
                             it.release()
                         }
-                        currentSurface = null
+                        surfaceHolder.currentSurface = null
                         return true
                     }
 
@@ -1371,16 +1407,21 @@ fun BugdroidPlayer(
                 }
 
                 if (isAvailable && surfaceTexture != null) {
-                    val surface = android.view.Surface(surfaceTexture)
-                    currentSurface = surface
+                    val surface = surfaceHolder.currentSurface ?: android.view.Surface(surfaceTexture).also {
+                        surfaceHolder.currentSurface = it
+                    }
                     player?.setVideoSurface(surface)
                     adjustAspectRatio(this@apply)
                 }
             }
         },
         update = { tv ->
-            if (tv.isAvailable && tv.surfaceTexture != null) {
+            val existingSurface = surfaceHolder.currentSurface
+            if (existingSurface != null) {
+                player?.setVideoSurface(existingSurface)
+            } else if (tv.isAvailable && tv.surfaceTexture != null) {
                 val surface = android.view.Surface(tv.surfaceTexture)
+                surfaceHolder.currentSurface = surface
                 player?.setVideoSurface(surface)
             }
         },
@@ -1450,8 +1491,13 @@ fun MainSettingsScreen(
             val secureRepo = remember { com.pixel.intelligentsearch.core.security.SecureSettingsRepository(context) }
             val attestationVerifier = remember { com.pixel.intelligentsearch.core.security.KeyAttestationVerifier(context) }
             val hardwareLevel by androidx.compose.runtime.produceState(initialValue = if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)) com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX else com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE) {
-                value = withContext(Dispatchers.IO) {
-                    secureRepo.getHardwareSecurityLevel()
+                // A Keystore failure keeps the feature-flag estimate instead of crashing Settings.
+                value = try {
+                    withContext(Dispatchers.IO) { secureRepo.getHardwareSecurityLevel() }
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    android.util.Log.w("SettingsScreens", "Could not read hardware security level", e)
+                    value
                 }
             }
             val hardwareInfo = remember(hardwareLevel) {
@@ -1993,7 +2039,8 @@ fun MainSettingsScreen(
                     },
                     showDivider = true,
                 )
-                val isDebugUnlocked by rememberBooleanPreference(prefs, "debug_unlocked", false)
+                val rawDebugUnlocked by rememberBooleanPreference(prefs, "debug_unlocked", false)
+                val isDebugUnlocked = com.pixel.intelligentsearch.BuildConfig.DEBUG && rawDebugUnlocked
                 val searchEngine = prefs.getString("search.engine", "Google") ?: "Google"
                 var showTorBrowserSettingsDialog by remember { mutableStateOf(false) }
                 val browserHistorySubtitle = when (searchEngine) {
@@ -2142,7 +2189,14 @@ fun MainSettingsScreen(
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             maxLines = 2,
                             modifier = Modifier.bouncyClickable {
-                                uriHandler.openUri("mailto:support.ngdesigns@gmail.com")
+                                try {
+                                    uriHandler.openUri("mailto:support.ngdesigns@gmail.com")
+                                } catch (e: Exception) {
+                                    // No mail app installed: copy the address instead of crashing.
+                                    val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+                                    clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Support email", "support.ngdesigns@gmail.com"))
+                                    android.widget.Toast.makeText(context, "No email app found. Address copied.", android.widget.Toast.LENGTH_SHORT).show()
+                                }
                             }
                         )
                     }
@@ -2964,7 +3018,8 @@ fun SettingsSliderRow(
                     onValueChange = onValueChange,
                     valueRange = valueRange,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    steps = steps
+                    steps = steps,
+                    label = title
                 )
             }
         }
@@ -2985,7 +3040,9 @@ fun Android17Slider(
     steps: Int = 0,
     showTrack: Boolean = true,
     isSquiggly: Boolean = true,
-    enableHaptics: Boolean = false
+    enableHaptics: Boolean = false,
+    /** Accessible name; without it TalkBack announces an unlabeled adjustable. */
+    label: String? = null
 ) {
     val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
     
@@ -3055,6 +3112,7 @@ fun Android17Slider(
             .fillMaxWidth()
             .height(48.dp)
             .semantics(mergeDescendants = true) {
+                if (label != null) contentDescription = label
                 progressBarRangeInfo = ProgressBarRangeInfo(
                     current = value,
                     range = valueRange,

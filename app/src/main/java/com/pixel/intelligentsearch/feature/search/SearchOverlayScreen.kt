@@ -40,6 +40,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -320,6 +323,7 @@ data class AppIconResult(val bitmap: androidx.compose.ui.graphics.ImageBitmap, v
 
 private val themedIconCache = android.util.LruCache<String, AppIconResult>(256)
 private val fileThumbnailCache = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(128)
+@Volatile
 private var cachedActivePack: String? = null
 
 fun clearThemedIconCache() {
@@ -359,14 +363,17 @@ fun getThemedAppIcon(context: Context, packageName: String, activePackOverride: 
             if (d is android.graphics.drawable.BitmapDrawable && d.bitmap != null) {
                 return d.bitmap
             }
+            val width = (if (d.intrinsicWidth > 0) d.intrinsicWidth else 100).coerceIn(1, 192)
+            val height = (if (d.intrinsicHeight > 0) d.intrinsicHeight else 100).coerceIn(1, 192)
             val bmp = android.graphics.Bitmap.createBitmap(
-                if (d.intrinsicWidth > 0) d.intrinsicWidth else 100,
-                if (d.intrinsicHeight > 0) d.intrinsicHeight else 100,
+                width,
+                height,
                 android.graphics.Bitmap.Config.ARGB_8888
             )
             val canvas = android.graphics.Canvas(bmp)
-            d.setBounds(0, 0, canvas.width, canvas.height)
-            d.draw(canvas)
+            val mutated = d.mutate()
+            mutated.setBounds(0, 0, canvas.width, canvas.height)
+            mutated.draw(canvas)
             return bmp
         }
 
@@ -492,20 +499,24 @@ private fun finishWithoutTransition(activity: android.app.Activity?) {
     }
 }
 
-private fun launchSafeIntent(context: Context, intent: Intent, options: android.os.Bundle? = null) {
-    try {
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+/** Starts [intent]; returns false when nothing could handle it so callers can fall back. */
+private fun launchSafeIntent(context: Context, intent: Intent, options: android.os.Bundle? = null): Boolean {
+    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    return try {
         if (options != null) {
             context.startActivity(intent, options)
         } else {
             context.startActivity(intent)
         }
+        true
     } catch (e: Exception) {
         try {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.findActivity()?.startActivity(intent, options)
+            val activity = context.findActivity() ?: return false
+            activity.startActivity(intent, options)
+            true
         } catch (e2: Exception) {
             android.util.Log.w("IntelligentSearch", "Unexpected error", e2)
+            false
         }
     }
 }
@@ -737,7 +748,8 @@ fun SearchOverlayScreen(
         keyboardController?.hide()
         val bangIntent = viewModel.resolveBangIntent(searchQuery)
         if (bangIntent != null) {
-            bangIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            // CLEAR_TOP like the other browser launches; CLEAR_TASK would wipe the target app's task.
+            bangIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             viewModel.addSearchHistory(searchQuery)
             viewModel.onQueryChanged("")
             launchSafeIntent(context, bangIntent)
@@ -840,20 +852,17 @@ fun SearchOverlayScreen(
             }
         }
         if (intent == null) return@launchWebSearch
-        try {
-            viewModel.addSearchHistory(searchQuery)
-            viewModel.onQueryChanged("")
-            launchSafeIntent(context, intent)
-        } catch (e: Exception) {
+        viewModel.addSearchHistory(searchQuery)
+        viewModel.onQueryChanged("")
+        if (!launchSafeIntent(context, intent)) {
             val fallbackIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                 putExtra(SearchManager.QUERY, searchQuery)
                 putExtra("query", searchQuery)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }
-            try { 
-                viewModel.onQueryChanged("")
-                launchSafeIntent(context, fallbackIntent) 
-            } catch (ex: Exception) {}
+            if (!launchSafeIntent(context, fallbackIntent)) {
+                Toast.makeText(context, "No app available to search the web", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -1232,7 +1241,7 @@ fun SearchOverlayScreen(
                             if (newQuery.isNotEmpty()) {
                                 hasStartedTyping = true
                             }
-                            if (newQuery == "*xy88x*") {
+                            if (com.pixel.intelligentsearch.BuildConfig.DEBUG && newQuery == "*xy88x*") {
                                 prefs.edit().putBoolean("debug_unlocked", true).apply()
                                 viewModel.onQueryChanged("")
                                 textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
@@ -1288,9 +1297,7 @@ fun SearchOverlayScreen(
                                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                                 setPackage("com.google.android.apps.nbu.files")
                                             }
-                                            try {
-                                                launchSafeIntent(context, intent)
-                                            } catch (e: Exception) {
+                                            if (!launchSafeIntent(context, intent)) {
                                                 intent.setPackage(null)
                                                 launchSafeIntent(context, intent)
                                             }
@@ -1836,7 +1843,7 @@ fun SearchOverlayScreen(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            // Header: Expressive "BEST MATCH" Pill & "Press â†µ to Open" Action Hint
+                            // Header: Expressive "BEST MATCH" Pill & "Press Enter to Open" Action Hint
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1878,7 +1885,7 @@ fun SearchOverlayScreen(
                                         .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
                                     Text(
-                                        text = "Press â†µ to open",
+                                        text = "Press ↵ to open",
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Medium,
@@ -2024,9 +2031,7 @@ fun SearchOverlayScreen(
                                                             val intent = Intent(action.action)
                                                             if (action.dataUri != null) intent.data = android.net.Uri.parse(action.dataUri)
                                                             intent.setPackage(match.packageName)
-                                                            try {
-                                                                launchSafeIntent(context, intent)
-                                                            } catch (e: Exception) {
+                                                            if (!launchSafeIntent(context, intent)) {
                                                                 intent.setPackage(null)
                                                                 launchSafeIntent(context, intent)
                                                             }
@@ -2052,9 +2057,7 @@ fun SearchOverlayScreen(
                                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                                     setPackage("com.google.android.apps.nbu.files")
                                                 }
-                                                try {
-                                                    launchSafeIntent(context, intent)
-                                                } catch(e: Exception) {
+                                                if (!launchSafeIntent(context, intent)) {
                                                     intent.setPackage(null)
                                                     launchSafeIntent(context, intent)
                                                 }
@@ -2314,7 +2317,14 @@ fun SearchOverlayScreen(
                                 )
                             }
                             IconButton(
-                                onClick = { viewModel.onQueryChanged(recentQuery) },
+                                onClick = {
+                                    hasStartedTyping = true
+                                    textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
+                                        text = recentQuery,
+                                        selection = androidx.compose.ui.text.TextRange(recentQuery.length)
+                                    )
+                                    viewModel.onQueryChanged(recentQuery)
+                                },
                                 modifier = Modifier.size(32.dp)
                             ) {
                                 Icon(
@@ -2330,7 +2340,8 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
-                items(uiState.calendarEvents, key = { event -> "event_${event.title}_${event.startTime}" }, contentType = { "calendar_event" }) { event ->
+                // Title + time can repeat (same meeting on two calendars); the instance id and begin time cannot.
+                items(uiState.calendarEvents, key = { event -> "event_${event.eventId}_${event.beginMillis}_${event.title}" }, contentType = { "calendar_event" }) { event ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableFloatStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -2373,6 +2384,18 @@ fun SearchOverlayScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .clickable(enabled = event.eventId > 0L) {
+                                    hasStartedTyping = false
+                                    val eventIntent = Intent(
+                                        Intent.ACTION_VIEW,
+                                        android.content.ContentUris.withAppendedId(android.provider.CalendarContract.Events.CONTENT_URI, event.eventId)
+                                    ).putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, event.beginMillis)
+                                    launchSafeIntent(context, eventIntent)
+                                }
+                                .semantics {
+                                    // Swipe-to-dismiss has no TalkBack equivalent without this.
+                                    customActions = listOf(CustomAccessibilityAction("Dismiss") { dismissed = true; true })
+                                }
                                 .pointerInput(event) {
                                     detectHorizontalDragGestures(
                                         onHorizontalDrag = { change, dragAmount ->
@@ -2874,8 +2897,7 @@ fun SearchOverlayScreen(
             }
             
             val surfaceAlpha = if (isShowWallpaper) ((100 - isTransparency) / 100f).coerceIn(0f, 1f) else 1f
-            val shellCornerRadius = androidx.compose.ui.unit.lerp(24.dp, 32.dp, predictiveBackProgress.value.coerceIn(0f, 1f))
-            val shellShape = RoundedCornerShape(shellCornerRadius)
+            val baseShellShape = remember { RoundedCornerShape(24.dp) }
 
             Box(
                 modifier = Modifier
@@ -2887,6 +2909,7 @@ fun SearchOverlayScreen(
                     .graphicsLayer {
                         val progress = overlayProgressAnim.value.coerceIn(0.001f, 1f)
                         val backProg = predictiveBackProgress.value.coerceIn(0f, 1f)
+                        val shellCornerRadius = androidx.compose.ui.unit.lerp(24.dp, 32.dp, backProg)
                         val predictiveScale = 1f - (backProg * 0.08f)
 
                         scaleX = predictiveScale
@@ -2904,8 +2927,9 @@ fun SearchOverlayScreen(
                             0.5f
                         )
                         alpha = (progress * (1f - backProg * 0.25f)).coerceIn(0f, 1f)
+                        shape = RoundedCornerShape(shellCornerRadius)
+                        clip = true
                     }
-                    .clip(shellShape)
                     .then(
                         if (settingsState.bottomSearch) {
                             Modifier
@@ -2913,7 +2937,7 @@ fun SearchOverlayScreen(
                                 .border(
                                     width = 1.dp,
                                     color = MaterialTheme.colorScheme.outlineVariant,
-                                    shape = shellShape
+                                    shape = baseShellShape
                                 )
                         } else {
                             Modifier.background(Color.Transparent)

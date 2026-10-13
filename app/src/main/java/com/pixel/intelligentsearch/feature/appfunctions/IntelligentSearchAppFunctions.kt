@@ -86,7 +86,8 @@ abstract class IntelligentSearchAppFunctions : AppFunctionService() {
      */
     @AppFunctionDeclaration(isDescribedByKDoc = true)
     suspend fun searchApps(query: String, limit: Int): List<AppSearchResult> {
-        val needle = query.trim()
+        if (!androidx.core.os.UserManagerCompat.isUserUnlocked(applicationContext)) return emptyList()
+        val needle = query.trim().take(128)
         if (needle.isEmpty()) return emptyList()
         val hidden = hiddenApps()
         val max = limit.coerceIn(1, 20)
@@ -117,7 +118,8 @@ abstract class IntelligentSearchAppFunctions : AppFunctionService() {
      */
     @AppFunctionDeclaration(isDescribedByKDoc = true)
     suspend fun searchContacts(query: String, limit: Int): List<ContactSearchResult> {
-        val needle = query.trim()
+        if (!androidx.core.os.UserManagerCompat.isUserUnlocked(applicationContext)) return emptyList()
+        val needle = query.trim().take(128)
         if (needle.isEmpty()) return emptyList()
         if (AdvancedProtectionMonitor.isEnabled(applicationContext)) return emptyList()
         // Respect the in-app contact search switch; fail closed if settings can't be read.

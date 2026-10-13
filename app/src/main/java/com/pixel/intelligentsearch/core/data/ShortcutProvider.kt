@@ -21,6 +21,8 @@ object ShortcutProvider {
      */
     fun getAllShortcuts(context: Context): List<AppShortcutItem> {
         val launcherApps = context.getSystemService(LauncherApps::class.java) ?: return emptyList()
+        val userManager = context.getSystemService(Context.USER_SERVICE) as? android.os.UserManager
+        val currentUser = android.os.Process.myUserHandle()
         val results = mutableListOf<AppShortcutItem>()
         try {
             if (!launcherApps.hasShortcutHostPermission()) return emptyList()
@@ -32,6 +34,10 @@ object ShortcutProvider {
                 )
             }
             for (userHandle in launcherApps.profiles) {
+                if (userHandle != currentUser) {
+                    val isQuiet = try { userManager?.isQuietModeEnabled(userHandle) == true } catch (_: Exception) { false }
+                    if (isQuiet) continue
+                }
                 val shortcuts = try {
                     launcherApps.getShortcuts(queryObj, userHandle)
                 } catch (_: Exception) {

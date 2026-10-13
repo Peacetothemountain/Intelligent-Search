@@ -33,6 +33,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -128,13 +130,11 @@ fun GoogleMessagesSwitch(
     // Horizontal travel offset:
     // Left inset = 6dp (OFF), Right inset = 4dp (ON)
     // Travel range = trackWidth - padding - thumbWidth
-    val startOffset = if (checked) {
-        trackWidth - animatedThumbWidth - 4.dp
-    } else {
-        6.dp
-    }
+    val startOffset = 6.dp
+    val endOffset = trackWidth - targetThumbWidth - 4.dp
+    val targetOffset = if (checked) endOffset else startOffset
     val animatedThumbOffset by animateDpAsState(
-        targetValue = startOffset,
+        targetValue = targetOffset,
         animationSpec = spring(dampingRatio = 0.82f, stiffness = 650f),
         label = "messages_switch_thumb_offset"
     )
@@ -149,6 +149,8 @@ fun GoogleMessagesSwitch(
         Modifier.semantics {
             role = Role.Switch
             stateDescription = stateDesc
+            // Lets accessibility services read the checked state, not just the "On"/"Off" label.
+            toggleableState = ToggleableState(checked)
         }
     } else Modifier
 

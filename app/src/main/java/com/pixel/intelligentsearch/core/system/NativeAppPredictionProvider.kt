@@ -27,7 +27,7 @@ class NativeAppPredictionProvider @Inject constructor(
     private val nexusLauncherBridge = NexusLauncherBridge(context)
 
     suspend fun getPredictedApps(): List<AppItem> = withContext(Dispatchers.IO) {
-        val allApps = SystemDataProvider.getAllApps(context)
+        val allApps = SystemDataProvider.getAllApps(context).filter { !it.isPrivateProfile }
         val allAppsMap = allApps.associateBy { it.packageName }
 
         // 1. Query Pixel Launcher's native prediction provider (Nexus Launcher bridge)
@@ -46,6 +46,7 @@ class NativeAppPredictionProvider @Inject constructor(
         // 2. High-fidelity dynamic recents from UsageStatsManager
         try {
             val recents = SystemDataProvider.getRecentApps(context, fallbackToAll = false)
+                .filter { !it.isPrivateProfile }
             if (recents.isNotEmpty()) {
                 return@withContext recents.take(8)
             }

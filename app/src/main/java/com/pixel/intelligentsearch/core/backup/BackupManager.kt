@@ -30,6 +30,9 @@ class BackupManager @Inject constructor(
         private const val HARWARE_BACKUP_KEY_ALIAS = "com.pixel.intelligentsearch.hardware_backup_kek"
         private const val HISTORY_LIMIT = 25
 
+        // Real backups are a few KB of settings text; anything near this is not one of ours.
+        private const val MAX_BACKUP_BYTES = 4 * 1024 * 1024
+
         /** Backup preferencesMap names mapped to the DataStore keys they restore. */
         private val BOOLEAN_SETTING_KEYS = mapOf(
             "searchApps" to SettingsManager.SEARCH_APPS,
@@ -71,12 +74,114 @@ class BackupManager @Inject constructor(
             "customIconPills" to SettingsManager.CUSTOM_ICON_PILLS,
             "adaptiveIconShape" to SettingsManager.ADAPTIVE_ICON_SHAPE
         )
+
+        private val EXPECTED_SHARED_PREF_TYPES = mapOf(
+            "search.apps" to "BOOLEAN",
+            "search_apps" to "BOOLEAN",
+            "search.contacts" to "BOOLEAN",
+            "search_contacts" to "BOOLEAN",
+            "search.files" to "BOOLEAN",
+            "search_files" to "BOOLEAN",
+            "search.web" to "BOOLEAN",
+            "search_web" to "BOOLEAN",
+            "search_previous_searches" to "BOOLEAN",
+            "search.calculator" to "BOOLEAN",
+            "search_calculator" to "BOOLEAN",
+            "search.calendar" to "BOOLEAN",
+            "search_calendar" to "BOOLEAN",
+            "search.shortcuts" to "BOOLEAN",
+            "search_shortcuts" to "BOOLEAN",
+            "search.background.show.wall" to "BOOLEAN",
+            "show_wallpaper" to "BOOLEAN",
+            "show.wallpaper" to "BOOLEAN",
+            "search.files.hidden.files" to "BOOLEAN",
+            "search_files_hidden_files" to "BOOLEAN",
+            "search.files.thumbnails" to "BOOLEAN",
+            "search_files_thumbnails" to "BOOLEAN",
+            "app_animations" to "BOOLEAN",
+            "settings.bottom.search" to "BOOLEAN",
+            "bottom_search" to "BOOLEAN",
+            "settings.bottom.search.result" to "BOOLEAN",
+            "bottom_search_result" to "BOOLEAN",
+            "tutorial_completed" to "BOOLEAN",
+            "force_tutorial" to "BOOLEAN",
+            "g_icon_enabled" to "BOOLEAN",
+            "widget_show_voice" to "BOOLEAN",
+            "widget_show_gemini" to "BOOLEAN",
+            "quick_search_youtube" to "BOOLEAN",
+            "quick_search_wikipedia" to "BOOLEAN",
+            "quick_search_play_store" to "BOOLEAN",
+            "quick_search_maps" to "BOOLEAN",
+            "app_quick_launch" to "BOOLEAN",
+            "contact_direct_call" to "BOOLEAN",
+            "shortcut.inline" to "BOOLEAN",
+            "shortcut_inline" to "BOOLEAN",
+            "app.fuzzy.search" to "BOOLEAN",
+            "app_fuzzy_search" to "BOOLEAN",
+            "quick_search_horizontal" to "BOOLEAN",
+            "quick.search.horizontal" to "BOOLEAN",
+            "context_aware_quick_apps" to "BOOLEAN",
+            "smart_clipboard_suggestions" to "BOOLEAN",
+            "search_overlay_enabled" to "BOOLEAN",
+            "never_show_icon_pack_warning" to "BOOLEAN",
+            "dynamic_icon_masking" to "BOOLEAN",
+            "diagnostics_overlay_enabled" to "BOOLEAN",
+            "matrix_animation_enabled" to "BOOLEAN",
+            "settings_back_to_search_overlay" to "BOOLEAN",
+            "vibration_enabled" to "BOOLEAN",
+            "search.background.blur" to "INT",
+            "background.blur" to "INT",
+            "search.background.transparency" to "INT",
+            "background.transparency" to "INT",
+            "search.pill.opacity" to "INT",
+            "pill.opacity" to "INT",
+            "tutorial_step" to "INT",
+            "web_results_count" to "INT",
+            "contact_results_count" to "INT",
+            "file_results_count" to "INT",
+            "shortcut_results_count" to "INT",
+            "night.mode" to "STRING",
+            "theme" to "STRING",
+            "search.engine" to "STRING",
+            "custom_search_engine_url" to "STRING",
+            "search_pills" to "STRING",
+            "search.pills" to "STRING",
+            "widget.theme.style" to "STRING",
+            "widget_theme_style" to "STRING",
+            "active_icon_pack" to "STRING",
+            "custom_icon_pills" to "STRING",
+            "custom_bangs_json" to "STRING",
+            "search_sections_config_json" to "STRING",
+            "adaptive_icon_shape" to "STRING",
+            "web_shortcut_trigger_symbol" to "STRING",
+            "hidden_apps" to "STRING_SET",
+            "disabled_web_shortcuts" to "STRING_SET"
+        )
+
+        private fun isBlockedInternalKey(key: String): Boolean {
+            if (key.isBlank() || key.length > 128) return true
+            return key.endsWith("_vault") ||
+                key.endsWith("_iv") ||
+                key.endsWith("_level") ||
+                key.startsWith("saved_passphrase") ||
+                key.startsWith("biometric_") ||
+                key.startsWith("strongbox_") ||
+                key == "blind_seed" ||
+                key == "datastore_migration_v1_completed" ||
+                key == "profile_1_restored_to_default_v918" ||
+                key == "app_night_mode_override_cleared_v1"
+        }
+
+        private fun isValidCustomSearchUrl(url: String): Boolean {
+            if (url.isBlank()) return true
+            val trimmed = url.trim().lowercase(java.util.Locale.ROOT)
+            return trimmed.startsWith("http://") || trimmed.startsWith("https://")
+        }
     }
 
     suspend fun createBackupPayload(): BackupContentPayload = withContext(Dispatchers.IO) {
         val currentSettings = settingsManager.settingsFlow.first()
         val historyList = runCatching { historyDao.getSearchHistory().map { it.query } }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it; emptyList<String>() }
-        val customBangs = searchBangManager.parseCustomBangs(currentSettings.customBangsJson)
 
         // 1. DataStore settings map for backward compatibility
         val prefsMap = mutableMapOf<String, String>()
@@ -188,7 +293,12 @@ class BackupManager @Inject constructor(
                 val envelope = if (!passphrase.isNullOrBlank()) {
                     val salt = BackupCryptoEngine.generateRandomSalt()
                     val iv = BackupCryptoEngine.generateRandomIv()
-                    val key = BackupCryptoEngine.deriveKeyFromPassphrase(passphrase.toCharArray(), salt)
+                    val passChars = passphrase.toCharArray()
+                    val key = try {
+                        BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt)
+                    } finally {
+                        com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
+                    }
                     val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
                     val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
 
@@ -280,11 +390,26 @@ class BackupManager @Inject constructor(
         }
     }
 
+    /** Reads a user-picked file, refusing to buffer anything larger than [MAX_BACKUP_BYTES]. */
+    private fun readBackupText(uri: Uri): String? =
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val out = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(8 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                out.write(buffer, 0, read)
+                if (out.size() > MAX_BACKUP_BYTES) {
+                    throw IllegalArgumentException("Selected file is too large to be an Intelligent Search backup.")
+                }
+            }
+            out.toString(Charsets.UTF_8.name())
+        }
+
     fun inspectBackupEnvelope(uri: Uri): Result<EncryptedBackupEnvelope> {
         return try {
-            val envelopeJson = context.contentResolver.openInputStream(uri)?.use { input ->
-                input.bufferedReader().readText()
-            } ?: return Result.failure(IllegalArgumentException("Could not read backup file"))
+            val envelopeJson = readBackupText(uri)
+                ?: return Result.failure(IllegalArgumentException("Could not read backup file"))
             if (envelopeJson.isBlank()) {
                 return Result.failure(IllegalArgumentException("Selected backup file is empty (0 bytes). Please create a fresh backup."))
             }
@@ -303,15 +428,20 @@ class BackupManager @Inject constructor(
     ) {
         withContext(Dispatchers.IO) {
             try {
-                val envelopeJson = context.contentResolver.openInputStream(uri)?.use { input ->
-                    input.bufferedReader().readText()
-                } ?: throw IllegalArgumentException("Could not read backup file")
+                val envelopeJson = readBackupText(uri)
+                    ?: throw IllegalArgumentException("Could not read backup file")
 
                 if (envelopeJson.isBlank()) {
                     throw IllegalArgumentException("Selected backup file is empty (0 bytes). Please create a fresh backup.")
                 }
 
                 val envelope = parseEnvelope(envelopeJson)
+                require(envelope.format == "INTELLIGENT_SEARCH_ENCRYPTED_BACKUP") {
+                    "Unsupported backup format: ${envelope.format}"
+                }
+                require(envelope.cipher.tagLengthBits == 128) {
+                    "Unsupported GCM authentication tag length: ${envelope.cipher.tagLengthBits}"
+                }
 
                 // Verify integrity
                 val cipherBytes = BackupCryptoEngine.decodeBase64(envelope.encryptedPayloadBase64)
@@ -321,12 +451,23 @@ class BackupManager @Inject constructor(
                 }
 
                 val iv = BackupCryptoEngine.decodeBase64(envelope.cipher.ivBase64)
+                require(iv.size == 12) { "Invalid backup IV length: ${iv.size}" }
+
                 val decryptedJson: String = if (envelope.kdf != null) {
                     if (passphrase.isNullOrBlank()) {
                         throw IllegalArgumentException("Passphrase required to decrypt this backup")
                     }
                     val salt = BackupCryptoEngine.decodeBase64(envelope.kdf.saltBase64)
-                    val key = BackupCryptoEngine.deriveKeyFromPassphrase(passphrase.toCharArray(), salt, envelope.kdf.iterations)
+                    require(salt.size >= 16) { "Backup KDF salt is too short (${salt.size} bytes)" }
+                    require(envelope.kdf.iterations in 10_000..5_000_000) {
+                        "Backup KDF iteration count out of bounds: ${envelope.kdf.iterations}"
+                    }
+                    val passChars = passphrase.toCharArray()
+                    val key = try {
+                        BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt, envelope.kdf.iterations)
+                    } finally {
+                        com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
+                    }
                     try {
                         BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
                     } catch (e: javax.crypto.AEADBadTagException) {
@@ -339,13 +480,7 @@ class BackupManager @Inject constructor(
                         val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
                         BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
                     } catch (e: Throwable) {
-                        // Fallback to portable default key for legacy envelopes
-                        try {
-                            val key = BackupCryptoEngine.getPortableDefaultKey()
-                            BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
-                        } catch (_: Throwable) {
-                            throw SecurityException("Device KeyStore key unavailable. This backup was bound to hardware keys that were reset.")
-                        }
+                        throw SecurityException("Device KeyStore key unavailable or backup integrity check failed.", e)
                     }
                 } else {
                     // Standard portable non-passphrase backup
@@ -384,24 +519,41 @@ class BackupManager @Inject constructor(
                 val keys = spObj.keys()
                 while (keys.hasNext()) {
                     val key = keys.next()
-                    val itemObj = spObj.getJSONObject(key)
-                    val type = itemObj.optString("type")
-                    when (type) {
-                        "BOOLEAN" -> editor.putBoolean(key, itemObj.getBoolean("value"))
-                        "INT" -> editor.putInt(key, itemObj.getInt("value"))
-                        "LONG" -> editor.putLong(key, itemObj.getLong("value"))
-                        "FLOAT" -> editor.putFloat(key, itemObj.getDouble("value").toFloat())
-                        "STRING" -> editor.putString(key, itemObj.getString("value"))
-                        "STRING_SET" -> {
-                            val arr = itemObj.getJSONArray("value")
-                            val set = mutableSetOf<String>()
-                            for (i in 0 until arr.length()) {
-                                set.add(arr.getString(i))
-                            }
-                            editor.putStringSet(key, set)
+                    if (isBlockedInternalKey(key)) continue
+                    runCatching {
+                        val itemObj = spObj.getJSONObject(key)
+                        val type = itemObj.optString("type")
+                        val expectedType = EXPECTED_SHARED_PREF_TYPES[key]
+                        if (expectedType != null && expectedType != type) {
+                            return@runCatching
                         }
+                        when (type) {
+                            "BOOLEAN" -> editor.putBoolean(key, itemObj.getBoolean("value"))
+                            "INT" -> editor.putInt(key, itemObj.getInt("value"))
+                            "LONG" -> editor.putLong(key, itemObj.getLong("value"))
+                            "FLOAT" -> {
+                                val fVal = itemObj.getDouble("value").toFloat()
+                                if (fVal.isFinite()) editor.putFloat(key, fVal) else return@runCatching
+                            }
+                            "STRING" -> {
+                                val strVal = itemObj.getString("value")
+                                if (key == "custom_search_engine_url" && !isValidCustomSearchUrl(strVal)) {
+                                    return@runCatching
+                                }
+                                editor.putString(key, strVal)
+                            }
+                            "STRING_SET" -> {
+                                val arr = itemObj.getJSONArray("value")
+                                val set = mutableSetOf<String>()
+                                for (i in 0 until arr.length()) {
+                                    set.add(arr.getString(i))
+                                }
+                                editor.putStringSet(key, set)
+                            }
+                            else -> return@runCatching
+                        }
+                        restoredCount++
                     }
-                    restoredCount++
                 }
                 editor.commit()
             } catch (e: Throwable) {
@@ -417,28 +569,29 @@ class BackupManager @Inject constructor(
         // writes DataStore plus every SharedPreferences spelling of the key.
         payload.preferencesMap.forEach { (k, v) ->
             val restored = BOOLEAN_SETTING_KEYS[k]?.let { key ->
-                settingsManager.updateSetting(key, v.toBoolean())
+                v.toBooleanStrictOrNull()?.let { settingsManager.updateSetting(key, it) }
             } ?: INT_SETTING_KEYS[k]?.let { key ->
                 v.toIntOrNull()?.let { settingsManager.updateSetting(key, it) }
             } ?: STRING_SETTING_KEYS[k]?.let { key ->
-                settingsManager.updateSetting(key, v)
+                if (key == SettingsManager.CUSTOM_SEARCH_ENGINE_URL && !isValidCustomSearchUrl(v)) {
+                    null
+                } else {
+                    settingsManager.updateSetting(key, v)
+                }
             }
             if (restored != null) restoredCount++
         }
 
-        // 3. Restore Custom Bangs & Section Configs
-        if (payload.customBangsJson.isNotBlank() && payload.customBangsJson != "[]") {
+        // 3. Restore Custom Bangs & Section Configs (including empty "[]" or emptyList() so clean backups clear prior items)
+        if (payload.customBangsJson.isNotBlank()) {
             settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, payload.customBangsJson)
             restoredCount++
         }
-        if (payload.sectionConfigsJson.isNotBlank() && payload.sectionConfigsJson != "[]") {
-            settingsManager.updateSetting(SettingsManager.SEARCH_SECTIONS_CONFIG_JSON, payload.sectionConfigsJson)
-            restoredCount++
-        }
-        if (payload.hiddenApps.isNotEmpty()) {
-            settingsManager.updateSetting(SettingsManager.HIDDEN_APPS, payload.hiddenApps.toSet())
-            restoredCount += payload.hiddenApps.size
-        }
+        settingsManager.updateSetting(SettingsManager.SEARCH_SECTIONS_CONFIG_JSON, payload.sectionConfigsJson)
+        restoredCount++
+
+        settingsManager.updateSetting(SettingsManager.HIDDEN_APPS, payload.hiddenApps.toSet())
+        restoredCount += payload.hiddenApps.size
 
         // 4. Restore Search History
         if (payload.searchHistory.isNotEmpty()) {

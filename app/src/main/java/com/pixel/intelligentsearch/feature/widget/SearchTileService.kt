@@ -125,11 +125,10 @@ class SearchTileService : TileService() {
 
         val isDeviceLocked = try { isLocked } catch (_: Throwable) { false }
         val lastQuery = cachedLastQuery
-        val sanitizedQuery = lastQuery
-            ?.replace(NEWLINE_RUNS, " ")
-            ?.trim()
+        val collapsedQuery = lastQuery?.replace(NEWLINE_RUNS, " ")?.trim()
+        val sanitizedQuery = collapsedQuery
             ?.take(24)
-            ?.let { if (it.length < (lastQuery.trim().length)) "$it…" else it }
+            ?.let { if (it.length < collapsedQuery.length) "$it…" else it }
 
         val subtitle = if (!isDeviceLocked && !sanitizedQuery.isNullOrBlank()) {
             getString(R.string.tile_subtitle_last_query, sanitizedQuery)
@@ -218,11 +217,16 @@ class SearchTileService : TileService() {
                     val pendingIntent = createLaunchPendingIntent(this)
                     pendingIntent.send(this, 0, null, null, null, null, BackgroundLaunchOptions.forSender(this).toBundle())
                 } catch (fallbackError: Throwable) {
-                    try {
-                        @Suppress("DEPRECATION")
-                        startActivityAndCollapse(intent)
-                    } catch (lastError: Throwable) {
-                        android.util.Log.e(TAG, "Guarded fallback activity launch also failed", lastError)
+                    // The Intent overload throws UnsupportedOperationException when targeting API 34+.
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        try {
+                            @Suppress("DEPRECATION")
+                            startActivityAndCollapse(intent)
+                        } catch (lastError: Throwable) {
+                            android.util.Log.e(TAG, "Guarded fallback activity launch also failed", lastError)
+                        }
+                    } else {
+                        android.util.Log.e(TAG, "Guarded fallback activity launch also failed", fallbackError)
                     }
                 }
             }

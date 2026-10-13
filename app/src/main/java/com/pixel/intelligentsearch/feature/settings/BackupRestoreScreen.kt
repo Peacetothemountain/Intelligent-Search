@@ -75,6 +75,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -350,6 +352,8 @@ fun BackupRestoreScreen(
                             }
                         },
                         visualTransformation = if (dialogPassphraseVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        // Password type keeps the keyboard from learning or suggesting the passphrase, even when shown.
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(percent = 50),
                         singleLine = true,
@@ -471,7 +475,11 @@ fun BackupRestoreScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
                 Text(
-                    "Set a passphrase to securely encrypt your backup. If left blank, the backup restores automatically on any device, but it is not securely encrypted: anyone with the file can read it.",
+                    if (hardwareInfo.isStrongBox) {
+                        "Set a passphrase to restore your backup on any device. If left blank, the backup is encrypted with a key in this phone's ${hardwareInfo.shortChipName} and can only be restored on this phone."
+                    } else {
+                        "Set a passphrase to securely encrypt your backup. If left blank, the backup restores automatically on any device, but it is not securely encrypted: anyone with the file can read it."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
@@ -523,6 +531,8 @@ fun BackupRestoreScreen(
                         }
                     },
                     visualTransformation = if (passphraseVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    // Password type keeps the keyboard from learning or suggesting the passphrase, even when shown.
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),

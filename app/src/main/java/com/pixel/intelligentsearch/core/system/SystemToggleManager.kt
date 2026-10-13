@@ -172,7 +172,7 @@ class SystemToggleManager @Inject constructor(
                 }
 
                 override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
-                    updateWifiInfo()
+                    updateWifiInfo(networkCapabilities)
                 }
             }
             cm.registerNetworkCallback(request, callback)
@@ -222,11 +222,12 @@ class SystemToggleManager @Inject constructor(
         }
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-            } else {
-                context.registerReceiver(receiver, filter)
-            }
+            androidx.core.content.ContextCompat.registerReceiver(
+                context,
+                receiver,
+                filter,
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+            )
             toggleReceiver = receiver
         } catch (e: Exception) {
             Log.w(TAG, "Failed to register system toggle broadcast receiver", e)
@@ -374,13 +375,14 @@ class SystemToggleManager @Inject constructor(
         }
     }
 
-    private fun updateWifiInfo() {
+    private fun updateWifiInfo(caps: NetworkCapabilities? = null) {
         try {
-            val activeNet = connectivityManager?.activeNetwork
-            val caps = connectivityManager?.getNetworkCapabilities(activeNet)
-            if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
+            val effectiveCaps = caps ?: connectivityManager?.activeNetwork?.let { activeNet ->
+                connectivityManager.getNetworkCapabilities(activeNet)
+            }
+            if (effectiveCaps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
                 var foundSsid: String? = null
-                val wifiInfo = caps.transportInfo as? android.net.wifi.WifiInfo
+                val wifiInfo = effectiveCaps.transportInfo as? android.net.wifi.WifiInfo
                 val tSsid = wifiInfo?.ssid?.replace("\"", "")?.trim()
                 if (!tSsid.isNullOrBlank() && tSsid != "<unknown ssid>" && tSsid != "0x") {
                     foundSsid = tSsid

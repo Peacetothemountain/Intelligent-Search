@@ -28,7 +28,7 @@ android {
             val localProperties = Properties()
             val localPropertiesFile = rootProject.file("local.properties")
             if (localPropertiesFile.exists()) {
-                localProperties.load(localPropertiesFile.inputStream())
+                localPropertiesFile.inputStream().use { localProperties.load(it) }
             }
             val customStore = localProperties.getProperty("RELEASE_STORE_FILE")
             val targetStore = when {
@@ -75,7 +75,7 @@ android {
     buildFeatures {
       compose = true
       aidl = false
-      buildConfig = false
+      buildConfig = true
       shaders = false
     }
 

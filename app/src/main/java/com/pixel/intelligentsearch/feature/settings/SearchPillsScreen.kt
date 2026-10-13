@@ -65,14 +65,17 @@ fun getNativeAppIcon(context: Context, packageName: String): androidx.compose.ui
         val bitmap = if (drawable is android.graphics.drawable.BitmapDrawable && drawable.bitmap != null) {
             drawable.bitmap
         } else {
+            val d = drawable.mutate()
+            val width = (if (d.intrinsicWidth > 0) d.intrinsicWidth else 96).coerceIn(1, 192)
+            val height = (if (d.intrinsicHeight > 0) d.intrinsicHeight else 96).coerceIn(1, 192)
             val bmp = android.graphics.Bitmap.createBitmap(
-                if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 96,
-                if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 96,
+                width,
+                height,
                 android.graphics.Bitmap.Config.ARGB_8888
             )
             val canvas = android.graphics.Canvas(bmp)
-            drawable.setBounds(0, 0, canvas.width, canvas.height)
-            drawable.draw(canvas)
+            d.setBounds(0, 0, canvas.width, canvas.height)
+            d.draw(canvas)
             bmp
         }
         val imgBitmap = bitmap.asImageBitmap()
@@ -101,16 +104,18 @@ fun SearchPillsScreen(
     val defaultPills = "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files"
 
     // One-time restore of Profile 1 back to default state as requested by user
-    if (!prefs.getBoolean("profile_1_restored_to_default_v919", false)) {
-        prefs.edit()
-            .putString("app_search_profile_1", defaultPills)
-            .putString("app_search_profile_1_saved", defaultPills)
-            .putString("search.pills", defaultPills)
-            .putInt("shortcut_results_count", 6)
-            .putBoolean("profile_1_restored_to_default_v919", true)
-            .apply()
-        viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, defaultPills)
-        viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, 6)
+    LaunchedEffect(Unit) {
+        if (!prefs.getBoolean("profile_1_restored_to_default_v919", false)) {
+            prefs.edit()
+                .putString("app_search_profile_1", defaultPills)
+                .putString("app_search_profile_1_saved", defaultPills)
+                .putString("search.pills", defaultPills)
+                .putInt("shortcut_results_count", 6)
+                .putBoolean("profile_1_restored_to_default_v919", true)
+                .apply()
+            viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, defaultPills)
+            viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, 6)
+        }
     }
 
     var activeProfile by remember { mutableIntStateOf(prefs.getInt("active_app_search_profile", 1)) }

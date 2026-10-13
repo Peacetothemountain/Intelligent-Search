@@ -174,7 +174,7 @@ object SearchRoleManager {
                 SECURE_SELECTED_SEARCH_ENGINE,
                 context.packageName
             )
-            val intent = Intent(ACTION_UPDATE_DSE)
+            val intent = Intent(ACTION_UPDATE_DSE).setPackage("com.google.android.apps.nexuslauncher")
             context.sendBroadcast(intent)
             success = success && putSuccess
         } catch (_: Exception) {

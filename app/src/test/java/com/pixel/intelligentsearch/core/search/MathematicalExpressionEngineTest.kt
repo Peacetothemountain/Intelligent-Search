@@ -129,4 +129,33 @@ class MathematicalExpressionEngineTest {
         val bit = res as MathematicalExpressionEngine.MathEvaluationResult.Bitwise
         assertEquals(15L.inv(), bit.decimalValue)
     }
+
+    @Test
+    fun phoneNumbersAndDatesAreNotSubtraction() {
+        assertNull(MathematicalExpressionEngine.evaluate("555-1234"))
+        assertNull(MathematicalExpressionEngine.evaluate("1-800-555-1234"))
+        assertNull(MathematicalExpressionEngine.evaluate("2024-01-01"))
+        assertNull(MathematicalExpressionEngine.evaluate("01-31-2024"))
+        // Plain subtraction still works.
+        val res = MathematicalExpressionEngine.evaluate("100-20-5")
+        assertEquals(75.0, (res as MathematicalExpressionEngine.MathEvaluationResult.Computation).numericValue, 0.001)
+    }
+
+    @Test
+    fun roundIsHalfAwayFromZero() {
+        val up = MathematicalExpressionEngine.evaluate("round(2.5)") as MathematicalExpressionEngine.MathEvaluationResult.Computation
+        assertEquals(3.0, up.numericValue, 0.0)
+        val down = MathematicalExpressionEngine.evaluate("round(-2.5)") as MathematicalExpressionEngine.MathEvaluationResult.Computation
+        assertEquals(-3.0, down.numericValue, 0.0)
+    }
+
+    @Test
+    fun smallResultsKeepSignificantDigits() {
+        val tiny = MathematicalExpressionEngine.evaluate("1/3000") as MathematicalExpressionEngine.MathEvaluationResult.Computation
+        assertEquals("0.0003333", tiny.formattedResult)
+        val third = MathematicalExpressionEngine.evaluate("1/3") as MathematicalExpressionEngine.MathEvaluationResult.Computation
+        assertEquals("0.3333", third.formattedResult)
+        val sum = MathematicalExpressionEngine.evaluate("0.1+0.2") as MathematicalExpressionEngine.MathEvaluationResult.Computation
+        assertEquals("0.3", sum.formattedResult)
+    }
 }

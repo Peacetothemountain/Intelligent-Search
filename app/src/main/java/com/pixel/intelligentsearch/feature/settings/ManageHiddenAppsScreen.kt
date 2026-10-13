@@ -58,6 +58,7 @@ import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.security.BiometricSearchGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,6 +73,27 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     
     val biometricGate = remember { BiometricSearchGate(context) }
     var isAuthenticated by remember { mutableStateOf(false) }
+    val authScope = androidx.compose.runtime.rememberCoroutineScope()
+    val enteredAtMs = remember { android.os.SystemClock.uptimeMillis() }
+    val currentOnBack by androidx.compose.runtime.rememberUpdatedState(onBack)
+
+    val navigateBackOnAuthFailure: () -> Unit = {
+        isAuthenticated = false
+        SettingsDebouncer.recordClick(0L)
+        SettingsDebouncer.recordClick(0L, key = "settings_top_bar_back")
+        currentOnBack()
+        val elapsed = android.os.SystemClock.uptimeMillis() - enteredAtMs
+        if (elapsed < 450L) {
+            authScope.launch {
+                delay((450L - elapsed).coerceAtLeast(50L))
+                if (!isAuthenticated) {
+                    SettingsDebouncer.recordClick(0L)
+                    SettingsDebouncer.recordClick(0L, key = "settings_top_bar_back")
+                    currentOnBack()
+                }
+            }
+        }
+    }
 
     val triggerAuth: () -> Unit = {
         val targetActivity = biometricGate.getActivity(context)
@@ -80,13 +102,11 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 activity = targetActivity,
                 onSuccess = { isAuthenticated = true },
                 onError = {
-                    isAuthenticated = false
-                    onBack()
+                    navigateBackOnAuthFailure()
                 }
             )
         } else if (biometricGate.isDeviceSecure()) {
-            isAuthenticated = false
-            onBack()
+            navigateBackOnAuthFailure()
         } else {
             isAuthenticated = true
         }
@@ -172,7 +192,7 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         isSearching = true 
                     }
                 }) {
-                    Icon(if (isSearching) Icons.Outlined.Close else Icons.Outlined.Search, contentDescription = "Search")
+                    Icon(if (isSearching) Icons.Outlined.Close else Icons.Outlined.Search, contentDescription = if (isSearching) "Close search" else "Search")
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)

@@ -28,9 +28,6 @@ class TactileSonicEngine private constructor(private val context: Context) {
     }
 
     val hapticEngine = PixelHapticEngine.get(context)
-    // Lazy: the sonic engine pre-allocates 18 low-latency AudioTracks (scarce fast-mixer slots shared
-    // with every app), and nothing plays sonic feedback until isSonicEnabled is switched on.
-    val sonicEngine by lazy { SonicMicroFeedbackEngine.get(context) }
 
     private val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
 

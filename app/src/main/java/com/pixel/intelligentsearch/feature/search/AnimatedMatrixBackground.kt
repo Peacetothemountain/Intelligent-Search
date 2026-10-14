@@ -75,11 +75,11 @@ const val AGSL_MATRIX_SPARKLE_SHADER = """
         float wave = (sin(uPhase + offsetPhase) + 1.0) * 0.5;
         
         // Subtle breathing of the 4 star tips during twinkle
-        float effectiveSize = max(uSparkleSize * (0.86 + 0.16 * wave), 0.001);
+        float effectiveSize = max(uSparkleSize * (0.85 + 0.18 * wave), 0.001);
         
         // Astroid / 4-point Gemini sparkle equation matching concave quadratic bezier arms
         float dist = (sqrt(max(d.x, 0.0)) + sqrt(max(d.y, 0.0))) / sqrt(effectiveSize);
-        float shape = 1.0 - smoothstep(0.72, 1.0, dist);
+        float shape = 1.0 - smoothstep(0.76, 1.01, dist);
         
         if (shape <= 0.0) {
             return half4(0.0);
@@ -111,8 +111,8 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
     val isDark = background.luminance() < 0.5f
 
     val animationDurationSec = when (throttleLevel) {
-        ADPFThermalManager.ThermalThrottleLevel.MODERATE -> if (isDark) 11f else 9.5f
-        else -> if (isDark) 9f else 8f
+        ADPFThermalManager.ThermalThrottleLevel.MODERATE -> if (isDark) 10f else 8.8f
+        else -> if (isDark) 8.2f else 7.2f
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -143,7 +143,7 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
     }
 
     // Smooth Material 3 Expressive color transitions
-    val targetBaseColor = if (isDark) Color(0xFFA09EB0) else Color(0xFF1E1E24)
+    val targetBaseColor = if (isDark) Color(0xFFA6A3B6) else Color(0xFF1E1E24)
     val animatedBaseColor by animateColorAsState(
         targetValue = targetBaseColor,
         animationSpec = tween(
@@ -154,10 +154,10 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
     )
 
     val density = LocalDensity.current
-    val darkSpacingPx = with(density) { 24.dp.toPx() }
+    val darkSpacingPx = with(density) { 25.dp.toPx() }
     val lightSpacingPx = with(density) { 24.dp.toPx() }
-    val darkSparkleSizePx = with(density) { 2.6.dp.toPx() }
-    val lightSparkleSizePx = with(density) { 2.8.dp.toPx() }
+    val darkSparkleSizePx = with(density) { 3.4.dp.toPx() }
+    val lightSparkleSizePx = with(density) { 3.7.dp.toPx() }
     val darkOffsetDivisorPx = with(density) { 95.dp.toPx() }
     val lightOffsetDivisorPx = with(density) { 80.dp.toPx() }
 
@@ -190,8 +190,8 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
 
         val spacing = (if (currentIsDark) darkSpacingPx else lightSpacingPx) * spacingMultiplier
         val sparkleSize = if (currentIsDark) darkSparkleSizePx else lightSparkleSizePx
-        val baseAlpha = if (currentIsDark) 0.34f else 0.38f
-        val minAlpha = if (currentIsDark) 0.08f else 0.10f
+        val baseAlpha = if (currentIsDark) 0.42f else 0.45f
+        val minAlpha = if (currentIsDark) 0.11f else 0.14f
         val offsetDivisor = if (currentIsDark) darkOffsetDivisorPx else lightOffsetDivisorPx
 
         // ----------------------------------------------------------------------------------

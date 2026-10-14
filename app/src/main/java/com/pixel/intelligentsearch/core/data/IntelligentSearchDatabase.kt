@@ -10,13 +10,23 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [HistoryEntity::class], version = 2, exportSchema = false)
+/**
+ * Intelligent Search's own search history. Only queries run inside Intelligent Search are recorded
+ * here, and the history is never exposed to other apps (GlobalSearchProvider does not serve it).
+ */
+@Database(entities = [HistoryEntity::class], version = IntelligentSearchDatabase.VERSION, exportSchema = true)
 abstract class IntelligentSearchDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryDao
 
     companion object {
         private const val TAG = "IntelligentSearchDB"
         const val DATABASE_NAME = "intelligent_search_database"
+
+        /**
+         * Schema version. Raise it only together with a new entry in [MIGRATIONS]: app updates
+         * migrate history forward and never drop it (HistoryDatabaseMigrationTest enforces the chain).
+         */
+        const val VERSION = 2
 
         @Volatile
         private var INSTANCE: IntelligentSearchDatabase? = null
@@ -26,6 +36,9 @@ abstract class IntelligentSearchDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_search_history_timestamp` ON `search_history` (`timestamp`)")
             }
         }
+
+        /** Every upgrade step from version 1 to [VERSION], in order. */
+        internal val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2)
 
         /**
          * Resolves the Credential Encrypted (CE) context for personal search history storage.
@@ -75,8 +88,10 @@ abstract class IntelligentSearchDatabase : RoomDatabase() {
                 IntelligentSearchDatabase::class.java,
                 DATABASE_NAME
             )
-                .addMigrations(MIGRATION_1_2)
-                .fallbackToDestructiveMigration(true)
+                .addMigrations(*MIGRATIONS)
+                // No destructive fallback on upgrade: an update must never silently erase the user's
+                // history. Downgrades (installing an older build over a newer one) can't be migrated,
+                // so only that case starts a fresh database.
                 .fallbackToDestructiveMigrationOnDowngrade(true)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
                 .addCallback(object : Callback() {

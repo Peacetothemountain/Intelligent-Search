@@ -292,6 +292,11 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    /** Picks up files added to the user's chosen folders; throttled inside the index manager. */
+    fun refreshFilesIfStale() {
+        corpusIndexManager.reindexFilesIfStale()
+    }
+
     fun loadInitialData() {
         refreshContacts()
         initialDataJob?.cancel()

@@ -6,6 +6,7 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.ksp)
   alias(libs.plugins.hilt)
+  alias(libs.plugins.room)
 }
 
 android {
@@ -102,6 +103,13 @@ android {
 
 composeCompiler {
     includeSourceInformation.set(false)
+}
+
+room {
+    // Exported Room schemas are checked in so every search history schema change is reviewed and
+    // shipped with a migration instead of wiping the user's history. The Room plugin copies the schema
+    // per variant, avoiding the parallel-build race of the room.schemaLocation KSP argument.
+    schemaDirectory("$projectDir/schemas")
 }
 
 dependencies {

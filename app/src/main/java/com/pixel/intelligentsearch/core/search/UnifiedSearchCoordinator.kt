@@ -251,7 +251,8 @@ class UnifiedSearchCoordinator @Inject constructor(
 
     private fun newFileItem(file: FileItem, modifiedMs: Long): SearchItem {
         return SearchItem(
-            id = "file:${file.path}",
+            // The content URI is unique; paths can repeat across chosen folders and picker items have none.
+            id = "file:${file.uri}",
             title = file.name,
             subtitle = file.path,
             domain = SearchScoringEngine.EntityDomain.FILE,

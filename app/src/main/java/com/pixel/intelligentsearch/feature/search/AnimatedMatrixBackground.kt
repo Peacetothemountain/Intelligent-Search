@@ -55,47 +55,46 @@ const val AGSL_MATRIX_SPARKLE_SHADER = """
     layout(color) uniform half4 uBaseColor;
 
     half4 main(float2 fragCoord) {
-        // Staggered grid calculation matching hexagonal alternate row layout
+        // Staggered hexagonal grid with each 4-point Gemini star centered inside its cell
+        // so cell boundaries never clip the top, left, or bottom star arms.
         float row = floor(fragCoord.y / uSpacing);
         float rowOffset = mod(row, 2.0) * (uSpacing * 0.5);
         float col = floor((fragCoord.x - rowOffset) / uSpacing);
         
-        float2 center = float2(col * uSpacing + rowOffset, row * uSpacing);
+        float2 center = float2((col + 0.5) * uSpacing + rowOffset, (row + 0.5) * uSpacing);
         float2 d = abs(fragCoord - center);
         
-        // Astroid / 4-point sparkle equation matching vector quadratic bezier
-        float dist = (sqrt(max(d.x, 0.0)) + sqrt(max(d.y, 0.0))) / sqrt(max(uSparkleSize, 0.001));
-        float shape = (1.0 - smoothstep(0.6, 1.0, dist));
+        // Early bounding-box discard skips >85% of pixels before any sqrt/sin math
+        if (d.x > uSparkleSize * 1.08 || d.y > uSparkleSize * 1.08) {
+            return half4(0.0);
+        }
+        
+        // Traveling diagonal wave + subtle per-star phase jitter for organic Gemini twinkle
+        float cellJitter = fract(sin(row * 12.9898 + col * 78.233) * 43758.5453) * 1.85;
+        float offsetPhase = (center.x + center.y) / uOffsetDivisor + cellJitter;
+        float wave = (sin(uPhase + offsetPhase) + 1.0) * 0.5;
+        
+        // Subtle breathing of the 4 star tips during twinkle
+        float effectiveSize = max(uSparkleSize * (0.84 + 0.20 * wave), 0.001);
+        
+        // Astroid / 4-point Gemini sparkle equation matching concave quadratic bezier arms
+        float dist = (sqrt(max(d.x, 0.0)) + sqrt(max(d.y, 0.0))) / sqrt(effectiveSize);
+        float shape = 1.0 - smoothstep(0.80, 1.02, dist);
         
         if (shape <= 0.0) {
             return half4(0.0);
         }
         
-        // Traveling diagonal phase wave
-        float offsetPhase = (center.x + center.y) / uOffsetDivisor;
-        float rawAlpha = ((sin(uPhase + offsetPhase) + 1.0) * 0.5) * uBaseAlpha + uMinAlpha;
-        float alpha = clamp(rawAlpha, 0.0, 1.0) * shape;
+        float rawAlpha = wave * uBaseAlpha + uMinAlpha;
+        half finalAlpha = uBaseColor.a * half(clamp(rawAlpha, 0.0, 1.0) * shape);
         
-        return half4(uBaseColor.rgb, uBaseColor.a * alpha);
+        // Skia AGSL requires premultiplied alpha output
+        return half4(uBaseColor.rgb * finalAlpha, finalAlpha);
     }
 """
 
 /**
- * Modern GPU-Accelerated Matrix Particle Background for Android 17 / API 37.
- *
- * Architecture Improvements:
- * 1. Dual-Path Execution:
- *    - Android 13+ (API 33-37): 100% offloaded to AGSL [RuntimeShader] in a single GPU draw pass,
- *      eliminating 1,000+ CPU JNI draw calls per frame at 120 FPS.
- *    - Android 12/12L (API 31-32): Offscreen bitmap blitting with proper memory leak lifecycle guards.
- * 2. Zero Idle Redraw & Battery Consumption:
- *    - Lifecycle-aware monotonic frame pacing with [repeatOnLifecycle].
- *    - Completely suspends frame ticking and invalidations when paused, interacting, or in the background.
- *    - Unconditional Composable execution ensuring 100% stable Compose slot table across thermal changes.
- * 3. Material 3 Expressive motion curves: [animateColorAsState] provides 600ms seamless blending
- *    between dark and light themes without visual color snap.
- * 4. Zero Heap Allocations: Primitive [@ColorInt] uniform passing via [RuntimeShader.setColorUniform].
- * 5. ADPF Thermal Headroom adaptive scaling: completely halts rendering during SEVERE / CRITICAL states.
+ * Modern GPU-Accelerated Gemini Star Matrix Background for Android 17 / API 37.
  */
 @Composable
 fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = false) {
@@ -112,26 +111,31 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
     val isDark = background.luminance() < 0.5f
 
     val animationDurationSec = when (throttleLevel) {
-        ADPFThermalManager.ThermalThrottleLevel.MODERATE -> if (isDark) 12f else 10f
-        else -> if (isDark) 10f else 8f
+        ADPFThermalManager.ThermalThrottleLevel.MODERATE -> if (isDark) 9f else 8f
+        else -> if (isDark) 7.5f else 6.5f
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     val phaseState = remember { mutableFloatStateOf(0f) }
 
-    // Lifecycle-aware frame clock loop: zero CPU/GPU redraws when paused, throttled, or not resumed
+    // Battery-efficient 30 FPS phase pacing (~33.3ms interval): cuts GPU frame invalidations by 75%
+    // on 120Hz displays while keeping the gentle 7-second Gemini star twinkle completely smooth.
     LaunchedEffect(lifecycleOwner, shouldAnimate, animationDurationSec) {
         if (shouldAnimate) {
             lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                var lastFrame = 0L
+                var lastUpdateNanos = 0L
+                val minFrameIntervalNanos = 33_333_333L // ~30 FPS cap for ambient background twinkle
                 val twoPi = (2.0f * PI.toFloat())
                 while (isActive) {
                     withFrameNanos { frameTime ->
-                        if (lastFrame == 0L) lastFrame = frameTime
-                        val dt = (frameTime - lastFrame) / 1_000_000_000f
-                        val phaseDelta = (dt / animationDurationSec) * twoPi
-                        phaseState.floatValue = (phaseState.floatValue + phaseDelta) % twoPi
-                        lastFrame = frameTime
+                        if (lastUpdateNanos == 0L) {
+                            lastUpdateNanos = frameTime
+                        } else if (frameTime - lastUpdateNanos >= minFrameIntervalNanos) {
+                            val dt = ((frameTime - lastUpdateNanos) / 1_000_000_000f).coerceIn(0f, 0.25f)
+                            val phaseDelta = (dt / animationDurationSec) * twoPi
+                            phaseState.floatValue = (phaseState.floatValue + phaseDelta) % twoPi
+                            lastUpdateNanos = frameTime
+                        }
                     }
                 }
             }
@@ -139,7 +143,7 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
     }
 
     // Smooth Material 3 Expressive color transitions
-    val targetBaseColor = if (isDark) Color(0x80A09EB0) else Color(0xFF000000)
+    val targetBaseColor = if (isDark) Color(0xFFA8A5B8) else Color(0xFF1E1E24)
     val animatedBaseColor by animateColorAsState(
         targetValue = targetBaseColor,
         animationSpec = tween(
@@ -150,8 +154,12 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
     )
 
     val density = LocalDensity.current
+    val darkSpacingPx = with(density) { 26.dp.toPx() }
     val lightSpacingPx = with(density) { 24.dp.toPx() }
-    val lightSparkleSizePx = with(density) { 5.5.dp.toPx() }
+    val darkSparkleSizePx = with(density) { 4.2.dp.toPx() }
+    val lightSparkleSizePx = with(density) { 4.6.dp.toPx() }
+    val darkOffsetDivisorPx = with(density) { 95.dp.toPx() }
+    val lightOffsetDivisorPx = with(density) { 80.dp.toPx() }
 
     // AGSL RuntimeShader available on Android 13+ (API 33 to API 37)
     val runtimeShader = remember {
@@ -170,23 +178,21 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
         val width = size.width
         val height = size.height
         val currentThrottle = throttleLevelState.value
-        val isCurrentSevere = currentThrottle == ADPFThermalManager.ThermalThrottleLevel.SEVERE ||
-                currentThrottle == ADPFThermalManager.ThermalThrottleLevel.CRITICAL
         val currentBg = background
         val currentIsDark = currentBg.luminance() < 0.5f
 
         // Dynamic spacing scaling based on thermal throttling
         val spacingMultiplier = when (currentThrottle) {
-            ADPFThermalManager.ThermalThrottleLevel.MODERATE -> 1.75f // Reduce point density by ~67%
-            ADPFThermalManager.ThermalThrottleLevel.LIGHT -> 1.25f
+            ADPFThermalManager.ThermalThrottleLevel.MODERATE -> 1.5f
+            ADPFThermalManager.ThermalThrottleLevel.LIGHT -> 1.2f
             else -> 1.0f
         }
 
-        val spacing = (if (currentIsDark) 55f else lightSpacingPx) * spacingMultiplier
-        val sparkleSize = if (currentIsDark) 4.5f else lightSparkleSizePx
-        val baseAlpha = if (currentIsDark) 0.8f else 0.75f
-        val minAlpha = if (currentIsDark) 0.2f else 0.45f
-        val offsetDivisor = if (currentIsDark) 200f else 150f
+        val spacing = (if (currentIsDark) darkSpacingPx else lightSpacingPx) * spacingMultiplier
+        val sparkleSize = if (currentIsDark) darkSparkleSizePx else lightSparkleSizePx
+        val baseAlpha = if (currentIsDark) 0.48f else 0.52f
+        val minAlpha = if (currentIsDark) 0.14f else 0.18f
+        val offsetDivisor = if (currentIsDark) darkOffsetDivisorPx else lightOffsetDivisorPx
 
         // ----------------------------------------------------------------------------------
         // PATH A: Zero-CPU GPU AGSL RuntimeShader offloading (Android 17 / API 33+)
@@ -200,8 +206,7 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
             runtimeShader.setFloatUniform("uOffsetDivisor", offsetDivisor)
 
             onDrawBehind {
-                if (isPaused || isCurrentSevere) {
-                    // Zero draw overhead when paused or thermally throttled
+                if (isPaused) {
                     return@onDrawBehind
                 }
 
@@ -222,9 +227,11 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
             var ptr = 0
             for (c in 0..cols) {
                 for (r in 0..rows) {
-                    val cx = c * spacing + (r % 2) * (spacing / 2f)
-                    val cy = r * spacing
-                    val offsetPhase = (cx + cy) / offsetDivisor
+                    val cx = (c + 0.5f) * spacing + (r % 2) * (spacing / 2f)
+                    val cy = (r + 0.5f) * spacing
+                    val rawSin = sin(r * 12.9898f + c * 78.233f) * 43758.5453f
+                    val cellJitter = (rawSin - kotlin.math.floor(rawSin)) * 1.85f
+                    val offsetPhase = (cx + cy) / offsetDivisor + cellJitter
                     pointData[ptr++] = cx
                     pointData[ptr++] = cy
                     pointData[ptr++] = offsetPhase
@@ -258,7 +265,7 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
             var cachedColorFilter: android.graphics.PorterDuffColorFilter? = null
 
             onDrawBehind {
-                if (isPaused || isCurrentSevere) {
+                if (isPaused) {
                     return@onDrawBehind
                 }
 

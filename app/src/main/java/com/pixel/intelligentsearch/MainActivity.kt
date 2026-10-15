@@ -1,4 +1,8 @@
 package com.pixel.intelligentsearch
+import com.pixel.intelligentsearch.core.theme.ThemeMode
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
 import com.pixel.intelligentsearch.feature.settings.SettingsActivity
 import android.content.Intent
@@ -18,11 +22,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.search.SearchOverlayScreen
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
 import android.app.SearchManager
 
@@ -123,7 +123,7 @@ open class MainActivity : AppCompatActivity() {
         window.setWindowAnimations(0)
         window.decorView.elevation = 0f
 
-        val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
         var restoredDefaultPills: String? = null
         if (!prefs.getBoolean("profile_1_restored_to_default_v918", false)) {
             val defaultPills = "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files"
@@ -131,13 +131,13 @@ open class MainActivity : AppCompatActivity() {
             prefs.edit()
                 .putString("app_search_profile_1", defaultPills)
                 .putString("app_search_profile_1_saved", defaultPills)
-                .putString("search.pills", defaultPills)
-                .putInt("shortcut_results_count", 6)
+                .put(SettingsManager.SEARCH_PILLS, defaultPills)
+                .put(SettingsManager.SHORTCUT_RESULTS_COUNT, 6)
                 .putBoolean("profile_1_restored_to_default_v918", true)
                 .apply()
         }
-        val initialShowWallpaper = prefs.getBoolean("search.background.show.wall", prefs.getBoolean("show_wallpaper", prefs.getBoolean("show.wallpaper", true)))
-        val initialBlur = prefs.getInt("search.background.blur", prefs.getInt("background.blur", 50))
+        val initialShowWallpaper = prefs[SettingsManager.SHOW_WALLPAPER]
+        val initialBlur = prefs[SettingsManager.BACKGROUND_BLUR]
         if (initialShowWallpaper) {
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
             if (initialBlur > 0) {
@@ -197,12 +197,7 @@ open class MainActivity : AppCompatActivity() {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             val settingsState by settingsViewModel.settingsState.collectAsStateWithLifecycle()
             
-            val darkTheme = when (settingsState.theme) {
-                "Material Dark", "Dark mode", "Dark" -> true
-                "Material Light", "Light mode", "Light" -> false
-                "System", "System App Theme", "System Default", "system" -> isSystemInDarkTheme()
-                else -> isSystemInDarkTheme()
-            }
+            val darkTheme = ThemeMode.from(settingsState.theme).isDark(isSystemInDarkTheme())
             
             IntelligentSearchTheme(darkTheme = darkTheme) {
                 Surface(
@@ -408,8 +403,8 @@ open class MainActivity : AppCompatActivity() {
     }
 
     private fun checkAndForwardIfSearchOverlayDisabled(): Boolean {
-        val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", android.content.Context.MODE_PRIVATE)
-        val searchOverlayEnabled = prefs.getBoolean("search_overlay_enabled", true)
+        val prefs = getSharedPreferences(SettingsManager.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        val searchOverlayEnabled = prefs[SettingsManager.SEARCH_OVERLAY_ENABLED]
         if (!searchOverlayEnabled) {
             val queryExtra = (intent?.getStringExtra("query") ?: intent?.getStringExtra(SearchManager.QUERY) ?: "").take(512)
             val fallbackIntent = Intent("android.search.action.GLOBAL_SEARCH").apply {
@@ -444,19 +439,6 @@ open class MainActivity : AppCompatActivity() {
         return false
     }
 
-    fun dismissOverlayToLauncher() {
-        searchViewModel.onQueryChanged("")
-        val moved = moveTaskToBack(true)
-        if (!moved) {
-            finish()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
-            } else {
-                @Suppress("DEPRECATION")
-                overridePendingTransition(0, 0)
-            }
-        }
-    }
 }
 
 

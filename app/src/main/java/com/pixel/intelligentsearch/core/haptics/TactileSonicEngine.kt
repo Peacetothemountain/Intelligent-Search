@@ -1,5 +1,8 @@
 package com.pixel.intelligentsearch.core.haptics
 
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
 import android.os.SystemClock
 import android.view.View
@@ -29,16 +32,13 @@ class TactileSonicEngine private constructor(private val context: Context) {
 
     val hapticEngine = PixelHapticEngine.get(context)
 
-    private val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
 
     var isHapticEnabled: Boolean
-        get() = prefs.getBoolean("vibration_enabled", true)
+        get() = prefs[SettingsManager.VIBRATION]
         set(value) {
-            prefs.edit().putBoolean("vibration_enabled", value).apply()
+            prefs.edit().put(SettingsManager.VIBRATION, value).apply()
         }
-
-    @Volatile
-    var isSonicEnabled: Boolean = false
 
     // High-frequency debouncing timestamps
     private var lastScrollDetentTimestamp: Long = 0L
@@ -138,29 +138,11 @@ class TactileSonicEngine private constructor(private val context: Context) {
     }
 
     /**
-     * Security unlock biometric heartbeat.
-     */
-    fun securityHeartbeat(view: View? = null) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.SECURITY_HEARTBEAT)
-        }
-    }
-
-    /**
      * Delete / clear confirmation tick.
      */
     fun deleteThud(view: View? = null) {
         if (isHapticEnabled) {
             hapticEngine.performHaptic(view, PixelHapticType.DELETE_THUD)
-        }
-    }
-
-    /**
-     * Overlay expansion tactile tick.
-     */
-    fun overlayOpen(view: View? = null) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.SPRING_RELEASE)
         }
     }
 
@@ -173,14 +155,6 @@ class TactileSonicEngine private constructor(private val context: Context) {
         }
     }
 
-    /**
-     * Reorder drag-and-drop item swap.
-     */
-    fun reorderSwap(view: View? = null) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.TICK)
-        }
-    }
 }
 
 /**

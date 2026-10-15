@@ -229,20 +229,6 @@ object DynamicThemeDetector {
     }
 
     /**
-     * Queries the system display contrast preference (Android 14+ / Android 17 Canary ZP11).
-     * Returns a normalized value from -1.0 (minimum/reduced) to 1.0 (high contrast), with 0.0 being standard.
-     */
-    fun getSystemContrastLevel(context: Context): Double {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            try {
-                val uiModeManager = context.getSystemService(android.app.UiModeManager::class.java)
-                return uiModeManager?.contrast?.toDouble() ?: 0.0
-            } catch (_: Throwable) {}
-        }
-        return 0.0
-    }
-
-    /**
      * Data class holding resolved Material You tonal colors for widget rendering.
      */
     data class ResolvedWidgetColors(

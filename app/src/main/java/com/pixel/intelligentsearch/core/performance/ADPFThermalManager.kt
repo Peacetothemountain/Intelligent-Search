@@ -11,7 +11,6 @@ import android.os.PerformanceHintManager
 import android.os.PowerManager
 import android.os.Process
 import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,7 +44,6 @@ class ADPFThermalManager(private val context: Context) {
     val thermalThrottleLevel: StateFlow<ThermalThrottleLevel> = _thermalThrottleLevel.asStateFlow()
 
     private val _thermalHeadroom = MutableStateFlow(0.0f)
-    val thermalHeadroom: StateFlow<Float> = _thermalHeadroom.asStateFlow()
 
     // Active PerformanceHintManager.Session on Android 12+ (API 31+). Written on the monitor thread
     // and read from the frame-metrics thread, so it must be volatile.
@@ -378,20 +376,6 @@ class ADPFThermalManager(private val context: Context) {
     // =========================================================================
 
     /**
-     * Whether intensive backdrop blur should be throttled to prevent GPU overdraw jank.
-     */
-    fun shouldThrottleBlurEffects(): Boolean {
-        return _thermalThrottleLevel.value >= ThermalThrottleLevel.MODERATE
-    }
-
-    /**
-     * Whether high-complexity AGSL runtime shaders should be substituted with lightweight linear gradients.
-     */
-    fun shouldThrottleAGSLShaders(): Boolean {
-        return _thermalThrottleLevel.value >= ThermalThrottleLevel.MODERATE
-    }
-
-    /**
      * Returns the recommended blur radius in pixels, scaling down dynamically during thermal events.
      */
     fun getRecommendedBlurRadius(requestedRadius: Float): Float {
@@ -401,19 +385,6 @@ class ADPFThermalManager(private val context: Context) {
             ThermalThrottleLevel.MODERATE -> requestedRadius.coerceAtMost(12f)
             ThermalThrottleLevel.SEVERE,
             ThermalThrottleLevel.CRITICAL -> 0f
-        }
-    }
-
-    /**
-     * Returns the recommended refresh rate for the display panel given current thermal conditions.
-     */
-    fun getRecommendedRefreshRate(maxDisplayRate: Float = 120f): Float {
-        return when (_thermalThrottleLevel.value) {
-            ThermalThrottleLevel.NORMAL,
-            ThermalThrottleLevel.LIGHT -> maxDisplayRate
-            ThermalThrottleLevel.MODERATE -> if (maxDisplayRate >= 90f) 90f else 60f
-            ThermalThrottleLevel.SEVERE,
-            ThermalThrottleLevel.CRITICAL -> 60f
         }
     }
 

@@ -41,9 +41,6 @@
 -keep class * extends androidx.room.RoomDatabase {
     <init>();
 }
--keep class * extends androidx.room.RoomDatabase_Impl {
-    <init>();
-}
 -dontwarn androidx.room.paging.**
 
 # Coroutines
@@ -53,17 +50,6 @@
 -assumevalues class android.util.Log {
     boolean isLoggable(java.lang.String, int) return false;
 }
-
-# Android Framework & Internal Reflection Targets
--dontwarn com.android.internal.os.PowerProfile
--keepclassmembers class com.android.internal.os.PowerProfile {
-    public <init>(android.content.Context);
-    public double getBatteryCapacity();
-}
-
-# Surface & Frame Pacing Reflection
--keep class androidx.graphics.surface.** { *; }
--dontwarn androidx.graphics.surface.**
 
 # Material 3 Dynamic Colors
 -keep class com.google.android.material.color.DynamicColors { *; }

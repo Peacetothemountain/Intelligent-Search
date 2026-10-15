@@ -1,4 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
+import com.pixel.intelligentsearch.core.theme.ThemeMode
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -26,22 +29,6 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     var isExitingToHome: Boolean = false
-
-    private val requestRoleLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val roleManager = getSystemService(android.app.role.RoleManager::class.java)
-        val isHeld = roleManager?.isRoleHeld(ROLE_SEARCH_ENGINE) == true
-        android.util.Log.d("SettingsActivity", "ROLE_SEARCH_ENGINE request result: ${result.resultCode}, isHeld: $isHeld")
-    }
-
-    fun requestSearchEngineRole() {
-        com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this)
-        val roleManager = getSystemService(android.app.role.RoleManager::class.java) ?: return
-        if (roleManager.isRoleAvailable(ROLE_SEARCH_ENGINE) && !roleManager.isRoleHeld(ROLE_SEARCH_ENGINE)) {
-            requestRoleLauncher.launch(roleManager.createRequestRoleIntent(ROLE_SEARCH_ENGINE))
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -103,20 +90,14 @@ class SettingsActivity : AppCompatActivity() {
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             val settingsState by settingsViewModel.settingsState.collectAsStateWithLifecycle()
-            val themeMode = settingsState.theme
-            val darkTheme = when (themeMode) {
-                "Material Dark", "Dark mode", "Dark" -> true
-                "Material Light", "Light mode", "Light" -> false
-                "System", "System App Theme", "System Default", "system" -> isSystemInDarkTheme()
-                else -> isSystemInDarkTheme()
-            }
+            val darkTheme = ThemeMode.from(settingsState.theme).isDark(isSystemInDarkTheme())
 
             IntelligentSearchTheme(darkTheme = darkTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val prefs = getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+                    val prefs = getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
                     androidx.compose.runtime.CompositionLocalProvider(
                         com.pixel.intelligentsearch.feature.settings.LocalSettingsViewModel provides settingsViewModel,
                         com.pixel.intelligentsearch.feature.settings.LocalSettingsState provides settingsState
@@ -126,7 +107,7 @@ class SettingsActivity : AppCompatActivity() {
                             fromSearchOverlay = fromSearchOverlay,
                             prefs = prefs,
                             onBackToLauncher = {
-                                val isBackToOverlay = prefs.getBoolean("settings_back_to_search_overlay", true)
+                                val isBackToOverlay = prefs[SettingsManager.BACK_TO_SEARCH_OVERLAY]
                                 if (isBackToOverlay) {
                                     if (isTaskRoot || !fromSearchOverlay) {
                                         val searchIntent = Intent(this@SettingsActivity, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java).apply {

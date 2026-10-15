@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.SharedPreferences
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -19,7 +21,6 @@ import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Assistant
 import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.RestartAlt
-import com.pixel.intelligentsearch.feature.appfunctions.APP_FUNCTIONS_SHARE_CONTACTS_KEY
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -70,7 +71,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onClick = { launcher.launch(null) },
                     showDivider = true
                 )
-                var directCall by rememberBooleanPreference(prefs, "contact_direct_call", false)
+                var directCall by rememberSetting(SettingsManager.CONTACT_DIRECT_CALL)
                 SettingsRowToggle(
                     title = "Direct Call",
                     subtitle = "Tap Contact to Call Directly.",
@@ -81,7 +82,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 )
                 // Android doesn't tell the app which assistant is asking, so it can't check that assistant's
                 // own contacts permission; sharing therefore needs this separate, off-by-default consent.
-                var shareWithAssistants by rememberBooleanPreference(prefs, APP_FUNCTIONS_SHARE_CONTACTS_KEY, false)
+                var shareWithAssistants by rememberSetting(SettingsManager.APP_FUNCTIONS_SHARE_CONTACTS)
                 SettingsRowToggle(
                     title = "Share with Assistants",
                     subtitle = "Let on-device assistants search your contacts through Intelligent Search.",
@@ -91,7 +92,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     showDivider = true
                 )
                 
-                var contactResultsCount by rememberIntPreference(prefs, "contact_results_count", 5)
+                var contactResultsCount by rememberSetting(SettingsManager.CONTACT_RESULTS_COUNT)
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -127,7 +128,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                var contactWeight by rememberIntPreference(prefs, "search_weight_contacts", 50)
+                var contactWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_CONTACTS)
                 val contactLevelIndex = remember(contactWeight) { PriorityWeightHelper.weightToLevelIndex(contactWeight) }
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Row(

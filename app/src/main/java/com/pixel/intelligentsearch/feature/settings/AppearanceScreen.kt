@@ -1,5 +1,9 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import com.pixel.intelligentsearch.core.theme.ThemeMode
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.annotation.SuppressLint
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
@@ -72,19 +76,14 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
             ) {
                 SettingsCard {
                     val isSystemDark = isSystemInDarkTheme()
-                    var rawThemeMode by rememberStringPreference(prefs, "night.mode", "System")
-                    val themeMode = when (rawThemeMode) {
-                        "System", "System App Theme", "System Default", "system" -> "System"
-                        "Material Dark", "Dark mode", "Dark" -> "Material Dark"
-                        "Material Light", "Light mode", "Light" -> "Material Light"
-                        else -> "System"
-                    }
+                    var rawThemeMode by rememberSetting(SettingsManager.THEME)
+                    val themeMode = ThemeMode.from(rawThemeMode).storedValue
 
                     SettingsDropdownRow(
                         title = "App Theme",
                         subtitle = themeMode,
                         icon = Icons.Outlined.BrightnessMedium,
-                        options = listOf("System", "Material Dark", "Material Light"),
+                        options = ThemeMode.entries.map { it.storedValue },
                         selectedOption = themeMode,
                         onOptionSelected = { 
                             rawThemeMode = it
@@ -100,7 +99,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         showDivider = true
                     )
 
-                    var activeIconPack by rememberStringPreference(prefs, "active_icon_pack", "system_default")
+                    var activeIconPack by rememberSetting(SettingsManager.ACTIVE_ICON_PACK)
                     val activeIconPackLabel = remember(activeIconPack) {
                         if (activeIconPack == "system_default") {
                             "System Default"
@@ -122,7 +121,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         showDivider = true
                     )
 
-                    var vibrationEnabled by rememberBooleanPreference(prefs, "vibration_enabled", true)
+                    var vibrationEnabled by rememberSetting(SettingsManager.VIBRATION)
                     SettingsRowToggle(
                         title = "System Vibration",
                         subtitle = "Enable Haptic Vibrations Across Intelligent Search",
@@ -135,7 +134,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         showDivider = true
                     )
 
-                    var settingsBackToSearchOverlay by rememberBooleanPreference(prefs, "settings_back_to_search_overlay", true) {}
+                    var settingsBackToSearchOverlay by rememberSetting(SettingsManager.BACK_TO_SEARCH_OVERLAY) {}
                     SettingsRowToggle(
                         title = "Back Swipe to Enter Search Overlay Page",
                         subtitle = "Swiping Back from Settings Menu Directs to Search Overlay Screen.",
@@ -145,9 +144,9 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         showDivider = true
                     )
 
-                    var enableSearchOverlay by rememberBooleanPreference(prefs, "search_overlay_enabled", true) {
+                    var enableSearchOverlay by rememberSetting(SettingsManager.SEARCH_OVERLAY_ENABLED) {
                         updateWidgets(context)
-                        if (!prefs.getBoolean("search_overlay_enabled", true)) {
+                        if (!prefs[SettingsManager.SEARCH_OVERLAY_ENABLED]) {
                             context.sendBroadcast(Intent("com.pixel.intelligentsearch.DISMISS_OVERLAY").setPackage(context.packageName))
                         }
                     }
@@ -160,7 +159,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         showDivider = true
                     )
 
-                    var matrixAnimationEnabled by rememberBooleanPreference(prefs, "matrix_animation_enabled", true) {}
+                    var matrixAnimationEnabled by rememberSetting(SettingsManager.MATRIX_ANIMATION_ENABLED) {}
                     SettingsRowToggle(
                         title = "Enable Matrix Animation on Search Overlay Page",
                         subtitle = "Enable Search Overlay Page Animation.",
@@ -170,7 +169,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         showDivider = true
                     )
 
-                    var morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
+                    var morphAnimationEnabled by rememberSetting(SettingsManager.MORPH_ANIMATION_ENABLED) {}
                     SettingsRowToggle(
                         title = "Enable Material Morph Animation",
                         subtitle = "Enable Material Expressive Bouncing Shapes.",
@@ -180,7 +179,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         showDivider = true
                     )
 
-                    var showWall by rememberBooleanPreference(prefs, "search.background.show.wall", true) { updateWidgets(context) }
+                    var showWall by rememberSetting(SettingsManager.SHOW_WALLPAPER) { updateWidgets(context) }
                     SettingsRowToggle(
                         title = "Show Wallpaper",
                         subtitle = "Show User's Wallpaper on Search Overlay Page.",
@@ -190,9 +189,9 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         showDivider = true
                     )
                     
-                    var blur by rememberIntPreference(prefs, "search.background.blur", 50) { updateWidgets(context) }
-                    var transparency by rememberIntPreference(prefs, "search.background.transparency", 50) { updateWidgets(context) }
-                    var pillOpacity by rememberIntPreference(prefs, "search.pill.opacity", 50) { updateWidgets(context) }
+                    var blur by rememberSetting(SettingsManager.BACKGROUND_BLUR) { updateWidgets(context) }
+                    var transparency by rememberSetting(SettingsManager.BACKGROUND_TRANSPARENCY) { updateWidgets(context) }
+                    var pillOpacity by rememberSetting(SettingsManager.PILL_OPACITY) { updateWidgets(context) }
 
                     SettingsSliderRow(
                         title = "Background Blur",

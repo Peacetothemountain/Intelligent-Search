@@ -136,7 +136,6 @@ private fun ExpressiveOneBoxCard(
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val tertiaryColor = MaterialTheme.colorScheme.tertiary
-    val outlineVariantColor = MaterialTheme.colorScheme.outlineVariant
 
     val resolvedBorder = remember(isPressed, isClickable, animatedBorderColor, resolvedPressedBorderColor) {
         BorderStroke(

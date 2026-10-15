@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.SharedPreferences
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,7 +50,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         AdvancedProtectionMonitor.enabled
     }.collectAsState()
     Box(modifier = Modifier.fillMaxSize()) {
-        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
+        val morphAnimationEnabled by rememberSetting(SettingsManager.MORPH_ANIMATION_ENABLED) {}
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
@@ -73,7 +75,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     SettingsCard {
-                        var bottomSearch by rememberBooleanPreference(prefs, "settings.bottom.search", true)
+                        var bottomSearch by rememberSetting(SettingsManager.BOTTOM_SEARCH)
                         SettingsRowToggle(
                             title = "Bottom Searchbar",
                             subtitle = "Position Search Bar at Bottom of Search Overlay Page.",
@@ -82,7 +84,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             onCheckedChange = { bottomSearch = it },
                             showDivider = true
                         )
-                        var bottomResult by rememberBooleanPreference(prefs, "settings.bottom.search.result", true)
+                        var bottomResult by rememberSetting(SettingsManager.BOTTOM_SEARCH_RESULT)
                         SettingsRowToggle(
                             title = "Bottom Search Results",
                             subtitle = "Order List from Bottom Up Depending on Search Bar Placement.",
@@ -91,7 +93,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             onCheckedChange = { bottomResult = it },
                             showDivider = true
                         )
-                        var compactList by rememberBooleanPreference(prefs, "quick.search.horizontal", false)
+                        var compactList by rememberSetting(SettingsManager.QUICK_SEARCH_HORIZONTAL)
                         SettingsRowToggle(
                             title = "Quick App Panel",
                             subtitle = "Quickly Launch Apps Selected from Search Source Apps.",
@@ -100,7 +102,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             onCheckedChange = { compactList = it },
                             showDivider = true
                         )
-                        var contextAwareApps by rememberBooleanPreference(prefs, "context_aware_quick_apps", false)
+                        var contextAwareApps by rememberSetting(SettingsManager.CONTEXT_AWARE_QUICK_APPS)
                         SettingsRowToggle(
                             title = "Context Aware Quick Apps",
                             subtitle = "Dynamically Chosen Apps Based on User's App Opening Cycles.",
@@ -109,7 +111,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             onCheckedChange = { contextAwareApps = it },
                             showDivider = true
                         )
-                        var smartClipboard by rememberBooleanPreference(prefs, "smart_clipboard_suggestions", false)
+                        var smartClipboard by rememberSetting(SettingsManager.SMART_CLIPBOARD_SUGGESTIONS)
                         var showClipboardWarning by remember { mutableStateOf(false) }
 
                         if (showClipboardWarning) {

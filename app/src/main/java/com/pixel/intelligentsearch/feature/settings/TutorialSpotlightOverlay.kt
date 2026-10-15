@@ -1,12 +1,9 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.SharedPreferences
-import android.graphics.RenderEffect
-import android.graphics.RuntimeShader
 import android.os.Build
-import android.view.HapticFeedbackConstants
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -16,7 +13,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -26,7 +22,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.layout.Column
@@ -35,14 +30,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
@@ -61,7 +54,6 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -70,11 +62,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -112,15 +102,11 @@ import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
-import kotlin.coroutines.cancellation.CancellationException
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -424,23 +410,7 @@ fun TutorialSpotlightOverlay(
 ) {
     if (!TutorialManager.isTutorialActive(prefs)) return
 
-    // TutorialManager's SharedPreferences are the single source of truth for the step. Inside Settings,
-    // rememberIntPreference would follow DataStore instead, which never sees the step the Search
-    // overlay wrote, so Settings reset it to 0 and dismissed steps 4-5.
-    val stepState = remember(prefs) {
-        val backing = mutableIntStateOf(TutorialManager.getStep(prefs))
-        object : androidx.compose.runtime.MutableState<Int> {
-            override var value: Int
-                get() = backing.intValue
-                set(step) {
-                    backing.intValue = step
-                    TutorialManager.setStep(prefs, step)
-                }
-            override fun component1() = value
-            override fun component2(): (Int) -> Unit = { value = it }
-        }
-    }
-    var currentStep by stepState
+    var currentStep by rememberSetting(SettingsManager.TUTORIAL_STEP)
     val stepInfo = stepsInfo[currentStep]
     if (stepInfo == null) {
         LaunchedEffect(currentStep) {

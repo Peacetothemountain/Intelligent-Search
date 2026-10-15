@@ -1,11 +1,10 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import android.app.Activity
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
-import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
@@ -26,11 +25,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asComposePath
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
@@ -47,48 +43,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pixel.intelligentsearch.R
-import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
-import com.pixel.intelligentsearch.core.haptics.TactileSonicEngine
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 
 // WIDGET SETTINGS SCREEN
 // -----------------------------------------------------------------------------------------
-
-@Composable
-private fun WidgetCustomizationCard(content: @Composable ColumnScope.() -> Unit) {
-    androidx.compose.material3.Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                1.dp,
-                androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                RoundedCornerShape(24.dp)
-            ),
-        shape = RoundedCornerShape(24.dp),
-        colors = androidx.compose.material3.CardDefaults.cardColors(
-            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
-        ),
-        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 8.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(vertical = 8.dp),
-            content = content
-        )
-    }
-}
 
 private data class SlotPreviewItem(val slotKey: String, val label: String, val resId: Int, val isMic: Boolean)
 private data class WidgetCustomizationSnapshot(
@@ -186,7 +152,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         "News" to Icons.AutoMirrored.Filled.Article
     )
 
-    var localThemeStyle by remember { mutableStateOf(prefs.getString("widget.theme.style", "System Default") ?: "System Default") }
+    var localThemeStyle by remember { mutableStateOf(prefs[SettingsManager.WIDGET_THEME_STYLE]) }
     val isSystem = localThemeStyle == "System Default"
 
     // System Design state
@@ -207,7 +173,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
     val defaultHue = defaultHsv[0]
     val defaultSat = defaultHsv[1] * 100f
-    val defaultVal = defaultHsv[2] * 100f
 
     val resolveCustomColor = { key: String, fallbackKey: String? ->
         val saved = prefs.getInt(key, if (fallbackKey != null) prefs.getInt(fallbackKey, defaultUserMaterialColor) else defaultUserMaterialColor)
@@ -256,7 +221,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
     }
     var sysShowVoice by remember {
-        mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_voice", prefs.getBoolean("widget_show_voice", true)) else true)
+        mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_voice", prefs[SettingsManager.WIDGET_SHOW_VOICE]) else true)
     }
     val defaultSlotOrder = "shortcut1,mic,shortcut2,shortcut3"
     val rawSysSc1 = prefs.getString("widget_system_shortcut_1", if (sysSaved) prefs.getString("widget_shortcut_1", "Google Lens") else "Google Lens") ?: "Google Lens"
@@ -331,7 +296,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
     }
     var matShowVoice by remember {
-        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_voice", prefs.getBoolean("widget_show_voice", true)) else true)
+        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_voice", prefs[SettingsManager.WIDGET_SHOW_VOICE]) else true)
     }
     val rawMatSc1 = prefs.getString("widget_material_shortcut_1", if (matSaved) prefs.getString("widget_shortcut_1", "Google Lens") else "Google Lens") ?: "Google Lens"
     val rawMatSc2 = prefs.getString("widget_material_shortcut_2", if (matSaved) prefs.getString("widget_shortcut_2", "None") else "None") ?: "None"
@@ -725,7 +690,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         // only as the fallback for a design that has never been saved.
         val activeStyle = if (isSystem) "System Default" else "Material You (Minimal)"
         editor
-            .putString("widget.theme.style", activeStyle)
+            .put(SettingsManager.WIDGET_THEME_STYLE, activeStyle)
             .apply()
         widgetSettingsViewModel?.updateSetting(SettingsManager.WIDGET_THEME_STYLE, activeStyle)
         updateWidgets(context)

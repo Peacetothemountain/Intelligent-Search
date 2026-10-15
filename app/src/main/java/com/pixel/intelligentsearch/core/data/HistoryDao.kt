@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.core.data
 
 import androidx.room.Dao
-import androidx.room.Delete
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
@@ -15,32 +14,17 @@ abstract class HistoryDao {
     @Query("SELECT * FROM search_history ORDER BY timestamp DESC LIMIT :limit")
     abstract suspend fun getSearchHistory(limit: Int = 25): List<HistoryEntity>
 
-    @Query("SELECT * FROM search_history WHERE query = :query LIMIT 1")
-    abstract suspend fun findByQuery(query: String): HistoryEntity?
-
-    @Query("SELECT * FROM search_history WHERE query LIKE :prefix || '%' ORDER BY timestamp DESC LIMIT :limit")
-    abstract suspend fun getSuggestions(prefix: String, limit: Int = 10): List<HistoryEntity>
-
     @Upsert
     abstract suspend fun insertSearch(search: HistoryEntity)
 
     @Upsert
     abstract suspend fun insertSearches(searches: List<HistoryEntity>)
 
-    @Delete
-    abstract suspend fun deleteSearch(search: HistoryEntity)
-
     @Query("DELETE FROM search_history WHERE query = :query")
     abstract suspend fun deleteByQuery(query: String)
 
     @Query("DELETE FROM search_history")
     abstract suspend fun clearHistory()
-
-    @Query("SELECT COUNT(*) FROM search_history")
-    abstract suspend fun getCount(): Int
-
-    @Query("SELECT COUNT(*) FROM search_history")
-    abstract fun getCountFlow(): Flow<Int>
 
     @Query("""
         DELETE FROM search_history 

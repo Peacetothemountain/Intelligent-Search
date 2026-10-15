@@ -70,7 +70,8 @@ internal object BackupPreferenceSchema {
 
     /** Ranges the settings UI can produce; restored ints outside them are rejected. */
     fun intRange(key: String): IntRange? = when {
-        key.endsWith("_results_count") -> 1..20
+        // 0 is legitimate: switching to an empty pill profile stores a shortcut count of 0.
+        key.endsWith("_results_count") -> 0..20
         key.startsWith("search_weight_") -> 0..100
         key.endsWith("_hue") -> 0..360
         key.endsWith("_saturation") || key.endsWith("_lightness") -> 0..100

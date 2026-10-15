@@ -18,24 +18,10 @@ object SearchRoleManager {
         }
     }
 
-    fun isSearchRoleAvailable(context: Context): Boolean {
-        return getAvailableSearchRole(context) != null
-    }
-
     fun isSearchRoleHeld(context: Context): Boolean {
         val roleManager = context.getSystemService(RoleManager::class.java) ?: return false
         val role = getAvailableSearchRole(context) ?: return false
         return roleManager.isRoleHeld(role)
-    }
-
-    fun createRequestSearchRoleIntent(context: Context): Intent? {
-        val roleManager = context.getSystemService(RoleManager::class.java) ?: return null
-        val role = getAvailableSearchRole(context) ?: return null
-        return try {
-            roleManager.createRequestRoleIntent(role)
-        } catch (_: Exception) {
-            null
-        }
     }
 
     fun openDefaultSearchEngineSettings(context: Context) {
@@ -84,37 +70,9 @@ object SearchRoleManager {
         } catch (_: Exception) {}
     }
 
-    fun openSearchRoleOrSettings(context: Context) {
-        ensureUserSetupSearchEngineAllowlist(context)
-        val requestIntent = createRequestSearchRoleIntent(context)
-        if (requestIntent != null) {
-            try {
-                if (context !is android.app.Activity) {
-                    requestIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(requestIntent)
-                return
-            } catch (_: Exception) {}
-        }
-        openDefaultSearchEngineSettings(context)
-    }
-
     const val SECURE_SELECTED_SEARCH_ENGINE = "selected_search_engine"
     const val SECURE_USER_SETUP_SEARCH_ENGINE = "user_setup_search_engine"
     const val ACTION_UPDATE_DSE = "com.google.android.finsky.intent.action.UPDATE_DSE"
-
-    /**
-     * Checks whether Settings.Secure.user_setup_search_engine is active and set to this app.
-     * This bypasses the QPR2 permission controller package allowlist restriction.
-     */
-    fun isUserSetupSearchEngineActive(context: Context): Boolean {
-        return try {
-            val current = Settings.Secure.getString(context.contentResolver, SECURE_USER_SETUP_SEARCH_ENGINE)
-            current == context.packageName
-        } catch (_: Exception) {
-            false
-        }
-    }
 
     /**
      * Ensures Settings.Secure.user_setup_search_engine is set to this package.
@@ -139,15 +97,6 @@ object SearchRoleManager {
             }
         } catch (e: Exception) {
             android.util.Log.d("SearchRoleManager", "Could not set $SECURE_USER_SETUP_SEARCH_ENGINE: ${e.message}")
-            false
-        }
-    }
-
-    fun isPixelLauncherSynced(context: Context): Boolean {
-        return try {
-            val selected = Settings.Secure.getString(context.contentResolver, SECURE_SELECTED_SEARCH_ENGINE)
-            selected == context.packageName
-        } catch (_: Exception) {
             false
         }
     }
@@ -183,7 +132,4 @@ object SearchRoleManager {
         return success
     }
 
-    fun syncPixelLauncherSearchEngine(context: Context): Boolean {
-        return syncAllSearchEngineSettings(context)
-    }
 }

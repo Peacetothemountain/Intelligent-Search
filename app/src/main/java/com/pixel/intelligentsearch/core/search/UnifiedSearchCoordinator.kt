@@ -1,8 +1,9 @@
 package com.pixel.intelligentsearch.core.search
 
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.AppShortcutItem
 import com.pixel.intelligentsearch.core.data.ContactItem
@@ -10,11 +11,6 @@ import com.pixel.intelligentsearch.core.data.FileItem
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -117,73 +113,42 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val fileRadixTree = RadixTreeIndex<SearchItem>()
     private val phoneticIndex = ConcurrentHashMap<String, MutableSet<SearchItem>>()
 
-    private val prefs = getSafeContext(context).getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+    private val prefs = getSafeContext(context).getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
     @Volatile private var cachedAppWeightMul: Float = 1.0f
     @Volatile private var cachedContactWeightMul: Float = 1.0f
     @Volatile private var cachedFileWeightMul: Float = 1.0f
     @Volatile private var cachedFuzzySearchEnabled: Boolean = true
     @Volatile private var cachedContactSearchEnabled: Boolean = false
 
+    // Settings read on every keystroke are cached and refreshed when any of them changes.
+    private val cachedSettingNames = listOf(
+        SettingsManager.SEARCH_WEIGHT_APPS, SettingsManager.SEARCH_WEIGHT_CONTACTS, SettingsManager.SEARCH_WEIGHT_FILES,
+        SettingsManager.APP_FUZZY_SEARCH, SettingsManager.SEARCH_CONTACTS
+    ).flatMap { it.allNames }.toSet()
+
     private val prefChangeListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        when (key) {
-            "search_weight_apps" -> updateAppWeight()
-            "search_weight_contacts" -> updateContactWeight()
-            "search_weight_files" -> updateFileWeight()
-            "app.fuzzy.search", "app_fuzzy_search" -> updateFuzzySearch()
-            "search.contacts", "search_contacts" -> updateContactSearch()
-        }
+        if (key == null || key in cachedSettingNames) refreshCachedSettings()
     }
 
     init {
-        updateAppWeight()
-        updateContactWeight()
-        updateFileWeight()
-        updateFuzzySearch()
-        updateContactSearch()
+        refreshCachedSettings()
         prefs.registerOnSharedPreferenceChangeListener(prefChangeListener)
     }
 
-    private fun updateContactSearch() {
-        cachedContactSearchEnabled = if (prefs.contains("search.contacts")) {
-            prefs.getBoolean("search.contacts", false)
-        } else {
-            prefs.getBoolean("search_contacts", false)
-        }
+    private fun refreshCachedSettings() {
+        cachedAppWeightMul = weightMultiplier(prefs[SettingsManager.SEARCH_WEIGHT_APPS])
+        cachedContactWeightMul = weightMultiplier(prefs[SettingsManager.SEARCH_WEIGHT_CONTACTS])
+        cachedFileWeightMul = weightMultiplier(prefs[SettingsManager.SEARCH_WEIGHT_FILES])
+        cachedFuzzySearchEnabled = prefs[SettingsManager.APP_FUZZY_SEARCH]
+        cachedContactSearchEnabled = prefs[SettingsManager.SEARCH_CONTACTS]
     }
 
-    private fun updateFuzzySearch() {
-        cachedFuzzySearchEnabled = if (prefs.contains("app.fuzzy.search")) {
-            prefs.getBoolean("app.fuzzy.search", true)
-        } else {
-            prefs.getBoolean("app_fuzzy_search", true)
-        }
-    }
-
-    private fun updateAppWeight() {
-        cachedAppWeightMul = (prefs.getInt("search_weight_apps", 50) / 50f).coerceAtLeast(0.01f)
-    }
-
-    private fun updateContactWeight() {
-        cachedContactWeightMul = (prefs.getInt("search_weight_contacts", 50) / 50f).coerceAtLeast(0.01f)
-    }
-
-    private fun updateFileWeight() {
-        cachedFileWeightMul = (prefs.getInt("search_weight_files", 50) / 50f).coerceAtLeast(0.01f)
-    }
+    /** A priority weight of 50 is neutral (x1). */
+    private fun weightMultiplier(weight: Int): Float = (weight / 50f).coerceAtLeast(0.01f)
 
     // ---------------------------------------------------------------------------------------------
     // INGESTION & INDEXING API
     // ---------------------------------------------------------------------------------------------
-
-    /**
-     * Indexes a contact into the Radix Tree and phonetic inverted index.
-     */
-    fun indexContact(contact: ContactItem, lastUsedMs: Long = 0L) {
-        val item = newContactItem(contact, lastUsedMs)
-        val keys = ArrayList<Pair<String, SearchItem>>(8)
-        collectContactKeys(contact, item, keys)
-        contactRadixTree.insertBatch(keys)
-    }
 
     /**
      * Replaces every indexed contact with [contacts] without ever exposing an empty or half-built
@@ -200,15 +165,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
         contactRadixTree.replaceAll(keys)
         removeFromPhoneticIndex { it.domain == SearchScoringEngine.EntityDomain.CONTACT && it !in fresh }
-    }
-
-    /**
-     * Indexes an app shortcut.
-     */
-    fun indexShortcut(shortcut: AppShortcutItem) {
-        val keys = ArrayList<Pair<String, SearchItem>>(2)
-        collectShortcutKeys(shortcut, keys)
-        shortcutRadixTree.insertBatch(keys)
     }
 
     /**
@@ -242,13 +198,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         if (shortcut.longLabel.isNotBlank()) {
             out.add(shortcut.longLabel to searchItem)
         }
-    }
-
-    /**
-     * Indexes a local file.
-     */
-    fun indexFile(file: FileItem, modifiedMs: Long = file.lastModifiedMs) {
-        fileRadixTree.insert(file.name, newFileItem(file, modifiedMs))
     }
 
     /**
@@ -456,15 +405,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         shortcutRadixTree.clear()
         fileRadixTree.clear()
         phoneticIndex.clear()
-    }
-
-    /**
-     * Clears only contact entities from in-memory indices. Prefer [replaceContacts] when re-syncing, as
-     * it never exposes an empty contact index to concurrent searches.
-     */
-    fun clearContacts() {
-        contactRadixTree.clear()
-        removeFromPhoneticIndex { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -766,22 +706,6 @@ class UnifiedSearchCoordinator @Inject constructor(
             prefs.unregisterOnSharedPreferenceChangeListener(prefChangeListener)
         } catch (_: Exception) {}
         clearIndex()
-    }
-
-    /**
-     * Modern reactive search pipeline: emits latest unified search results,
-     * automatically cancelling any obsolete in-flight searches via flatMapLatest.
-     */
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    fun searchFlow(queryFlow: Flow<String>): Flow<UnifiedSearchResults> {
-        return queryFlow
-            .distinctUntilChanged()
-            .flatMapLatest { query ->
-                flow {
-                    emit(executeSearch(query))
-                }
-            }
-            .flowOn(Dispatchers.Default)
     }
 
     suspend fun executeSearch(rawQuery: String): UnifiedSearchResults = withContext(Dispatchers.Default) {

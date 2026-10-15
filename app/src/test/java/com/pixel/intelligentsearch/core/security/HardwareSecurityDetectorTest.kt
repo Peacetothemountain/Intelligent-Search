@@ -17,8 +17,6 @@ class HardwareSecurityDetectorTest {
             board = "malibu",
             product = "kodiak",
             socModel = "Tensor G6",
-            propStrongBoxModel = "Titan-M3",
-            propKeystore = "trusty",
             hasStrongBoxFeature = true,
             effectiveLevel = HardwareSecurityLevel.STRONGBOX
         )
@@ -167,7 +165,6 @@ class HardwareSecurityDetectorTest {
             board = "sun",
             product = "e3qxxx",
             socModel = "sm8750",
-            propKnoxVault = "2.0",
             hasStrongBoxFeature = true,
             effectiveLevel = HardwareSecurityLevel.STRONGBOX
         )

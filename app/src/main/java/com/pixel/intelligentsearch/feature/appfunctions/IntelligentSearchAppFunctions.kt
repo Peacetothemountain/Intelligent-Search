@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.appfunctions
 
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.annotation.RequiresApi
@@ -8,19 +9,12 @@ import androidx.appfunctions.AppFunctionSerializable
 import androidx.appfunctions.AppFunctionService
 import androidx.appfunctions.AppFunctionServiceEntryPoint
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
-import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine
 import com.pixel.intelligentsearch.core.security.AdvancedProtectionMonitor
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.components.SingletonComponent
+import com.pixel.intelligentsearch.di.appEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
-
-/** Settings key for the user's consent to let on-device assistants search contacts; off by default. */
-const val APP_FUNCTIONS_SHARE_CONTACTS_KEY = "appfunctions_share_contacts"
 
 /** An installed app that matched a search. */
 @AppFunctionSerializable(isDescribedByKDoc = true)
@@ -62,15 +56,8 @@ data class CalculationResult(
 )
 abstract class IntelligentSearchAppFunctions : AppFunctionService() {
 
-    @EntryPoint
-    @InstallIn(SingletonComponent::class)
-    interface SettingsEntryPoint {
-        fun settingsManager(): SettingsManager
-    }
-
     private suspend fun currentSettings(): IntelligentSearchSettings? = try {
-        EntryPointAccessors.fromApplication(applicationContext, SettingsEntryPoint::class.java)
-            .settingsManager()
+        applicationContext.appEntryPoint.settingsManager()
             .settingsFlow
             .first()
     } catch (e: CancellationException) {
@@ -131,10 +118,9 @@ abstract class IntelligentSearchAppFunctions : AppFunctionService() {
         if (currentSettings()?.searchContacts != true) return emptyList()
         // The library doesn't expose the calling agent, so its own READ_CONTACTS can't be checked; require
         // the user's explicit opt-in instead.
-        val shareConsent = applicationContext
-            .getSharedPreferences("PREFERENCES_CUSTOMISATIONS", android.content.Context.MODE_PRIVATE)
-            .getBoolean(APP_FUNCTIONS_SHARE_CONTACTS_KEY, false)
-        if (!shareConsent) return emptyList()
+        if (!applicationContext.appEntryPoint.settingsManager()[SettingsManager.APP_FUNCTIONS_SHARE_CONTACTS]) {
+            return emptyList()
+        }
         if (applicationContext.checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
             return emptyList()
         }

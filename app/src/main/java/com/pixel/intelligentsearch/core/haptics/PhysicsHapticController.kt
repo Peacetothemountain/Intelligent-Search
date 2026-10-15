@@ -1,18 +1,12 @@
 package com.pixel.intelligentsearch.core.haptics
 
+import androidx.compose.runtime.getValue
 import android.view.View
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalView
 import kotlin.math.abs
 
@@ -85,28 +79,6 @@ class MagneticDismissController(
 ) {
     private var hasCrossedThreshold = false
     private var lastEmittedProgress = 0f
-
-    fun onDrag(currentOffsetPx: Float) {
-        val absOffset = abs(currentOffsetPx)
-        val progress = (absOffset / thresholdPx).coerceIn(0f, 1.2f)
-
-        if (progress < 1.0f) {
-            if (hasCrossedThreshold) {
-                // Dragged back inside safe zone
-                hasCrossedThreshold = false
-                engine.tick(view, scale = 0.5f)
-            } else if (progress > 0.25f && abs(progress - lastEmittedProgress) > 0.15f) {
-                lastEmittedProgress = progress
-                engine.magneticResistance(view, progress)
-            }
-        } else {
-            // Crossed threshold boundary
-            if (!hasCrossedThreshold) {
-                hasCrossedThreshold = true
-                engine.magneticThresholdSnap(view)
-            }
-        }
-    }
 
     fun onDragEnd(willDismiss: Boolean) {
         if (willDismiss) {

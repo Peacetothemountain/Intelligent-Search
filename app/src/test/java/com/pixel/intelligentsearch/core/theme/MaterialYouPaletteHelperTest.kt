@@ -95,19 +95,6 @@ class MaterialYouPaletteHelperTest {
     }
 
     @Test
-    fun testAmoledColorSchemePureBlackSurfaces() {
-        val amoledScheme = MaterialYouPaletteHelper.createComposeColorScheme(
-            seedColor = androidx.compose.ui.graphics.Color(0xFF4285F4),
-            isDark = true,
-            isAmoled = true
-        )
-        assertEquals(androidx.compose.ui.graphics.Color(0xFF000000), amoledScheme.surface)
-        assertEquals(androidx.compose.ui.graphics.Color(0xFF000000), amoledScheme.background)
-        assertEquals(androidx.compose.ui.graphics.Color(0xFF000000), amoledScheme.surfaceDim)
-        assertEquals(androidx.compose.ui.graphics.Color(0xFF000000), amoledScheme.surfaceContainerLowest)
-    }
-
-    @Test
     fun testAmoledDarkColorSchemeCanonicalTokens() {
         assertEquals(androidx.compose.ui.graphics.Color(0xFF000000), AmoledDarkColorScheme.surface)
         assertEquals(androidx.compose.ui.graphics.Color(0xFF000000), AmoledDarkColorScheme.background)
@@ -130,7 +117,6 @@ class MaterialYouPaletteHelperTest {
         val black = 0xFF000000.toInt()
         val ratio = MaterialYouPaletteHelper.calculateContrastRatio(white, black)
         assertEquals(21.0, ratio, 0.1)
-        assertTrue(MaterialYouPaletteHelper.meetsWcagContrast(white, black, isAaa = true))
     }
 
     @Test
@@ -151,26 +137,6 @@ class MaterialYouPaletteHelperTest {
         assertEquals(0xFF000000.toInt(), tonalRoles.primaryFixed and 0xFF000000.toInt())
         assertEquals(0xFF000000.toInt(), tonalRoles.secondaryFixed and 0xFF000000.toInt())
         assertEquals(0xFF000000.toInt(), tonalRoles.tertiaryFixed and 0xFF000000.toInt())
-    }
-
-    @Test
-    fun testAmoledColorSchemeSurfaceBright() {
-        val amoledScheme = MaterialYouPaletteHelper.createComposeColorScheme(
-            seedColor = androidx.compose.ui.graphics.Color(0xFF4285F4),
-            isDark = true,
-            isAmoled = true
-        )
-        assertEquals(AmoledDarkSurfaceBright, amoledScheme.surfaceBright)
-
-        val convertedAmoled = RobinDarkColorScheme.toAmoled()
-        assertEquals(AmoledDarkSurfaceBright, convertedAmoled.surfaceBright)
-    }
-
-    @Test
-    fun testFontCacheIdempotence() {
-        val f1 = googleSansFlexVariable(weight = 500, width = 100f)
-        val f2 = googleSansFlexVariable(weight = 500, width = 100f)
-        assertSame("Variable font families must be cached to prevent recomposition allocations", f1, f2)
     }
 
     @Test

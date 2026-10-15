@@ -1,9 +1,13 @@
 package com.pixel.intelligentsearch.core.backup
 
+import com.pixel.intelligentsearch.core.data.settings.StringSetSetting
+import com.pixel.intelligentsearch.core.data.settings.StringSetting
+import com.pixel.intelligentsearch.core.data.settings.IntSetting
+import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
+import com.pixel.intelligentsearch.core.data.settings.SettingKey
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import com.pixel.intelligentsearch.core.bangs.SearchBangManager
 import com.pixel.intelligentsearch.core.data.HistoryDao
 import com.pixel.intelligentsearch.core.data.HistoryEntity
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -22,7 +26,6 @@ class BackupManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val settingsManager: SettingsManager,
     private val historyDao: HistoryDao,
-    private val searchBangManager: SearchBangManager,
     private val strongBoxSecurityManager: StrongBoxSecurityManager
 ) {
 
@@ -75,89 +78,6 @@ class BackupManager @Inject constructor(
             "adaptiveIconShape" to SettingsManager.ADAPTIVE_ICON_SHAPE
         )
 
-        private val EXPECTED_SHARED_PREF_TYPES = mapOf(
-            "search.apps" to "BOOLEAN",
-            "search_apps" to "BOOLEAN",
-            "search.contacts" to "BOOLEAN",
-            "search_contacts" to "BOOLEAN",
-            "search.files" to "BOOLEAN",
-            "search_files" to "BOOLEAN",
-            "search.web" to "BOOLEAN",
-            "search_web" to "BOOLEAN",
-            "search_previous_searches" to "BOOLEAN",
-            "search.calculator" to "BOOLEAN",
-            "search_calculator" to "BOOLEAN",
-            "search.calendar" to "BOOLEAN",
-            "search_calendar" to "BOOLEAN",
-            "search.shortcuts" to "BOOLEAN",
-            "search_shortcuts" to "BOOLEAN",
-            "search.background.show.wall" to "BOOLEAN",
-            "show_wallpaper" to "BOOLEAN",
-            "show.wallpaper" to "BOOLEAN",
-            "search.files.hidden.files" to "BOOLEAN",
-            "search_files_hidden_files" to "BOOLEAN",
-            "search.files.thumbnails" to "BOOLEAN",
-            "search_files_thumbnails" to "BOOLEAN",
-            "app_animations" to "BOOLEAN",
-            "settings.bottom.search" to "BOOLEAN",
-            "bottom_search" to "BOOLEAN",
-            "settings.bottom.search.result" to "BOOLEAN",
-            "bottom_search_result" to "BOOLEAN",
-            "tutorial_completed" to "BOOLEAN",
-            "force_tutorial" to "BOOLEAN",
-            "g_icon_enabled" to "BOOLEAN",
-            "widget_show_voice" to "BOOLEAN",
-            "widget_show_gemini" to "BOOLEAN",
-            "quick_search_youtube" to "BOOLEAN",
-            "quick_search_wikipedia" to "BOOLEAN",
-            "quick_search_play_store" to "BOOLEAN",
-            "quick_search_maps" to "BOOLEAN",
-            "app_quick_launch" to "BOOLEAN",
-            "contact_direct_call" to "BOOLEAN",
-            "shortcut.inline" to "BOOLEAN",
-            "shortcut_inline" to "BOOLEAN",
-            "app.fuzzy.search" to "BOOLEAN",
-            "app_fuzzy_search" to "BOOLEAN",
-            "quick_search_horizontal" to "BOOLEAN",
-            "quick.search.horizontal" to "BOOLEAN",
-            "context_aware_quick_apps" to "BOOLEAN",
-            "smart_clipboard_suggestions" to "BOOLEAN",
-            "search_overlay_enabled" to "BOOLEAN",
-            "never_show_icon_pack_warning" to "BOOLEAN",
-            "dynamic_icon_masking" to "BOOLEAN",
-            "diagnostics_overlay_enabled" to "BOOLEAN",
-            "matrix_animation_enabled" to "BOOLEAN",
-            "settings_back_to_search_overlay" to "BOOLEAN",
-            "vibration_enabled" to "BOOLEAN",
-            "search.background.blur" to "INT",
-            "background.blur" to "INT",
-            "search.background.transparency" to "INT",
-            "background.transparency" to "INT",
-            "search.pill.opacity" to "INT",
-            "pill.opacity" to "INT",
-            "tutorial_step" to "INT",
-            "web_results_count" to "INT",
-            "contact_results_count" to "INT",
-            "file_results_count" to "INT",
-            "shortcut_results_count" to "INT",
-            "night.mode" to "STRING",
-            "theme" to "STRING",
-            "search.engine" to "STRING",
-            "custom_search_engine_url" to "STRING",
-            "search_pills" to "STRING",
-            "search.pills" to "STRING",
-            "widget.theme.style" to "STRING",
-            "widget_theme_style" to "STRING",
-            "active_icon_pack" to "STRING",
-            "custom_icon_pills" to "STRING",
-            "custom_bangs_json" to "STRING",
-            "search_sections_config_json" to "STRING",
-            "adaptive_icon_shape" to "STRING",
-            "web_shortcut_trigger_symbol" to "STRING",
-            "hidden_apps" to "STRING_SET",
-            "disabled_web_shortcuts" to "STRING_SET"
-        )
-
         private fun isBlockedInternalKey(key: String): Boolean {
             if (key.isBlank() || key.length > 128) return true
             return key.endsWith("_vault") ||
@@ -170,6 +90,14 @@ class BackupManager @Inject constructor(
                 key == "datastore_migration_v1_completed" ||
                 key == "profile_1_restored_to_default_v918" ||
                 key == "app_night_mode_override_cleared_v1"
+        }
+
+        /** The backup file's type label for a declared setting. */
+        private fun sharedPrefTypeName(setting: SettingKey<*>): String = when (setting) {
+            is BooleanSetting -> "BOOLEAN"
+            is IntSetting -> "INT"
+            is StringSetting -> "STRING"
+            is StringSetSetting -> "STRING_SET"
         }
 
         private fun sharedPrefTypeName(value: Any): String? = when (value) {
@@ -231,7 +159,7 @@ class BackupManager @Inject constructor(
         prefsMap["dynamicIconMasking"] = currentSettings.dynamicIconMasking.toString()
 
         // 2. Comprehensive capture of ALL customizations from PREFERENCES_CUSTOMISATIONS with type fidelity
-        val sharedPrefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val sharedPrefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
         val allCustomPrefs = sharedPrefs.all
         val spJsonObj = JSONObject()
         for ((k, v) in allCustomPrefs) {
@@ -278,126 +206,121 @@ class BackupManager @Inject constructor(
             appVersionCode = currentVersionCode,
             preferencesMap = prefsMap,
             customBangsJson = currentSettings.customBangsJson,
-            sectionConfigsJson = currentSettings.searchSectionsConfigJson,
+            sectionConfigsJson = "[]", // retired feature; field kept for older readers
             searchHistory = historyList,
             hiddenApps = currentSettings.hiddenApps.toList(),
             sharedPreferencesJson = spJsonObj.toString()
         )
     }
 
-    suspend fun exportToFile(
-        
-        uri: Uri,
-        passphrase: String?,
-        onSuccess: () -> Unit,
-        onError: (String) -> Unit
-    ) {
-        withContext(Dispatchers.IO) {
+    /** Encrypts the current settings, hidden apps and history and writes them to [uri]. */
+    suspend fun exportToFile(uri: Uri, passphrase: String?): Result<Unit> = withContext(Dispatchers.IO) {
+        backupResult("exportToFile") {
+            val payload = createBackupPayload()
+            val plainJson = serializePayload(payload)
+
+            val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
+
+            val envelope = if (!passphrase.isNullOrBlank()) {
+                // Passphrase backups are encrypted in software from the passphrase so they restore on
+                // any phone; the device Keystore is not involved, so they are not hardware backed.
+                val salt = BackupCryptoEngine.generateRandomSalt()
+                val iv = BackupCryptoEngine.generateRandomIv()
+                val passChars = passphrase.toCharArray()
+                val key = try {
+                    BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt)
+                } finally {
+                    com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
+                }
+                val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
+                val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
+
+                EncryptedBackupEnvelope(
+                    isHardwareBacked = false,
+                    hardwareChip = hwInfo.chipName,
+                    deviceModel = hwInfo.deviceDisplayName,
+                    kdf = KdfMetadata(iterations = BackupCryptoEngine.PBKDF2_ITERATIONS, saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
+                    cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
+                    encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
+                    payloadSha256 = sha
+                )
+            } else {
+                // No passphrase: encrypt with a non-exportable AES-256 key generated inside this phone's
+                // Keystore (StrongBox when present, otherwise the TEE). The key never leaves the
+                // hardware, so the file only restores on this phone and this install. The old
+                // APK-embedded "portable" key is kept for restoring legacy files only.
+                val (key, keyLevel) = strongBoxSecurityManager.getOrCreateSymmetricKey(
+                    HARWARE_BACKUP_KEY_ALIAS,
+                    purgeIfUnrecoverable = false
+                )
+                // Keystore keys require randomized encryption and reject a caller-supplied IV, so the
+                // cipher generates the IV itself.
+                val (iv, cipherBytes) = BackupCryptoEngine.encryptPayloadWithGeneratedIv(plainJson, key)
+                val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
+
+                // isHardwareBacked marks the file as encrypted with this device's Keystore key (import
+                // relies on it); hardwareChip records where the key actually landed, since StrongBox can
+                // fall back to the TEE and some keystores report software backing.
+                EncryptedBackupEnvelope(
+                    isHardwareBacked = true,
+                    hardwareChip = when (keyLevel) {
+                        com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> hwInfo.chipName
+                        com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE -> hwInfo.teeName
+                        com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.SOFTWARE -> "Android Keystore (software)"
+                    },
+                    deviceModel = hwInfo.deviceDisplayName,
+                    kdf = null,
+                    cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
+                    encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
+                    payloadSha256 = sha
+                )
+            }
+
+            val envelopeJson = serializeEnvelope(envelope)
+            val bytes = envelopeJson.toByteArray(Charsets.UTF_8)
+
+            var writeSuccess = false
+            // Method 1: Try openFileDescriptor with rwt / sync
             try {
-                val payload = createBackupPayload()
-                val plainJson = serializePayload(payload)
-
-                val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
-
-                val envelope = if (!passphrase.isNullOrBlank()) {
-                    // Passphrase backups are encrypted in software from the passphrase so they restore on
-                    // any phone; the device Keystore is not involved, so they are not hardware backed.
-                    val salt = BackupCryptoEngine.generateRandomSalt()
-                    val iv = BackupCryptoEngine.generateRandomIv()
-                    val passChars = passphrase.toCharArray()
-                    val key = try {
-                        BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt)
-                    } finally {
-                        com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
-                    }
-                    val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
-                    val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
-
-                    EncryptedBackupEnvelope(
-                        isHardwareBacked = false,
-                        hardwareChip = hwInfo.chipName,
-                        deviceModel = hwInfo.deviceDisplayName,
-                        kdf = KdfMetadata(iterations = BackupCryptoEngine.PBKDF2_ITERATIONS, saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
-                        cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
-                        encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
-                        payloadSha256 = sha
-                    )
-                } else {
-                    // No passphrase: encrypt with a non-exportable AES-256 key generated inside this phone's
-                    // Keystore (StrongBox when present, otherwise the TEE). The key never leaves the
-                    // hardware, so the file only restores on this phone and this install. The old
-                    // APK-embedded "portable" key is kept for restoring legacy files only.
-                    val (key, keyLevel) = strongBoxSecurityManager.getOrCreateSymmetricKey(
-                        HARWARE_BACKUP_KEY_ALIAS,
-                        purgeIfUnrecoverable = false
-                    )
-                    // Keystore keys require randomized encryption and reject a caller-supplied IV, so the
-                    // cipher generates the IV itself.
-                    val (iv, cipherBytes) = BackupCryptoEngine.encryptPayloadWithGeneratedIv(plainJson, key)
-                    val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
-
-                    // isHardwareBacked marks the file as encrypted with this device's Keystore key (import
-                    // relies on it); hardwareChip records where the key actually landed, since StrongBox can
-                    // fall back to the TEE and some keystores report software backing.
-                    EncryptedBackupEnvelope(
-                        isHardwareBacked = true,
-                        hardwareChip = when (keyLevel) {
-                            com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> hwInfo.chipName
-                            com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE -> hwInfo.teeName
-                            com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.SOFTWARE -> "Android Keystore (software)"
-                        },
-                        deviceModel = hwInfo.deviceDisplayName,
-                        kdf = null,
-                        cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
-                        encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
-                        payloadSha256 = sha
-                    )
-                }
-
-                val envelopeJson = serializeEnvelope(envelope)
-                val bytes = envelopeJson.toByteArray(Charsets.UTF_8)
-
-                var writeSuccess = false
-                // Method 1: Try openFileDescriptor with rwt / sync
-                try {
-                    val pfd = context.contentResolver.openFileDescriptor(uri, "rwt")
-                        ?: context.contentResolver.openFileDescriptor(uri, "wt")
-                        ?: context.contentResolver.openFileDescriptor(uri, "w")
-                    if (pfd != null) {
-                        pfd.use { fd ->
-                            java.io.FileOutputStream(fd.fileDescriptor).let { fos ->
-                                fos.write(bytes)
-                                fos.flush()
-                                try { fd.fileDescriptor.sync() } catch (_: Throwable) {}
-                            }
+                val pfd = context.contentResolver.openFileDescriptor(uri, "rwt")
+                    ?: context.contentResolver.openFileDescriptor(uri, "wt")
+                    ?: context.contentResolver.openFileDescriptor(uri, "w")
+                if (pfd != null) {
+                    pfd.use { fd ->
+                        java.io.FileOutputStream(fd.fileDescriptor).let { fos ->
+                            fos.write(bytes)
+                            fos.flush()
+                            try { fd.fileDescriptor.sync() } catch (_: Throwable) {}
                         }
-                        writeSuccess = true
                     }
-                } catch (e: Throwable) {
-                    Log.w("BackupManager", "openFileDescriptor write failed, falling back to openOutputStream", e)
-                }
-
-                // Method 2: Fallback to openOutputStream if PFD failed
-                if (!writeSuccess) {
-                    val os = context.contentResolver.openOutputStream(uri, "wt")
-                        ?: context.contentResolver.openOutputStream(uri, "w")
-                        ?: throw IllegalArgumentException("Could not open destination file for writing")
-                    os.use { stream ->
-                        stream.write(bytes)
-                        stream.flush()
-                    }
-                }
-
-                withContext(Dispatchers.Main) {
-                    onSuccess()
+                    writeSuccess = true
                 }
             } catch (e: Throwable) {
-                if (e is kotlinx.coroutines.CancellationException) throw e; Log.e("BackupManager", "exportToFile failed", e)
-                withContext(Dispatchers.Main) {
-                    onError(e.localizedMessage ?: "Failed to export backup")
+                Log.w("BackupManager", "openFileDescriptor write failed, falling back to openOutputStream", e)
+            }
+
+            // Method 2: Fallback to openOutputStream if PFD failed
+            if (!writeSuccess) {
+                val os = context.contentResolver.openOutputStream(uri, "wt")
+                    ?: context.contentResolver.openOutputStream(uri, "w")
+                    ?: throw IllegalArgumentException("Could not open destination file for writing")
+                os.use { stream ->
+                    stream.write(bytes)
+                    stream.flush()
                 }
             }
+
         }
+    }
+
+    /** Runs [block], turning any failure other than cancellation into a logged [Result.failure]. */
+    private inline fun <T> backupResult(operation: String, block: () -> T): Result<T> = try {
+        Result.success(block())
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        Log.e("BackupManager", "$operation failed", e)
+        Result.failure(e)
     }
 
     /** Reads a user-picked file, refusing to buffer anything larger than [MAX_BACKUP_BYTES]. */
@@ -429,105 +352,94 @@ class BackupManager @Inject constructor(
         }
     }
 
-    suspend fun importFromFile(
-        
-        uri: Uri,
-        passphrase: String?,
-        onSuccess: (itemsRestored: Int) -> Unit,
-        onError: (String) -> Unit
-    ) {
-        withContext(Dispatchers.IO) {
-            try {
-                val envelopeJson = readBackupText(uri)
-                    ?: throw IllegalArgumentException("Could not read backup file")
+    /** Decrypts the backup at [uri], restores it, and returns how many items were restored. */
+    suspend fun importFromFile(uri: Uri, passphrase: String?): Result<Int> = withContext(Dispatchers.IO) {
+        backupResult("importFromFile") {
+            val envelopeJson = readBackupText(uri)
+                ?: throw IllegalArgumentException("Could not read backup file")
 
-                if (envelopeJson.isBlank()) {
-                    throw IllegalArgumentException("Selected backup file is empty (0 bytes). Please create a fresh backup.")
+            if (envelopeJson.isBlank()) {
+                throw IllegalArgumentException("Selected backup file is empty (0 bytes). Please create a fresh backup.")
+            }
+
+            val envelope = parseEnvelope(envelopeJson)
+            require(envelope.format == "INTELLIGENT_SEARCH_ENCRYPTED_BACKUP") {
+                "Unsupported backup format: ${envelope.format}"
+            }
+            require(envelope.cipher.tagLengthBits == 128) {
+                "Unsupported GCM authentication tag length: ${envelope.cipher.tagLengthBits}"
+            }
+
+            // Verify integrity
+            val cipherBytes = BackupCryptoEngine.decodeBase64(envelope.encryptedPayloadBase64)
+            val calculatedSha = BackupCryptoEngine.calculateSha256(cipherBytes)
+            if (calculatedSha != envelope.payloadSha256) {
+                throw SecurityException("Backup integrity verification failed (SHA-256 checksum mismatch). File may be corrupted.")
+            }
+
+            val iv = BackupCryptoEngine.decodeBase64(envelope.cipher.ivBase64)
+            require(iv.size == 12) { "Invalid backup IV length: ${iv.size}" }
+
+            val decryptedJson: String = if (envelope.kdf != null) {
+                if (passphrase.isNullOrBlank()) {
+                    throw IllegalArgumentException("Passphrase required to decrypt this backup")
                 }
-
-                val envelope = parseEnvelope(envelopeJson)
-                require(envelope.format == "INTELLIGENT_SEARCH_ENCRYPTED_BACKUP") {
-                    "Unsupported backup format: ${envelope.format}"
+                val salt = BackupCryptoEngine.decodeBase64(envelope.kdf.saltBase64)
+                require(salt.size >= 16) { "Backup KDF salt is too short (${salt.size} bytes)" }
+                require(envelope.kdf.iterations in 10_000..5_000_000) {
+                    "Backup KDF iteration count out of bounds: ${envelope.kdf.iterations}"
                 }
-                require(envelope.cipher.tagLengthBits == 128) {
-                    "Unsupported GCM authentication tag length: ${envelope.cipher.tagLengthBits}"
+                val passChars = passphrase.toCharArray()
+                val key = try {
+                    BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt, envelope.kdf.iterations)
+                } finally {
+                    com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
                 }
-
-                // Verify integrity
-                val cipherBytes = BackupCryptoEngine.decodeBase64(envelope.encryptedPayloadBase64)
-                val calculatedSha = BackupCryptoEngine.calculateSha256(cipherBytes)
-                if (calculatedSha != envelope.payloadSha256) {
-                    throw SecurityException("Backup integrity verification failed (SHA-256 checksum mismatch). File may be corrupted.")
+                try {
+                    BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                } catch (e: javax.crypto.AEADBadTagException) {
+                    throw SecurityException("Incorrect passphrase. Authentication tag mismatch.")
+                } catch (e: Throwable) {
+                    throw SecurityException("Failed to decrypt: ${e.message ?: "Invalid passphrase"}")
                 }
-
-                val iv = BackupCryptoEngine.decodeBase64(envelope.cipher.ivBase64)
-                require(iv.size == 12) { "Invalid backup IV length: ${iv.size}" }
-
-                val decryptedJson: String = if (envelope.kdf != null) {
-                    if (passphrase.isNullOrBlank()) {
-                        throw IllegalArgumentException("Passphrase required to decrypt this backup")
-                    }
-                    val salt = BackupCryptoEngine.decodeBase64(envelope.kdf.saltBase64)
-                    require(salt.size >= 16) { "Backup KDF salt is too short (${salt.size} bytes)" }
-                    require(envelope.kdf.iterations in 10_000..5_000_000) {
-                        "Backup KDF iteration count out of bounds: ${envelope.kdf.iterations}"
-                    }
-                    val passChars = passphrase.toCharArray()
-                    val key = try {
-                        BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt, envelope.kdf.iterations)
-                    } finally {
-                        com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
-                    }
-                    try {
-                        BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
-                    } catch (e: javax.crypto.AEADBadTagException) {
-                        throw SecurityException("Incorrect passphrase. Authentication tag mismatch.")
-                    } catch (e: Throwable) {
-                        throw SecurityException("Failed to decrypt: ${e.message ?: "Invalid passphrase"}")
-                    }
-                } else if (envelope.isHardwareBacked) {
-                    // Never create or purge the key here: a fresh key can't decrypt the file, and purging a
-                    // briefly unreadable one would orphan every device-bound backup.
-                    val key = try {
+            } else if (envelope.isHardwareBacked) {
+                // Never create or purge the key here: a fresh key can't decrypt the file, and purging a
+                // briefly unreadable one would orphan every device-bound backup.
+                val key = try {
+                    strongBoxSecurityManager.getExistingSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
+                } catch (e: Throwable) {
+                    throw SecurityException("This phone's backup key could not be read. Try again in a moment.", e)
+                } ?: throw SecurityException(
+                    "This backup is locked to the phone and install it was made on, and can't be restored here."
+                )
+                try {
+                    BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                } catch (e: Throwable) {
+                    throw SecurityException("This backup could not be decrypted with this phone's key. It may be corrupt, or from another install.", e)
+                }
+            } else {
+                // Legacy portable file (APK-embedded key, not secret); new exports never use this. One
+                // short-lived build also wrote device-key files with this flag off, so fall back to the
+                // device key before giving up.
+                try {
+                    val key = BackupCryptoEngine.getPortableDefaultKey()
+                    BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                } catch (e: Throwable) {
+                    val deviceKey = runCatching {
                         strongBoxSecurityManager.getExistingSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
-                    } catch (e: Throwable) {
-                        throw SecurityException("This phone's backup key could not be read. Try again in a moment.", e)
-                    } ?: throw SecurityException(
-                        "This backup is locked to the phone and install it was made on, and can't be restored here."
-                    )
-                    try {
-                        BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
-                    } catch (e: Throwable) {
-                        throw SecurityException("This backup could not be decrypted with this phone's key. It may be corrupt, or from another install.", e)
-                    }
-                } else {
-                    // Legacy portable file (APK-embedded key, not secret); new exports never use this.
-                    try {
-                        val key = BackupCryptoEngine.getPortableDefaultKey()
-                        BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
-                    } catch (e: Throwable) {
-                        throw SecurityException("Failed to decrypt backup. The file may be corrupt or encrypted with an incompatible key.")
-                    }
-                }
-
-                val payload = parsePayload(decryptedJson)
-                val restoredCount = restorePayload(payload)
-                withContext(Dispatchers.Main) {
-                    onSuccess(restoredCount)
-                }
-            } catch (e: Throwable) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                Log.e("BackupManager", "importFromFile failed", e)
-                withContext(Dispatchers.Main) {
-                    onError(e.localizedMessage ?: "Failed to restore backup")
+                    }.getOrNull()
+                    deviceKey?.let { runCatching { BackupCryptoEngine.decryptPayload(cipherBytes, it, iv) }.getOrNull() }
+                        ?: throw SecurityException("Failed to decrypt backup. The file may be corrupt or encrypted with an incompatible key.")
                 }
             }
+
+            restorePayload(parsePayload(decryptedJson))
         }
     }
 
     private suspend fun restorePayload(payload: BackupContentPayload): Int = withContext(Dispatchers.IO) {
         var restoredCount = 0
-        val sharedPrefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val sharedPrefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
 
         // 1. Restore all rich typed preferences from sharedPreferencesJson (Schema 2+)
         if (payload.sharedPreferencesJson.isNotBlank() && payload.sharedPreferencesJson != "{}") {
@@ -540,37 +452,42 @@ class BackupManager @Inject constructor(
                 while (keys.hasNext()) {
                     val key = keys.next()
                     if (isBlockedInternalKey(key) || BackupPreferenceSchema.isDebugKey(key)) continue
+                    // Older files carry several spellings of one setting: restore it under its canonical name,
+                    // taking the canonical entry when the file has one.
+                    val setting = SettingsManager.keyFor(key)
+                    if (setting != null && key != setting.name && spObj.has(setting.name)) continue
+                    val target = setting?.name ?: key
                     runCatching {
                         val itemObj = spObj.getJSONObject(key)
                         val type = itemObj.optString("type")
                         // Known keys must carry the type the app reads them with. Keys the schema doesn't
                         // name (per-shortcut custom values etc.) must at least match what is stored here now.
-                        val expectedType = EXPECTED_SHARED_PREF_TYPES[key]
+                        val expectedType = setting?.let(::sharedPrefTypeName)
                             ?: BackupPreferenceSchema.expectedType(key)
                             ?: localValues[key]?.let { sharedPrefTypeName(it) }
                         if (expectedType != null && expectedType != type) {
                             return@runCatching
                         }
                         when (type) {
-                            "BOOLEAN" -> editor.putBoolean(key, itemObj.getBoolean("value"))
+                            "BOOLEAN" -> editor.putBoolean(target, itemObj.getBoolean("value"))
                             "INT" -> {
                                 val intVal = itemObj.getInt("value")
-                                val range = BackupPreferenceSchema.intRange(key)
+                                val range = (setting as? IntSetting)?.range ?: BackupPreferenceSchema.intRange(key)
                                 if (range != null && intVal !in range) return@runCatching
-                                editor.putInt(key, intVal)
+                                editor.putInt(target, intVal)
                             }
-                            "LONG" -> editor.putLong(key, itemObj.getLong("value"))
+                            "LONG" -> editor.putLong(target, itemObj.getLong("value"))
                             "FLOAT" -> {
                                 val fVal = itemObj.getDouble("value").toFloat()
-                                if (fVal.isFinite()) editor.putFloat(key, fVal) else return@runCatching
+                                if (fVal.isFinite()) editor.putFloat(target, fVal) else return@runCatching
                             }
                             "STRING" -> {
                                 val strVal = itemObj.getString("value")
                                 if (strVal.length > BackupPreferenceSchema.MAX_STRING_LENGTH) return@runCatching
-                                if (key == "custom_search_engine_url" && !isValidCustomSearchUrl(strVal)) {
+                                if (target == SettingsManager.CUSTOM_SEARCH_ENGINE_URL.name && !isValidCustomSearchUrl(strVal)) {
                                     return@runCatching
                                 }
-                                editor.putString(key, strVal)
+                                editor.putString(target, strVal)
                             }
                             "STRING_SET" -> {
                                 val arr = itemObj.getJSONArray("value")
@@ -579,10 +496,12 @@ class BackupManager @Inject constructor(
                                 for (i in 0 until arr.length()) {
                                     set.add(arr.getString(i))
                                 }
-                                editor.putStringSet(key, set)
+                                editor.putStringSet(target, set)
                             }
                             else -> return@runCatching
                         }
+                        // The restored canonical value replaces any old spelling still stored locally.
+                        setting?.legacyNames?.forEach(editor::remove)
                         restoredCount++
                     }
                 }
@@ -591,10 +510,6 @@ class BackupManager @Inject constructor(
                 android.util.Log.w("BackupManager", "Failed to restore typed SharedPreferences", e)
             }
         }
-
-        // Typed prefs only feed settingsFlow where DataStore has no value, so push every restored key
-        // into DataStore as well; otherwise settings already customised on this device would win.
-        settingsManager.syncSharedPreferencesToDataStore(overwrite = true)
 
         // 2. Restore the DataStore snapshot (the only settings source in schema 1 backups). updateSetting
         // writes DataStore plus every SharedPreferences spelling of the key.
@@ -620,8 +535,6 @@ class BackupManager @Inject constructor(
             settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, payload.customBangsJson)
             restoredCount++
         }
-        settingsManager.updateSetting(SettingsManager.SEARCH_SECTIONS_CONFIG_JSON, payload.sectionConfigsJson)
-        restoredCount++
 
         settingsManager.updateSetting(SettingsManager.HIDDEN_APPS, payload.hiddenApps.toSet())
         restoredCount += payload.hiddenApps.size

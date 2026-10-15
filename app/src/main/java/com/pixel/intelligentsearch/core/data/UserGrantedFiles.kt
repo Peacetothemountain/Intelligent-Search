@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.data
 
+import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -33,10 +34,8 @@ object UserGrantedFiles {
 
     /** Keys whose change means the file index has to be rebuilt. */
     val INDEX_KEYS = setOf(
-        KEY_FOLDER_URIS, KEY_MEDIA_URIS, LEGACY_KEY_FOLDER_URI,
-        "search.files", "search_files",
-        "search.files.hidden.files", "search_files_hidden_files"
-    )
+        KEY_FOLDER_URIS, KEY_MEDIA_URIS, LEGACY_KEY_FOLDER_URI
+    ) + SettingsManager.SEARCH_FILES.allNames + SettingsManager.FILES_HIDDEN_FILES.allNames
 
     /** Shown as the location of photo-picker items, which have no folder path. */
     const val PICKED_MEDIA_LOCATION = "Chosen photos & videos"
@@ -54,13 +53,9 @@ object UserGrantedFiles {
         DocumentsContract.Document.COLUMN_LAST_MODIFIED
     )
 
-    fun isFileSearchEnabled(prefs: SharedPreferences): Boolean =
-        if (prefs.contains("search.files")) prefs.getBoolean("search.files", false)
-        else prefs.getBoolean("search_files", false)
+    fun isFileSearchEnabled(prefs: SharedPreferences): Boolean = prefs[SettingsManager.SEARCH_FILES]
 
-    fun includeHiddenFiles(prefs: SharedPreferences): Boolean =
-        if (prefs.contains("search.files.hidden.files")) prefs.getBoolean("search.files.hidden.files", false)
-        else prefs.getBoolean("search_files_hidden_files", false)
+    fun includeHiddenFiles(prefs: SharedPreferences): Boolean = prefs[SettingsManager.FILES_HIDDEN_FILES]
 
     fun folderUris(prefs: SharedPreferences): Set<String> {
         prefs.getStringSet(KEY_FOLDER_URIS, null)?.let { return it.toSet() }

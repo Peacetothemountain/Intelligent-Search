@@ -160,27 +160,3 @@ val GoogleTertiaryFixed = Color(0xFFA8EFFF)
 val GoogleTertiaryFixedDim = Color(0xFF6DD5ED)
 val GoogleOnTertiaryFixed = Color(0xFF001F25)
 val GoogleOnTertiaryFixedVariant = Color(0xFF004E5B)
-
-// ============================================================================
-// High-Contrast Fallback Tokens (WCAG AAA >= 7:1) - Android 14+ / Canary ZP11
-// ============================================================================
-val GoogleDarkHighContrastPrimary = Color(0xFFD3E3FD)
-val GoogleDarkHighContrastOnPrimary = Color(0xFF000000)
-val GoogleDarkHighContrastOutline = Color(0xFFE3E3E3)
-val GoogleDarkHighContrastOnSurface = Color(0xFFFFFFFF)
-
-val GoogleLightHighContrastPrimary = Color(0xFF041E49)
-val GoogleLightHighContrastOnPrimary = Color(0xFFFFFFFF)
-val GoogleLightHighContrastOutline = Color(0xFF1F1F1F)
-val GoogleLightHighContrastOnSurface = Color(0xFF000000)
-
-// ============================================================================
-// Android 17 / Canary ZP11 Tonal Palette Style Canonical Seed Colors
-// ============================================================================
-val PaletteSeedTonalSpot = Color(0xFF4285F4)  // Google Pixel Blue
-val PaletteSeedExpressive = Color(0xFF6750A4) // Expressive Violet
-val PaletteSeedVibrant = Color(0xFF006C50)    // Vibrant Teal/Emerald
-val PaletteSeedSpritz = Color(0xFF5E605E)     // Spritz Neutral Muted Slate
-val PaletteSeedMonochrome = Color(0xFF000000) // Pure Monochromatic Grayscale
-val PaletteSeedFruitSalad = Color(0xFF984061) // Fruit Salad Berry
-val PaletteSeedRainbow = Color(0xFF7E525E)    // Rainbow Desert

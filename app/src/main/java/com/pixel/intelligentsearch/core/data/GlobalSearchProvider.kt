@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.data
 
+import com.pixel.intelligentsearch.core.data.settings.get
 import android.app.SearchManager
 import android.content.ContentProvider
 import android.content.ContentValues
@@ -8,7 +9,6 @@ import android.content.Intent
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.Process
@@ -16,19 +16,7 @@ import android.os.UserManager
 import android.provider.BaseColumns
 import android.util.Log
 import com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine
-import com.pixel.intelligentsearch.core.search.UnifiedSearchCoordinator
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.components.SingletonComponent
-
-@EntryPoint
-@InstallIn(SingletonComponent::class)
-interface GlobalSearchProviderEntryPoint {
-    fun unifiedSearchCoordinator(): UnifiedSearchCoordinator
-    fun corpusIndexManager(): com.pixel.intelligentsearch.core.search.CorpusIndexManager
-    fun multiProfileManager(): com.pixel.intelligentsearch.core.profile.MultiProfileManager
-}
+import com.pixel.intelligentsearch.di.appEntryPoint
 
 class GlobalSearchProvider : ContentProvider() {
 
@@ -98,12 +86,7 @@ class GlobalSearchProvider : ContentProvider() {
         val safeCtx = getSafeContext()
         val entryPoint = try {
             val appCtx = safeCtx?.applicationContext ?: safeCtx
-            if (appCtx != null) {
-                EntryPointAccessors.fromApplication(
-                    appCtx,
-                    GlobalSearchProviderEntryPoint::class.java
-                )
-            } else null
+            appCtx?.appEntryPoint
         } catch (e: Exception) {
             Log.w(TAG, "GlobalSearchProvider entry point unavailable: ${e.message}")
             null
@@ -123,12 +106,12 @@ class GlobalSearchProvider : ContentProvider() {
 
         var rowId = 1L
 
-        val prefs = safeCtx?.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-        val suggestionsEnabled = prefs?.getBoolean("search.web.suggestions", true) ?: true
-        val engine = prefs?.getString("search.engine", "Google") ?: "Google"
-        val customUrl = prefs?.getString("custom_search_engine_url", "") ?: ""
+        val prefs = safeCtx?.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+        val suggestionsEnabled = prefs?.get(SettingsManager.SEARCH_WEB_SUGGESTIONS) ?: true
+        val engine = prefs?.get(SettingsManager.SEARCH_ENGINE) ?: "Google"
+        val customUrl = prefs?.get(SettingsManager.CUSTOM_SEARCH_ENGINE_URL) ?: ""
         // Apps the user hid in-app must not resurface through system global search.
-        val hiddenApps = prefs?.getStringSet("hidden_apps", emptySet()).orEmpty()
+        val hiddenApps = prefs?.get(SettingsManager.HIDDEN_APPS).orEmpty()
 
         val isTorEngine = engine == "Tor Project" || engine == "Tor Browser"
         val isCustomEngine = engine == "Custom"

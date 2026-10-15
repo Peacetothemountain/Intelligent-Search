@@ -5,8 +5,6 @@ import android.media.AudioManager
 import com.pixel.intelligentsearch.core.system.SystemToggleManager
 import com.pixel.intelligentsearch.core.ui.SystemToggleUiState
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,13 +33,10 @@ class SystemActionRouter @Inject constructor(
     )
 
     private val _mediaVolumeState = MutableStateFlow(getStreamState(AudioManager.STREAM_MUSIC, "Media Volume", "volume_media"))
-    val mediaVolumeState: StateFlow<VolumeSliderState> = _mediaVolumeState.asStateFlow()
 
     private val _ringVolumeState = MutableStateFlow(getStreamState(AudioManager.STREAM_RING, "Ringtone Volume", "volume_ring"))
-    val ringVolumeState: StateFlow<VolumeSliderState> = _ringVolumeState.asStateFlow()
 
     private val _alarmVolumeState = MutableStateFlow(getStreamState(AudioManager.STREAM_ALARM, "Alarm Volume", "volume_alarm"))
-    val alarmVolumeState: StateFlow<VolumeSliderState> = _alarmVolumeState.asStateFlow()
 
     sealed class ActionResult {
         data class Toggle(val toggleUiState: SystemToggleUiState) : ActionResult()

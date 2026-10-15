@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.widget
 
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.app.ActivityOptions
 import android.app.PendingIntent
 import android.content.Context
@@ -33,7 +34,7 @@ class SearchTileService : TileService() {
         private const val TAG = "SearchTileService"
         private const val REQUEST_CODE_TILE_LAUNCH = 1001
         private const val LAUNCH_COOLDOWN_MS = 600L
-        private const val PREFS_NAME = "PREFERENCES_CUSTOMISATIONS"
+        private const val PREFS_NAME = SettingsManager.PREFS_NAME
         private const val KEY_LAST_QUERY = "last_search_query"
 
         @Volatile

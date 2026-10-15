@@ -1,5 +1,9 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.data.settings.get
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import android.content.SharedPreferences
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
@@ -24,7 +28,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,10 +41,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -55,10 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
-import com.pixel.intelligentsearch.core.security.BiometricSearchGate
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,57 +64,18 @@ import kotlinx.coroutines.withContext
 fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     val viewModel = LocalSettingsViewModel.current
-    var hiddenApps by remember { mutableStateOf(prefs.getStringSet("hidden_apps", emptySet()) ?: emptySet()) }
+    var hiddenApps by remember { mutableStateOf(prefs[SettingsManager.HIDDEN_APPS]) }
     var installedApps by remember { mutableStateOf<List<AppItem>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     
-    val biometricGate = remember { BiometricSearchGate.get(context) }
-    var isAuthenticated by remember { mutableStateOf(false) }
-    val authScope = androidx.compose.runtime.rememberCoroutineScope()
-    val enteredAtMs = remember { android.os.SystemClock.uptimeMillis() }
-    val currentOnBack by androidx.compose.runtime.rememberUpdatedState(onBack)
-
-    // Leaves exactly once. A failure right after opening waits for the enter transition to settle
-    // first; calling back a second time as a retry popped the page underneath as well.
-    val navigateBackOnAuthFailure: () -> Unit = {
-        isAuthenticated = false
-        val leave = {
-            SettingsDebouncer.recordClick(0L)
-            SettingsDebouncer.recordClick(0L, key = "settings_top_bar_back")
-            currentOnBack()
-        }
-        val elapsed = android.os.SystemClock.uptimeMillis() - enteredAtMs
-        if (elapsed < 450L) {
-            authScope.launch {
-                delay(450L - elapsed)
-                if (!isAuthenticated) leave()
-            }
-        } else {
-            leave()
-        }
-    }
-
-    val triggerAuth: () -> Unit = {
-        val targetActivity = biometricGate.getActivity(context)
-        if (targetActivity != null && (biometricGate.isBiometricHardwareAvailable() || biometricGate.isDeviceSecure())) {
-            biometricGate.authenticateForPrivateSearch(
-                activity = targetActivity,
-                onSuccess = { isAuthenticated = true },
-                onError = {
-                    navigateBackOnAuthFailure()
-                }
-            )
-        } else if (biometricGate.isDeviceSecure()) {
-            navigateBackOnAuthFailure()
-        } else {
-            isAuthenticated = true
-        }
-    }
+    val isAuthenticated = rememberProtectedPageUnlock(
+        title = "Unlock Private Search",
+        subtitle = "Verify identity to view hidden items",
+        onBack = onBack
+    )
 
     LaunchedEffect(Unit) {
-        triggerAuth()
-        delay(100)
         withContext(Dispatchers.IO) {
             // Hiding works per package, and work/private-profile copies share it; duplicate LazyColumn keys crash.
             val apps = SystemDataProvider.getAllApps(context).distinctBy { it.packageName }.sortedBy { it.name.lowercase() }
@@ -227,15 +186,11 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "Use Fingerprint or Face Unlock to view and manage hidden applications.",
+                        "Use Fingerprint, Face Unlock or your screen lock to view and manage hidden applications.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(onClick = triggerAuth) {
-                        Text("Unlock with Biometrics")
-                    }
                 }
             } else {
                 LazyColumn(
@@ -263,7 +218,7 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 val newSet = hiddenApps.toMutableSet()
                                 if (hide) newSet.add(app.packageName) else newSet.remove(app.packageName)
                                 hiddenApps = newSet
-                                prefs.edit().putStringSet("hidden_apps", newSet).apply()
+                                prefs.edit().put(SettingsManager.HIDDEN_APPS, newSet).apply()
                                 viewModel?.updateSetting(SettingsManager.HIDDEN_APPS, newSet)
                             },
                             showDivider = index < filteredApps.size - 1

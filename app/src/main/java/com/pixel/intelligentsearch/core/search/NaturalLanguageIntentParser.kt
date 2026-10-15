@@ -324,7 +324,10 @@ object NaturalLanguageIntentParser {
         val number = resolveRecipientNumber(recipient, contacts, contactLookup)
 
         val intent = if (isWhatsApp) {
-            val phoneParam = number?.filter { it.isDigit() }?.takeIf { it.isNotEmpty() }?.let { "phone=$it&" } ?: ""
+            // WhatsApp needs the full international number; without a country code it rejects the link, so
+            // only address the chat when the stored number has one and otherwise let the user pick.
+            val phoneParam = number?.takeIf { it.startsWith("+") }?.filter { it.isDigit() }
+                ?.takeIf { it.isNotEmpty() }?.let { "phone=$it&" } ?: ""
             Intent(Intent.ACTION_VIEW).apply {
                 data = Uri.parse("https://api.whatsapp.com/send?${phoneParam}text=${java.net.URLEncoder.encode(body, "UTF-8")}")
                 setPackage("com.whatsapp")

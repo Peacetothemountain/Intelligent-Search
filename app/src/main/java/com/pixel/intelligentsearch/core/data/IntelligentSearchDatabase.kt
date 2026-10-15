@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.core.data
 
 import android.content.Context
-import android.os.Build
 import android.os.UserManager
 import android.util.Log
 import androidx.room.Database
@@ -110,13 +109,5 @@ abstract class IntelligentSearchDatabase : RoomDatabase() {
                 .build()
         }
 
-        /**
-         * Clears instance cache for test teardown or database reset.
-         */
-        @Synchronized
-        fun resetInstance() {
-            INSTANCE?.close()
-            INSTANCE = null
-        }
     }
 }

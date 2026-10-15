@@ -1,15 +1,12 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import android.app.Activity
-import android.content.Context
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.Intent
 import android.content.SharedPreferences
-import android.net.Uri
-import android.view.HapticFeedbackConstants
-import android.widget.Toast
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -24,7 +21,6 @@ import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,8 +36,6 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -53,13 +47,10 @@ import androidx.graphics.shapes.Morph
 import androidx.graphics.shapes.RoundedPolygon
 import androidx.graphics.shapes.star
 import androidx.graphics.shapes.toPath
-import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.bangs.SearchBang
 import com.pixel.intelligentsearch.core.bangs.SearchBangManager
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /** One animation frame shared by every shortcut badge. */
 class ShortcutBadgeFrame(val morph: Morph, val rotationAngle: Float, val morphProgress: Float)
@@ -257,8 +248,8 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             SettingsCard {
-                var searchEngine by rememberStringPreference(prefs, "search.engine", "Google")
-                var customEngineName by rememberStringPreference(prefs, "custom_search_engine_name", "Custom")
+                var searchEngine by rememberSetting(SettingsManager.SEARCH_ENGINE)
+                var customEngineName by rememberSetting(SettingsManager.CUSTOM_SEARCH_ENGINE_NAME)
                 val effectiveSearchEngineName = if (searchEngine == "Custom") customEngineName else searchEngine
                 var showTorDialog by remember { mutableStateOf(false) }
 
@@ -279,12 +270,12 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             }
                         }
                         if (selected == "Custom" && settingsViewModel != null &&
-                            prefs.getString("custom_search_engine_url", null).isNullOrBlank()
+                            prefs[SettingsManager.CUSTOM_SEARCH_ENGINE_URL].isNullOrBlank()
                         ) {
                             // The URL field shows this default; persist it so searches use what is displayed
                             // instead of silently falling back to the generic web-search intent.
                             val defaultUrl = "https://duckduckgo.com/?q=%s"
-                            prefs.edit().putString("custom_search_engine_url", defaultUrl).apply()
+                            prefs.edit().put(SettingsManager.CUSTOM_SEARCH_ENGINE_URL, defaultUrl).apply()
                             settingsViewModel.updateSetting(SettingsManager.CUSTOM_SEARCH_ENGINE_URL, defaultUrl)
                         }
                         searchEngine = selected
@@ -298,7 +289,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     )
                 }
                 if (searchEngine == "Custom") {
-                    var customUrl by rememberStringPreference(prefs, "custom_search_engine_url", "https://duckduckgo.com/?q=%s")
+                    var customUrl by rememberSetting(SettingsManager.CUSTOM_SEARCH_ENGINE_URL)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -326,7 +317,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
-                var webSuggestions by rememberBooleanPreference(prefs, "search.web.suggestions", true)
+                var webSuggestions by rememberSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS)
                 val advancedProtectionOn by remember(context) {
                     com.pixel.intelligentsearch.core.security.AdvancedProtectionMonitor.ensureRegistered(context)
                     com.pixel.intelligentsearch.core.security.AdvancedProtectionMonitor.enabled
@@ -344,7 +335,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     showDivider = true
                 )
 
-                var searchPreviousSearches by rememberBooleanPreference(prefs, "search_previous_searches", true)
+                var searchPreviousSearches by rememberSetting(SettingsManager.SEARCH_PREVIOUS_SEARCHES)
                 SettingsRowToggle(
                     title = "Search History",
                     subtitle = "Previously Searched Web Queries.",
@@ -354,7 +345,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     showDivider = true
                 )
                 
-                var webResultsCount by rememberIntPreference(prefs, "web_results_count", 5)
+                var webResultsCount by rememberSetting(SettingsManager.WEB_RESULTS_COUNT)
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -395,7 +386,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                var webWeight by rememberIntPreference(prefs, "search_weight_web", 50)
+                var webWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_WEB)
                 val webLevelIndex = remember(webWeight) { PriorityWeightHelper.weightToLevelIndex(webWeight) }
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Row(
@@ -452,8 +443,8 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
             )
             SettingsCard {
-                var quickShortcutsEnabled by rememberBooleanPreference(prefs, "search_quick_shortcuts", true)
-                var shortcutTriggerSymbol by rememberStringPreference(prefs, "web_shortcut_trigger_symbol", "!")
+                var quickShortcutsEnabled by rememberSetting(SettingsManager.SEARCH_QUICK_SHORTCUTS)
+                var shortcutTriggerSymbol by rememberSetting(SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL)
                 SettingsRowToggle(
                     title = "Enable Quick Web Shortcuts",
                     subtitle = "Prefix Queries with User Selected Symbol to Open Specific Web Applications.",
@@ -816,7 +807,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         // Available Direct Shortcuts section
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-                        var showAvailableDirectShortcuts by rememberBooleanPreference(prefs, "search_show_available_direct_shortcuts", true)
+                        var showAvailableDirectShortcuts by rememberSetting(SettingsManager.SHOW_AVAILABLE_DIRECT_SHORTCUTS)
                         SettingsRowToggle(
                             title = "Available Direct Shortcuts",
                             subtitle = "Tap Add to Restore Any Direct Shortcut.",

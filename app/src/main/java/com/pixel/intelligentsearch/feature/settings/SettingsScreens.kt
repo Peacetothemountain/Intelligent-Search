@@ -1,4 +1,9 @@
 package com.pixel.intelligentsearch.feature.settings
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.di.appEntryPoint
+import com.pixel.intelligentsearch.core.util.findActivity
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.draw.clip
@@ -18,37 +23,19 @@ import androidx.graphics.shapes.toPath
 import androidx.graphics.shapes.CornerRounding
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
-import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
-import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
-import com.pixel.intelligentsearch.feature.widget.SearchTileService
-import com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
-import com.pixel.intelligentsearch.core.bangs.SearchBang
-import com.pixel.intelligentsearch.core.bangs.SearchBangManager
-import com.pixel.intelligentsearch.core.data.SystemDataProvider
-import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.App
-import androidx.compose.foundation.gestures.scrollBy
-import com.pixel.intelligentsearch.feature.search.getAppName
-import com.pixel.intelligentsearch.feature.search.getThemedAppIcon
-import com.pixel.intelligentsearch.feature.search.AppIconResult
 import com.pixel.intelligentsearch.feature.search.AnimatedMatrixBackground
 import com.pixel.intelligentsearch.R
 import android.app.Activity
-import android.app.Application
 import android.content.Context
-import android.view.HapticFeedbackConstants
-import androidx.compose.ui.graphics.toArgb
 
 import android.os.Build
-import android.os.VibrationEffect
-import android.os.VibratorManager
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -57,50 +44,33 @@ import kotlinx.coroutines.withContext
 
 import android.content.Intent
 import android.content.SharedPreferences
-import android.app.StatusBarManager
-import android.content.ComponentName
-import android.content.pm.ShortcutInfo
-import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
-import android.app.PendingIntent
-import java.util.concurrent.Executor
-import java.util.concurrent.Executors
 import android.net.Uri
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.drawable.toBitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.launch
 import android.widget.Toast
 import android.content.pm.PackageManager
-import android.content.pm.ResolveInfo
 import org.intellij.lang.annotations.Language
 import android.graphics.RuntimeShader
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.graphics.ShaderBrush
-import android.annotation.SuppressLint
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.animation.*
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.NavDestination.Companion.hasRoute
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.animation.core.*
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.material.icons.Icons
 
 import androidx.compose.material.icons.filled.*
@@ -119,27 +89,16 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.ui.BiasAlignment
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
@@ -151,10 +110,8 @@ import androidx.compose.foundation.Image
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.semantics.*
 import com.pixel.intelligentsearch.core.ui.materialYouMeshGradientBackground
-import com.pixel.intelligentsearch.core.ui.expressive.SquircleShape
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 
 import androidx.compose.runtime.CompositionLocalProvider
@@ -458,565 +415,6 @@ val LocalSettingsState = compositionLocalOf<com.pixel.intelligentsearch.core.dat
     null
 }
 
-val LocalAnimationTime = staticCompositionLocalOf<Long> { 0L }
-
-// --- State Helpers ---
-fun getAlternatePreferenceKey(key: String): String? = when (key) {
-    "settings.bottom.search" -> "bottom_search"
-    "bottom_search" -> "settings.bottom.search"
-    "settings.bottom.search.result" -> "bottom_search_result"
-    "bottom_search_result" -> "settings.bottom.search.result"
-    "quick.search.horizontal" -> "quick_search_horizontal"
-    "quick_search_horizontal" -> "quick.search.horizontal"
-    "search.apps" -> "search_apps"
-    "search_apps" -> "search.apps"
-    "search.contacts" -> "search_contacts"
-    "search_contacts" -> "search.contacts"
-    "search.files" -> "search_files"
-    "search_files" -> "search.files"
-    "search.web" -> "search_web"
-    "search_web" -> "search.web"
-    "search.calculator" -> "search_calculator"
-    "search_calculator" -> "search.calculator"
-    "search.calendar" -> "search_calendar"
-    "search_calendar" -> "search.calendar"
-    "search.shortcuts" -> "search_shortcuts"
-    "search_shortcuts" -> "search.shortcuts"
-    "search.background.show.wall" -> "show_wallpaper"
-    "show_wallpaper" -> "search.background.show.wall"
-    "shortcut.inline" -> "shortcut_inline"
-    "shortcut_inline" -> "shortcut.inline"
-    "app.fuzzy.search" -> "app_fuzzy_search"
-    "app_fuzzy_search" -> "app.fuzzy.search"
-    "app.animation" -> "app_animations"
-    "app_animations" -> "app.animation"
-    "search.files.hidden.files" -> "search_files_hidden_files"
-    "search_files_hidden_files" -> "search.files.hidden.files"
-    "search.files.thumbnails" -> "search_files_thumbnails"
-    "search_files_thumbnails" -> "search.files.thumbnails"
-    "widget.theme.style" -> "widget_theme_style"
-    "widget_theme_style" -> "widget.theme.style"
-    "night.mode" -> "theme"
-    "theme" -> "night.mode"
-    else -> null
-}
-
-/**
- * Tracks the last DataStore value mirrored into a preference-backed state so that a stale
- * settingsState emission (one that does not carry a new value for this key, or that still
- * carries the pre-toggle value while our own write is in flight) never reverts a value the
- * user just changed.
- */
-private class DataStoreMirrorGuard<T : Any> {
-    private var lastSeen: T? = null
-    private var pending: T? = null
-    private var pendingAtMs: Long = 0L
-
-    fun onLocalWrite(value: T) {
-        pending = value
-        pendingAtMs = android.os.SystemClock.uptimeMillis()
-    }
-
-    fun markWrite(value: T) = onLocalWrite(value)
-
-    /** Returns true when [dsValue] is a genuinely new DataStore value that should be applied. */
-    fun shouldApply(dsValue: T): Boolean {
-        val changed = lastSeen != dsValue
-        lastSeen = dsValue
-        if (!changed) return false
-        val expected = pending ?: return true
-        if (dsValue == expected) {
-            pending = null
-            return true
-        }
-        if (android.os.SystemClock.uptimeMillis() - pendingAtMs > 2000L) {
-            pending = null
-            return true
-        }
-        return false
-    }
-
-    fun shouldAcceptEmission(dsValue: T): Boolean = shouldApply(dsValue)
-}
-
-internal fun readBooleanPref(prefs: SharedPreferences, key: String, altKey: String?, fallback: Boolean): Boolean {
-    return if (prefs.contains(key)) {
-        prefs.getBoolean(key, fallback)
-    } else if (altKey != null && prefs.contains(altKey)) {
-        prefs.getBoolean(altKey, fallback)
-    } else {
-        fallback
-    }
-}
-
-@Composable
-fun rememberBooleanPreference(
-    prefs: SharedPreferences,
-    key: String,
-    defaultValue: Boolean,
-    onChanged: () -> Unit = {}
-): MutableState<Boolean> {
-    val viewModel = LocalSettingsViewModel.current
-    val settingsState = LocalSettingsState.current
-    val altKey = remember(key) { getAlternatePreferenceKey(key) }
-    val currentOnChanged by rememberUpdatedState(onChanged)
-    val currentViewModel by rememberUpdatedState(viewModel)
-    val mirrorGuard = remember(key) { DataStoreMirrorGuard<Boolean>() }
-
-    val datastoreKey = when (key) {
-        "search.apps" -> SettingsManager.SEARCH_APPS
-        "search.contacts" -> SettingsManager.SEARCH_CONTACTS
-        "search.files" -> SettingsManager.SEARCH_FILES
-        "search.web" -> SettingsManager.SEARCH_WEB
-        "search.calculator" -> SettingsManager.SEARCH_CALCULATOR
-        "search.calendar" -> SettingsManager.SEARCH_CALENDAR
-        "search.shortcuts" -> SettingsManager.SEARCH_SHORTCUTS
-        "search.background.show.wall" -> SettingsManager.SHOW_WALLPAPER
-        "app_animations", "app.animation" -> SettingsManager.APP_ANIMATIONS
-        "settings.bottom.search" -> SettingsManager.BOTTOM_SEARCH
-        "settings.bottom.search.result" -> SettingsManager.BOTTOM_SEARCH_RESULT
-        "g_icon_enabled" -> SettingsManager.G_ICON_ENABLED
-        "widget_show_voice" -> SettingsManager.WIDGET_SHOW_VOICE
-        "widget_show_gemini" -> SettingsManager.WIDGET_SHOW_GEMINI
-        "quick_search_youtube" -> SettingsManager.QUICK_SEARCH_YOUTUBE
-        "quick_search_wikipedia" -> SettingsManager.QUICK_SEARCH_WIKIPEDIA
-        "quick_search_play_store" -> SettingsManager.QUICK_SEARCH_PLAY_STORE
-        "quick_search_maps" -> SettingsManager.QUICK_SEARCH_MAPS
-        "app_quick_launch" -> SettingsManager.APP_QUICK_LAUNCH
-        "contact_direct_call" -> SettingsManager.CONTACT_DIRECT_CALL
-        "shortcut.inline" -> SettingsManager.SHORTCUT_INLINE
-        "app.fuzzy.search" -> SettingsManager.APP_FUZZY_SEARCH
-        "quick.search.horizontal", "quick_search_horizontal" -> SettingsManager.QUICK_SEARCH_HORIZONTAL
-        "search.files.hidden.files" -> SettingsManager.FILES_HIDDEN_FILES
-        "search.files.thumbnails" -> SettingsManager.FILES_THUMBNAILS
-        "tutorial_completed" -> SettingsManager.TUTORIAL_COMPLETED
-        "force_tutorial" -> SettingsManager.FORCE_TUTORIAL
-        "context_aware_quick_apps" -> SettingsManager.CONTEXT_AWARE_QUICK_APPS
-        "smart_clipboard_suggestions" -> SettingsManager.SMART_CLIPBOARD_SUGGESTIONS
-        "search_previous_searches" -> SettingsManager.SEARCH_PREVIOUS_SEARCHES
-        "search_overlay_enabled" -> SettingsManager.SEARCH_OVERLAY_ENABLED
-        "matrix_animation_enabled" -> SettingsManager.MATRIX_ANIMATION_ENABLED
-        "settings_back_to_search_overlay" -> SettingsManager.BACK_TO_SEARCH_OVERLAY
-        "never_show_icon_pack_warning" -> SettingsManager.NEVER_SHOW_ICON_PACK_WARNING
-        "dynamic_icon_masking" -> SettingsManager.DYNAMIC_ICON_MASKING
-        "diagnostics_overlay_enabled" -> SettingsManager.DIAGNOSTICS_OVERLAY_ENABLED
-        "vibration_enabled" -> SettingsManager.VIBRATION
-        else -> null
-    }
-
-    val fallbackValue = when (key) {
-        "settings.bottom.search", "settings.bottom.search.result" -> true
-        else -> defaultValue
-    }
-    val currentFallbackValue by rememberUpdatedState(fallbackValue)
-
-    val initialValue = remember(key, prefs, datastoreKey, settingsState) {
-        if (datastoreKey != null) {
-            val dsVal = when (key) {
-                "search.apps" -> settingsState?.searchApps
-                "search.contacts" -> settingsState?.searchContacts
-                "search.files" -> settingsState?.searchFiles
-                "search.web" -> settingsState?.searchWeb
-                "search.calculator" -> settingsState?.searchCalculator
-                "search.calendar" -> settingsState?.searchCalendar
-                "search.shortcuts" -> settingsState?.searchShortcuts
-                "search.background.show.wall" -> settingsState?.showWallpaper
-                "app_animations", "app.animation" -> settingsState?.appAnimations
-                "settings.bottom.search" -> settingsState?.bottomSearch
-                "settings.bottom.search.result" -> settingsState?.bottomSearchResult
-                "g_icon_enabled" -> settingsState?.gIconEnabled
-                "widget_show_voice" -> settingsState?.widgetShowVoice
-                "widget_show_gemini" -> settingsState?.widgetShowGemini
-                "quick_search_youtube" -> settingsState?.quickSearchYoutube
-                "quick_search_wikipedia" -> settingsState?.quickSearchWikipedia
-                "quick_search_play_store" -> settingsState?.quickSearchPlayStore
-                "quick_search_maps" -> settingsState?.quickSearchMaps
-                "app_quick_launch" -> settingsState?.appQuickLaunch
-                "contact_direct_call" -> settingsState?.contactDirectCall
-                "shortcut.inline" -> settingsState?.shortcutInline
-                "app.fuzzy.search" -> settingsState?.appFuzzySearch
-                "quick.search.horizontal", "quick_search_horizontal" -> settingsState?.quickSearchHorizontal
-                "search.files.hidden.files" -> settingsState?.filesHiddenFiles
-                "search.files.thumbnails" -> settingsState?.filesThumbnails
-                "tutorial_completed" -> settingsState?.tutorialCompleted
-                "force_tutorial" -> settingsState?.forceTutorial
-                "context_aware_quick_apps" -> settingsState?.contextAwareQuickApps
-                "smart_clipboard_suggestions" -> settingsState?.smartClipboardSuggestions
-                "search_previous_searches" -> settingsState?.searchPreviousSearches
-                "search_overlay_enabled" -> settingsState?.searchOverlayEnabled
-                "matrix_animation_enabled" -> settingsState?.matrixAnimationEnabled
-                "settings_back_to_search_overlay" -> settingsState?.backToSearchOverlay
-                "never_show_icon_pack_warning" -> settingsState?.neverShowIconPackWarning
-                "dynamic_icon_masking" -> settingsState?.dynamicIconMasking
-                "diagnostics_overlay_enabled" -> settingsState?.diagnosticsOverlayEnabled
-                "vibration_enabled" -> settingsState?.vibrationEnabled
-                else -> null
-            }
-            dsVal ?: fallbackValue
-        } else if (prefs.contains(key) || (altKey != null && prefs.contains(altKey))) {
-            readBooleanPref(prefs, key, altKey, fallbackValue)
-        } else {
-            fallbackValue
-        }
-    }
-
-    val state = remember(key, prefs) { mutableStateOf(initialValue) }
-
-    LaunchedEffect(settingsState, datastoreKey, key) {
-        if (datastoreKey != null && settingsState != null) {
-            val dsVal = when (key) {
-                "search.apps" -> settingsState.searchApps
-                "search.contacts" -> settingsState.searchContacts
-                "search.files" -> settingsState.searchFiles
-                "search.web" -> settingsState.searchWeb
-                "search.calculator" -> settingsState.searchCalculator
-                "search.calendar" -> settingsState.searchCalendar
-                "search.shortcuts" -> settingsState.searchShortcuts
-                "search.background.show.wall" -> settingsState.showWallpaper
-                "app_animations", "app.animation" -> settingsState.appAnimations
-                "settings.bottom.search" -> settingsState.bottomSearch
-                "settings.bottom.search.result" -> settingsState.bottomSearchResult
-                "g_icon_enabled" -> settingsState.gIconEnabled
-                "widget_show_voice" -> settingsState.widgetShowVoice
-                "widget_show_gemini" -> settingsState.widgetShowGemini
-                "quick_search_youtube" -> settingsState.quickSearchYoutube
-                "quick_search_wikipedia" -> settingsState.quickSearchWikipedia
-                "quick_search_play_store" -> settingsState.quickSearchPlayStore
-                "quick_search_maps" -> settingsState.quickSearchMaps
-                "app_quick_launch" -> settingsState.appQuickLaunch
-                "contact_direct_call" -> settingsState.contactDirectCall
-                "shortcut.inline" -> settingsState.shortcutInline
-                "app.fuzzy.search" -> settingsState.appFuzzySearch
-                "quick.search.horizontal", "quick_search_horizontal" -> settingsState.quickSearchHorizontal
-                "search.files.hidden.files" -> settingsState.filesHiddenFiles
-                "search.files.thumbnails" -> settingsState.filesThumbnails
-                "tutorial_completed" -> settingsState.tutorialCompleted
-                "force_tutorial" -> settingsState.forceTutorial
-                "context_aware_quick_apps" -> settingsState.contextAwareQuickApps
-                "smart_clipboard_suggestions" -> settingsState.smartClipboardSuggestions
-                "search_previous_searches" -> settingsState.searchPreviousSearches
-                "search_overlay_enabled" -> settingsState.searchOverlayEnabled
-                "matrix_animation_enabled" -> settingsState.matrixAnimationEnabled
-                "settings_back_to_search_overlay" -> settingsState.backToSearchOverlay
-                "never_show_icon_pack_warning" -> settingsState.neverShowIconPackWarning
-                "dynamic_icon_masking" -> settingsState.dynamicIconMasking
-                "diagnostics_overlay_enabled" -> settingsState.diagnosticsOverlayEnabled
-                "vibration_enabled" -> settingsState.vibrationEnabled
-                else -> null
-            }
-            if (dsVal != null && mirrorGuard.shouldAcceptEmission(dsVal) && state.value != dsVal) {
-                state.value = dsVal
-            }
-        }
-    }
-
-    if (datastoreKey == null) {
-        val listener = remember(prefs, key, altKey) {
-            SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
-                if (changedKey == key || (altKey != null && changedKey == altKey)) {
-                    state.value = readBooleanPref(sharedPreferences, key, altKey, currentFallbackValue)
-                }
-            }
-        }
-
-        DisposableEffect(prefs, listener) {
-            prefs.registerOnSharedPreferenceChangeListener(listener)
-            onDispose {
-                prefs.unregisterOnSharedPreferenceChangeListener(listener)
-            }
-        }
-    }
-
-    return remember(key, prefs, altKey, datastoreKey) {
-        object : MutableState<Boolean> {
-            override var value: Boolean
-                get() = state.value
-                set(v) {
-                    if (state.value == v) return
-                    state.value = v
-                    mirrorGuard.markWrite(v)
-                    val vm = currentViewModel
-                    if (datastoreKey != null && vm != null) {
-                        vm.updateSetting(datastoreKey, v)
-                    } else {
-                        prefs.edit().apply {
-                            putBoolean(key, v)
-                            if (altKey != null) putBoolean(altKey, v)
-                            apply()
-                        }
-                    }
-                    currentOnChanged()
-                }
-            override operator fun component1() = value
-            override operator fun component2(): (Boolean) -> Unit = { value = it }
-        }
-    }
-}
-
-private val SEARCH_WEIGHT_APPS_KEY = androidx.datastore.preferences.core.intPreferencesKey("search_weight_apps")
-private val SEARCH_WEIGHT_CONTACTS_KEY = androidx.datastore.preferences.core.intPreferencesKey("search_weight_contacts")
-private val SEARCH_WEIGHT_FILES_KEY = androidx.datastore.preferences.core.intPreferencesKey("search_weight_files")
-private val SEARCH_WEIGHT_WEB_KEY = androidx.datastore.preferences.core.intPreferencesKey("search_weight_web")
-
-@Composable
-fun rememberIntPreference(
-    prefs: SharedPreferences,
-    key: String,
-    defaultValue: Int,
-    onChanged: () -> Unit = {}
-): MutableState<Int> {
-    val viewModel = LocalSettingsViewModel.current
-    val settingsState = LocalSettingsState.current
-    val altKey = remember(key) { getAlternatePreferenceKey(key) }
-    val currentOnChanged by rememberUpdatedState(onChanged)
-    val currentViewModel by rememberUpdatedState(viewModel)
-    val currentDefaultValue by rememberUpdatedState(defaultValue)
-    val mirrorGuard = remember(key) { DataStoreMirrorGuard<Int>() }
-
-    val datastoreKey = when (key) {
-        "search.background.blur" -> SettingsManager.BACKGROUND_BLUR
-        "search.background.transparency" -> SettingsManager.BACKGROUND_TRANSPARENCY
-        "search.pill.opacity" -> SettingsManager.PILL_OPACITY
-        "tutorial_step" -> SettingsManager.TUTORIAL_STEP
-        "shortcut_results_count" -> SettingsManager.SHORTCUT_RESULTS_COUNT
-        "web_results_count" -> SettingsManager.WEB_RESULTS_COUNT
-        "contact_results_count" -> SettingsManager.CONTACT_RESULTS_COUNT
-        "file_results_count" -> SettingsManager.FILE_RESULTS_COUNT
-        "search_weight_apps" -> SEARCH_WEIGHT_APPS_KEY
-        "search_weight_contacts" -> SEARCH_WEIGHT_CONTACTS_KEY
-        "search_weight_files" -> SEARCH_WEIGHT_FILES_KEY
-        "search_weight_web" -> SEARCH_WEIGHT_WEB_KEY
-        else -> null
-    }
-
-    val initialValue = remember(key, prefs, datastoreKey, settingsState) {
-        if (datastoreKey != null) {
-            val dsVal = when (key) {
-                "search.background.blur" -> settingsState?.backgroundBlur
-                "search.background.transparency" -> settingsState?.backgroundTransparency
-                "search.pill.opacity" -> settingsState?.pillOpacity
-                "tutorial_step" -> settingsState?.tutorialStep
-                "shortcut_results_count" -> settingsState?.shortcutResultsCount
-                "web_results_count" -> settingsState?.webResultsCount
-                "contact_results_count" -> settingsState?.contactResultsCount
-                "file_results_count" -> settingsState?.fileResultsCount
-                else -> null
-            }
-            dsVal ?: if (prefs.contains(key)) {
-                prefs.getInt(key, defaultValue)
-            } else if (altKey != null && prefs.contains(altKey)) {
-                prefs.getInt(altKey, defaultValue)
-            } else {
-                defaultValue
-            }
-        } else if (prefs.contains(key)) {
-            prefs.getInt(key, defaultValue)
-        } else if (altKey != null && prefs.contains(altKey)) {
-            prefs.getInt(altKey, defaultValue)
-        } else {
-            defaultValue
-        }
-    }
-
-    val state = remember(key, prefs) { mutableIntStateOf(initialValue) }
-
-    LaunchedEffect(settingsState, datastoreKey, key) {
-        if (datastoreKey != null && settingsState != null) {
-            val dsVal = when (key) {
-                "search.background.blur" -> settingsState.backgroundBlur
-                "search.background.transparency" -> settingsState.backgroundTransparency
-                "search.pill.opacity" -> settingsState.pillOpacity
-                "tutorial_step" -> settingsState.tutorialStep
-                "shortcut_results_count" -> settingsState.shortcutResultsCount
-                "web_results_count" -> settingsState.webResultsCount
-                "contact_results_count" -> settingsState.contactResultsCount
-                "file_results_count" -> settingsState.fileResultsCount
-                else -> null
-            }
-            if (dsVal != null && mirrorGuard.shouldAcceptEmission(dsVal) && state.intValue != dsVal) {
-                state.intValue = dsVal
-            }
-        }
-    }
-
-    if (datastoreKey == null) {
-        val listener = remember(prefs, key, altKey) {
-            SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
-                if (changedKey == key || (altKey != null && changedKey == altKey)) {
-                    state.intValue = if (sharedPreferences.contains(key)) {
-                        sharedPreferences.getInt(key, currentDefaultValue)
-                    } else if (altKey != null && sharedPreferences.contains(altKey)) {
-                        sharedPreferences.getInt(altKey, currentDefaultValue)
-                    } else {
-                        currentDefaultValue
-                    }
-                }
-            }
-        }
-
-        DisposableEffect(prefs, listener) {
-            prefs.registerOnSharedPreferenceChangeListener(listener)
-            onDispose {
-                prefs.unregisterOnSharedPreferenceChangeListener(listener)
-            }
-        }
-    }
-
-    return remember(key, prefs, altKey, datastoreKey) {
-        object : MutableState<Int> {
-            override var value: Int
-                get() = state.intValue
-                set(v) {
-                    if (state.intValue == v) return
-                    state.intValue = v
-                    mirrorGuard.markWrite(v)
-                    val vm = currentViewModel
-                    if (datastoreKey != null && vm != null) {
-                        vm.updateSetting(datastoreKey, v)
-                    } else {
-                        prefs.edit().apply {
-                            putInt(key, v)
-                            if (altKey != null) putInt(altKey, v)
-                            apply()
-                        }
-                    }
-                    currentOnChanged()
-                }
-            override operator fun component1() = value
-            override operator fun component2(): (Int) -> Unit = { value = it }
-        }
-    }
-}
-
-@Composable
-fun rememberStringPreference(
-    prefs: SharedPreferences,
-    key: String,
-    defaultValue: String,
-    onChanged: () -> Unit = {}
-): MutableState<String> {
-    val viewModel = LocalSettingsViewModel.current
-    val settingsState = LocalSettingsState.current
-    val altKey = remember(key) { getAlternatePreferenceKey(key) }
-    val currentOnChanged by rememberUpdatedState(onChanged)
-    val currentViewModel by rememberUpdatedState(viewModel)
-    val currentDefaultValue by rememberUpdatedState(defaultValue)
-    val mirrorGuard = remember(key) { DataStoreMirrorGuard<String>() }
-
-    val datastoreKey = when (key) {
-        "night.mode" -> SettingsManager.THEME
-        "search.engine" -> SettingsManager.SEARCH_ENGINE
-        "custom_search_engine_url" -> SettingsManager.CUSTOM_SEARCH_ENGINE_URL
-        "widget.theme.style" -> SettingsManager.WIDGET_THEME_STYLE
-        "search.pills" -> SettingsManager.SEARCH_PILLS
-        "custom_icon_pills" -> SettingsManager.CUSTOM_ICON_PILLS
-        "active_icon_pack" -> SettingsManager.ACTIVE_ICON_PACK
-        "adaptive_icon_shape" -> SettingsManager.ADAPTIVE_ICON_SHAPE
-        else -> null
-    }
-
-    val initialValue = remember(key, prefs, datastoreKey, settingsState) {
-        if (datastoreKey != null) {
-            val dsVal = when (key) {
-                "night.mode" -> settingsState?.theme
-                "search.engine" -> settingsState?.searchEngine
-                "custom_search_engine_url" -> settingsState?.customSearchEngineUrl
-                "widget.theme.style" -> settingsState?.widgetThemeStyle
-                "search.pills" -> settingsState?.searchPills
-                "custom_icon_pills" -> settingsState?.customIconPills
-                "active_icon_pack" -> settingsState?.activeIconPack
-                "adaptive_icon_shape" -> settingsState?.adaptiveIconShape
-                else -> null
-            }
-            dsVal ?: defaultValue
-        } else if (prefs.contains(key)) {
-            prefs.getString(key, defaultValue) ?: defaultValue
-        } else if (altKey != null && prefs.contains(altKey)) {
-            prefs.getString(altKey, defaultValue) ?: defaultValue
-        } else {
-            defaultValue
-        }
-    }
-
-    val state = remember(key, prefs) { mutableStateOf(initialValue) }
-
-    LaunchedEffect(settingsState, datastoreKey, key) {
-        if (datastoreKey != null && settingsState != null) {
-            val dsVal = when (key) {
-                "night.mode" -> settingsState.theme
-                "search.engine" -> settingsState.searchEngine
-                "custom_search_engine_url" -> settingsState.customSearchEngineUrl
-                "widget.theme.style" -> settingsState.widgetThemeStyle
-                "search.pills" -> settingsState.searchPills
-                "custom_icon_pills" -> settingsState.customIconPills
-                "active_icon_pack" -> settingsState.activeIconPack
-                "adaptive_icon_shape" -> settingsState.adaptiveIconShape
-                else -> null
-            }
-            if (dsVal != null && mirrorGuard.shouldAcceptEmission(dsVal) && state.value != dsVal) {
-                state.value = dsVal
-            }
-        }
-    }
-
-    if (datastoreKey == null) {
-        val listener = remember(prefs, key, altKey) {
-            SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, changedKey ->
-                if (changedKey == key || (altKey != null && changedKey == altKey)) {
-                    state.value = if (sharedPreferences.contains(key)) {
-                        sharedPreferences.getString(key, currentDefaultValue) ?: currentDefaultValue
-                    } else if (altKey != null && sharedPreferences.contains(altKey)) {
-                        sharedPreferences.getString(altKey, currentDefaultValue) ?: currentDefaultValue
-                    } else {
-                        currentDefaultValue
-                    }
-                }
-            }
-        }
-
-        DisposableEffect(prefs, listener) {
-            prefs.registerOnSharedPreferenceChangeListener(listener)
-            onDispose {
-                prefs.unregisterOnSharedPreferenceChangeListener(listener)
-            }
-        }
-    }
-
-    return remember(key, prefs, altKey, datastoreKey) {
-        object : MutableState<String> {
-            override var value: String
-                get() = state.value
-                set(v) {
-                    if (state.value == v) return
-                    state.value = v
-                    mirrorGuard.markWrite(v)
-                    val vm = currentViewModel
-                    if (datastoreKey != null && vm != null) {
-                        vm.updateSetting(datastoreKey, v)
-                    } else {
-                        prefs.edit().apply {
-                            putString(key, v)
-                            if (altKey != null) putString(altKey, v)
-                            apply()
-                        }
-                    }
-                    if (key == "active_icon_pack") {
-                        com.pixel.intelligentsearch.feature.search.clearThemedIconCache()
-                    }
-                    currentOnChanged()
-                }
-            override operator fun component1() = value
-            override operator fun component2(): (String) -> Unit = { value = it }
-        }
-    }
-}
-
-internal tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is android.content.ContextWrapper -> baseContext.findActivity()
-    else -> null
-}
-
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun SettingsScreensHub(
@@ -1092,7 +490,7 @@ fun SettingsScreensHub(
         val handleExitBack: () -> Unit = {
             SettingsDebouncer.recordClick()
             val act = context.findActivity() ?: (context as? Activity)
-            val isBackToOverlay = prefs.getBoolean("settings_back_to_search_overlay", settingsState.backToSearchOverlay)
+            val isBackToOverlay = prefs[SettingsManager.BACK_TO_SEARCH_OVERLAY]
             if (act != null) {
                 if (isBackToOverlay) {
                     if (act.isTaskRoot || !fromSearchOverlay) {
@@ -1195,7 +593,7 @@ fun SettingsScreensHub(
                 }
         ) {
             var showTutorial by remember { mutableStateOf(TutorialManager.isTutorialActive(prefs)) }
-            val tutorialCompleted by rememberBooleanPreference(prefs, "tutorial_completed", false) {}
+            val tutorialCompleted by rememberSetting(SettingsManager.TUTORIAL_COMPLETED) {}
             
             // Reactively sync tutorial visibility with the completed pref so it stays dismissed
             // permanently after finishing, but re-activates if force-tutorial resets it.
@@ -1207,7 +605,7 @@ fun SettingsScreensHub(
                 }
             }
 
-            val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
+            val morphAnimationEnabled by rememberSetting(SettingsManager.MORPH_ANIMATION_ENABLED) {}
 
             Box(
                 modifier = Modifier
@@ -1269,12 +667,12 @@ fun SettingsScreensHub(
                     composable<com.pixel.intelligentsearch.core.navigation.Route.ManageHiddenApps> { ManageHiddenAppsScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.BackupRestore> { BackupRestoreScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Debug> {
-                        if (com.pixel.intelligentsearch.BuildConfig.DEBUG && prefs.getBoolean("debug_unlocked", false)) {
+                        if (com.pixel.intelligentsearch.BuildConfig.DEBUG && prefs[SettingsManager.DEBUG_UNLOCKED]) {
                             DebugScreen(
                                 prefs = prefs,
                                 onBack = onBack,
                                 onDisableDebug = {
-                                    prefs.edit().putBoolean("debug_unlocked", false).apply()
+                                    prefs.edit().put(SettingsManager.DEBUG_UNLOCKED, false).apply()
                                     if (!navController.popBackStack()) {
                                         navController.navigate(com.pixel.intelligentsearch.core.navigation.Route.Main) {
                                             popUpTo(0)
@@ -1490,12 +888,12 @@ fun MainSettingsScreen(
         if (showInfoDialog) {
             val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { 3 })
             val coroutineScope = rememberCoroutineScope()
-            val secureRepo = remember { com.pixel.intelligentsearch.core.security.SecureSettingsRepository(context) }
+            val keystore = remember { context.appEntryPoint.strongBoxSecurityManager() }
             val attestationVerifier = remember { com.pixel.intelligentsearch.core.security.KeyAttestationVerifier(context) }
             val hardwareLevel by androidx.compose.runtime.produceState(initialValue = if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)) com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX else com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE) {
                 // A Keystore failure keeps the feature-flag estimate instead of crashing Settings.
                 value = try {
-                    withContext(Dispatchers.IO) { secureRepo.getHardwareSecurityLevel() }
+                    withContext(Dispatchers.IO) { keystore.deviceKeySecurityLevel() }
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     android.util.Log.w("SettingsScreens", "Could not read hardware security level", e)
@@ -2041,9 +1439,9 @@ fun MainSettingsScreen(
                     },
                     showDivider = true,
                 )
-                val rawDebugUnlocked by rememberBooleanPreference(prefs, "debug_unlocked", false)
+                val rawDebugUnlocked by rememberSetting(SettingsManager.DEBUG_UNLOCKED)
                 val isDebugUnlocked = com.pixel.intelligentsearch.BuildConfig.DEBUG && rawDebugUnlocked
-                val searchEngine = prefs.getString("search.engine", "Google") ?: "Google"
+                val searchEngine = prefs[SettingsManager.SEARCH_ENGINE]
                 var showTorBrowserSettingsDialog by remember { mutableStateOf(false) }
                 val browserHistorySubtitle = when (searchEngine) {
                     "Google" -> "View Your Chrome and Google History."
@@ -3262,23 +2660,6 @@ fun Android17Slider(
 
 fun performClickHaptic(context: android.content.Context) {
     com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click()
-}
-
-// -----------------------------------------------------------------------------------------
-@Composable
-fun SettingsShellBox(title: String, subtitle: String, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
-        color = Color(0xFFFEF7FF),
-        tonalElevation = 2.dp
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text(text = title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1D1B20))
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = subtitle, fontSize = 14.sp, color = Color(0xFF49454F))
-        }
-    }
 }
 
 // -----------------------------------------------------------------------------------------

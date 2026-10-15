@@ -1,6 +1,5 @@
 package com.pixel.intelligentsearch.feature.widget
 
-import android.appwidget.AppWidgetManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

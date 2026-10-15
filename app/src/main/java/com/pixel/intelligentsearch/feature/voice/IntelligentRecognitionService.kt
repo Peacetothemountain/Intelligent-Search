@@ -1,13 +1,20 @@
 package com.pixel.intelligentsearch.feature.voice
 
+import android.content.AttributionSource
 import android.content.ComponentName
+import android.content.Context
+import android.content.ContextParams
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognitionService
+import android.speech.RecognitionSupport
+import android.speech.RecognitionSupportCallback
 import android.speech.SpeechRecognizer
 import android.util.Log
+import androidx.annotation.RequiresApi
 
 /**
  * The speech recognizer named in voice_interaction.xml.
@@ -28,7 +35,7 @@ class IntelligentRecognitionService : RecognitionService() {
 
     override fun onStartListening(recognizerIntent: Intent, listener: Callback) {
         destroyDelegate()
-        val recognizer = createDelegate()
+        val recognizer = createDelegate(attributedContext(listener.callingAttributionSource))
         if (recognizer == null) {
             safeError(listener, SpeechRecognizer.ERROR_CLIENT)
             return
@@ -67,23 +74,67 @@ class IntelligentRecognitionService : RecognitionService() {
         destroyDelegate()
     }
 
+    /** Lets apps ask whether a language is supported, answered by the same delegate recognizer. */
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    override fun onCheckRecognitionSupport(recognizerIntent: Intent, supportCallback: SupportCallback) {
+        val recognizer = createDelegate(this)
+        if (recognizer == null) {
+            relay { supportCallback.onError(SpeechRecognizer.ERROR_CLIENT) }
+            return
+        }
+        recognizer.checkRecognitionSupport(recognizerIntent, mainExecutor, object : RecognitionSupportCallback {
+            override fun onSupportResult(recognitionSupport: RecognitionSupport) {
+                relay { supportCallback.onSupportResult(recognitionSupport) }
+                recognizer.destroy()
+            }
+
+            override fun onError(error: Int) {
+                relay { supportCallback.onError(error) }
+                recognizer.destroy()
+            }
+        })
+    }
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    override fun onTriggerModelDownload(recognizerIntent: Intent) {
+        val recognizer = createDelegate(this) ?: return
+        try {
+            recognizer.triggerModelDownload(recognizerIntent)
+        } catch (e: Exception) {
+            Log.w(TAG, "Model download request failed", e)
+        } finally {
+            recognizer.destroy()
+        }
+    }
+
     override fun onDestroy() {
         destroyDelegate()
         super.onDestroy()
     }
 
+    /**
+     * A context that names the calling app as the next attribution source, so microphone access and the
+     * privacy indicator are attributed to the app that asked for speech, not only to Intelligent Search.
+     */
+    private fun attributedContext(caller: AttributionSource): Context = try {
+        createContext(ContextParams.Builder().setNextAttributionSource(caller).build())
+    } catch (e: Exception) {
+        Log.w(TAG, "Could not attribute recognition to the caller", e)
+        this
+    }
+
     /** The on-device recognizer, else another app's recognition service; never the default one. */
-    private fun createDelegate(): SpeechRecognizer? {
+    private fun createDelegate(context: Context): SpeechRecognizer? {
         try {
-            if (SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
-                return SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+            if (SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+                return SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
             }
         } catch (e: Exception) {
             Log.w(TAG, "On-device recognizer unavailable", e)
         }
         val other = findOtherRecognitionService() ?: return null
         return try {
-            SpeechRecognizer.createSpeechRecognizer(this, other)
+            SpeechRecognizer.createSpeechRecognizer(context, other)
         } catch (e: Exception) {
             Log.w(TAG, "Could not bind recognition service $other", e)
             null

@@ -35,7 +35,10 @@ class OverlayGoldenTest(private val state: String, private val query: String, pr
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
     @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>()
 
-    @Before fun inject() = hilt.inject()
+    @Before fun inject() {
+        hilt.inject()
+        disableHandRolledAnimations()
+    }
 
     @Test
     fun overlay() {
@@ -63,12 +66,7 @@ class OverlayGoldenTest(private val state: String, private val query: String, pr
                 )
             }
         }
-        // Let the query's background work finish, then step the frozen clock past the entry animation.
-        repeat(20) {
-            Thread.sleep(100)
-            shadowOf(Looper.getMainLooper()).idle()
-            compose.mainClock.advanceTimeBy(200)
-        }
+        compose.settle()
         compose.onRoot().captureRoboImage(
             filePath = "src/test/screenshots/overlay/${state}_${if (dark) "dark" else "light"}.png",
             roborazziOptions = SettingsGoldenTest.GOLDEN_OPTIONS

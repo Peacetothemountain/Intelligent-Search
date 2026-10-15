@@ -1,0 +1,180 @@
+package com.pixel.intelligentsearch.core.data.widget
+
+import android.content.SharedPreferences
+import android.graphics.Color
+import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.get
+
+/** The two widget designs, each with its own saved customization under its own key prefix. */
+enum class WidgetDesign(val prefix: String, val themeStyle: String) {
+    SYSTEM("widget_system", "System Default"),
+    MATERIAL("widget_material", "Material You (Minimal)");
+
+    val savedFlagKey: String get() = "${prefix}_design_saved"
+
+    companion object {
+        fun fromThemeStyle(style: String): WidgetDesign = if (style == SYSTEM.themeStyle) SYSTEM else MATERIAL
+    }
+}
+
+/** Custom colours for each widget element (used by the "Custom" G icon style). */
+data class WidgetElementColors(
+    val gIcon: Int,
+    val mic: Int,
+    val shortcut1: Int,
+    val shortcut2: Int,
+    val shortcut3: Int,
+    val action: Int
+)
+
+/**
+ * Everything the user customizes for one widget design. Hue is 0..360, saturation, lightness, colour opacity
+ * and background transparency are 0..100 (what the sliders show). [lockBlack] and [actionIcon] only apply to
+ * the Material design.
+ */
+data class WidgetDesignSettings(
+    val subtheme: String,
+    val gIconTheme: String,
+    val elementColors: WidgetElementColors,
+    val syncColors: Boolean,
+    val keepSystemG: Boolean,
+    val hue: Float,
+    val saturation: Float,
+    val lightness: Float,
+    val colorOpacity: Float,
+    val transparency: Float,
+    val showGIcon: Boolean,
+    val showVoice: Boolean,
+    val shortcut1: String,
+    val shortcut2: String,
+    val shortcut3: String,
+    val slotOrder: String,
+    val lockBlack: Boolean,
+    val actionIcon: String
+) {
+    /** The custom pill colour these settings produce (what the widget draws for the "Custom" subtheme). */
+    val customColorInt: Int
+        get() = Color.HSVToColor(
+            (colorOpacity / 100f * 255).toInt().coerceIn(0, 255),
+            floatArrayOf(hue, (saturation / 100f).coerceIn(0f, 1f), (lightness / 100f).coerceIn(0f, 1f))
+        )
+}
+
+/**
+ * Values that depend on the device rather than on stored settings: the theme's primary colour (default for
+ * custom element colours, hue and saturation), and whether dynamic colour is active (default G icon style).
+ */
+data class WidgetDefaults(val primaryColor: Int, val isDynamicColorActive: Boolean) {
+    private val hsv = FloatArray(3).also { Color.colorToHSV(primaryColor, it) }
+    val hue: Int get() = hsv[0].toInt()
+    val saturation: Int get() = (hsv[1] * 100f).toInt()
+}
+
+/**
+ * Reads and writes widget design settings. The single place that knows the per-design key names and the
+ * fallbacks to the keys older versions shared between designs ("widget_custom_hue", "widget_shortcut_1", ...),
+ * so the settings screen and the widget renderer can't disagree.
+ */
+class WidgetSettingsStore(private val prefs: SharedPreferences) {
+
+    fun isSaved(design: WidgetDesign): Boolean = prefs.getBoolean(design.savedFlagKey, false)
+
+    fun load(design: WidgetDesign, defaults: WidgetDefaults): WidgetDesignSettings {
+        val p = design.prefix
+        val saved = isSaved(design)
+        val isSystem = design == WidgetDesign.SYSTEM
+
+        fun string(key: String, legacy: String, default: String): String =
+            prefs.getString("${p}_$key", if (saved) prefs.getString(legacy, default) else default) ?: default
+        fun int(key: String, legacy: String, default: Int): Int =
+            prefs.getInt("${p}_$key", if (saved) prefs.getInt(legacy, default) else default)
+        fun savedBoolean(key: String, legacy: String, default: Boolean): Boolean =
+            if (saved) prefs.getBoolean("${p}_$key", prefs.getBoolean(legacy, default)) else default
+        // Element colours: per-design key, else the old shared key, else the theme colour. The old builds wrote
+        // Google blue as a placeholder; an unsaved placeholder means "use the theme colour".
+        fun color(key: String): Int {
+            val perDesign = "${p}_custom_${key}_color"
+            val value = prefs.getInt(perDesign, prefs.getInt("widget_custom_${key}_color", defaults.primaryColor))
+            return if (value == GOOGLE_BLUE_PLACEHOLDER && !prefs.contains(perDesign)) defaults.primaryColor else value
+        }
+        // Hue 277 / saturation 51 were the old hard-coded defaults; when not saved for this design, use the theme's.
+        fun themed(key: String, legacy: String, oldDefault: Int, themeDefault: Int): Int {
+            val value = int(key, legacy, themeDefault)
+            return if (value == oldDefault && !prefs.contains("${p}_$key")) themeDefault else value
+        }
+        fun shortcut(n: Int, default: String): String =
+            string("shortcut_$n", "widget_shortcut_$n", default).let { if (it == "Voice Search") "None" else it }
+
+        val defaultGIcon = if (isSystem) {
+            if (defaults.isDynamicColorActive) "Material G Icon" else "System G Icon"
+        } else "Material G Icon"
+
+        return WidgetDesignSettings(
+            subtheme = string("subtheme", "widget_subtheme", if (isSystem) "System" else "Material"),
+            gIconTheme = string("material_g_icon", "widget_material_g_icon", defaultGIcon),
+            elementColors = WidgetElementColors(
+                gIcon = color("g_icon"),
+                mic = color("mic"),
+                shortcut1 = color("shortcut1"),
+                shortcut2 = color("shortcut2"),
+                shortcut3 = color("shortcut3"),
+                action = color("action_icon")
+            ),
+            syncColors = prefs.getBoolean("${p}_custom_sync_colors", prefs.getBoolean("widget_custom_sync_colors", false)),
+            keepSystemG = prefs.getBoolean("${p}_custom_keep_system_g", prefs.getBoolean("widget_custom_keep_system_g", false)),
+            hue = themed("custom_hue", "widget_custom_hue", 277, defaults.hue).toFloat(),
+            saturation = themed("custom_saturation", "widget_custom_saturation", 51, defaults.saturation).toFloat(),
+            lightness = int("custom_lightness", "widget_custom_lightness", 100).toFloat(),
+            colorOpacity = int("custom_color_opacity", "widget_custom_color_opacity", 100).toFloat(),
+            transparency = int("background_transparency", "widget.background.transparency", if (isSystem) 0 else 28).toFloat(),
+            showGIcon = savedBoolean("show_g_icon", "widget_show_g_icon", default = true),
+            showVoice = if (saved) prefs.getBoolean("${p}_show_voice", prefs[SettingsManager.WIDGET_SHOW_VOICE]) else true,
+            shortcut1 = shortcut(1, "Google Lens"),
+            shortcut2 = shortcut(2, "None"),
+            shortcut3 = shortcut(3, "None"),
+            slotOrder = string("shortcut_order", "widget_shortcut_order", DEFAULT_SLOT_ORDER),
+            lockBlack = prefs.getBoolean("${p}_lock_black", true),
+            actionIcon = string("action_icon", "widget_action_icon", "Search")
+        )
+    }
+
+    /** Writes [settings] for [design] into [editor] and marks the design saved; the caller applies the edit. */
+    fun save(design: WidgetDesign, settings: WidgetDesignSettings, editor: SharedPreferences.Editor) {
+        val p = design.prefix
+        val c = settings.elementColors
+        editor
+            .putBoolean(design.savedFlagKey, true)
+            .putString("${p}_subtheme", settings.subtheme)
+            .putString("${p}_material_g_icon", settings.gIconTheme)
+            .putInt("${p}_custom_g_icon_color", c.gIcon)
+            .putInt("${p}_custom_mic_color", c.mic)
+            .putInt("${p}_custom_shortcut1_color", c.shortcut1)
+            .putInt("${p}_custom_shortcut2_color", c.shortcut2)
+            .putInt("${p}_custom_shortcut3_color", c.shortcut3)
+            .putInt("${p}_custom_action_icon_color", c.action)
+            .putBoolean("${p}_custom_sync_colors", settings.syncColors)
+            .putBoolean("${p}_custom_keep_system_g", settings.keepSystemG)
+            .putInt("${p}_custom_hue", settings.hue.toInt())
+            .putInt("${p}_custom_saturation", settings.saturation.toInt())
+            .putInt("${p}_custom_lightness", settings.lightness.toInt())
+            .putInt("${p}_custom_color_opacity", settings.colorOpacity.toInt())
+            .putInt("${p}_custom_color_int", settings.customColorInt)
+            .putInt("${p}_background_transparency", settings.transparency.toInt())
+            .putBoolean("${p}_show_g_icon", settings.showGIcon)
+            .putBoolean("${p}_show_voice", settings.showVoice)
+            .putString("${p}_shortcut_1", settings.shortcut1)
+            .putString("${p}_shortcut_2", settings.shortcut2)
+            .putString("${p}_shortcut_3", settings.shortcut3)
+            .putString("${p}_shortcut_order", settings.slotOrder)
+        if (design == WidgetDesign.MATERIAL) {
+            editor
+                .putBoolean("${p}_lock_black", settings.lockBlack)
+                .putString("${p}_action_icon", settings.actionIcon)
+        }
+    }
+
+    companion object {
+        const val DEFAULT_SLOT_ORDER = "shortcut1,mic,shortcut2,shortcut3"
+        private const val GOOGLE_BLUE_PLACEHOLDER = 0xFF4285F4.toInt()
+    }
+}

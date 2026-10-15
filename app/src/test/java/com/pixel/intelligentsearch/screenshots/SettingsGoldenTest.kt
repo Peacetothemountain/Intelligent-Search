@@ -53,7 +53,10 @@ class SettingsGoldenTest(private val page: String, private val dark: Boolean) {
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
     @get:Rule(order = 1) val compose = createComposeRule()
 
-    @Before fun inject() = hilt.inject()
+    @Before fun inject() {
+        hilt.inject()
+        disableHandRolledAnimations()
+    }
 
     private val prefs: SharedPreferences
         get() = ApplicationProvider.getApplicationContext<Context>()
@@ -93,7 +96,7 @@ class SettingsGoldenTest(private val page: String, private val dark: Boolean) {
                 ) { Page(page) }
             }
         }
-        compose.mainClock.advanceTimeBy(1_200)
+        compose.settle()
         compose.onRoot().captureRoboImage(
             filePath = "src/test/screenshots/settings/${page}_${if (dark) "dark" else "light"}.png",
             roborazziOptions = GOLDEN_OPTIONS

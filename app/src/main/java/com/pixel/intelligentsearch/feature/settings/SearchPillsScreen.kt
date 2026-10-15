@@ -548,7 +548,6 @@ fun SearchPillsScreen(
                                 }
                             }
 
-                            val displayShiftY = if (isReordering) itemShiftAnim.value else 0f
 
                             val itemModifier = if (isDragging) {
                                 Modifier
@@ -574,7 +573,8 @@ fun SearchPillsScreen(
                                     )
                                     .zIndex(0f)
                                     .graphicsLayer {
-                                        translationY = displayShiftY
+                                        // Read here, in the draw phase, so the shift animation doesn't recompose the row.
+                                        translationY = if (isReordering) itemShiftAnim.value else 0f
                                     }
                             }
 

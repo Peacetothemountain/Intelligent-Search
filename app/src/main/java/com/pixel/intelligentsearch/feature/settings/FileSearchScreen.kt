@@ -238,53 +238,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                var fileWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_FILES)
-                val fileLevelIndex = remember(fileWeight) { PriorityWeightHelper.weightToLevelIndex(fileWeight) }
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "File Priority Weight: ${PriorityWeightHelper.levelLabel(fileLevelIndex)}",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        IconButton(
-                            onClick = {
-                                performClickHaptic(context)
-                                fileWeight = PriorityWeightHelper.DEFAULT_WEIGHT
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.RestartAlt,
-                                contentDescription = "Reset to Default",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                    Text(
-                        text = "Adjust Ranking Priority of File Search.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Android17Slider(
-                        label = "File priority weight",
-                        value = fileLevelIndex.toFloat(),
-                        onValueChange = { newValue ->
-                            val idx = Math.round(newValue).coerceIn(0, PriorityWeightHelper.LEVELS.size - 1)
-                            fileWeight = PriorityWeightHelper.levelIndexToWeight(idx)
-                        },
-                        valueRange = 0f..(PriorityWeightHelper.LEVELS.size - 1).toFloat(),
-                        steps = PriorityWeightHelper.LEVELS.size - 2,
-                        isSquiggly = false,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
-                    )
-                }
+                PrioritySetting(SettingsManager.SEARCH_WEIGHT_FILES, "File", largeTitle = true)
             }
         }
     }

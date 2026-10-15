@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch.feature.search
+import androidx.compose.foundation.gestures.detectTapGestures
 import com.pixel.intelligentsearch.feature.widget.getLensSearchIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceActionIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceSearchIntent
@@ -2362,11 +2363,11 @@ fun SearchOverlayScreen(
                     }
                 )
             }
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                if (!showTutorial) closeOverlay()
+            // Tap on the empty background closes the overlay. A plain gesture rather than clickable(): clickable
+            // made the whole overlay one merged accessibility node (TalkBack read it as a single button, and the
+            // tutorial's pane title inside it crashed). Children's own clicks consume the tap first, as before.
+            .pointerInput(showTutorial) {
+                detectTapGestures(onTap = { if (!showTutorial) closeOverlay() })
             },
         contentAlignment = Alignment.BottomCenter
     ) {

@@ -116,20 +116,9 @@ class GlobalSearchProvider : ContentProvider() {
                 isTorEngine -> "https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q=$encoded"
                 engine == "DuckDuckGo" -> "https://duckduckgo.com/?q=$encoded"
                 engine == "Bing" -> "https://www.bing.com/search?q=$encoded"
-                isCustomEngine -> {
-                    if (customUrl.isNotBlank()) {
-                        val rawUrl = if (customUrl.contains("%s")) {
-                            customUrl.replace("%s", encoded)
-                        } else {
-                            "$customUrl$encoded"
-                        }
-                        if (rawUrl.startsWith("http://", ignoreCase = true) || rawUrl.startsWith("https://", ignoreCase = true)) {
-                            rawUrl
-                        } else {
-                            "https://$rawUrl"
-                        }
-                    } else "https://www.google.com/search?q=$encoded"
-                }
+                // An invalid or empty custom address falls back to Google rather than being opened.
+                isCustomEngine -> com.pixel.intelligentsearch.core.security.CustomSearchUrl.build(customUrl, q)?.toString()
+                    ?: "https://www.google.com/search?q=$encoded"
                 else -> "https://www.google.com/search?q=$encoded"
             }
         }

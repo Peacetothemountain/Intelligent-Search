@@ -140,17 +140,6 @@ class MaterialYouPaletteHelperTest {
     }
 
     @Test
-    fun testPixelHapticTypeCoverage() {
-        val types = com.pixel.intelligentsearch.core.haptics.PixelHapticType.values()
-        assertTrue(types.contains(com.pixel.intelligentsearch.core.haptics.PixelHapticType.SEARCH_RESULT_COMMIT))
-        assertTrue(types.contains(com.pixel.intelligentsearch.core.haptics.PixelHapticType.SEGMENT_SWITCH))
-        assertTrue(types.contains(com.pixel.intelligentsearch.core.haptics.PixelHapticType.EXPAND_COLLAPSE))
-        assertTrue(types.contains(com.pixel.intelligentsearch.core.haptics.PixelHapticType.SLIDER_DETENT))
-        assertTrue(types.contains(com.pixel.intelligentsearch.core.haptics.PixelHapticType.WARP_SPEED))
-        assertTrue(types.contains(com.pixel.intelligentsearch.core.haptics.PixelHapticType.PREDICTIVE_BACK_PROGRESS))
-    }
-
-    @Test
     fun testDarkenForContrast_preservesHueAndReducesTone() {
         val lightColors = MaterialYouPaletteHelper.getMaterialYouTonalColors(
             hue = 277f,

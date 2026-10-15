@@ -8,7 +8,7 @@
         errorLine2="                       ~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/backup/BackupManager.kt"
-            line="510"
+            line="509"
             column="24"/>
     </issue>
 
@@ -414,7 +414,7 @@
         errorLine2="                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/AnimatedMatrixBackground.kt"
-            line="243"
+            line="244"
             column="32"/>
     </issue>
 
@@ -443,33 +443,11 @@
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                                prefs.edit().put(SettingsManager.SHORTCUT_RESULTS_COUNT, 6).apply()"
-        errorLine2="                                ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/AppSearchScreen.kt"
-            line="142"
-            column="33"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                                    prefs.edit()"
-        errorLine2="                                    ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/AppSearchScreen.kt"
-            line="171"
-            column="37"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
         errorLine1="                val editor = sharedPrefs.edit()"
         errorLine2="                             ~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/backup/BackupManager.kt"
-            line="451"
+            line="450"
             column="30"/>
     </issue>
 
@@ -482,28 +460,6 @@
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/BackupRestoreScreen.kt"
             line="102"
             column="23"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                                    prefs.edit().put(SettingsManager.NEVER_SHOW_ICON_PACK_WARNING, true).apply()"
-        errorLine2="                                    ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/CustomIconsScreen.kt"
-            line="178"
-            column="37"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                                                        prefs.edit()"
-        errorLine2="                                                        ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/CustomIconsScreen.kt"
-            line="366"
-            column="57"/>
     </issue>
 
     <issue
@@ -546,19 +502,8 @@
         errorLine2="                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/MainActivity.kt"
-            line="120"
+            line="118"
             column="38"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="            prefs.edit()"
-        errorLine2="            ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/MainActivity.kt"
-            line="131"
-            column="13"/>
     </issue>
 
     <issue
@@ -568,41 +513,8 @@
         errorLine2="                                                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/MainSettingsScreen.kt"
-            line="655"
+            line="656"
             column="69"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(&quot;https://www.bing.com/profile/history&quot;)).apply {"
-        errorLine2="                                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/MainSettingsScreen.kt"
-            line="681"
-            column="77"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                        ?: Intent(Intent.ACTION_VIEW, android.net.Uri.parse(&quot;https://duckduckgo.com&quot;)).apply {"
-        errorLine2="                                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/MainSettingsScreen.kt"
-            line="693"
-            column="71"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(&quot;https://myactivity.google.com/myactivity?product=6&quot;)).apply {"
-        errorLine2="                                                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/MainSettingsScreen.kt"
-            line="715"
-            column="73"/>
     </issue>
 
     <issue
@@ -623,7 +535,7 @@
         errorLine2="                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/util/MaterialOutlineManager.kt"
-            line="72"
+            line="51"
             column="22"/>
     </issue>
 
@@ -634,7 +546,7 @@
         errorLine2="                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/util/MaterialOutlineManager.kt"
-            line="224"
+            line="203"
             column="29"/>
     </issue>
 
@@ -645,7 +557,7 @@
         errorLine2="                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/util/MaterialOutlineManager.kt"
-            line="255"
+            line="234"
             column="29"/>
     </issue>
 
@@ -656,7 +568,7 @@
         errorLine2="                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/util/MaterialOutlineManager.kt"
-            line="335"
+            line="314"
             column="31"/>
     </issue>
 
@@ -667,7 +579,7 @@
         errorLine2="            ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/system/NativeAppPredictionProvider.kt"
-            line="90"
+            line="89"
             column="13"/>
     </issue>
 
@@ -678,7 +590,7 @@
         errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
-            line="332"
+            line="341"
             column="24"/>
     </issue>
 
@@ -689,7 +601,7 @@
         errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
-            line="332"
+            line="341"
             column="24"/>
     </issue>
 
@@ -700,7 +612,7 @@
         errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
-            line="337"
+            line="346"
             column="24"/>
     </issue>
 
@@ -711,7 +623,7 @@
         errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
-            line="337"
+            line="346"
             column="24"/>
     </issue>
 
@@ -722,7 +634,7 @@
         errorLine2="                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
-            line="393"
+            line="402"
             column="19"/>
     </issue>
 
@@ -733,7 +645,7 @@
         errorLine2="                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
-            line="412"
+            line="421"
             column="19"/>
     </issue>
 
@@ -773,23 +685,12 @@
     <issue
         id="UseKtx"
         message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="            val scheme = Uri.parse(url).scheme?.lowercase(Locale.ROOT)"
-        errorLine2="                         ~~~~~~~~~~~~~~">
+        errorLine1="            ?: Uri.parse(&quot;https://www.google.com/search?q=${Uri.encode(query)}&quot;)"
+        errorLine2="               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/bangs/SearchBangManager.kt"
-            line="318"
-            column="26"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="        return Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).apply {"
-        errorLine2="                                          ~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/core/bangs/SearchBangManager.kt"
-            line="321"
-            column="43"/>
+            line="317"
+            column="16"/>
     </issue>
 
     <issue
@@ -799,30 +700,8 @@
         errorLine2="            ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/bangs/SearchBangManager.kt"
-            line="372"
+            line="369"
             column="13"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                        val host = Uri.parse("
-        errorLine2="                                   ^">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="143"
-            column="36"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                    Intent(Intent.ACTION_VIEW, Uri.parse(fullUrl)).apply {"
-        errorLine2="                                               ~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="350"
-            column="48"/>
     </issue>
 
     <issue
@@ -832,7 +711,7 @@
         errorLine2="                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="362"
+            line="346"
             column="60"/>
     </issue>
 
@@ -843,7 +722,7 @@
         errorLine2="                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="377"
+            line="361"
             column="61"/>
     </issue>
 
@@ -854,7 +733,7 @@
         errorLine2="                                               ~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="400"
+            line="384"
             column="48"/>
     </issue>
 
@@ -865,7 +744,7 @@
         errorLine2="                                ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="818"
+            line="802"
             column="33"/>
     </issue>
 
@@ -876,7 +755,7 @@
         errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="859"
+            line="843"
             column="76"/>
     </issue>
 
@@ -887,7 +766,7 @@
         errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="861"
+            line="845"
             column="76"/>
     </issue>
 
@@ -898,7 +777,7 @@
         errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="865"
+            line="849"
             column="76"/>
     </issue>
 
@@ -909,7 +788,7 @@
         errorLine2="                                                                                             ~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="888"
+            line="872"
             column="94"/>
     </issue>
 
@@ -920,7 +799,7 @@
         errorLine2="                                                                           ~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1078"
+            line="1062"
             column="76"/>
     </issue>
 
@@ -931,7 +810,7 @@
         errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1084"
+            line="1068"
             column="76"/>
     </issue>
 
@@ -942,7 +821,7 @@
         errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1097"
+            line="1081"
             column="76"/>
     </issue>
 
@@ -953,7 +832,7 @@
         errorLine2="                                                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1486"
+            line="1470"
             column="80"/>
     </issue>
 
@@ -964,7 +843,7 @@
         errorLine2="                                                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1488"
+            line="1472"
             column="80"/>
     </issue>
 
@@ -975,7 +854,7 @@
         errorLine2="                                                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1492"
+            line="1476"
             column="80"/>
     </issue>
 
@@ -986,7 +865,7 @@
         errorLine2="                                                                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1608"
+            line="1592"
             column="103"/>
     </issue>
 
@@ -997,7 +876,7 @@
         errorLine2="                                                                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1608"
+            line="1592"
             column="103"/>
     </issue>
 
@@ -1008,7 +887,7 @@
         errorLine2="                                                                                       ~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="2088"
+            line="2072"
             column="88"/>
     </issue>
 
@@ -1019,7 +898,7 @@
         errorLine2="                                                                                   ~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="2097"
+            line="2081"
             column="84"/>
     </issue>
 
@@ -1030,7 +909,7 @@
         errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="2267"
+            line="2251"
             column="76"/>
     </issue>
 
@@ -1041,7 +920,7 @@
         errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="2269"
+            line="2253"
             column="76"/>
     </issue>
 
@@ -1052,7 +931,7 @@
         errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="2273"
+            line="2257"
             column="76"/>
     </issue>
 
@@ -1063,7 +942,7 @@
         errorLine2="                                                                                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="2294"
+            line="2278"
             column="102"/>
     </issue>
 
@@ -1074,40 +953,29 @@
         errorLine2="                      ^">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
-            line="64"
+            line="67"
             column="23"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="            prefs.edit()"
-        errorLine2="            ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
-            line="102"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
         errorLine1="        prefs.edit()"
         errorLine2="        ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
-            line="136"
+            line="124"
             column="9"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs.edit()"
+        errorLine1="        prefs.edit().put(SettingsManager.SEARCH_PILLS, pills).apply()"
         errorLine2="        ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
-            line="153"
+            line="140"
             column="9"/>
     </issue>
 
@@ -1118,7 +986,7 @@
         errorLine2="            ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
-            line="200"
+            line="182"
             column="13"/>
     </issue>
 
@@ -1129,74 +997,8 @@
         errorLine2="                            ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
-            line="262"
+            line="244"
             column="29"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                                        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, hasContacts).apply()"
-        errorLine2="                                        ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchSourcesScreen.kt"
-            line="132"
-            column="41"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                                prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).apply()"
-        errorLine2="                                ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchSourcesScreen.kt"
-            line="152"
-            column="33"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                                prefs.edit().put(SettingsManager.SEARCH_CONTACTS, false).apply()"
-        errorLine2="                                ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchSourcesScreen.kt"
-            line="157"
-            column="33"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                                        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).apply()"
-        errorLine2="                                        ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchSourcesScreen.kt"
-            line="239"
-            column="41"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                                    prefs.edit().put(SettingsManager.SEARCH_CONTACTS, false).apply()"
-        errorLine2="                                    ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchSourcesScreen.kt"
-            line="247"
-            column="37"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                                prefs.edit().put(SettingsManager.SEARCH_FILES, isChecked).apply()"
-        errorLine2="                                ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchSourcesScreen.kt"
-            line="268"
-            column="33"/>
     </issue>
 
     <issue
@@ -1206,7 +1008,7 @@
         errorLine2="                                                                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchViewModel.kt"
-            line="355"
+            line="352"
             column="109"/>
     </issue>
 
@@ -1217,7 +1019,7 @@
         errorLine2="                                                                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchViewModel.kt"
-            line="358"
+            line="355"
             column="109"/>
     </issue>
 
@@ -1228,7 +1030,7 @@
         errorLine2="                                                                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchViewModel.kt"
-            line="518"
+            line="513"
             column="109"/>
     </issue>
 
@@ -1483,17 +1285,6 @@
             file="src/main/java/com/pixel/intelligentsearch/core/data/UserGrantedFiles.kt"
             line="224"
             column="69"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                            prefs.edit().put(SettingsManager.CUSTOM_SEARCH_ENGINE_URL, defaultUrl).apply()"
-        errorLine2="                            ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/WebSearchScreen.kt"
-            line="280"
-            column="29"/>
     </issue>
 
     <issue

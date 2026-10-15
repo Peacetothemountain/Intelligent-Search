@@ -93,7 +93,7 @@ When you execute a web search or request live autocomplete suggestions:
 ## 4. Local Data Storage, Encryption, & Backup Security
 
 * **Local Storage**: Your search history is stored in a local database (`IntelligentSearchDatabase`, Android Room) and your settings and custom bangs in local app preferences. These are not separately encrypted; they are protected by Android's app sandbox and your device's storage encryption, and are excluded from Android cloud backup and device-to-device transfer.
-* **One-Tap History Erasure**: You can clear all search history, reset index caches, or disable search history logging at any time via **Settings -> Search Sources -> Web -> Search History -> Clear History**.
+* **Recent Search Cards**: The search overlay keeps your recent queries as cards for quick reuse. **Clear all** on those cards removes them, and the **Search History** switch in **Settings -> Search Sources -> Web** stops saving them. Your full web search history is kept by the browser or search engine you choose, under its own privacy policy.
 * **Encrypted Backups**: Intelligent Search provides an encrypted backup and restore mechanism. When exporting a backup file:
   * Application preferences, hidden apps, and search history are encrypted locally using **AES-256-GCM**.
   * With a passphrase, the key is derived from it using **PBKDF2** (600,000 iterations, random salt), so the backup can be restored on any device.

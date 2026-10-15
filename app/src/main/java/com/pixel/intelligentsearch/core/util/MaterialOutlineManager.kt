@@ -20,14 +20,9 @@ import kotlin.math.sqrt
  */
 object MaterialOutlineManager {
 
-    private val outlineCache = com.pixel.intelligentsearch.core.ui.bitmapLruCache<String>(heapDivisor = 32)
-
-    fun clearCache() {
-        outlineCache.evictAll()
-    }
-
     /**
-     * Retrieve or generate a Material outline monochrome icon for the given application.
+     * Generates a Material outline monochrome icon for the given application. Not cached here: the only caller
+     * (AppIconLoader) caches the finished icon.
      */
     fun getMaterialOutlineIcon(
         context: Context,
@@ -35,16 +30,8 @@ object MaterialOutlineManager {
         appLabel: String? = null,
         fallbackDrawable: Drawable? = null
     ): Bitmap? {
-        val cacheKey = packageName.lowercase()
-        val cached = outlineCache.get(cacheKey)
-        if (cached != null) return cached
-
         // 1. Check precision handcrafted vector registry
-        val precisionBitmap = getPrecisionOutline(cacheKey, appLabel?.lowercase() ?: "")
-        if (precisionBitmap != null) {
-            outlineCache.put(cacheKey, precisionBitmap)
-            return precisionBitmap
-        }
+        getPrecisionOutline(packageName.lowercase(), appLabel?.lowercase() ?: "")?.let { return it }
 
         // 2. Algorithmic silhouette extraction from app drawable
         val sourceDrawable = fallbackDrawable ?: try {
@@ -53,15 +40,7 @@ object MaterialOutlineManager {
             null
         }
 
-        if (sourceDrawable != null) {
-            val extracted = extractMonochromeSilhouette(sourceDrawable)
-            if (extracted != null) {
-                outlineCache.put(cacheKey, extracted)
-                return extracted
-            }
-        }
-
-        return null
+        return sourceDrawable?.let { extractMonochromeSilhouette(it) }
     }
 
     /**

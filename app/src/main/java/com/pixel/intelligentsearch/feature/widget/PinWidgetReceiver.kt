@@ -9,20 +9,13 @@ import android.content.Intent
 import android.util.Log
 
 /**
- * Receiver handling programmatic home screen widget pinning requests.
- * Fully compliant with Android 12+ through Android 17 (Canary ZP11 / API 37) AppWidgetManager pin APIs.
+ * Pins a widget from the widget settings screen ([requestPinWidget]) and, through the launcher's success
+ * callback, draws the newly pinned widget straight away. Only reachable through its own explicit PendingIntent.
  */
 class PinWidgetReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
-            ACTION_PIN_WIDGET -> {
-                val isMaterial = intent.getBooleanExtra(
-                    EXTRA_IS_MATERIAL,
-                    intent.getStringExtra(EXTRA_PROVIDER_CLASS) == SearchWidgetMaterialProvider::class.java.name
-                )
-                requestPinWidget(context, isMaterial)
-            }
             ACTION_PIN_WIDGET_SUCCESS -> {
                 val appWidgetId = intent.getIntExtra(
                     AppWidgetManager.EXTRA_APPWIDGET_ID,
@@ -51,9 +44,7 @@ class PinWidgetReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "PinWidgetReceiver"
-        const val ACTION_PIN_WIDGET = "com.pixel.intelligentsearch.PIN_WIDGET"
         const val ACTION_PIN_WIDGET_SUCCESS = "com.pixel.intelligentsearch.PIN_WIDGET_SUCCESS"
-        const val EXTRA_PROVIDER_CLASS = "extra_provider_class"
         const val EXTRA_IS_MATERIAL = "extra_is_material"
 
         private const val REQUEST_CODE_SYSTEM = 1001

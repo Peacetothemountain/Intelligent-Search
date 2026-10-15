@@ -167,7 +167,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val SMART_CLIPBOARD_SUGGESTIONS = BooleanSetting("smart_clipboard_suggestions", false)
         val ACTIVE_ICON_PACK = StringSetting("active_icon_pack", "system_default")
         val SEARCH_OVERLAY_ENABLED = BooleanSetting("search_overlay_enabled", true)
-        val CUSTOM_ICON_PILLS = StringSetting("custom_icon_pills", "")
+        val CUSTOM_ICON_PILLS = StringSetting("custom_icon_pills", "", "custom_icon_packs_order")
         val NEVER_SHOW_ICON_PACK_WARNING = BooleanSetting("never_show_icon_pack_warning", false)
         val CUSTOM_BANGS_JSON = StringSetting("custom_bangs_json", "[]")
         val WEB_SHORTCUT_TRIGGER_SYMBOL = StringSetting("web_shortcut_trigger_symbol", "!")

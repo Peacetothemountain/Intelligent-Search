@@ -488,7 +488,8 @@ fun MainSettingsScreen(
                                                 text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): " + when {
                                                     attestationResult == null -> "Verifying..."
                                                     attestationResult?.isHardwareAttested == true -> "Hardware Verified ✓"
-                                                    attestationResult?.securityLevel == com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> "StrongBox Verified ✓"
+                                                    // Only a verified chain earns "Verified"; otherwise just name where the key lives.
+                                                    attestationResult?.securityLevel == com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> "StrongBox Backed (unverified)"
                                                     attestationResult?.securityLevel == com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE -> "TEE Backed (TrustZone)"
                                                     else -> "Software Backed"
                                                 },
@@ -663,62 +664,34 @@ fun MainSettingsScreen(
                 val isDebugUnlocked = com.pixel.intelligentsearch.BuildConfig.DEBUG && rawDebugUnlocked
                 val searchEngine = prefs[SettingsManager.SEARCH_ENGINE]
                 var showTorBrowserSettingsDialog by remember { mutableStateOf(false) }
-                val browserHistorySubtitle = when (searchEngine) {
-                    "Google" -> "View Your Chrome and Google History."
-                    "Bing" -> "View Your Bing History."
-                    "DuckDuckGo" -> "Open Your DuckDuckGo App History."
-                    "Tor Project", "Tor Browser" -> "Open Tor Browser."
-                    else -> "View Your $searchEngine History."
+                val customEngineUrl = prefs[SettingsManager.CUSTOM_SEARCH_ENGINE_URL]
+                // Resolved off the main thread (it asks PackageManager which browsers are installed and default).
+                val historyDestination by produceState<com.pixel.intelligentsearch.core.search.BrowserHistoryResolver.Destination?>(
+                    initialValue = null, searchEngine, customEngineUrl
+                ) {
+                    value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        com.pixel.intelligentsearch.core.search.BrowserHistoryResolver.forContext(context, searchEngine, customEngineUrl)
+                    }
                 }
                 SettingsRow(
                     title = "Browser History",
-                    subtitle = browserHistorySubtitle,
+                    subtitle = historyDestination?.subtitle ?: "View Your Search History.",
                     icon = Icons.Outlined.TravelExplore,
                     onClick = {
-                        when (searchEngine) {
-                            "Bing" -> {
-                                try {
-                                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.bing.com/profile/history")).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    android.util.Log.w("IntelligentSearch", "Unexpected error", e)
-                                }
-                            }
-                            "DuckDuckGo" -> {
-                                try {
-                                    val ddgIntent = context.packageManager.getLaunchIntentForPackage("com.duckduckgo.mobile.android")
-                                    val intent = ddgIntent?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                                        ?: Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://duckduckgo.com")).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    android.util.Log.w("IntelligentSearch", "Unexpected error", e)
-                                }
-                            }
-                            "Tor Project", "Tor Browser" -> {
-                                try {
-                                    val torIntent = context.packageManager.getLaunchIntentForPackage("org.torproject.torbrowser")
-                                        ?: context.packageManager.getLaunchIntentForPackage("org.torproject.torbrowser_alpha")
-                                    if (torIntent != null) {
-                                        context.startActivity(torIntent.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
-                                    } else {
-                                        showTorBrowserSettingsDialog = true
-                                    }
-                                } catch (e: Exception) {
-                                    showTorBrowserSettingsDialog = true
-                                }
-                            }
+                        val resolver = com.pixel.intelligentsearch.core.search.BrowserHistoryResolver
+                        val destination = historyDestination ?: resolver.forContext(context, searchEngine, customEngineUrl)
+                        when (destination) {
+                            com.pixel.intelligentsearch.core.search.BrowserHistoryResolver.Destination.InstallTor -> showTorBrowserSettingsDialog = true
+                            is com.pixel.intelligentsearch.core.search.BrowserHistoryResolver.Destination.Unavailable ->
+                                android.widget.Toast.makeText(context, destination.message, android.widget.Toast.LENGTH_LONG).show()
                             else -> {
-                                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity?product=6")).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                (destination as? com.pixel.intelligentsearch.core.search.BrowserHistoryResolver.Destination.App)?.note?.let {
+                                    android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show()
                                 }
                                 try {
-                                    context.startActivity(intent)
+                                    resolver.intentFor(context, destination)?.let(context::startActivity)
                                 } catch (e: Exception) {
-                                    android.util.Log.w("IntelligentSearch", "Unexpected error", e)
+                                    android.util.Log.w("IntelligentSearch", "Could not open browser history", e)
                                 }
                             }
                         }

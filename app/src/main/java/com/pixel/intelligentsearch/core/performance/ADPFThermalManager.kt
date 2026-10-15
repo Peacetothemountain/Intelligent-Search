@@ -20,26 +20,29 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.abs
 
 /**
- * Android Dynamic Performance Framework (ADPF) Thermal & Frame Pacing Engine.
+ * Thermal state and frame-time hints (Android Dynamic Performance Framework).
  *
- * Implements hardware-synchronized thermal headroom monitoring, dynamic frame deadline pacing
- * via [PerformanceHintManager.Session], and adaptive render quality governance (144Hz / 120Hz / 90Hz / 60Hz).
+ * - Publishes a [ThermalThrottleLevel] from the thermal status listener and, while the overlay is visible,
+ *   thermal headroom polling. Battery saver counts as at least [ThermalThrottleLevel.SEVERE]. Screens read it
+ *   to drop blur and animated backgrounds.
+ * - Keeps a [PerformanceHintManager.Session] for the main and render threads, reporting each frame's real
+ *   duration against that frame's deadline (which follows the display's current refresh rate), so the CPU
+ *   governor clocks for the panel actually in use. Under heat the target is relaxed to 90 or 60 fps.
  *
- * Designed and engineered by NG Designs.
+ * Engineered by NG Designs.
  */
 @Singleton
 class ADPFThermalManager @Inject constructor(@param:ApplicationContext private val context: Context) {
 
     enum class ThermalThrottleLevel {
-        NORMAL,   // Full 120/144 FPS target, full AGSL shaders, 48dp+ blur, full particle density
-        LIGHT,    // 120/144 FPS target, AGSL enabled, max 24dp blur, 75% particle density
-        MODERATE, // 90 FPS / 60 FPS target, static gradient fallback, max 12dp blur, 50% particle density
-        SEVERE,   // 60 FPS locked, disable window blur behind, disable AGSL shaders, zero particles
-        CRITICAL  // 60/30 FPS locked, minimal UI rendering, cancel non-essential IO
+        NORMAL,   // Full effects, frame target = display deadline
+        LIGHT,    // Blur capped at 24 px
+        MODERATE, // Blur capped at 12 px, frame target no faster than 90 fps
+        SEVERE,   // No blur or animated backgrounds, frame target no faster than 60 fps
+        CRITICAL  // As SEVERE
     }
 
     private val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
@@ -48,25 +51,20 @@ class ADPFThermalManager @Inject constructor(@param:ApplicationContext private v
     private val _thermalThrottleLevel = MutableStateFlow(ThermalThrottleLevel.NORMAL)
     val thermalThrottleLevel: StateFlow<ThermalThrottleLevel> = _thermalThrottleLevel.asStateFlow()
 
-    private val _thermalHeadroom = MutableStateFlow(0.0f)
-
-    // Active PerformanceHintManager.Session on Android 12+ (API 31+). Written on the monitor thread
-    // and read from the frame-metrics thread, so it must be volatile.
+    // Written on the monitor thread and read from the frame-metrics thread.
     @Volatile
-    private var hintSession: Any? = null // Type erased for API compatibility
-    private val isSessionInitialized = AtomicBoolean(false)
-
-    // Current target frame duration in nanoseconds (Default: 120 FPS -> 8.333ms)
-    private val currentTargetDurationNanos = AtomicLong(FRAME_DURATION_120HZ_NANOS)
-    private var registeredTids: IntArray = intArrayOf(Process.myTid())
+    private var hintSession: PerformanceHintManager.Session? = null
+    @Volatile
+    private var targetDurationNanos = FRAME_60_FPS_NANOS
+    /** Slowest-allowed frame target under heat: frames are never asked to be faster than this. 0 = no limit. */
+    @Volatile
+    private var thermalMinDurationNanos = 0L
     @Volatile
     private var renderThreadTid: Int = -1
 
-    // Dedicated background handler for thermal polling & ADPF maintenance
+    // Dedicated background handler for thermal polling and hint-session maintenance.
     private val monitorThread = HandlerThread("ADPF-Thermal-Monitor").apply { start() }
     private val monitorHandler = Handler(monitorThread.looper)
-
-    private var powerSaveReceiver: BroadcastReceiver? = null
 
     // Level reported by the thermal service, before the battery-saver floor is applied. Keeping it
     // separate stops each headroom poll from resetting the published level to the raw value and the
@@ -76,47 +74,39 @@ class ADPFThermalManager @Inject constructor(@param:ApplicationContext private v
 
     private val headroomPoll = object : Runnable {
         override fun run() {
-            if (renderThreadTid == -1) {
-                ensureRenderThreadRegistered()
-            }
+            if (renderThreadTid == -1) ensureRenderThreadRegistered()
             updateThermalHeadroom()
             monitorHandler.postDelayed(this, HEADROOM_POLL_INTERVAL_MS)
         }
     }
 
-    private val thermalStatusListener: PowerManager.OnThermalStatusChangedListener? by lazy {
-        PowerManager.OnThermalStatusChangedListener { status ->
-            evaluateThermalState(status)
-        }
+    private val thermalStatusListener = PowerManager.OnThermalStatusChangedListener { status ->
+        evaluateThermalState(status)
     }
 
     init {
         registerThermalListeners()
-        initHintSession(targetFps = 120)
+        monitorHandler.post { rebuildHintSession() }
         // Applies the battery-saver floor straight away instead of waiting for the first thermal event.
         applyThermalMitigations()
     }
 
     private fun registerThermalListeners() {
-        if (powerManager != null && thermalStatusListener != null) {
-            try {
-                powerManager.addThermalStatusListener(context.mainExecutor, thermalStatusListener!!)
-            } catch (e: Throwable) {
-                Log.w(TAG, "Failed to register OnThermalStatusChangedListener: ${e.message}")
-            }
+        try {
+            powerManager?.addThermalStatusListener(context.mainExecutor, thermalStatusListener)
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to register OnThermalStatusChangedListener: ${e.message}")
         }
         try {
-            val filter = IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
                     applyThermalMitigations()
                 }
             }
-            powerSaveReceiver = receiver
             ContextCompat.registerReceiver(
                 context,
                 receiver,
-                filter,
+                IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
                 ContextCompat.RECEIVER_NOT_EXPORTED
             )
         } catch (_: Throwable) {}
@@ -135,177 +125,93 @@ class ADPFThermalManager @Inject constructor(@param:ApplicationContext private v
         monitorHandler.removeCallbacks(headroomPoll)
     }
 
-    /**
-     * Initializes the [PerformanceHintManager.Session] with the process main thread and RenderThread.
-     */
-    fun initHintSession(targetFps: Int = 120) {
-        if (performanceHintManager == null) {
-            return
-        }
-
-        val targetNanos = getFrameDurationNanosForFps(targetFps)
-        currentTargetDurationNanos.set(targetNanos)
-
-        monitorHandler.post {
-            rebuildHintSessionOnMonitorThread(targetNanos)
-        }
-    }
-
     private fun ensureRenderThreadRegistered() {
         if (renderThreadTid != -1 || performanceHintManager == null) return
-        val discoveredTid = findRenderThreadTid() ?: return
-        renderThreadTid = discoveredTid
-        rebuildHintSessionOnMonitorThread(currentTargetDurationNanos.get())
+        renderThreadTid = findRenderThreadTid() ?: return
+        rebuildHintSession()
     }
 
-    private fun rebuildHintSessionOnMonitorThread(targetNanos: Long) {
-        if (performanceHintManager == null) return
+    /** (Re)creates the hint session for the main thread plus the render thread once known. Monitor thread only. */
+    private fun rebuildHintSession() {
+        val manager = performanceHintManager ?: return
         try {
-            val mainTid = Process.myPid()
-            val resolvedRenderTid = if (renderThreadTid != -1) renderThreadTid else (findRenderThreadTid() ?: -1)
-            if (resolvedRenderTid != -1) {
-                renderThreadTid = resolvedRenderTid
-            }
-            val tids = if (resolvedRenderTid != -1 && resolvedRenderTid != mainTid) {
-                intArrayOf(mainTid, resolvedRenderTid)
-            } else {
-                intArrayOf(mainTid)
-            }
-            registeredTids = tids
-
-            val oldSession = hintSession as? PerformanceHintManager.Session
-            val session = performanceHintManager.createHintSession(tids, targetNanos)
-            hintSession = session
+            if (renderThreadTid == -1) findRenderThreadTid()?.let { renderThreadTid = it }
+            val mainTid = Process.myPid() // the main thread's tid equals the pid
+            val tids = if (renderThreadTid != -1 && renderThreadTid != mainTid) intArrayOf(mainTid, renderThreadTid) else intArrayOf(mainTid)
+            val oldSession = hintSession
+            hintSession = manager.createHintSession(tids, targetDurationNanos)
             try {
                 oldSession?.close()
             } catch (_: Throwable) {}
-            isSessionInitialized.set(true)
-            Log.i(TAG, "ADPF HintSession initialized with tids=${tids.contentToString()} target=${targetNanos / 1_000_000f}ms")
         } catch (e: Throwable) {
             Log.w(TAG, "Failed to create HintSession: ${e.message}")
         }
     }
 
     /**
-     * Dynamically updates the target frame rate for the ADPF session (e.g. 144Hz, 120Hz, 90Hz, 60Hz).
+     * Reports one frame. [deadlineNanos] is the time the frame had (it changes with the refresh rate); the
+     * session's target follows it, but never faster than the current thermal limit allows.
      */
-    fun updateTargetFps(targetFps: Int) {
-        val targetNanos = getFrameDurationNanosForFps(targetFps)
-        currentTargetDurationNanos.set(targetNanos)
-
-        if (renderThreadTid == -1) {
-            monitorHandler.post { ensureRenderThreadRegistered() }
-        }
-
-        val session = hintSession as? PerformanceHintManager.Session ?: return
-        try {
-            session.updateTargetWorkDuration(targetNanos)
-        } catch (e: Throwable) {
-            Log.w(TAG, "Failed to update target work duration: ${e.message}")
-        }
-    }
-
-    /**
-     * Reports actual work duration (CPU + GPU) for a completed frame to the OS governor.
-     * This directly prevents thermal throttling while guaranteeing frame deadlines.
-     */
-    fun reportActualWorkDuration(actualDurationNanos: Long) {
-        if (actualDurationNanos > 0) {
-            val session = hintSession as? PerformanceHintManager.Session ?: return
-            try {
-                session.reportActualWorkDuration(actualDurationNanos)
-            } catch (_: Throwable) {}
-        }
-    }
-
-    /**
-     * Reports detailed frame metrics from HWUI / WindowFrameMetricsListener.
-     */
-    fun reportFrameMetrics(totalDurationNanos: Long, gpuDurationNanos: Long = 0L) {
-        if (totalDurationNanos > 0) {
-            if (renderThreadTid == -1) {
-                monitorHandler.post { ensureRenderThreadRegistered() }
-            }
-            val session = hintSession as? PerformanceHintManager.Session ?: return
-            try {
-                // WorkDuration and Session.reportActualWorkDuration(WorkDuration) were added in API 35. Guarding
-                // on API 34 would throw NoClassDefFoundError on every frame report on Android 14.
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM && gpuDurationNanos > 0L) {
-                    val cpuDurationNanos = (totalDurationNanos - gpuDurationNanos).coerceAtLeast(0L)
-                    val workDuration = android.os.WorkDuration().apply {
-                        this.actualTotalDurationNanos = totalDurationNanos
-                        this.actualCpuDurationNanos = cpuDurationNanos
-                        this.actualGpuDurationNanos = gpuDurationNanos
-                    }
-                    session.reportActualWorkDuration(workDuration)
-                } else {
-                    session.reportActualWorkDuration(totalDurationNanos)
-                }
-            } catch (_: Throwable) {
-                // Fallback to legacy single-duration reporting
+    fun reportFrameMetrics(totalDurationNanos: Long, gpuDurationNanos: Long = 0L, deadlineNanos: Long = 0L) {
+        if (totalDurationNanos <= 0) return
+        if (renderThreadTid == -1) monitorHandler.post { ensureRenderThreadRegistered() }
+        val session = hintSession ?: return
+        if (deadlineNanos > 0) {
+            val target = maxOf(deadlineNanos, thermalMinDurationNanos)
+            // Ignore jitter; only real refresh-rate or thermal changes move the target.
+            if (abs(target - targetDurationNanos) > targetDurationNanos / 20) {
+                targetDurationNanos = target
                 try {
-                    session.reportActualWorkDuration(totalDurationNanos)
+                    session.updateTargetWorkDuration(target)
                 } catch (_: Throwable) {}
             }
         }
-    }
-
-    /**
-     * Enables energy-aware power efficiency mode during low-demand or high-heat states on Android 15+.
-     */
-    fun setPreferPowerEfficiency(preferEfficiency: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            val session = hintSession as? PerformanceHintManager.Session ?: return
+        try {
+            // WorkDuration and Session.reportActualWorkDuration(WorkDuration) were added in API 35. Guarding
+            // on API 34 would throw NoClassDefFoundError on every frame report on Android 14.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM && gpuDurationNanos > 0L) {
+                session.reportActualWorkDuration(android.os.WorkDuration().apply {
+                    actualTotalDurationNanos = totalDurationNanos
+                    actualCpuDurationNanos = (totalDurationNanos - gpuDurationNanos).coerceAtLeast(0L)
+                    actualGpuDurationNanos = gpuDurationNanos
+                })
+            } else {
+                session.reportActualWorkDuration(totalDurationNanos)
+            }
+        } catch (_: Throwable) {
             try {
-                session.setPreferPowerEfficiency(preferEfficiency)
+                session.reportActualWorkDuration(totalDurationNanos)
             } catch (_: Throwable) {}
         }
     }
 
-    /**
-     * Scans `/proc/self/task/` to discover the TID of the hardware RenderThread.
-     */
+    /** Asks the scheduler to favour efficiency over speed for the session's threads (Android 15+). */
+    private fun setPreferPowerEfficiency(preferEfficiency: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            try {
+                hintSession?.setPreferPowerEfficiency(preferEfficiency)
+            } catch (_: Throwable) {}
+        }
+    }
+
+    /** Finds this process's RenderThread by name in `/proc/self/task`. */
     private fun findRenderThreadTid(): Int? {
         return try {
-            val taskDir = File("/proc/self/task")
-            if (!taskDir.exists() || !taskDir.isDirectory) return null
-            val tasks = taskDir.listFiles() ?: return null
-            for (task in tasks) {
-                val tid = task.name.toIntOrNull() ?: continue
-                val commFile = File(task, "comm")
-                if (commFile.exists()) {
-                    val name = commFile.readText().trim()
-                    if (name == "RenderThread") {
-                        return tid
-                    }
-                }
+            File("/proc/self/task").listFiles()?.firstNotNullOfOrNull { task ->
+                val tid = task.name.toIntOrNull()
+                val comm = File(task, "comm")
+                if (tid != null && comm.exists() && comm.readText().trim() == "RenderThread") tid else null
             }
-            null
         } catch (_: Throwable) {
             null
         }
     }
 
-    /**
-     * Updates and caches thermal headroom from [PowerManager].
-     */
-    fun updateThermalHeadroom(): Float {
-        if (powerManager != null) {
-            try {
-                val headroom = powerManager.getThermalHeadroom(10)
-                if (!headroom.isNaN() && headroom >= 0.0f) {
-                    _thermalHeadroom.value = headroom
-                    evaluateThermalFromHeadroom(headroom)
-                    return headroom
-                }
-            } catch (_: Throwable) {}
-        }
-        return 0.0f
-    }
-
-    fun getThermalHeadroom(): Float {
-        val cached = _thermalHeadroom.value
-        return if (cached > 0f) cached else updateThermalHeadroom()
+    private fun updateThermalHeadroom() {
+        try {
+            val headroom = powerManager?.getThermalHeadroom(10) ?: return
+            if (!headroom.isNaN() && headroom >= 0.0f) evaluateThermalFromHeadroom(headroom)
+        } catch (_: Throwable) {}
     }
 
     private fun evaluateThermalFromHeadroom(headroom: Float) {
@@ -323,17 +229,15 @@ class ADPFThermalManager @Inject constructor(@param:ApplicationContext private v
     }
 
     private fun evaluateThermalState(status: Int) {
-        val newLevel = run {
-            when (status) {
-                PowerManager.THERMAL_STATUS_NONE -> ThermalThrottleLevel.NORMAL
-                PowerManager.THERMAL_STATUS_LIGHT -> ThermalThrottleLevel.LIGHT
-                PowerManager.THERMAL_STATUS_MODERATE -> ThermalThrottleLevel.MODERATE
-                PowerManager.THERMAL_STATUS_SEVERE -> ThermalThrottleLevel.SEVERE
-                PowerManager.THERMAL_STATUS_CRITICAL,
-                PowerManager.THERMAL_STATUS_EMERGENCY,
-                PowerManager.THERMAL_STATUS_SHUTDOWN -> ThermalThrottleLevel.CRITICAL
-                else -> ThermalThrottleLevel.NORMAL
-            }
+        val newLevel = when (status) {
+            PowerManager.THERMAL_STATUS_NONE -> ThermalThrottleLevel.NORMAL
+            PowerManager.THERMAL_STATUS_LIGHT -> ThermalThrottleLevel.LIGHT
+            PowerManager.THERMAL_STATUS_MODERATE -> ThermalThrottleLevel.MODERATE
+            PowerManager.THERMAL_STATUS_SEVERE -> ThermalThrottleLevel.SEVERE
+            PowerManager.THERMAL_STATUS_CRITICAL,
+            PowerManager.THERMAL_STATUS_EMERGENCY,
+            PowerManager.THERMAL_STATUS_SHUTDOWN -> ThermalThrottleLevel.CRITICAL
+            else -> ThermalThrottleLevel.NORMAL
         }
         if (rawThrottleLevel != newLevel) {
             rawThrottleLevel = newLevel
@@ -351,38 +255,16 @@ class ADPFThermalManager @Inject constructor(@param:ApplicationContext private v
         }
         if (_thermalThrottleLevel.value == effectiveLevel) return
         _thermalThrottleLevel.value = effectiveLevel
-        Log.i(TAG, "Thermal mitigation transition: $effectiveLevel (effective, requested=$level, headroom=${_thermalHeadroom.value})")
-        when (effectiveLevel) {
-            ThermalThrottleLevel.NORMAL -> {
-                setPreferPowerEfficiency(false)
-                updateTargetFps(120)
-            }
-            ThermalThrottleLevel.LIGHT -> {
-                setPreferPowerEfficiency(false)
-                updateTargetFps(120)
-            }
-            ThermalThrottleLevel.MODERATE -> {
-                setPreferPowerEfficiency(true)
-                updateTargetFps(90)
-            }
-            ThermalThrottleLevel.SEVERE -> {
-                setPreferPowerEfficiency(true)
-                updateTargetFps(60)
-            }
-            ThermalThrottleLevel.CRITICAL -> {
-                setPreferPowerEfficiency(true)
-                updateTargetFps(60)
-            }
+        Log.i(TAG, "Thermal mitigation transition: $effectiveLevel (requested=$level)")
+        thermalMinDurationNanos = when (effectiveLevel) {
+            ThermalThrottleLevel.NORMAL, ThermalThrottleLevel.LIGHT -> 0L
+            ThermalThrottleLevel.MODERATE -> FRAME_90_FPS_NANOS
+            ThermalThrottleLevel.SEVERE, ThermalThrottleLevel.CRITICAL -> FRAME_60_FPS_NANOS
         }
+        setPreferPowerEfficiency(effectiveLevel >= ThermalThrottleLevel.MODERATE)
     }
 
-    // =========================================================================
-    // Dynamic Render Engine Gating Queries
-    // =========================================================================
-
-    /**
-     * Returns the recommended blur radius in pixels, scaling down dynamically during thermal events.
-     */
+    /** Returns the blur radius to use in pixels, scaled down during thermal events. */
     fun getRecommendedBlurRadius(requestedRadius: Float): Float {
         return when (_thermalThrottleLevel.value) {
             ThermalThrottleLevel.NORMAL -> requestedRadius
@@ -393,43 +275,11 @@ class ADPFThermalManager @Inject constructor(@param:ApplicationContext private v
         }
     }
 
-    fun release() {
-        if (powerManager != null && thermalStatusListener != null) {
-            try {
-                powerManager.removeThermalStatusListener(thermalStatusListener!!)
-            } catch (_: Throwable) {}
-        }
-        powerSaveReceiver?.let {
-            try {
-                context.unregisterReceiver(it)
-            } catch (_: Throwable) {}
-            powerSaveReceiver = null
-        }
-        val session = hintSession as? PerformanceHintManager.Session
-        try {
-            session?.close()
-        } catch (_: Throwable) {}
-        hintSession = null
-        monitorThread.quitSafely()
-    }
-
     companion object {
         private const val TAG = "ADPFThermalManager"
         private const val HEADROOM_POLL_INTERVAL_MS = 10_500L
-
-        const val FRAME_DURATION_144HZ_NANOS = 6_944_444L
-        const val FRAME_DURATION_120HZ_NANOS = 8_333_333L
-        const val FRAME_DURATION_90HZ_NANOS = 11_111_111L
-        const val FRAME_DURATION_60HZ_NANOS = 16_666_666L
-
-        fun getFrameDurationNanosForFps(fps: Int): Long {
-            return when {
-                fps >= 140 -> FRAME_DURATION_144HZ_NANOS
-                fps >= 110 -> FRAME_DURATION_120HZ_NANOS
-                fps >= 85 -> FRAME_DURATION_90HZ_NANOS
-                else -> FRAME_DURATION_60HZ_NANOS
-            }
-        }
+        private const val FRAME_90_FPS_NANOS = 11_111_111L
+        private const val FRAME_60_FPS_NANOS = 16_666_666L
 
         /** The app-wide instance, for places without injection. */
         fun getInstance(context: Context): ADPFThermalManager = context.appEntryPoint.adpfThermalManager()

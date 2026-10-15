@@ -48,7 +48,6 @@ private var cachedActivePack: String? = null
 fun clearThemedIconCache() {
     cachedActivePack = null
     themedIconCache.evictAll()
-    MaterialOutlineManager.clearCache()
 }
 
 fun peekThemedAppIcon(packageName: String, activePackOverride: String? = null): AppIconResult? {

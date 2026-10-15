@@ -87,8 +87,6 @@ data class SearchUiState(
     val directActions: List<DirectAction> = emptyList(),
     val calendarEvents: List<CalendarEvent> = emptyList(),
     val recentSearches: List<String> = emptyList(),
-    val isLoading: Boolean = false,
-    val isDirectBootLocked: Boolean = false,
     val hasLockedPrivateSpace: Boolean = false,
     val lastQueryLatency: Long = 0,
     val bangSuggestions: List<com.pixel.intelligentsearch.core.bangs.SearchBang> = emptyList(),
@@ -148,7 +146,6 @@ class SearchViewModel @Inject constructor(
 
         viewModelScope.launch {
             directBootManager.isUserUnlocked.collectLatest { isUnlocked ->
-                _uiState.update { it.copy(isDirectBootLocked = !isUnlocked) }
                 if (isUnlocked) {
                     loadInitialData()
                     try {
@@ -399,8 +396,7 @@ class SearchViewModel @Inject constructor(
                 systemToggle = null,
                 volumeSlider = null,
                 bangSuggestions = emptyList(),
-                detectedBangQuery = null,
-                isLoading = false
+                detectedBangQuery = null
             ) }
             return
         }
@@ -464,8 +460,7 @@ class SearchViewModel @Inject constructor(
 
             if (forceSearchError) {
                 _uiState.update { it.copy(
-                    webSuggestions = listOf("Error: Unable to connect to search API"),
-                    isLoading = false
+                    webSuggestions = listOf("Error: Unable to connect to search API")
                 ) }
                 return@launch
             }
@@ -632,7 +627,6 @@ class SearchViewModel @Inject constructor(
                     systemToggle = systemToggle,
                     volumeSlider = unifiedResults.systemAction as? com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider,
                     directActions = directActions,
-                    isLoading = false,
                     lastQueryLatency = elapsed
                 )
             }

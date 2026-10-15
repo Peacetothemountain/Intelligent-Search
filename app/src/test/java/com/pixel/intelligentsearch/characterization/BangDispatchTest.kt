@@ -53,6 +53,24 @@ class BangDispatchTest {
     }
 
     @Test
+    fun everyBuiltInTemplatePassesTheCustomUrlChecks() {
+        for (bang in SearchBangManager.BUILT_IN_BANGS) {
+            assertTrue(bang.urlTemplate, com.pixel.intelligentsearch.core.security.CustomSearchUrl.validate(bang.urlTemplate)
+                is com.pixel.intelligentsearch.core.security.CustomSearchUrl.Validation.Valid)
+        }
+    }
+
+    @Test
+    fun customBangsFromABackupLoseAppLinksAndBadTemplatesGoToGoogle() {
+        val json = """[{"prefix":"!x","name":"X","urlTemplate":"javascript:alert(1)","appIntentUriTemplate":"smsto:5551234?body=%s"}]"""
+        val restored = bangs.parseCustomBangs(json).single()
+        assertNull(restored.appIntentUriTemplate)
+        val uri = bangs.dispatchBangSearch(bangs.parseBangQuery("!x hi", listOf(restored))!!).data!!
+        assertEquals("https", uri.scheme)
+        assertEquals("www.google.com", uri.host)
+    }
+
+    @Test
     fun editingABuiltInReplacesItAndRemovedBuiltInsCanBeRestored() = runBlocking {
         val builtIn = bangs.getAllBangsSync().first { it.isBuiltIn }
         val edited = SearchBang(prefix = "!mine", name = "Mine", urlTemplate = "https://example.com/?q=%s")

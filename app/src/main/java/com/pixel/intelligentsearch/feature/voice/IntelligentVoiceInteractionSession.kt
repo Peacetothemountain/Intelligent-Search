@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.voice
 
+import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -8,7 +10,6 @@ import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -113,18 +114,17 @@ import com.pixel.intelligentsearch.feature.widget.WidgetActivity
  *
  * Modern Android 17 (Canary ZP11) Voice & Assistant Search Session Overlay.
  * Renders edge-to-edge Material 3 Expressive UI in a floating assistant window,
- * featuring a 120 FPS multi-harmonic ripple waveform canvas, live speech-to-text
+ * featuring a multi-harmonic ripple waveform, live speech-to-text
  * transcription, quick action chips, and seamless handoff to Intelligent Search.
  */
 class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSession(context) {
 
     private val sessionLifecycleOwner = SessionLifecycleOwner(
-        fallbackOnBackPressed = {
-            PixelHapticEngine.get(context).performHaptic(PixelHapticType.OVERLAY_DISMISS)
-            hide()
-        }
+        fallbackOnBackPressed = { hide() }
     )
     private var recognitionManager: VoiceRecognitionManager? = null
+    /** Set while handing the query to full search, so hiding the sheet doesn't play the dismiss haptic. */
+    private var handingOffToSearch = false
 
     private fun bindViewTreeOwners(targetView: View) {
         targetView.setViewTreeLifecycleOwner(sessionLifecycleOwner)
@@ -176,14 +176,11 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
                     if (rm != null) {
                         VoiceAssistantBottomSheet(
                             state = rm.state.value,
-                            audioAmplitude = rm.amplitude.floatValue,
+                            audioAmplitude = { rm.amplitude.floatValue },
                             spokenText = rm.recognizedText.value,
                             errorMessage = rm.errorMessage.value,
                             onMicClick = { rm.toggleListening() },
-                            onDismiss = {
-                                PixelHapticEngine.get(context).performHaptic(PixelHapticType.OVERLAY_DISMISS)
-                                hide()
-                            },
+                            onDismiss = { hide() },
                             onOpenFullSearch = { query ->
                                 launchFullSearch(query)
                             },
@@ -224,7 +221,9 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
         recognitionManager?.cancel()
         sessionLifecycleOwner.onPause()
         sessionLifecycleOwner.onStop()
-        PixelHapticEngine.get(context).performHaptic(PixelHapticType.OVERLAY_DISMISS)
+        // Every dismissal (close, scrim, back) ends here, so the haptic plays once per hide.
+        if (!handingOffToSearch) PixelHapticEngine.get(context).performHaptic(PixelHapticType.OVERLAY_DISMISS)
+        handingOffToSearch = false
         super.onHide()
     }
 
@@ -239,23 +238,7 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
         if (sessionLifecycleOwner.onBackPressedDispatcher.hasEnabledCallbacks()) {
             sessionLifecycleOwner.onBackPressedDispatcher.onBackPressed()
         } else {
-            PixelHapticEngine.get(context).performHaptic(PixelHapticType.OVERLAY_DISMISS)
             hide()
-        }
-    }
-
-    override fun onHandleAssist(state: AssistState) {
-        super.onHandleAssist(state)
-        val assistData = state.assistData
-        if (assistData != null) {
-            Log.d(TAG, "Contextual assist structure captured for foreground task.")
-        }
-    }
-
-    override fun onHandleScreenshot(screenshot: Bitmap?) {
-        super.onHandleScreenshot(screenshot)
-        if (screenshot != null) {
-            Log.d(TAG, "Contextual assistant screenshot captured: ${screenshot.width}x${screenshot.height}")
         }
     }
 
@@ -275,6 +258,7 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
             // A blocked or failed launch must not crash the assistant process.
             Log.w(TAG, "Could not open full search from the assistant session", e)
         }
+        handingOffToSearch = true
         hide()
     }
 
@@ -582,31 +566,34 @@ private class HarmonicWave(
 )
 
 /**
- * 120 FPS high-refresh rate Waveform Canvas.
- * Zero-heap allocation inside DrawScope loop:
- * - Pre-allocated HarmonicWave descriptors and cached Paths.
- * - State reads isolated inside Canvas DrawScope to avoid 120 FPS composable recomposition storms.
- * - Mathematically exact Hann-window envelope sin^2(pi * x), avoiding expensive Math.pow calculations.
- * - Smooth crossfaded orbital morph transitions between LISTENING, PROCESSING, and RESULT states.
- * - Direct GPU hardware acceleration without offscreen buffer stalls.
+ * Voice waveform: four harmonic waves that follow the speech level while listening, orbiting dots while
+ * processing. Amplitude and animation values are read in the draw phase, so they redraw the canvas without
+ * recomposing; composition only reruns when the recognition state or the active/idle switch changes.
  */
 @Composable
 fun VoiceWaveformCanvas(
-    amplitude: Float,
+    amplitude: () -> Float,
     state: VoiceRecognitionState,
     modifier: Modifier = Modifier
 ) {
     val isListening = state == VoiceRecognitionState.LISTENING
     val isProcessing = state == VoiceRecognitionState.PROCESSING
 
-    val animatedAmpState = animateFloatAsState(
-        targetValue = if (isListening) amplitude.coerceIn(0f, 1f) else if (state == VoiceRecognitionState.INITIALIZING) 0.10f else 0f,
-        animationSpec = spring(
-            dampingRatio = 0.8f,
-            stiffness = 650f
-        ),
-        label = "WaveformAmplitude"
-    )
+    // Same spring as before, driven from a snapshot flow so new speech levels never recompose this function.
+    val animatedAmpState = remember {
+        androidx.compose.animation.core.Animatable(if (state == VoiceRecognitionState.INITIALIZING) 0.10f else 0f)
+    }
+    LaunchedEffect(state) {
+        androidx.compose.runtime.snapshotFlow {
+            when {
+                isListening -> amplitude().coerceIn(0f, 1f)
+                state == VoiceRecognitionState.INITIALIZING -> 0.10f
+                else -> 0f
+            }
+        }.collectLatest { target ->
+            animatedAmpState.animateTo(target, spring(dampingRatio = 0.8f, stiffness = 650f))
+        }
+    }
 
     val processingProgressState = animateFloatAsState(
         targetValue = if (isProcessing) 1f else 0f,
@@ -614,11 +601,16 @@ fun VoiceWaveformCanvas(
         label = "ProcessingProgress"
     )
 
-    val isWaveActive = isListening ||
-        isProcessing ||
-        state == VoiceRecognitionState.INITIALIZING ||
-        animatedAmpState.value > 0.001f ||
-        processingProgressState.value > 0.001f
+    // derivedStateOf: composition reruns only when these flip, not on every animation frame.
+    val isWaveActive by remember(state) {
+        androidx.compose.runtime.derivedStateOf {
+            isListening || isProcessing || state == VoiceRecognitionState.INITIALIZING ||
+                animatedAmpState.value > 0.001f || processingProgressState.value > 0.001f
+        }
+    }
+    val isProcessingVisible by remember(state) {
+        androidx.compose.runtime.derivedStateOf { isProcessing || processingProgressState.value > 0.001f }
+    }
 
     val idleZeroState = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     val phaseState: androidx.compose.runtime.State<Float>
@@ -636,7 +628,7 @@ fun VoiceWaveformCanvas(
             ),
             label = "WavePhase"
         )
-        processingAngleState = if (isProcessing || processingProgressState.value > 0.001f) {
+        processingAngleState = if (isProcessingVisible) {
             infiniteTransition.animateFloat(
                 initialValue = 0f,
                 targetValue = 360f,
@@ -692,7 +684,7 @@ fun VoiceWaveformCanvas(
     val baseAmpPx = remember(density) { with(density) { 5.dp.toPx() } }
     val maxDynamicAmpPx = remember(density) { with(density) { 36.dp.toPx() } }
 
-    // Pre-allocated harmonic wave descriptors and cached paths (zero heap allocations inside 120 FPS draw loop)
+    // Wave descriptors and their paths are allocated once and reused by every frame.
     val waves = remember {
         arrayOf(
             HarmonicWave(1.0f, 1.0f, 0.0f, GoogleBlue, GoogleBlue.copy(alpha = 0.28f)),
@@ -820,7 +812,8 @@ fun VoiceWaveformCanvas(
 @Composable
 fun VoiceAssistantBottomSheet(
     state: VoiceRecognitionState,
-    audioAmplitude: Float,
+    /** Read only while drawing the waveform, so speech levels redraw it without recomposing the sheet. */
+    audioAmplitude: () -> Float,
     spokenText: String,
     errorMessage: String?,
     onMicClick: () -> Unit,

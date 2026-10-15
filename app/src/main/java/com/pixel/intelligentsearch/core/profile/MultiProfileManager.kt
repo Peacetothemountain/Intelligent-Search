@@ -100,24 +100,13 @@ class MultiProfileManager @Inject constructor(
         refreshProfiles()
     }
 
-    fun registerCallbackSafely() {
+    private fun registerCallbackSafely() {
         if (!isCallbackRegistered) {
             try {
                 launcherApps?.registerCallback(launcherCallback, Handler(Looper.getMainLooper()))
                 isCallbackRegistered = true
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to register LauncherApps callback", e)
-            }
-        }
-    }
-
-    fun unregisterCallback() {
-        if (isCallbackRegistered) {
-            try {
-                launcherApps?.unregisterCallback(launcherCallback)
-                isCallbackRegistered = false
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to unregister LauncherApps callback", e)
             }
         }
     }
@@ -248,7 +237,7 @@ class MultiProfileManager @Inject constructor(
         return _profilesState.value.any { it.profileType == ProfileType.PRIVATE }
     }
 
-    fun requestUnlockProfile(userHandle: UserHandle, activity: Activity) {
+    fun requestUnlockProfile(userHandle: UserHandle) {
         val um = userManager ?: return
         try {
             um.requestQuietModeEnabled(false, userHandle)

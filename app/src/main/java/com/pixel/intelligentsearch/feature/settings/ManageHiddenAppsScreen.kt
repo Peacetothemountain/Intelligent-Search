@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import android.content.SharedPreferences
@@ -62,7 +64,7 @@ import kotlinx.coroutines.withContext
 fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     val viewModel = LocalSettingsViewModel.current
-    var hiddenApps by remember { mutableStateOf(prefs.getStringSet("hidden_apps", emptySet()) ?: emptySet()) }
+    var hiddenApps by remember { mutableStateOf(prefs[SettingsManager.HIDDEN_APPS]) }
     var installedApps by remember { mutableStateOf<List<AppItem>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -216,7 +218,7 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 val newSet = hiddenApps.toMutableSet()
                                 if (hide) newSet.add(app.packageName) else newSet.remove(app.packageName)
                                 hiddenApps = newSet
-                                prefs.edit().putStringSet("hidden_apps", newSet).apply()
+                                prefs.edit().put(SettingsManager.HIDDEN_APPS, newSet).apply()
                                 viewModel?.updateSetting(SettingsManager.HIDDEN_APPS, newSet)
                             },
                             showDivider = index < filteredApps.size - 1

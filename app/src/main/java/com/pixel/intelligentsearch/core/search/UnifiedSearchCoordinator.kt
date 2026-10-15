@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.core.search
 
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
 import android.content.Intent
 import com.pixel.intelligentsearch.core.data.AppItem
@@ -111,59 +113,38 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val fileRadixTree = RadixTreeIndex<SearchItem>()
     private val phoneticIndex = ConcurrentHashMap<String, MutableSet<SearchItem>>()
 
-    private val prefs = getSafeContext(context).getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+    private val prefs = getSafeContext(context).getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
     @Volatile private var cachedAppWeightMul: Float = 1.0f
     @Volatile private var cachedContactWeightMul: Float = 1.0f
     @Volatile private var cachedFileWeightMul: Float = 1.0f
     @Volatile private var cachedFuzzySearchEnabled: Boolean = true
     @Volatile private var cachedContactSearchEnabled: Boolean = false
 
+    // Settings read on every keystroke are cached and refreshed when any of them changes.
+    private val cachedSettingNames = listOf(
+        SettingsManager.SEARCH_WEIGHT_APPS, SettingsManager.SEARCH_WEIGHT_CONTACTS, SettingsManager.SEARCH_WEIGHT_FILES,
+        SettingsManager.APP_FUZZY_SEARCH, SettingsManager.SEARCH_CONTACTS
+    ).flatMap { it.allNames }.toSet()
+
     private val prefChangeListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        when (key) {
-            "search_weight_apps" -> updateAppWeight()
-            "search_weight_contacts" -> updateContactWeight()
-            "search_weight_files" -> updateFileWeight()
-            "app.fuzzy.search", "app_fuzzy_search" -> updateFuzzySearch()
-            "search.contacts", "search_contacts" -> updateContactSearch()
-        }
+        if (key == null || key in cachedSettingNames) refreshCachedSettings()
     }
 
     init {
-        updateAppWeight()
-        updateContactWeight()
-        updateFileWeight()
-        updateFuzzySearch()
-        updateContactSearch()
+        refreshCachedSettings()
         prefs.registerOnSharedPreferenceChangeListener(prefChangeListener)
     }
 
-    private fun updateContactSearch() {
-        cachedContactSearchEnabled = if (prefs.contains("search.contacts")) {
-            prefs.getBoolean("search.contacts", false)
-        } else {
-            prefs.getBoolean("search_contacts", false)
-        }
+    private fun refreshCachedSettings() {
+        cachedAppWeightMul = weightMultiplier(prefs[SettingsManager.SEARCH_WEIGHT_APPS])
+        cachedContactWeightMul = weightMultiplier(prefs[SettingsManager.SEARCH_WEIGHT_CONTACTS])
+        cachedFileWeightMul = weightMultiplier(prefs[SettingsManager.SEARCH_WEIGHT_FILES])
+        cachedFuzzySearchEnabled = prefs[SettingsManager.APP_FUZZY_SEARCH]
+        cachedContactSearchEnabled = prefs[SettingsManager.SEARCH_CONTACTS]
     }
 
-    private fun updateFuzzySearch() {
-        cachedFuzzySearchEnabled = if (prefs.contains("app.fuzzy.search")) {
-            prefs.getBoolean("app.fuzzy.search", true)
-        } else {
-            prefs.getBoolean("app_fuzzy_search", true)
-        }
-    }
-
-    private fun updateAppWeight() {
-        cachedAppWeightMul = (prefs.getInt("search_weight_apps", 50) / 50f).coerceAtLeast(0.01f)
-    }
-
-    private fun updateContactWeight() {
-        cachedContactWeightMul = (prefs.getInt("search_weight_contacts", 50) / 50f).coerceAtLeast(0.01f)
-    }
-
-    private fun updateFileWeight() {
-        cachedFileWeightMul = (prefs.getInt("search_weight_files", 50) / 50f).coerceAtLeast(0.01f)
-    }
+    /** A priority weight of 50 is neutral (x1). */
+    private fun weightMultiplier(weight: Int): Float = (weight / 50f).coerceAtLeast(0.01f)
 
     // ---------------------------------------------------------------------------------------------
     // INGESTION & INDEXING API

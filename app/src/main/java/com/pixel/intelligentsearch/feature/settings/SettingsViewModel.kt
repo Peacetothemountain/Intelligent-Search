@@ -1,7 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.SettingKey
 import android.net.Uri
-import androidx.datastore.preferences.core.Preferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pixel.intelligentsearch.core.backup.BackupManager
@@ -35,12 +35,6 @@ class SettingsViewModel @Inject constructor(
             initialValue = settingsManager.getInitialSettings()
         )
 
-    init {
-        viewModelScope.launch(Dispatchers.IO) {
-            settingsManager.syncSharedPreferencesToDataStore()
-        }
-    }
-
     val bangsFlow: StateFlow<List<SearchBang>> = bangManager.bangsFlow
         .stateIn(
             scope = viewModelScope,
@@ -50,22 +44,20 @@ class SettingsViewModel @Inject constructor(
 
     fun updateCustomIconPills(pills: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            settingsManager.updateSetting(SettingsManager.CUSTOM_ICON_PILLS, pills)
+            settingsManager.set(SettingsManager.CUSTOM_ICON_PILLS, pills)
         }
     }
 
     fun updateActiveIconPack(packageName: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            settingsManager.updateSetting(SettingsManager.ACTIVE_ICON_PACK, packageName)
+            settingsManager.set(SettingsManager.ACTIVE_ICON_PACK, packageName)
         }
     }
 
-    fun <T> updateSetting(key: Preferences.Key<T>, value: T) {
-        viewModelScope.launch(Dispatchers.IO) {
-            settingsManager.updateSetting(key, value)
-            if (key == SettingsManager.SEARCH_CONTACTS && value == true) {
-                corpusIndexManager.reindexContacts()
-            }
+    fun <T : Any> updateSetting(key: SettingKey<T>, value: T) {
+        settingsManager.set(key, value)
+        if (key == SettingsManager.SEARCH_CONTACTS && value == true) {
+            corpusIndexManager.reindexContacts()
         }
     }
 

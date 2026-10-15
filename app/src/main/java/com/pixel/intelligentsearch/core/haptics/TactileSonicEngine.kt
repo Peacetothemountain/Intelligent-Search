@@ -1,5 +1,8 @@
 package com.pixel.intelligentsearch.core.haptics
 
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
 import android.os.SystemClock
 import android.view.View
@@ -29,12 +32,12 @@ class TactileSonicEngine private constructor(private val context: Context) {
 
     val hapticEngine = PixelHapticEngine.get(context)
 
-    private val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
 
     var isHapticEnabled: Boolean
-        get() = prefs.getBoolean("vibration_enabled", true)
+        get() = prefs[SettingsManager.VIBRATION]
         set(value) {
-            prefs.edit().putBoolean("vibration_enabled", value).apply()
+            prefs.edit().put(SettingsManager.VIBRATION, value).apply()
         }
 
     // High-frequency debouncing timestamps

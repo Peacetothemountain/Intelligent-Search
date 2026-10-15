@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.core.bangs
 
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -152,11 +154,13 @@ class SearchBangManager @Inject constructor(
     }
 
     private fun getPrefs(): SharedPreferences {
-        return getSafeContext().getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        return getSafeContext().getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
     }
 
     private val prefChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == "web_shortcut_trigger_symbol" || key == "custom_bangs_json" || key == "disabled_web_shortcuts") {
+        if (key == null || key == SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL.name ||
+            key == SettingsManager.CUSTOM_BANGS_JSON.name || key == SettingsManager.DISABLED_WEB_SHORTCUTS.name
+        ) {
             cachedTriggerSymbol = null
             cachedSyncBangs = null
         }
@@ -175,7 +179,7 @@ class SearchBangManager @Inject constructor(
         val cached = cachedTriggerSymbol
         if (cached != null) return cached
         val symbol = try {
-            getPrefs().getString("web_shortcut_trigger_symbol", "!")?.ifBlank { "!" } ?: "!"
+            getPrefs()[SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL]?.ifBlank { "!" } ?: "!"
         } catch (_: Exception) {
             "!"
         }
@@ -208,11 +212,11 @@ class SearchBangManager @Inject constructor(
         val cached = cachedSyncBangs
         if (cached != null) return cached
         val prefs = getPrefs()
-        val trigger = prefs.getString("web_shortcut_trigger_symbol", "!")?.ifBlank { "!" } ?: "!"
-        val customBangsJson = prefs.getString("custom_bangs_json", null)
+        val trigger = prefs[SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL]?.ifBlank { "!" } ?: "!"
+        val customBangsJson = prefs[SettingsManager.CUSTOM_BANGS_JSON]
             ?: settingsManager.getInitialSettings().customBangsJson
         val customBangs = parseCustomBangs(customBangsJson)
-        val disabled = prefs.getStringSet("disabled_web_shortcuts", null)?.toSet()
+        val disabled = prefs[SettingsManager.DISABLED_WEB_SHORTCUTS]?.toSet()
             ?: settingsManager.getInitialSettings().disabledWebShortcuts
 
         val builtIns = BUILT_IN_BANGS.map { bang ->
@@ -374,13 +378,13 @@ class SearchBangManager @Inject constructor(
         mutex.withLock {
             cachedSyncBangs = null
             val prefs = getPrefs()
-            val currentJson = prefs.getString("custom_bangs_json", null)
+            val currentJson = prefs[SettingsManager.CUSTOM_BANGS_JSON]
                 ?: settingsManager.getInitialSettings().customBangsJson
             val currentCustom = parseCustomBangs(currentJson).toMutableList()
             currentCustom.removeAll { it.displayPrefix == bang.displayPrefix || it.prefix.equals(bang.prefix, ignoreCase = true) }
             currentCustom.add(bang.copy(isBuiltIn = false))
             val jsonStr = serializeCustomBangs(currentCustom)
-            prefs.edit().putString("custom_bangs_json", jsonStr).apply()
+            prefs.edit().put(SettingsManager.CUSTOM_BANGS_JSON, jsonStr).apply()
             settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, jsonStr)
         }
     }
@@ -390,12 +394,12 @@ class SearchBangManager @Inject constructor(
             cachedSyncBangs = null
             val normPrefix = prefix.lowercase().trim()
             val prefs = getPrefs()
-            val currentJson = prefs.getString("custom_bangs_json", null)
+            val currentJson = prefs[SettingsManager.CUSTOM_BANGS_JSON]
                 ?: settingsManager.getInitialSettings().customBangsJson
             val currentCustom = parseCustomBangs(currentJson).toMutableList()
             currentCustom.removeAll { it.displayPrefix == normPrefix || it.prefix.equals(normPrefix, ignoreCase = true) }
             val jsonStr = serializeCustomBangs(currentCustom)
-            prefs.edit().putString("custom_bangs_json", jsonStr).apply()
+            prefs.edit().put(SettingsManager.CUSTOM_BANGS_JSON, jsonStr).apply()
             settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, jsonStr)
         }
     }
@@ -405,10 +409,10 @@ class SearchBangManager @Inject constructor(
             cachedSyncBangs = null
             val normPrefix = prefix.lowercase().trim()
             val prefs = getPrefs()
-            val currentDisabled = (prefs.getStringSet("disabled_web_shortcuts", null)?.toSet()
+            val currentDisabled = (prefs[SettingsManager.DISABLED_WEB_SHORTCUTS]?.toSet()
                 ?: settingsManager.getInitialSettings().disabledWebShortcuts).toMutableSet()
             currentDisabled.add(normPrefix)
-            prefs.edit().putStringSet("disabled_web_shortcuts", HashSet(currentDisabled)).apply()
+            prefs.edit().put(SettingsManager.DISABLED_WEB_SHORTCUTS, HashSet(currentDisabled)).apply()
             settingsManager.updateSetting(SettingsManager.DISABLED_WEB_SHORTCUTS, currentDisabled)
         }
     }
@@ -418,10 +422,10 @@ class SearchBangManager @Inject constructor(
             cachedSyncBangs = null
             val normPrefix = prefix.lowercase().trim()
             val prefs = getPrefs()
-            val currentDisabled = (prefs.getStringSet("disabled_web_shortcuts", null)?.toSet()
+            val currentDisabled = (prefs[SettingsManager.DISABLED_WEB_SHORTCUTS]?.toSet()
                 ?: settingsManager.getInitialSettings().disabledWebShortcuts).toMutableSet()
             currentDisabled.remove(normPrefix)
-            prefs.edit().putStringSet("disabled_web_shortcuts", HashSet(currentDisabled)).apply()
+            prefs.edit().put(SettingsManager.DISABLED_WEB_SHORTCUTS, HashSet(currentDisabled)).apply()
             settingsManager.updateSetting(SettingsManager.DISABLED_WEB_SHORTCUTS, currentDisabled)
         }
     }

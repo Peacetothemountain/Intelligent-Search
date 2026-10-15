@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
@@ -150,7 +152,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         "News" to Icons.AutoMirrored.Filled.Article
     )
 
-    var localThemeStyle by remember { mutableStateOf(prefs.getString("widget.theme.style", "System Default") ?: "System Default") }
+    var localThemeStyle by remember { mutableStateOf(prefs[SettingsManager.WIDGET_THEME_STYLE]) }
     val isSystem = localThemeStyle == "System Default"
 
     // System Design state
@@ -219,7 +221,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
     }
     var sysShowVoice by remember {
-        mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_voice", prefs.getBoolean("widget_show_voice", true)) else true)
+        mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_voice", prefs[SettingsManager.WIDGET_SHOW_VOICE]) else true)
     }
     val defaultSlotOrder = "shortcut1,mic,shortcut2,shortcut3"
     val rawSysSc1 = prefs.getString("widget_system_shortcut_1", if (sysSaved) prefs.getString("widget_shortcut_1", "Google Lens") else "Google Lens") ?: "Google Lens"
@@ -294,7 +296,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
     }
     var matShowVoice by remember {
-        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_voice", prefs.getBoolean("widget_show_voice", true)) else true)
+        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_voice", prefs[SettingsManager.WIDGET_SHOW_VOICE]) else true)
     }
     val rawMatSc1 = prefs.getString("widget_material_shortcut_1", if (matSaved) prefs.getString("widget_shortcut_1", "Google Lens") else "Google Lens") ?: "Google Lens"
     val rawMatSc2 = prefs.getString("widget_material_shortcut_2", if (matSaved) prefs.getString("widget_shortcut_2", "None") else "None") ?: "None"
@@ -688,7 +690,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         // only as the fallback for a design that has never been saved.
         val activeStyle = if (isSystem) "System Default" else "Material You (Minimal)"
         editor
-            .putString("widget.theme.style", activeStyle)
+            .put(SettingsManager.WIDGET_THEME_STYLE, activeStyle)
             .apply()
         widgetSettingsViewModel?.updateSetting(SettingsManager.WIDGET_THEME_STYLE, activeStyle)
         updateWidgets(context)

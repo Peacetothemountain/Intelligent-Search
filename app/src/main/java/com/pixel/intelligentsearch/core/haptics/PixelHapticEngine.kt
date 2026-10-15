@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.core.haptics
 
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
 import android.os.Build
 import android.os.VibrationAttributes
@@ -127,8 +129,8 @@ class PixelHapticEngine(private val context: Context) {
         amplitudeScale: Float = 1.0f,
         velocity: Float = 0f
     ) {
-        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-        if (!prefs.getBoolean("vibration_enabled", true)) return
+        val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+        if (!prefs[SettingsManager.VIBRATION]) return
 
         val effect = composeWaveform(type, amplitudeScale, velocity)
         if (effect != null) {
@@ -527,8 +529,8 @@ class PixelHapticEngine(private val context: Context) {
      * Standardized across all interactive touch, click, swipe, gesture, and press events.
      */
     fun performPredictiveBackHaptic(view: View? = null) {
-        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-        if (!prefs.getBoolean("vibration_enabled", true)) {
+        val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+        if (!prefs[SettingsManager.VIBRATION]) {
             return
         }
 

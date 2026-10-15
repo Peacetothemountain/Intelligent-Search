@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import com.pixel.intelligentsearch.core.data.settings.put
 import android.Manifest
 import android.content.Intent
 import android.content.SharedPreferences
@@ -58,7 +60,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
     val context = LocalContext.current
     val viewModel = LocalSettingsViewModel.current
     Box(modifier = Modifier.fillMaxSize()) {
-        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
+        val morphAnimationEnabled by rememberSetting(SettingsManager.MORPH_ANIMATION_ENABLED) {}
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
@@ -83,7 +85,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     SettingsCard {
-                        var searchApps by rememberBooleanPreference(prefs, "search.apps", false)
+                        var searchApps by rememberSetting(SettingsManager.SEARCH_APPS)
                         SettingsRowToggle(
                             title = "Apps",
                             subtitle = "Search Installed Applications.",
@@ -99,7 +101,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             },
                             showDivider = true
                         )
-                        var searchWeb by rememberBooleanPreference(prefs, "search.web", true)
+                        var searchWeb by rememberSetting(SettingsManager.SEARCH_WEB)
                         SettingsRowToggle(
                             title = "Web",
                             subtitle = "View Search Suggestions from Websites.",
@@ -117,8 +119,8 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                         )
                         var showContactsRationaleDialog by remember { mutableStateOf(false) }
                         var showContactsSettingsDialog by remember { mutableStateOf(false) }
-                        var searchContacts by rememberBooleanPreference(prefs, "search.contacts", false)
-                        var searchFiles by rememberBooleanPreference(prefs, "search.files", false)
+                        var searchContacts by rememberSetting(SettingsManager.SEARCH_CONTACTS)
+                        var searchFiles by rememberSetting(SettingsManager.SEARCH_FILES)
 
                         val lifecycleOwner = LocalLifecycleOwner.current
                         DisposableEffect(lifecycleOwner) {
@@ -127,7 +129,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                                     val hasContacts = context.checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
                                     if (searchContacts != hasContacts) {
                                         searchContacts = hasContacts
-                                        prefs.edit().putBoolean("search.contacts", hasContacts).apply()
+                                        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, hasContacts).apply()
                                         viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, hasContacts)
                                         if (hasContacts) {
                                             viewModel?.reindexContacts()
@@ -147,12 +149,12 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             val granted = results.values.isNotEmpty() && results.values.all { it }
                             if (granted) {
                                 searchContacts = true
-                                prefs.edit().putBoolean("search.contacts", true).apply()
+                                prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).apply()
                                 viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, true)
                                 viewModel?.reindexContacts()
                             } else {
                                 searchContacts = false
-                                prefs.edit().putBoolean("search.contacts", false).apply()
+                                prefs.edit().put(SettingsManager.SEARCH_CONTACTS, false).apply()
                                 viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, false)
                                 showContactsSettingsDialog = true
                             }
@@ -234,7 +236,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                                 if (isChecked) {
                                     if (context.checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
                                         searchContacts = true
-                                        prefs.edit().putBoolean("search.contacts", true).apply()
+                                        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).apply()
                                         viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, true)
                                         viewModel?.reindexContacts()
                                     } else {
@@ -242,7 +244,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                                     }
                                 } else {
                                     searchContacts = false
-                                    prefs.edit().putBoolean("search.contacts", false).apply()
+                                    prefs.edit().put(SettingsManager.SEARCH_CONTACTS, false).apply()
                                     viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, false)
                                 }
                             },
@@ -263,7 +265,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             isChecked = searchFiles,
                             onCheckedChange = { isChecked -> 
                                 searchFiles = isChecked
-                                prefs.edit().putBoolean("search.files", isChecked).apply()
+                                prefs.edit().put(SettingsManager.SEARCH_FILES, isChecked).apply()
                                 viewModel?.updateSetting(SettingsManager.SEARCH_FILES, isChecked)
                             },
                             onClick = { 
@@ -275,7 +277,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             },
                             showDivider = true
                         )
-                        var searchCalc by rememberBooleanPreference(prefs, "search.calculator", false)
+                        var searchCalc by rememberSetting(SettingsManager.SEARCH_CALCULATOR)
                         SettingsRowToggle(
                             title = "Calculator",
                             subtitle = "Calculate Mathematical Equations Inside Search Bar.",
@@ -284,7 +286,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             onCheckedChange = { searchCalc = it },
                             showDivider = true
                         )
-                        var searchCalendar by rememberBooleanPreference(prefs, "search.calendar", false)
+                        var searchCalendar by rememberSetting(SettingsManager.SEARCH_CALENDAR)
                         val calendarPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
                             if (results.values.all { it }) {
                                 searchCalendar = true

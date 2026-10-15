@@ -1,4 +1,8 @@
 package com.pixel.intelligentsearch.feature.search
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
 import com.pixel.intelligentsearch.feature.settings.tutorialTarget
@@ -225,9 +229,9 @@ fun SearchOverlayLensIcon(
     val scheme = MaterialTheme.colorScheme
     val isLight = scheme.surface.luminance() >= 0.5f
 
-    val prefs = remember(context) { context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE) }
+    val prefs = remember(context) { context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE) }
     // Follow the icon theme of whichever widget design is active, as saved by Widget Customization.
-    val isMaterialWidget = prefs.getString("widget.theme.style", "System Default")?.startsWith("Material") == true
+    val isMaterialWidget = prefs[SettingsManager.WIDGET_THEME_STYLE]?.startsWith("Material") == true
     val effectiveTheme = (if (isMaterialWidget) {
         prefs.getString("widget_material_material_g_icon", prefs.getString("widget_material_g_icon", null))
     } else {
@@ -339,13 +343,8 @@ fun peekThemedAppIcon(packageName: String, activePackOverride: String? = null): 
 fun getThemedAppIcon(context: Context, packageName: String, activePackOverride: String? = null): AppIconResult? {
     try {
         val activePack = activePackOverride ?: cachedActivePack ?: run {
-            val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-            val p = prefs.getString("active_icon_pack", null)
-            val resolved = if (p != null) p else {
-                context.getSharedPreferences("intelligent_search_settings", Context.MODE_PRIVATE).getString("active_icon_pack", "system_default") ?: "system_default"
-            }
-            cachedActivePack = resolved
-            resolved
+            context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)[SettingsManager.ACTIVE_ICON_PACK]
+                .also { cachedActivePack = it }
         }
         val cacheKey = "$activePack:$packageName"
         val cached = themedIconCache.get(cacheKey)
@@ -551,28 +550,12 @@ fun SearchOverlayScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settingsState by settingsViewModel.settingsState.collectAsStateWithLifecycle()
     
-    val prefs = remember(context) { context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE) }
-    var appWeight by remember { mutableIntStateOf(prefs.getInt("search_weight_apps", 50)) }
-    var webWeight by remember { mutableIntStateOf(prefs.getInt("search_weight_web", 50)) }
-    var contactWeight by remember { mutableIntStateOf(prefs.getInt("search_weight_contacts", 50)) }
-    var fileWeight by remember { mutableIntStateOf(prefs.getInt("search_weight_files", 50)) }
-    var suggestionsEnabled by remember { mutableStateOf(prefs.getBoolean("search.web.suggestions", true)) }
-
-    DisposableEffect(prefs) {
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            when (key) {
-                "search_weight_apps" -> appWeight = prefs.getInt("search_weight_apps", 50)
-                "search_weight_web" -> webWeight = prefs.getInt("search_weight_web", 50)
-                "search_weight_contacts" -> contactWeight = prefs.getInt("search_weight_contacts", 50)
-                "search_weight_files" -> fileWeight = prefs.getInt("search_weight_files", 50)
-                "search.web.suggestions" -> suggestionsEnabled = prefs.getBoolean("search.web.suggestions", true)
-            }
-        }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose {
-            prefs.unregisterOnSharedPreferenceChangeListener(listener)
-        }
-    }
+    val prefs = remember(context) { context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE) }
+    val appWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_APPS)
+    val webWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_WEB)
+    val contactWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_CONTACTS)
+    val fileWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_FILES)
+    val suggestionsEnabled by rememberSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS)
     val searchProviderName = remember(settingsState.searchEngine, settingsState.customSearchEngineUrl) {
         when (settingsState.searchEngine) {
             "DuckDuckGo" -> "DuckDuckGo"
@@ -692,13 +675,13 @@ fun SearchOverlayScreen(
         }
     }
     
-    val isForceTutorial = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
+    val isForceTutorial = prefs[SettingsManager.DEBUG_UNLOCKED] && prefs[SettingsManager.FORCE_TUTORIAL]
     var showTutorial by remember {
         if (isForceTutorial) {
             TutorialManager.resetForForceTutorial(prefs)
         }
         val active = TutorialManager.isTutorialActive(prefs)
-        val step = TutorialManager.getStep(prefs)
+        val step = prefs[SettingsManager.TUTORIAL_STEP]
         if (active && step >= 3) {
             TutorialManager.completeTutorial(prefs)
             mutableStateOf(false)
@@ -898,10 +881,6 @@ fun SearchOverlayScreen(
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 hasStartedTyping = false
                 isKeyboardDismissedByUser = false
-                appWeight = prefs.getInt("search_weight_apps", 50)
-                webWeight = prefs.getInt("search_weight_web", 50)
-                contactWeight = prefs.getInt("search_weight_contacts", 50)
-                fileWeight = prefs.getInt("search_weight_files", 50)
                 val isContactsEnabled = settingsState.searchContacts
                 if (isContactsEnabled) {
                     viewModel.refreshContacts()
@@ -909,13 +888,13 @@ fun SearchOverlayScreen(
                 if (settingsState.searchFiles) {
                     viewModel.refreshFilesIfStale()
                 }
-                val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
+                val forceTut = prefs[SettingsManager.DEBUG_UNLOCKED] && prefs[SettingsManager.FORCE_TUTORIAL]
                 if (forceTut) {
                     TutorialManager.resetForForceTutorial(prefs)
                     showTutorial = true
                 } else {
                     val active = TutorialManager.isTutorialActive(prefs)
-                    val step = TutorialManager.getStep(prefs)
+                    val step = prefs[SettingsManager.TUTORIAL_STEP]
                     if (active && step >= 3) {
                         TutorialManager.completeTutorial(prefs)
                         showTutorial = false
@@ -1168,7 +1147,7 @@ fun SearchOverlayScreen(
                     )
                 }
             }
-            val showPerfStats = prefs.getBoolean("debug.show_perf_stats", false)
+            val showPerfStats = prefs[SettingsManager.DEBUG_SHOW_PERF_STATS]
             AnimatedVisibility(
                 visible = showPerfStats,
                 enter = fadeIn(animationSpec = ExpressiveMotionTokens.morphSpring()) + expandVertically(animationSpec = ExpressiveMotionTokens.morphSpring()),
@@ -1260,7 +1239,7 @@ fun SearchOverlayScreen(
                                 hasStartedTyping = true
                             }
                             if (com.pixel.intelligentsearch.BuildConfig.DEBUG && newQuery == "*xy88x*") {
-                                prefs.edit().putBoolean("debug_unlocked", true).apply()
+                                prefs.edit().put(SettingsManager.DEBUG_UNLOCKED, true).apply()
                                 viewModel.onQueryChanged("")
                                 textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
                                 showDebugPill = true
@@ -1926,7 +1905,7 @@ fun SearchOverlayScreen(
                                                 hasStartedTyping = false
                                                 focusManager.clearFocus(force = true)
                                                 keyboardController?.hide()
-                                                val isDirectCall = settingsState.contactDirectCall || prefs.getBoolean("contact_direct_call", false) || prefs.getBoolean("contact.direct.call", false)
+                                                val isDirectCall = settingsState.contactDirectCall || prefs[SettingsManager.CONTACT_DIRECT_CALL] || prefs[SettingsManager.CONTACT_DIRECT_CALL]
                                                 val intent = if (isDirectCall && match.phoneNumber.isNotBlank()) {
                                                     Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                                 } else if (match.lookupUri.isNotBlank()) {
@@ -1972,7 +1951,7 @@ fun SearchOverlayScreen(
                                                 fontFamily = GoogleSansFlex
                                             )
                                         }
-                                        val isDirectCall = settingsState.contactDirectCall || prefs.getBoolean("contact_direct_call", false) || prefs.getBoolean("contact.direct.call", false)
+                                        val isDirectCall = settingsState.contactDirectCall || prefs[SettingsManager.CONTACT_DIRECT_CALL] || prefs[SettingsManager.CONTACT_DIRECT_CALL]
                                         Icon(
                                             imageVector = if (isDirectCall) Icons.Default.Call else Icons.AutoMirrored.Filled.ArrowForward,
                                             contentDescription = if (isDirectCall) "Call" else "Open",
@@ -2702,7 +2681,7 @@ fun SearchOverlayScreen(
                         if (showPeople && isContactsEnabled && displayContacts.isNotEmpty()) {
                             item(key = "contacts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                             items(displayContacts, key = { contact -> "contact_${contact.lookupUri.ifBlank { "${contact.name}_${contact.phoneNumber}" }}" }, contentType = { "contact" }) { contact ->
-                                val isDirectCall = settingsState.contactDirectCall || prefs.getBoolean("contact_direct_call", false) || prefs.getBoolean("contact.direct.call", false)
+                                val isDirectCall = settingsState.contactDirectCall || prefs[SettingsManager.CONTACT_DIRECT_CALL] || prefs[SettingsManager.CONTACT_DIRECT_CALL]
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -2865,9 +2844,9 @@ fun SearchOverlayScreen(
         contentAlignment = Alignment.BottomCenter
     ) {
         val isShowWallpaper = remember(settingsState.showWallpaper) {
-            settingsState.showWallpaper || prefs.getBoolean("search.background.show.wall", prefs.getBoolean("show.wallpaper", true))
+            settingsState.showWallpaper || prefs[SettingsManager.SHOW_WALLPAPER]
         }
-        val isTransparency = if (settingsState.backgroundTransparency > 0) settingsState.backgroundTransparency else prefs.getInt("search.background.transparency", prefs.getInt("background.transparency", 50))
+        val isTransparency = if (settingsState.backgroundTransparency > 0) settingsState.backgroundTransparency else prefs[SettingsManager.BACKGROUND_TRANSPARENCY]
         val scrimColor = if (isShowWallpaper) MaterialTheme.colorScheme.scrim else MaterialTheme.colorScheme.background
         val scrimAlphaFactor = if (isShowWallpaper) ((isTransparency / 100f) * 0.7f).coerceIn(0f, 1f) else 1.0f
         Box(
@@ -3107,7 +3086,7 @@ fun SearchOverlayScreen(
                     2 to TutorialStepInfo("Settings", "Tap the settings icon ( [three_bars] ) to customize your search experience. Press OK below to open Settings now.", Alignment.Center, showArrow = true, requireButtonPress = true, showCircle = true)
                 ),
                 onComplete = {
-                    if (TutorialManager.getStep(prefs) >= TutorialManager.TOTAL_STEPS - 1) {
+                    if (prefs[SettingsManager.TUTORIAL_STEP] >= TutorialManager.TOTAL_STEPS - 1) {
                         TutorialManager.completeTutorial(prefs)
                     }
                     showTutorial = false

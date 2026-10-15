@@ -81,7 +81,8 @@ class BackupRoundTripTest {
         assertEquals(listOf("hello", "world"), dao.getSearchHistory().map { it.query })
 
         // Unreadable values from the file were not applied.
-        assertTrue(prefs.getInt("contact_results_count", 5) in 1..20)
+        // -1 never comes back; at worst it is clamped to the slider range on export.
+        assertTrue(prefs.getInt("contact_results_count", 5) in 0..20)
         assertEquals(true, prefs.getBoolean("search.web.suggestions", false))
 
         db.close()

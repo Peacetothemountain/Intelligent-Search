@@ -1,5 +1,8 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.SharedPreferences
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -73,9 +76,9 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val viewModel = LocalSettingsViewModel.current
     val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
 
-    var activeIconPack by rememberStringPreference(prefs, "active_icon_pack", "system_default")
-    var neverShowWarning by rememberBooleanPreference(prefs, "never_show_icon_pack_warning", false) {}
-    var storedPillString by rememberStringPreference(prefs, "custom_icon_pills", "")
+    var activeIconPack by rememberSetting(SettingsManager.ACTIVE_ICON_PACK)
+    var neverShowWarning by rememberSetting(SettingsManager.NEVER_SHOW_ICON_PACK_WARNING) {}
+    var storedPillString by rememberSetting(SettingsManager.CUSTOM_ICON_PILLS)
     val effectivePillString = remember(storedPillString) {
         if (storedPillString.isNotBlank()) storedPillString else prefs.getString("custom_icon_packs_order", "") ?: ""
     }
@@ -172,7 +175,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             TextButton(
                                 onClick = {
                                     neverShowWarning = true
-                                    prefs.edit().putBoolean("never_show_icon_pack_warning", true).apply()
+                                    prefs.edit().put(SettingsManager.NEVER_SHOW_ICON_PACK_WARNING, true).apply()
                                     if (pendingIconPack != null) {
                                         val chosen = pendingIconPack!!
                                         activeIconPack = chosen
@@ -361,7 +364,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                         storedPillString = localPillList.joinToString(",")
                                                         viewModel?.updateCustomIconPills(storedPillString)
                                                         prefs.edit()
-                                                            .putString("custom_icon_pills", storedPillString)
+                                                            .put(SettingsManager.CUSTOM_ICON_PILLS, storedPillString)
                                                             .putString("custom_icon_packs_order", storedPillString)
                                                             .apply()
                                                     },

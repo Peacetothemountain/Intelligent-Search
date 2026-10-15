@@ -1,5 +1,8 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.SharedPreferences
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -22,10 +25,6 @@ class TargetState {
 
 object TutorialManager {
     const val TOTAL_STEPS = 5
-    const val KEY_TUTORIAL_STEP = "tutorial_step"
-    const val KEY_TUTORIAL_COMPLETED = "tutorial_completed"
-    const val KEY_DEBUG_UNLOCKED = "debug_unlocked"
-    const val KEY_FORCE_TUTORIAL = "force_tutorial"
 
     val targetStates = mutableStateMapOf<Int, TargetState>()
     
@@ -37,36 +36,23 @@ object TutorialManager {
         targetStates.clear()
     }
 
-    fun getStep(prefs: SharedPreferences): Int {
-        return prefs.getInt(KEY_TUTORIAL_STEP, 0)
-    }
-
-    fun setStep(prefs: SharedPreferences, step: Int) {
-        prefs.edit { putInt(KEY_TUTORIAL_STEP, step) }
-    }
-    
     fun completeTutorial(prefs: SharedPreferences) {
-        prefs.edit { putBoolean(KEY_TUTORIAL_COMPLETED, true) }
+        prefs.edit().put(SettingsManager.TUTORIAL_COMPLETED, true).apply()
         clearTargetStates()
     }
 
     fun resetForForceTutorial(prefs: SharedPreferences) {
-        prefs.edit {
-            putInt(KEY_TUTORIAL_STEP, 0)
-            putBoolean(KEY_TUTORIAL_COMPLETED, false)
-        }
+        prefs.edit()
+            .put(SettingsManager.TUTORIAL_STEP, 0)
+            .put(SettingsManager.TUTORIAL_COMPLETED, false)
+            .apply()
         clearTargetStates()
     }
-    
-    fun isTutorialActive(prefs: SharedPreferences): Boolean {
-        val debugUnlocked = prefs.getBoolean(KEY_DEBUG_UNLOCKED, false)
-        if (debugUnlocked && prefs.getBoolean(KEY_FORCE_TUTORIAL, false)) {
-            return true
-        }
-        
-        // Normal behavior: only play if not completed.
-        return !prefs.getBoolean(KEY_TUTORIAL_COMPLETED, false)
-    }
+
+    /** Plays until completed; with debug unlocked, "force tutorial" replays it. */
+    fun isTutorialActive(prefs: SharedPreferences): Boolean =
+        (prefs[SettingsManager.DEBUG_UNLOCKED] && prefs[SettingsManager.FORCE_TUTORIAL]) ||
+            !prefs[SettingsManager.TUTORIAL_COMPLETED]
 }
 
 /**

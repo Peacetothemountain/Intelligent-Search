@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.put
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -102,8 +103,8 @@ fun SearchPillsScreen(
             prefs.edit()
                 .putString("app_search_profile_1", defaultPills)
                 .putString("app_search_profile_1_saved", defaultPills)
-                .putString("search.pills", defaultPills)
-                .putInt("shortcut_results_count", 6)
+                .put(SettingsManager.SEARCH_PILLS, defaultPills)
+                .put(SettingsManager.SHORTCUT_RESULTS_COUNT, 6)
                 .putBoolean("profile_1_restored_to_default_v919", true)
                 .apply()
             viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, defaultPills)
@@ -135,8 +136,8 @@ fun SearchPillsScreen(
         searchPills = pillString
         prefs.edit()
             .putString("app_search_profile_$activeProfile", pillString)
-            .putString("search.pills", pillString)
-            .putInt("shortcut_results_count", newPills.size)
+            .put(SettingsManager.SEARCH_PILLS, pillString)
+            .put(SettingsManager.SHORTCUT_RESULTS_COUNT, newPills.size)
             .apply()
         viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, pillString)
         viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, newPills.size)
@@ -151,8 +152,8 @@ fun SearchPillsScreen(
         localPillList = list
         resetCounter++
         prefs.edit()
-            .putString("search.pills", pills)
-            .putInt("shortcut_results_count", list.size)
+            .put(SettingsManager.SEARCH_PILLS, pills)
+            .put(SettingsManager.SHORTCUT_RESULTS_COUNT, list.size)
             .apply()
         viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, pills)
         viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, list.size)

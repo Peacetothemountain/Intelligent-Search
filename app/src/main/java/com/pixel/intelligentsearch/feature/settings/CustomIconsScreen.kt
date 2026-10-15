@@ -175,7 +175,6 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             TextButton(
                                 onClick = {
                                     neverShowWarning = true
-                                    prefs.edit().put(SettingsManager.NEVER_SHOW_ICON_PACK_WARNING, true).apply()
                                     if (pendingIconPack != null) {
                                         val chosen = pendingIconPack!!
                                         activeIconPack = chosen

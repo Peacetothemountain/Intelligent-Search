@@ -299,9 +299,10 @@ class MultiProfileManager @Inject constructor(
             return false
         }
 
-        // Fallback to standard package manager for personal profile
+        // Personal profile: the indexed launcher activity when known (packages can have several), else the default.
         val pm = appContext.packageManager
-        val launchIntent = pm.getLaunchIntentForPackage(packageName)?.apply {
+        val launchIntent = (activityName?.let { Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setClassName(packageName, it) }
+            ?: pm.getLaunchIntentForPackage(packageName))?.apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             sourceBounds?.let { bounds -> this.sourceBounds = bounds }
         }

@@ -125,6 +125,8 @@ fun SlideToRemoveAllBar(
 
     val dragFraction = if (maxDragPx > 0f) (dragOffsetX / maxDragPx).coerceIn(0f, 1f) else 0f
     val isThresholdReached = dragFraction >= 0.82f
+    // The gesture outlives recompositions; read the latest callback so it removes the list shown now.
+    val currentOnRemoveAll by androidx.compose.runtime.rememberUpdatedState(onRemoveAll)
 
     val animDragOffsetX by androidx.compose.animation.core.animateFloatAsState(
         targetValue = dragOffsetX,
@@ -199,7 +201,7 @@ fun SlideToRemoveAllBar(
                             onDragEnd = {
                                 if (dragOffsetX >= maxDragPx * 0.82f) {
                                     hapticEngine.performPredictiveBackHaptic(view)
-                                    onRemoveAll()
+                                    currentOnRemoveAll()
                                 }
                                 dragOffsetX = 0f
                             },
@@ -208,8 +210,10 @@ fun SlideToRemoveAllBar(
                             },
                             onHorizontalDrag = { change, dragAmount ->
                                 change.consume()
+                                val wasPastThreshold = dragOffsetX >= maxDragPx * 0.82f
                                 dragOffsetX = (dragOffsetX + dragAmount).coerceIn(0f, maxDragPx)
-                                if (dragOffsetX >= maxDragPx * 0.82f && !isThresholdReached) {
+                                // One tick when crossing the threshold, not on every drag event past it.
+                                if (!wasPastThreshold && dragOffsetX >= maxDragPx * 0.82f) {
                                     hapticEngine.performPredictiveBackHaptic(view)
                                 }
                             }
@@ -749,16 +753,18 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                             frame = badgeFrame
                                                         )
                                                         Spacer(modifier = Modifier.width(16.dp))
-                                                        val appLabel = remember(bang.targetPackage, bang.name) {
-                                                            if (!bang.targetPackage.isNullOrBlank()) {
-                                                                try {
-                                                                    val appInfo = context.packageManager.getApplicationInfo(bang.targetPackage, 0)
-                                                                    context.packageManager.getApplicationLabel(appInfo).toString()
-                                                                } catch (_: Exception) {
-                                                                    bang.name.ifBlank { bang.targetPackage }
+                                                        // The app's label is looked up off the main thread; the bang's own name shows until then.
+                                                        val appLabel by produceState(initialValue = bang.name, bang.targetPackage, bang.name) {
+                                                            val target = bang.targetPackage
+                                                            if (!target.isNullOrBlank()) {
+                                                                value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                                    try {
+                                                                        val pm = context.packageManager
+                                                                        pm.getApplicationLabel(pm.getApplicationInfo(target, 0)).toString()
+                                                                    } catch (_: Exception) {
+                                                                        bang.name.ifBlank { target }
+                                                                    }
                                                                 }
-                                                            } else {
-                                                                bang.name
                                                             }
                                                         }
                                                         Column {

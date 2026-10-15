@@ -129,7 +129,8 @@ class SettingsViewModel @Inject constructor(
         return strongBoxSecurityManager.getSavedPassphrase()
     }
 
-    fun clearSavedPassphraseFromSecurityChip(): Boolean {
-        return strongBoxSecurityManager.clearSavedPassphrase()
+    /** Deletes the saved passphrase and its Keystore key off the main thread (both are disk writes). */
+    fun clearSavedPassphraseFromSecurityChip() {
+        viewModelScope.launch(Dispatchers.IO) { strongBoxSecurityManager.clearSavedPassphrase() }
     }
 }

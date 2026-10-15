@@ -73,6 +73,12 @@ fun SystemToggleCard(
     LaunchedEffect(toggleState.isEnabled) {
         isChecked = toggleState.isEnabled
     }
+    // Wi-Fi (and Bluetooth on 13+) only open a system panel. If it is closed without a change the state above
+    // never changes, so drop the optimistic flip when the screen comes back.
+    androidx.lifecycle.compose.LifecycleResumeEffect(toggleState.isEnabled) {
+        isChecked = toggleState.isEnabled
+        onPauseOrDispose { }
+    }
 
     val context = LocalContext.current
     val view = LocalView.current

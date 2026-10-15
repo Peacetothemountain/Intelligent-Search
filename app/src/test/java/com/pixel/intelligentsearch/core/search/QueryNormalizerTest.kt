@@ -43,4 +43,14 @@ class QueryNormalizerTest {
         assertEquals("gpm", QueryNormalizer.extractInitials("Google Play Music"))
         assertEquals("yt", QueryNormalizer.extractInitials("YouTube"))
     }
+
+    @Test
+    fun nonLatinCombiningMarksAreKeptAndRecomposed() {
+        assertEquals("バス", QueryNormalizer.normalize("バス"))
+        assertEquals("パス", QueryNormalizer.normalize("パス"))
+        assertEquals("हिंदी", QueryNormalizer.normalize("हिंदी"))
+        assertEquals("한국어", QueryNormalizer.normalize("한국어"))
+        // Latin accents are still folded away.
+        assertEquals("cafe muller", QueryNormalizer.normalize("Café Müller!"))
+    }
 }

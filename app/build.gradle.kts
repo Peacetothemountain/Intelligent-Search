@@ -18,10 +18,6 @@ android {
         targetSdk = 37
         versionCode = 122
         versionName = "9.2"
-        ndk {
-            // CRITICAL: Must support arm64-v8a, armeabi-v7a, x86_64, and x86 to retain Google Play compatibility for 2,159+ devices.
-            abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86"))
-        }
     }
 
     signingConfigs {
@@ -125,7 +121,6 @@ room {
 
 dependencies {
   implementation(libs.media3.exoplayer)
-  implementation(libs.media3.ui)
   implementation(libs.google.material)
   // Core
   implementation(libs.androidx.core.ktx)

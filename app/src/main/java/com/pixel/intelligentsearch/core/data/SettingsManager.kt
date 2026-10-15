@@ -158,7 +158,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val WEB_RESULTS_COUNT = IntSetting("web_results_count", 5, 0..20)
         val CONTACT_RESULTS_COUNT = IntSetting("contact_results_count", 5, 0..20)
         val FILE_RESULTS_COUNT = IntSetting("file_results_count", 5, 0..20)
-        val SHORTCUT_RESULTS_COUNT = IntSetting("shortcut_results_count", 6, 0..20)
+        val SHORTCUT_RESULTS_COUNT = IntSetting("shortcut_results_count", 6, 1..20)
         val SEARCH_WEIGHT_APPS = IntSetting("search_weight_apps", 50, 0..100)
         val SEARCH_WEIGHT_CONTACTS = IntSetting("search_weight_contacts", 50, 0..100)
         val SEARCH_WEIGHT_FILES = IntSetting("search_weight_files", 50, 0..100)

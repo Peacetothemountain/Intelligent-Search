@@ -465,21 +465,27 @@ fun TutorialSpotlightOverlay(
         }
     }
 
-    // Consolidate step advancement logic
+    val stepForward: () -> Unit = {
+        if (currentStep < TutorialManager.TOTAL_STEPS - 1) {
+            val nextStep = currentStep + 1
+            currentStep = nextStep
+            onStepAdvance(nextStep)
+        } else {
+            TutorialManager.completeTutorial(prefs)
+            onComplete()
+        }
+    }
     val advanceToNextStep: () -> Unit = {
         if (!isAdvancing) {
             isAdvancing = true
             hapticEngine.performHaptic(localView, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
-            if (currentStep < TutorialManager.TOTAL_STEPS - 1) {
-                val nextStep = currentStep + 1
-                currentStep = nextStep
-                onStepAdvance(nextStep)
-                isAdvancing = false
-            } else {
-                TutorialManager.completeTutorial(prefs)
-                onComplete()
-            }
+            stepForward()
         }
+    }
+    // Taps are accepted again only once the new step has been on screen briefly, so a double tap can't skip one.
+    LaunchedEffect(currentStep) {
+        delay(350)
+        isAdvancing = false
     }
 
 
@@ -537,7 +543,6 @@ fun TutorialSpotlightOverlay(
     val tertiaryColor = MaterialTheme.colorScheme.tertiary
     val density = LocalDensity.current
 
-    val currentStepState = rememberUpdatedState(currentStep)
     val localTargetRectState = rememberUpdatedState(localTargetRect)
     val cardBoundsState = rememberUpdatedState(cardBounds)
     val stepInfoState = rememberUpdatedState(stepInfo)
@@ -598,17 +603,10 @@ fun TutorialSpotlightOverlay(
                                 distance <= targetRadius
                             }
                             if (isInsideTarget) {
+                                isAdvancing = true
                                 coroutineScope.launch {
                                     delay(150)
-                                    val step = currentStepState.value
-                                    if (step < TutorialManager.TOTAL_STEPS - 1) {
-                                        val nextStep = step + 1
-                                        currentStep = nextStep
-                                        onStepAdvance(nextStep)
-                                    } else {
-                                        TutorialManager.completeTutorial(prefs)
-                                        onComplete()
-                                    }
+                                    stepForward()
                                 }
                             }
                         }

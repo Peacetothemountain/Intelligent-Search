@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch
 import com.pixel.intelligentsearch.feature.widget.launchGeminiCornerOverlay
 import com.pixel.intelligentsearch.core.theme.ThemeMode
-import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -124,18 +122,6 @@ open class MainActivity : AppCompatActivity() {
         window.decorView.elevation = 0f
 
         val prefs = getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
-        var restoredDefaultPills: String? = null
-        if (!prefs.getBoolean("profile_1_restored_to_default_v918", false)) {
-            val defaultPills = "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files"
-            restoredDefaultPills = defaultPills
-            prefs.edit()
-                .putString("app_search_profile_1", defaultPills)
-                .putString("app_search_profile_1_saved", defaultPills)
-                .put(SettingsManager.SEARCH_PILLS, defaultPills)
-                .put(SettingsManager.SHORTCUT_RESULTS_COUNT, 6)
-                .putBoolean("profile_1_restored_to_default_v918", true)
-                .apply()
-        }
         val initialShowWallpaper = prefs[SettingsManager.SHOW_WALLPAPER]
         val initialBlur = prefs[SettingsManager.BACKGROUND_BLUR]
         if (initialShowWallpaper) {
@@ -161,14 +147,6 @@ open class MainActivity : AppCompatActivity() {
         val isTutorial = com.pixel.intelligentsearch.feature.settings.TutorialManager.isTutorialActive(prefs)
         applySoftInputMode(keyboardVisible = !isTutorial)
         super.onCreate(savedInstanceState)
-
-        // The overlay reads pills from DataStore, so the one-time reset above has to land there too.
-        restoredDefaultPills?.let { pills ->
-            lifecycleScope.launch {
-                settingsManager.updateSetting(com.pixel.intelligentsearch.core.data.SettingsManager.SEARCH_PILLS, pills)
-                settingsManager.updateSetting(com.pixel.intelligentsearch.core.data.SettingsManager.SHORTCUT_RESULTS_COUNT, 6)
-            }
-        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
@@ -255,11 +233,16 @@ open class MainActivity : AppCompatActivity() {
                                         android.util.Log.e("MainActivity", "Failed to open settings", e)
                                     }
                                 },
-                                onLaunchApp = { packageName ->
+                                onLaunchApp = { packageName, user, activityName ->
                                     searchViewModel.notifyAppLaunch(packageName)
                                     searchViewModel.onQueryChanged("")
                                     try {
-                                        multiProfileManager.launchApp(packageName = packageName, activity = this@MainActivity)
+                                        multiProfileManager.launchApp(
+                                            packageName = packageName,
+                                            userHandle = user,
+                                            activityName = activityName,
+                                            activity = this@MainActivity
+                                        )
                                     } catch (e: Throwable) {
                                         android.util.Log.e("MainActivity", "Failed to launch app $packageName", e)
                                     }

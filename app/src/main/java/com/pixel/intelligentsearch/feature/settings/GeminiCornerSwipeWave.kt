@@ -104,7 +104,9 @@ fun GeminiCornerSwipeWaveLayer(
         val brush = remember(shader) { androidx.compose.ui.graphics.ShaderBrush(shader) }
         var time by remember { mutableFloatStateOf(0f) }
         val lifecycleOwner = LocalLifecycleOwner.current
-        LaunchedEffect(lifecycleOwner) {
+        val animationsEnabled by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
+        LaunchedEffect(lifecycleOwner, animationsEnabled) {
+            if (!animationsEnabled) return@LaunchedEffect
             lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 var lastFrame = androidx.compose.runtime.withFrameNanos { it }
                 while (isActive) {

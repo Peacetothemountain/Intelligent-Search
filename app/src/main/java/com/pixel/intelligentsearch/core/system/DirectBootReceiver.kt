@@ -21,6 +21,9 @@ class DirectBootReceiver : BroadcastReceiver() {
     @Inject
     lateinit var directBootManager: DirectBootManager
 
+    @Inject
+    lateinit var widgetUpdater: WidgetUpdater
+
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
         Log.d(TAG, "DirectBoot broadcast received: $action")
@@ -37,7 +40,7 @@ class DirectBootReceiver : BroadcastReceiver() {
                     lastRefreshTimestamp = now
                     SystemDataProvider.invalidateAppsCache()
                     // goAsync keeps the low-priority boot-time process alive until the redraw finishes.
-                    com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(context, goAsync())
+                    widgetUpdater.updateAll(goAsync())
                 }
             }
         }

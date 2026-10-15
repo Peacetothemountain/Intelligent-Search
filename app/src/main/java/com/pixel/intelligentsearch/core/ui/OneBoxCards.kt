@@ -57,7 +57,6 @@ import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 import com.pixel.intelligentsearch.core.ui.expressive.SquircleShape
-import com.pixel.intelligentsearch.feature.settings.SettingsDebouncer
 import kotlinx.coroutines.delay
 
 /**
@@ -155,7 +154,7 @@ private fun ExpressiveOneBoxCard(
             enabled = enabled,
             role = Role.Button,
             onClick = {
-                if (SettingsDebouncer.canClick(120L)) {
+                if (ClickDebouncer.canClick(120L)) {
                     sensoryEngine.click(view)
                     currentOnClick?.invoke()
                 }

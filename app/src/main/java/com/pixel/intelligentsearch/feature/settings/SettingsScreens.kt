@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch.feature.settings
+import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
@@ -488,7 +489,7 @@ fun SettingsScreensHub(
         }
 
         val handleExitBack: () -> Unit = {
-            SettingsDebouncer.recordClick()
+            ClickDebouncer.recordClick()
             val act = context.findActivity() ?: (context as? Activity)
             val isBackToOverlay = prefs[SettingsManager.BACK_TO_SEARCH_OVERLAY]
             if (act != null) {
@@ -534,7 +535,7 @@ fun SettingsScreensHub(
 
         val onBack: () -> Unit = onBack@{
             // A quick double tap would pop the sub-page, then see the root and exit Settings entirely.
-            if (!SettingsDebouncer.canClick(cooldownMs = 400L, key = "settings_top_bar_back")) return@onBack
+            if (!ClickDebouncer.canClick(cooldownMs = 400L, key = "settings_top_bar_back")) return@onBack
             if (navController.previousBackStackEntry != null) {
                 navController.popBackStack()
             } else {
@@ -1886,35 +1887,30 @@ fun SearchAppColorfulIcon(
             CustomSearchAppIcon(modifier = modifier)
         }
         else -> {
-            val appDrawable = remember(appName, context) {
-                runCatching {
-                    context.packageManager.getApplicationIcon(appName)
-                }.getOrNull() ?: runCatching {
-                    val pm = context.packageManager
-                    val intent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
-                    val apps = pm.queryIntentActivities(intent, 0)
-                    val match = apps.firstOrNull {
-                        it.loadLabel(pm).toString().equals(appName, ignoreCase = true) ||
-                        it.activityInfo.packageName.equals(appName, ignoreCase = true)
-                    }
-                    match?.loadIcon(pm)
-                }.getOrNull()
+            // Matching a typed name means scanning installed apps: do it off the main thread, and only once
+            // typing pauses (a new name cancels the pending lookup).
+            val bitmap by produceState<ImageBitmap?>(initialValue = null, normalized) {
+                delay(300)
+                value = withContext(Dispatchers.IO) { resolveAppIconBitmap(context, normalized) }
             }
-
-            if (appDrawable != null) {
-                val bitmap = remember(appDrawable) {
-                    runCatching { appDrawable.toBitmap(width = 96, height = 96).asImageBitmap() }.getOrNull()
-                }
-                if (bitmap != null) {
-                    Image(bitmap = bitmap, contentDescription = appName, modifier = modifier.clip(RoundedCornerShape(6.dp)))
-                } else {
-                    CustomSearchAppIcon(modifier = modifier)
-                }
-            } else {
-                CustomSearchAppIcon(modifier = modifier)
-            }
+            bitmap?.let {
+                Image(bitmap = it, contentDescription = appName, modifier = modifier.clip(RoundedCornerShape(6.dp)))
+            } ?: CustomSearchAppIcon(modifier = modifier)
         }
     }
+}
+
+/** The icon of the installed app whose package or launcher label is [name], at 96 px. Call off the main thread. */
+private fun resolveAppIconBitmap(context: Context, name: String): ImageBitmap? {
+    val pm = context.packageManager
+    val drawable = runCatching { pm.getApplicationIcon(name) }.getOrNull() ?: runCatching {
+        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        pm.queryIntentActivities(launcherIntent, 0).firstOrNull {
+            it.activityInfo.packageName.equals(name, ignoreCase = true) ||
+                it.loadLabel(pm).toString().equals(name, ignoreCase = true)
+        }?.loadIcon(pm)
+    }.getOrNull() ?: return null
+    return runCatching { drawable.toBitmap(width = 96, height = 96).asImageBitmap() }.getOrNull()
 }
 
 // REUSABLE COMPONENTS
@@ -2220,7 +2216,7 @@ fun SettingsRowToggle(
     val debounceKey = remember { Any() }
     val applyToggle: (Boolean) -> Unit = remember(view, sensoryEngine, debounceKey) {
         { next ->
-            if (SettingsDebouncer.canClick(120L, debounceKey)) {
+            if (ClickDebouncer.canClick(120L, debounceKey)) {
                 sensoryEngine.toggle(view, next)
                 currentOnCheckedChange(next)
             }

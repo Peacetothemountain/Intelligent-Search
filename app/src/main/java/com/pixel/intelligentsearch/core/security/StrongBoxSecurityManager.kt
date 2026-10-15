@@ -47,6 +47,8 @@ class StrongBoxSecurityManager @Inject constructor(
         // so existing installs reuse their key instead of generating another one.
         private const val KEY_ALIAS_LEVEL_PROBE = "com.pixel.intelligentsearch.vault.master_v1"
         private const val KEY_ALIAS_SAVED_PASSPHRASE = "com.pixel.intelligentsearch.vault.saved_passphrase_v1"
+        // Credential-protected storage only: the saved passphrase must never sit where it's readable before unlock.
+        private const val SAVED_PASSPHRASE_PREFS = "secure_hardware_vault"
 
         // Left behind by the removed EncryptedDataVault / SecureSettingsRepository; deleted once.
         private val RETIRED_KEY_ALIASES = listOf(
@@ -65,16 +67,6 @@ class StrongBoxSecurityManager @Inject constructor(
     // where it is unavailable, such as JVM tests.
     private val keyStore: KeyStore by lazy {
         KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-    }
-
-    private fun getSafeContext(): Context {
-        val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
-        val isUnlocked = userManager?.isUserUnlocked ?: true
-        return if (!isUnlocked && !context.isDeviceProtectedStorage) {
-            context.createDeviceProtectedStorageContext()
-        } else {
-            context
-        }
     }
 
     /**
@@ -287,7 +279,7 @@ class StrongBoxSecurityManager @Inject constructor(
             cipher.init(Cipher.ENCRYPT_MODE, key)
             val iv = cipher.iv
             val cipherBytes = cipher.doFinal(passBytes)
-            val sp = getSafeContext().getSharedPreferences("secure_hardware_vault", Context.MODE_PRIVATE)
+            val sp = context.getSharedPreferences(SAVED_PASSPHRASE_PREFS, Context.MODE_PRIVATE)
             sp.edit()
                 .putString("saved_passphrase_cipher", Base64.encodeToString(cipherBytes, Base64.NO_WRAP))
                 .putString("saved_passphrase_iv", Base64.encodeToString(iv, Base64.NO_WRAP))
@@ -303,7 +295,7 @@ class StrongBoxSecurityManager @Inject constructor(
 
     /** Whether a passphrase is saved, without decrypting it. */
     fun hasSavedPassphrase(): Boolean = runCatching {
-        getSafeContext().getSharedPreferences("secure_hardware_vault", Context.MODE_PRIVATE)
+        context.getSharedPreferences(SAVED_PASSPHRASE_PREFS, Context.MODE_PRIVATE)
             .contains("saved_passphrase_cipher")
     }.getOrDefault(false)
 
@@ -314,7 +306,7 @@ class StrongBoxSecurityManager @Inject constructor(
     fun getSavedPassphrase(): String? {
         var decrypted: ByteArray? = null
         return try {
-            val sp = getSafeContext().getSharedPreferences("secure_hardware_vault", Context.MODE_PRIVATE)
+            val sp = context.getSharedPreferences(SAVED_PASSPHRASE_PREFS, Context.MODE_PRIVATE)
             val cipherBase64 = sp.getString("saved_passphrase_cipher", null) ?: return null
             val ivBase64 = sp.getString("saved_passphrase_iv", null) ?: return null
             val cipherBytes = Base64.decode(cipherBase64, Base64.NO_WRAP)
@@ -338,7 +330,7 @@ class StrongBoxSecurityManager @Inject constructor(
     @Synchronized
     fun clearSavedPassphrase(): Boolean {
         return try {
-            val sp = getSafeContext().getSharedPreferences("secure_hardware_vault", Context.MODE_PRIVATE)
+            val sp = context.getSharedPreferences(SAVED_PASSPHRASE_PREFS, Context.MODE_PRIVATE)
             sp.edit().remove("saved_passphrase_cipher").remove("saved_passphrase_iv").commit()
             deleteKey(KEY_ALIAS_SAVED_PASSPHRASE)
             true

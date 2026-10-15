@@ -1,5 +1,8 @@
 package com.pixel.intelligentsearch.core.data
 
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Singleton
+import javax.inject.Inject
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -11,7 +14,9 @@ data class NexusPredictionApp(
     val displayName: String
 )
 
-class NexusLauncherBridge(private val context: Context) {
+/** Reads app predictions published by Pixel Launcher (when installed and permitted). */
+@Singleton
+class NexusLauncherBridge @Inject constructor(@param:ApplicationContext private val context: Context) {
 
     companion object {
         private const val TAG = "NexusLauncherBridge"

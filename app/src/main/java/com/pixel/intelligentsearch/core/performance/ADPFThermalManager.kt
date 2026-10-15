@@ -1,5 +1,9 @@
 package com.pixel.intelligentsearch.core.performance
 
+import com.pixel.intelligentsearch.di.appEntryPoint
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Singleton
+import javax.inject.Inject
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -27,7 +31,8 @@ import java.util.concurrent.atomic.AtomicLong
  *
  * Designed and engineered by NG Designs.
  */
-class ADPFThermalManager(private val context: Context) {
+@Singleton
+class ADPFThermalManager @Inject constructor(@param:ApplicationContext private val context: Context) {
 
     enum class ThermalThrottleLevel {
         NORMAL,   // Full 120/144 FPS target, full AGSL shaders, 48dp+ blur, full particle density
@@ -437,13 +442,7 @@ class ADPFThermalManager(private val context: Context) {
             }
         }
 
-        @Volatile
-        private var INSTANCE: ADPFThermalManager? = null
-
-        fun getInstance(context: Context): ADPFThermalManager {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: ADPFThermalManager(context.applicationContext).also { INSTANCE = it }
-            }
-        }
+        /** The app-wide instance, for places without injection. */
+        fun getInstance(context: Context): ADPFThermalManager = context.appEntryPoint.adpfThermalManager()
     }
 }

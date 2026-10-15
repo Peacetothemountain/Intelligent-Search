@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch
 
+import com.pixel.intelligentsearch.di.ApplicationScope
+import com.pixel.intelligentsearch.core.system.WidgetUpdater
 import com.pixel.intelligentsearch.di.appEntryPoint
 import android.app.Application
 import android.os.Build
@@ -29,15 +31,20 @@ class App : Application() {
     lateinit var directBootManager: DirectBootManager
 
     @Inject
-    lateinit var multiProfileManager: MultiProfileManager
+    lateinit var multiProfileManager: dagger.Lazy<MultiProfileManager>
 
     @Inject
-    lateinit var systemToggleManager: SystemToggleManager
+    lateinit var systemToggleManager: dagger.Lazy<SystemToggleManager>
 
     @Inject
     lateinit var settingsManager: SettingsManager
 
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    @Inject
+    lateinit var widgetUpdater: WidgetUpdater
+
+    @Inject
+    @ApplicationScope
+    lateinit var appScope: CoroutineScope
 
     private companion object {
         const val MAINTENANCE_PREFS = "app_maintenance"
@@ -116,13 +123,15 @@ class App : Application() {
                     directBootManager.isUserUnlocked.filter { it }.first()
                     // Widgets drawn before unlock could only read device-protected (default) settings;
                     // redraw them from the user's real settings now that they are readable.
-                    com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(this@App)
+                    widgetUpdater.updateAll()
                 }
                 // One-time: fold old setting spellings and the retired DataStore copy into the single store.
                 settingsManager.migrateToSingleStore()
                 settingsManager.startDirectBootMirror()
-                systemToggleManager.clearLegacyAppNightModeOverride()
-                multiProfileManager.refreshProfiles()
+                // Built lazily: a process started only for a widget or the boot receiver shouldn't pay for
+                // camera, network and profile registration on the main thread.
+                systemToggleManager.get().clearLegacyAppNightModeOverride()
+                multiProfileManager.get().refreshProfiles()
                 removeRetiredSecretsOnce()
                 SystemDataProvider.getAllApps(this@App, forceRefresh = false)
             } catch (e: Exception) {

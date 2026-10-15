@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.search
 
+import com.pixel.intelligentsearch.di.ApplicationScope
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -48,7 +49,8 @@ import javax.inject.Singleton
 @Singleton
 class CorpusIndexManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
-    private val searchCoordinator: UnifiedSearchCoordinator
+    private val searchCoordinator: UnifiedSearchCoordinator,
+    @param:ApplicationScope private val scope: CoroutineScope
 ) {
     companion object {
         private const val TAG = "CorpusIndexManager"
@@ -57,7 +59,6 @@ class CorpusIndexManager @Inject constructor(
         private const val CONTACTS_REFRESH_INTERVAL_MS = 60 * 1000L
     }
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val _isIndexReady = MutableStateFlow(false)
@@ -96,7 +97,7 @@ class CorpusIndexManager @Inject constructor(
             return
         }
         isInitialized.set(true)
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             try {
                 val startMs = System.currentTimeMillis()
 
@@ -127,13 +128,13 @@ class CorpusIndexManager @Inject constructor(
     }
 
     fun reindexApps(forceRefresh: Boolean = true) {
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             reindexAppsInternal(forceRefresh)
         }
     }
 
     fun reindexContacts() {
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             reindexContactsInternal()
         }
     }
@@ -143,13 +144,13 @@ class CorpusIndexManager @Inject constructor(
      * ContentObserver already picks up edits, so overlay opens must not re-read the whole provider.
      */
     fun reindexContactsIfStale() {
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             reindexContactsInternal(onlyIfOlderThanMs = CONTACTS_REFRESH_INTERVAL_MS)
         }
     }
 
     fun reindexShortcuts() {
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             reindexShortcutsInternal()
         }
     }
@@ -159,7 +160,7 @@ class CorpusIndexManager @Inject constructor(
      * reliable change notifications, so the search overlay calls this each time it opens.
      */
     fun reindexFilesIfStale() {
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             reindexFilesInternal(onlyIfOlderThanMs = FILES_REFRESH_INTERVAL_MS)
         }
     }
@@ -256,7 +257,7 @@ class CorpusIndexManager @Inject constructor(
                     override fun onChange(selfChange: Boolean, uri: Uri?) {
                         super.onChange(selfChange, uri)
                         contactsDebounceJob?.cancel()
-                        contactsDebounceJob = scope.launch {
+                        contactsDebounceJob = scope.launch(Dispatchers.IO) {
                             delay(1000L)
                             reindexContactsInternal()
                         }
@@ -279,7 +280,7 @@ class CorpusIndexManager @Inject constructor(
                 val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
                     if (key in UserGrantedFiles.INDEX_KEYS) {
                         filesDebounceJob?.cancel()
-                        filesDebounceJob = scope.launch {
+                        filesDebounceJob = scope.launch(Dispatchers.IO) {
                             delay(500L)
                             reindexFilesInternal()
                         }
@@ -333,40 +334,4 @@ class CorpusIndexManager @Inject constructor(
         }
     }
 
-    /**
-     * Unregisters active system listeners and cancels background debounce jobs.
-     */
-    fun cleanup() {
-        contactsDebounceJob?.cancel()
-        contactsDebounceJob = null
-        filesDebounceJob?.cancel()
-        filesDebounceJob = null
-        scope.coroutineContext.cancelChildren()
-        synchronized(observerLock) {
-            filesPrefListener?.let { listener ->
-                filesPrefs?.unregisterOnSharedPreferenceChangeListener(listener)
-            }
-            filesPrefListener = null
-            filesPrefs = null
-            try {
-                contactsObserver?.let {
-                    context.contentResolver.unregisterContentObserver(it)
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to unregister contacts observer", e)
-            }
-            contactsObserver = null
-            try {
-                packageReceiver?.let {
-                    context.unregisterReceiver(it)
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to unregister package receiver", e)
-            }
-            packageReceiver = null
-        }
-        // Observers are gone, so the index will no longer track changes: require a fresh initialize().
-        _isIndexReady.value = false
-        isInitialized.set(false)
-    }
 }

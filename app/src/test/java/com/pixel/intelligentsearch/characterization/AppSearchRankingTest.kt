@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.characterization
 
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
 import android.graphics.drawable.ColorDrawable
 import androidx.test.core.app.ApplicationProvider
@@ -25,7 +26,8 @@ class AppSearchRankingTest {
         val coordinator = UnifiedSearchCoordinator(
             context,
             SystemActionRouter(context, SystemToggleManager(context)),
-            MultiProfileManager(context)
+            MultiProfileManager(context),
+            SettingsManager(context)
         )
         coordinator.bulkIndexApps(apps)
         return coordinator

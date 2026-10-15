@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.data
 
+import com.pixel.intelligentsearch.core.util.storageContext
 import com.pixel.intelligentsearch.core.data.settings.get
 import android.app.SearchManager
 import android.content.ContentProvider
@@ -28,20 +29,6 @@ class GlobalSearchProvider : ContentProvider() {
     }
 
     override fun onCreate(): Boolean = true
-
-    private fun getSafeContext(): Context? {
-        val ctx = context ?: return null
-        return if (!ctx.isDeviceProtectedStorage) {
-            val userManager = ctx.getSystemService(Context.USER_SERVICE) as? UserManager
-            if (userManager?.isUserUnlocked == false) {
-                ctx.createDeviceProtectedStorageContext()
-            } else {
-                ctx
-            }
-        } else {
-            ctx
-        }
-    }
 
     override fun query(
         uri: Uri,
@@ -83,7 +70,7 @@ class GlobalSearchProvider : ContentProvider() {
         val queryTerm = rawQuery.replace("\u0000", "").trim().take(128)
         if (queryTerm.isBlank()) return cursor
 
-        val safeCtx = getSafeContext()
+        val safeCtx = context?.storageContext()
         val entryPoint = try {
             val appCtx = safeCtx?.applicationContext ?: safeCtx
             appCtx?.appEntryPoint

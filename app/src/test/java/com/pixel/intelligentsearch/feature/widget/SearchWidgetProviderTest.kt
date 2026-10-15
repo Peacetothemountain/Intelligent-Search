@@ -177,23 +177,23 @@ class SearchWidgetProviderTest {
     fun testGetShortcutIconRes_mapsSearchAssistantAndNowPlaying() {
         assertEquals(
             com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive,
-            SearchWidgetProvider.getShortcutIconRes("Search")
+            getShortcutIconRes("Search")
         )
         assertEquals(
             com.pixel.intelligentsearch.R.drawable.ic_lens_action,
-            SearchWidgetProvider.getShortcutIconRes("Assistant")
+            getShortcutIconRes("Assistant")
         )
         assertEquals(
             com.pixel.intelligentsearch.R.drawable.ic_lens_action,
-            SearchWidgetProvider.getShortcutIconRes("Gemini")
+            getShortcutIconRes("Gemini")
         )
         assertEquals(
             com.pixel.intelligentsearch.R.drawable.ic_music,
-            SearchWidgetProvider.getShortcutIconRes("Now Playing")
+            getShortcutIconRes("Now Playing")
         )
         assertEquals(
             com.pixel.intelligentsearch.R.drawable.ic_music,
-            SearchWidgetProvider.getShortcutIconRes("Song Search")
+            getShortcutIconRes("Song Search")
         )
     }
 }

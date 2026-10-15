@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch
+import com.pixel.intelligentsearch.feature.widget.launchGeminiCornerOverlay
 import com.pixel.intelligentsearch.core.theme.ThemeMode
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
@@ -313,7 +314,7 @@ open class MainActivity : AppCompatActivity() {
         }
         if (intent?.action == "com.pixel.intelligentsearch.LAUNCH_GEMINI_OVERLAY" ||
             intent?.getBooleanExtra("launch_gemini_overlay", false) == true) {
-            com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.launchGeminiCornerOverlay(this)
+            launchGeminiCornerOverlay(this)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
             } else {

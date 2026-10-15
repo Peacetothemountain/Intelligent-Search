@@ -9,11 +9,11 @@ import org.junit.Test
 class BackupPreferenceSchemaTest {
 
     @Test
-    fun resultCountsRejectZeroAndNegative() {
+    fun resultCountsRejectNegativeAndTooLarge() {
         // A negative count reached take() during composition and crashed the overlay on every open.
         val range = BackupPreferenceSchema.intRange("shortcut_results_count")!!
         assertFalse(-1 in range)
-        assertFalse(0 in range)
+        assertTrue(0 in range) // empty pill profiles store 0
         assertTrue(6 in range)
         assertFalse(21 in range)
     }

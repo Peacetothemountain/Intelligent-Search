@@ -192,12 +192,7 @@ object HardwareSecurityDetector {
                     }
                 }
 
-                val pixelTee = if (pixelChip.contains("Titan M3")) {
-                    "Google Trusty TEE (Post-Quantum Secure)"
-                } else {
-                    "Google Trusty TEE"
-                }
-                Triple(pixelChip, pixelShort, pixelTee)
+                Triple(pixelChip, pixelShort, "Google Trusty TEE")
             }
 
             // 2. Samsung Galaxy Family
@@ -207,7 +202,7 @@ object HardwareSecurityDetector {
                         propKnoxVault.isNotBlank()
 
                 if (hasKnoxVault) {
-                    Triple("Samsung Knox Vault (EAL6+)", "Knox Vault", "Samsung Knox TEE (TEEGRIS / Kinibi)")
+                    Triple("Samsung Knox Vault", "Knox Vault", "Samsung Knox TEE (TEEGRIS / Kinibi)")
                 } else {
                     Triple("Samsung Knox Hardware Security", "Samsung Knox", "Samsung Knox TEE (TEEGRIS)")
                 }
@@ -249,7 +244,7 @@ object HardwareSecurityDetector {
 
             // 9. Huawei
             mfgLower.contains("huawei") || brandLower.contains("huawei") -> {
-                Triple("Huawei In-Chip Security Element (iSE)", "Huawei iSE", "Huawei iTrustee TEE (CC EAL5+)")
+                Triple("Huawei In-Chip Security Element (iSE)", "Huawei iSE", "Huawei iTrustee TEE")
             }
 
             // 10. Vivo / iQOO
@@ -357,14 +352,10 @@ object HardwareSecurityDetector {
 
         val description = when (effectiveLevel) {
             HardwareSecurityLevel.STRONGBOX -> {
-                if (chipName.contains("Titan M3")) {
-                    "Your cryptographic keys and sensitive tokens are protected by the $chipName isolated discrete hardware security coprocessor with NIST post-quantum cryptography (quantum-safe secure boot, StrongBox KeyMint HAL, and Common Criteria EAL6+ physical tamper resistance)."
-                } else {
-                    "Your cryptographic keys and sensitive tokens are protected by the $chipName isolated discrete hardware security coprocessor (StrongBox KeyMint HAL with Common Criteria EAL5+/EAL6+ tamper resistance and AES-256 GCM Envelope Encryption)."
-                }
+                "Your encryption keys are generated and kept inside the $chipName, a separate security chip (Android StrongBox), and can't be copied out of it. Data is encrypted with AES-256-GCM."
             }
             HardwareSecurityLevel.TEE -> {
-                "Your cryptographic keys are protected by the $teeName (TrustZone Secure Keystore Module with AES-256 GCM Envelope Encryption)."
+                "Your encryption keys are generated and kept inside the $teeName, the processor's isolated secure area (Android Keystore), and can't be copied out of it. Data is encrypted with AES-256-GCM."
             }
             HardwareSecurityLevel.SOFTWARE -> {
                 "Cryptographic keys are stored using Android KeyStore software backing."

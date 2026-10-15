@@ -71,7 +71,7 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var isSearching by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     
-    val biometricGate = remember { BiometricSearchGate(context) }
+    val biometricGate = remember { BiometricSearchGate.get(context) }
     var isAuthenticated by remember { mutableStateOf(false) }
     val authScope = androidx.compose.runtime.rememberCoroutineScope()
     val enteredAtMs = remember { android.os.SystemClock.uptimeMillis() }

@@ -1,7 +1,7 @@
 # Privacy Policy & Privacy Governance
 
 **Effective Date:** October 4, 2026  
-**Last Updated:** October 4, 2026  
+**Last Updated:** October 15, 2026  
 **Application:** Intelligent Search (`com.pixel.intelligentsearch`)  
 **Developer / Publisher:** NG Designs  
 **Contact:** [support.ngdesigns@gmail.com](mailto:support.ngdesigns@gmail.com)  
@@ -13,7 +13,7 @@
 
 **Intelligent Search** is engineered and published by **NG Designs** with a strict, non-negotiable **On-Device First Privacy Architecture**. 
 
-We believe that your personal device search queries, contacts, schedule, files, and installed applications are your private property. Intelligent Search is built so that **your personal data never leaves your device**.
+We believe that your personal device search queries, contacts, schedule, files, and installed applications are your private property. Intelligent Search is built so that **your personal data stays on your device**. The exceptions are things you choose to send: web searches and live web suggestions go to the search engine you pick (see Section 3), and voice input may be handled by your device's speech recognizer (see Section 2.H).
 
 * **Zero Cloud Data Exfiltration**: We do not maintain, operate, or connect to remote servers that collect, store, profile, or analyze your searches or personal information.
 * **Zero Advertising & Zero Tracking**: Intelligent Search contains **no advertisements**, **no advertising SDKs**, **no commercial tracking beacons**, and **no third-party behavioral analytics libraries** (such as Firebase Analytics, Mixpanel, or Facebook SDK).
@@ -55,8 +55,24 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **Processing & Security**: Reads network connectivity state locally to update toggle UI, and applies setting changes strictly when commanded by the user.
 
 ### G. Biometric Security & Hardware Keys (`USE_BIOMETRIC`)
-* **Purpose**: Protects vaulted (hidden) applications, private search history, and sensitive app configuration with biometric authentication (fingerprint/face unlock).
-* **Processing & Security**: Handled strictly by Android KeyStore, hardware Secure Element (SE) / StrongBox, and Titan M3+ security chips where supported. Biometric data never leaves the hardware security enclave and is never accessible to Intelligent Search.
+* **Purpose**: Protects hidden applications, the encrypted backup screen, and your saved backup passphrase with your fingerprint, face unlock, or screen lock.
+* **Processing & Security**: Authentication is handled entirely by Android. Encryption keys are created inside the Android Keystore (in the StrongBox security chip, such as Titan M, where the device has one, otherwise in the processor's secure area) and cannot be copied out. Biometric data is never accessible to Intelligent Search.
+
+### H. Microphone (`android.permission.RECORD_AUDIO`)
+* **Purpose**: Voice search, used only when you start it (for example from the microphone button or when Intelligent Search is your default assistant).
+* **Processing & Security**: Intelligent Search records nothing itself and stores no audio. Speech is turned into text by your device's speech recognizer. The on-device recognizer is used when available; on devices without one, Android's speech recognition service (for example Google's) handles the audio under its own privacy policy.
+* **User Control**: The microphone permission is requested at runtime and can be revoked in Android System Settings.
+
+### I. Bluetooth & Secure Settings (`BLUETOOTH_CONNECT`, `WRITE_SECURE_SETTINGS`)
+* **Purpose**: `BLUETOOTH_CONNECT` lets the Bluetooth quick toggle show and change Bluetooth state. `WRITE_SECURE_SETTINGS` cannot be granted by installing the app; it only works if you grant it yourself over ADB, and is then used only to register Intelligent Search as the device's search engine choice.
+* **Processing & Security**: Read and applied locally only when you use these features.
+
+### J. Advanced Protection (`QUERY_ADVANCED_PROTECTION_MODE`)
+* **Purpose**: Detects Android Advanced Protection so that Intelligent Search can pause live web suggestions and contact sharing while it is on.
+
+### K. On-Device Assistants (Android App Functions)
+* **Purpose**: On Android 16 and later, on-device assistants can ask Intelligent Search to search your installed apps, run a calculation, or (only if you turn on **Settings -> Search Sources -> Contacts -> Share with Assistants**, which is off by default) search your contacts.
+* **Processing & Security**: Requests are answered on the device. Hidden apps are never returned, and contacts are never shared while contact search or sharing is off, contacts access is not granted, or Advanced Protection is on.
 
 ---
 
@@ -64,6 +80,7 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 
 When you execute a web search or request live autocomplete suggestions:
 1. **Direct Communication**: Search queries are transmitted directly and securely (via HTTPS) to your chosen search engine provider (e.g., Google, DuckDuckGo, Bing, Brave, or your configured Custom Search URL).
+   * **Live suggestions are on by default**: while web search is on, the text you type in the search bar is sent to your search engine as you type to fetch suggestions. Turn this off in **Settings -> Web Search -> Web Suggestions** (it is paused automatically while Advanced Protection is on).
 2. **No Intermediary Logging**: Intelligent Search operates **no intermediary proxy server**, tracking gateway, or cloud middleman. We never intercept, inspect, log, or record your web searches.
 3. **Third-Party Privacy Policies**: Your interactions with external search engines are governed by the respective provider's privacy policy:
    * [Google Privacy Policy](https://policies.google.com/privacy)
@@ -75,11 +92,12 @@ When you execute a web search or request live autocomplete suggestions:
 
 ## 4. Local Data Storage, Encryption, & Backup Security
 
-* **Local SQLite Database (Android Room)**: Your search history and custom bang configurations are stored in an encrypted local database (`IntelligentSearchDatabase`) isolated within Android's protected application sandbox.
+* **Local Storage**: Your search history is stored in a local database (`IntelligentSearchDatabase`, Android Room) and your settings and custom bangs in local app preferences. These are not separately encrypted; they are protected by Android's app sandbox and your device's storage encryption, and are excluded from Android cloud backup and device-to-device transfer.
 * **One-Tap History Erasure**: You can clear all search history, reset index caches, or disable search history logging at any time via **Settings -> Search Sources -> Web -> Search History -> Clear History**.
 * **Encrypted Backups**: Intelligent Search provides an encrypted backup and restore mechanism. When exporting a backup file:
-  * Application preferences and configurations are encrypted locally using industry-standard **AES-256-GCM** encryption.
-  * Encryption keys are derived using **PBKDF2** with high iteration counts and cryptographic salt from a user-supplied password.
+  * Application preferences, hidden apps, and search history are encrypted locally using **AES-256-GCM**.
+  * With a passphrase, the key is derived from it using **PBKDF2** (600,000 iterations, random salt), so the backup can be restored on any device.
+  * Without a passphrase, the key is created inside this device's Android Keystore and never leaves it, so the backup can only be restored on the same device and installation.
   * Backup files are saved strictly to the storage location or cloud drive chosen by the user via the Android system file creator.
 
 ---
@@ -87,7 +105,7 @@ When you execute a web search or request live autocomplete suggestions:
 ## 5. Third-Party Libraries & Software Architecture
 
 * **Zero Analytics SDKs**: Intelligent Search contains **no** third-party analytics trackers, telemetric SDKs, or crash-reporting services that monitor user behavior.
-* **Open & Verifiable Dependencies**: All third-party libraries integrated into Intelligent Search are standard, open-source AndroidX, Jetpack Compose, KotlinX, Hilt, and Room components maintained by Google and the Android Open Source Project (AOSP).
+* **Open & Verifiable Dependencies**: The libraries integrated into Intelligent Search are open-source AndroidX (including Jetpack Compose, Room, DataStore, Media3, and App Functions), Material Components, Kotlin/KotlinX, and Hilt components maintained by Google, JetBrains, and the Android Open Source Project (AOSP).
 
 ---
 

@@ -13,6 +13,7 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import com.pixel.intelligentsearch.core.data.ShortcutProvider
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
+import com.pixel.intelligentsearch.core.data.UserGrantedFiles
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -39,7 +40,7 @@ import javax.inject.Singleton
  * 1. Applications (with usage metadata and package add/replace/remove observers)
  * 2. Contacts (with ContactsContract ContentObserver)
  * 3. App Shortcuts (via LauncherApps)
- * 4. Local Files (via MediaStore)
+ * 4. Local Files (folders and photos the user chose, plus MediaStore entries this app can see)
  *
  * Guarantees that keystroke queries execute 100% in-memory without ContentProvider Binder IPC stalls.
  */
@@ -50,6 +51,9 @@ class CorpusIndexManager @Inject constructor(
 ) {
     companion object {
         private const val TAG = "CorpusIndexManager"
+        private const val SETTINGS_PREFS = "PREFERENCES_CUSTOMISATIONS"
+        private const val FILES_REFRESH_INTERVAL_MS = 2 * 60 * 1000L
+        private const val CONTACTS_REFRESH_INTERVAL_MS = 60 * 1000L
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -72,6 +76,17 @@ class CorpusIndexManager @Inject constructor(
     private val contactsMutex = Mutex()
     private val filesMutex = Mutex()
 
+    // Folder and photo-picker choices live in settings prefs; any change there rebuilds the file index.
+    // SharedPreferences keeps listeners weakly, so the listener must stay referenced from this field.
+    private var filesPrefs: android.content.SharedPreferences? = null
+    private var filesPrefListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
+    @Volatile
+    private var filesDebounceJob: Job? = null
+    @Volatile
+    private var lastFilesIndexAtMs = 0L
+    @Volatile
+    private var lastContactsIndexAtMs = 0L
+
     /**
      * Bootstraps eager background indexing of all corpuses.
      */
@@ -89,7 +104,7 @@ class CorpusIndexManager @Inject constructor(
                     val appsDeferred = async { reindexAppsInternal(forceRefresh = force) }
                     val shortcutsDeferred = async { reindexShortcutsInternal() }
                     val contactsDeferred = async { reindexContactsInternal() }
-                    val filesDeferred = async { reindexFilesInternal() }
+                    val filesDeferred = async { reindexFilesInternal(onlyIfOlderThanMs = if (force) null else FILES_REFRESH_INTERVAL_MS) }
                     awaitAll(appsDeferred, shortcutsDeferred, contactsDeferred, filesDeferred)
                 }
 
@@ -122,6 +137,16 @@ class CorpusIndexManager @Inject constructor(
         }
     }
 
+    /**
+     * Re-reads contacts only if the last full read is older than [CONTACTS_REFRESH_INTERVAL_MS]. The
+     * ContentObserver already picks up edits, so overlay opens must not re-read the whole provider.
+     */
+    fun reindexContactsIfStale() {
+        scope.launch {
+            reindexContactsInternal(onlyIfOlderThanMs = CONTACTS_REFRESH_INTERVAL_MS)
+        }
+    }
+
     fun reindexShortcuts() {
         scope.launch {
             reindexShortcutsInternal()
@@ -131,6 +156,16 @@ class CorpusIndexManager @Inject constructor(
     fun reindexFiles() {
         scope.launch {
             reindexFilesInternal()
+        }
+    }
+
+    /**
+     * Picks up files added to the user's chosen folders since the last pass. Folder providers send no
+     * reliable change notifications, so the search overlay calls this each time it opens.
+     */
+    fun reindexFilesIfStale() {
+        scope.launch {
+            reindexFilesInternal(onlyIfOlderThanMs = FILES_REFRESH_INTERVAL_MS)
         }
     }
 
@@ -162,12 +197,21 @@ class CorpusIndexManager @Inject constructor(
         }
     }
 
-    private suspend fun reindexContactsInternal() {
+    private suspend fun reindexContactsInternal(onlyIfOlderThanMs: Long? = null) {
         contactsMutex.withLock {
+            if (onlyIfOlderThanMs != null &&
+                android.os.SystemClock.elapsedRealtime() - lastContactsIndexAtMs < onlyIfOlderThanMs
+            ) return
             try {
                 val contacts = SystemDataProvider.getAllContacts(context)
                 // Atomic swap: searches never observe an empty or partially rebuilt contact index.
                 searchCoordinator.replaceContacts(contacts)
+                // Only a read made with the permission counts as fresh, so granting it later still re-reads.
+                if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) ==
+                    android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) {
+                    lastContactsIndexAtMs = android.os.SystemClock.elapsedRealtime()
+                }
                 Log.d(TAG, "Indexed ${contacts.size} contacts into memory")
             } catch (e: CancellationException) {
                 throw e
@@ -177,11 +221,30 @@ class CorpusIndexManager @Inject constructor(
         }
     }
 
-    private suspend fun reindexFilesInternal() {
+    private suspend fun reindexFilesInternal(onlyIfOlderThanMs: Long? = null) {
         filesMutex.withLock {
+            if (onlyIfOlderThanMs != null &&
+                android.os.SystemClock.elapsedRealtime() - lastFilesIndexAtMs < onlyIfOlderThanMs
+            ) return
             try {
-                val files = SystemDataProvider.getAllRecentFiles(context, limit = 300)
-                searchCoordinator.replaceFiles(files)
+                val prefs = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+                if (!UserGrantedFiles.isFileSearchEnabled(prefs)) {
+                    // Files search is off: drop the index instead of walking storage for nothing.
+                    searchCoordinator.replaceFiles(emptyList())
+                } else {
+                    // Without broad storage permissions (see UserGrantedFiles) MediaStore only returns
+                    // this app's own files; the user's chosen folders and photos are the main source.
+                    val granted = UserGrantedFiles.loadAll(context, prefs)
+                    val ownMedia = SystemDataProvider.getAllRecentFiles(
+                        context,
+                        limit = 300,
+                        includeHidden = UserGrantedFiles.includeHiddenFiles(prefs)
+                    )
+                    val files = (granted + ownMedia).distinctBy { it.uri }
+                    searchCoordinator.replaceFiles(files)
+                    Log.d(TAG, "Indexed ${files.size} files (${granted.size} from chosen folders and photos)")
+                }
+                lastFilesIndexAtMs = android.os.SystemClock.elapsedRealtime()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -212,6 +275,27 @@ class CorpusIndexManager @Inject constructor(
             }
         } catch (e: Exception) {
             Log.w(TAG, "Could not register Contacts ContentObserver", e)
+        }
+
+        // Rebuild the file index when the user adds or removes folders, picks photos, or toggles Files search.
+        try {
+            if (filesPrefListener == null) {
+                val prefs = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+                val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                    if (key in UserGrantedFiles.INDEX_KEYS) {
+                        filesDebounceJob?.cancel()
+                        filesDebounceJob = scope.launch {
+                            delay(500L)
+                            reindexFilesInternal()
+                        }
+                    }
+                }
+                prefs.registerOnSharedPreferenceChangeListener(listener)
+                filesPrefs = prefs
+                filesPrefListener = listener
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not watch file search settings", e)
         }
 
         // Register BroadcastReceiver for Application changes
@@ -260,8 +344,15 @@ class CorpusIndexManager @Inject constructor(
     fun cleanup() {
         contactsDebounceJob?.cancel()
         contactsDebounceJob = null
+        filesDebounceJob?.cancel()
+        filesDebounceJob = null
         scope.coroutineContext.cancelChildren()
         synchronized(observerLock) {
+            filesPrefListener?.let { listener ->
+                filesPrefs?.unregisterOnSharedPreferenceChangeListener(listener)
+            }
+            filesPrefListener = null
+            filesPrefs = null
             try {
                 contactsObserver?.let {
                     context.contentResolver.unregisterContentObserver(it)

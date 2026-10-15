@@ -172,6 +172,16 @@ class BackupManager @Inject constructor(
                 key == "app_night_mode_override_cleared_v1"
         }
 
+        private fun sharedPrefTypeName(value: Any): String? = when (value) {
+            is Boolean -> "BOOLEAN"
+            is Int -> "INT"
+            is Long -> "LONG"
+            is Float -> "FLOAT"
+            is String -> "STRING"
+            is Set<*> -> "STRING_SET"
+            else -> null
+        }
+
         private fun isValidCustomSearchUrl(url: String): Boolean {
             if (url.isBlank()) return true
             val trimmed = url.trim().lowercase(java.util.Locale.ROOT)
@@ -287,10 +297,11 @@ class BackupManager @Inject constructor(
                 val payload = createBackupPayload()
                 val plainJson = serializePayload(payload)
 
-                val isHwBacked = strongBoxSecurityManager.isStrongBoxSupported()
                 val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
 
                 val envelope = if (!passphrase.isNullOrBlank()) {
+                    // Passphrase backups are encrypted in software from the passphrase so they restore on
+                    // any phone; the device Keystore is not involved, so they are not hardware backed.
                     val salt = BackupCryptoEngine.generateRandomSalt()
                     val iv = BackupCryptoEngine.generateRandomIv()
                     val passChars = passphrase.toCharArray()
@@ -303,7 +314,7 @@ class BackupManager @Inject constructor(
                     val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
 
                     EncryptedBackupEnvelope(
-                        isHardwareBacked = isHwBacked,
+                        isHardwareBacked = false,
                         hardwareChip = hwInfo.chipName,
                         deviceModel = hwInfo.deviceDisplayName,
                         kdf = KdfMetadata(iterations = BackupCryptoEngine.PBKDF2_ITERATIONS, saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
@@ -311,31 +322,30 @@ class BackupManager @Inject constructor(
                         encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
                         payloadSha256 = sha
                     )
-                } else if (isHwBacked) {
-                    val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
+                } else {
+                    // No passphrase: encrypt with a non-exportable AES-256 key generated inside this phone's
+                    // Keystore (StrongBox when present, otherwise the TEE). The key never leaves the
+                    // hardware, so the file only restores on this phone and this install. The old
+                    // APK-embedded "portable" key is kept for restoring legacy files only.
+                    val (key, keyLevel) = strongBoxSecurityManager.getOrCreateSymmetricKey(
+                        HARWARE_BACKUP_KEY_ALIAS,
+                        purgeIfUnrecoverable = false
+                    )
                     // Keystore keys require randomized encryption and reject a caller-supplied IV, so the
                     // cipher generates the IV itself.
                     val (iv, cipherBytes) = BackupCryptoEngine.encryptPayloadWithGeneratedIv(plainJson, key)
                     val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
 
+                    // isHardwareBacked marks the file as encrypted with this device's Keystore key (import
+                    // relies on it); hardwareChip records where the key actually landed, since StrongBox can
+                    // fall back to the TEE and some keystores report software backing.
                     EncryptedBackupEnvelope(
                         isHardwareBacked = true,
-                        hardwareChip = hwInfo.chipName,
-                        deviceModel = hwInfo.deviceDisplayName,
-                        kdf = null,
-                        cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
-                        encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
-                        payloadSha256 = sha
-                    )
-                } else {
-                    val key = BackupCryptoEngine.getPortableDefaultKey()
-                    val iv = BackupCryptoEngine.generateRandomIv()
-                    val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
-                    val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
-
-                    EncryptedBackupEnvelope(
-                        isHardwareBacked = false,
-                        hardwareChip = hwInfo.chipName,
+                        hardwareChip = when (keyLevel) {
+                            com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> hwInfo.chipName
+                            com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE -> hwInfo.teeName
+                            com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.SOFTWARE -> "Android Keystore (software)"
+                        },
                         deviceModel = hwInfo.deviceDisplayName,
                         kdf = null,
                         cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
@@ -476,14 +486,22 @@ class BackupManager @Inject constructor(
                         throw SecurityException("Failed to decrypt: ${e.message ?: "Invalid passphrase"}")
                     }
                 } else if (envelope.isHardwareBacked) {
+                    // Never create or purge the key here: a fresh key can't decrypt the file, and purging a
+                    // briefly unreadable one would orphan every device-bound backup.
+                    val key = try {
+                        strongBoxSecurityManager.getExistingSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
+                    } catch (e: Throwable) {
+                        throw SecurityException("This phone's backup key could not be read. Try again in a moment.", e)
+                    } ?: throw SecurityException(
+                        "This backup is locked to the phone and install it was made on, and can't be restored here."
+                    )
                     try {
-                        val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
                         BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
                     } catch (e: Throwable) {
-                        throw SecurityException("Device KeyStore key unavailable or backup integrity check failed.", e)
+                        throw SecurityException("This backup could not be decrypted with this phone's key. It may be corrupt, or from another install.", e)
                     }
                 } else {
-                    // Standard portable non-passphrase backup
+                    // Legacy portable file (APK-embedded key, not secret); new exports never use this.
                     try {
                         val key = BackupCryptoEngine.getPortableDefaultKey()
                         BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
@@ -515,21 +533,32 @@ class BackupManager @Inject constructor(
         if (payload.sharedPreferencesJson.isNotBlank() && payload.sharedPreferencesJson != "{}") {
             try {
                 val spObj = JSONObject(payload.sharedPreferencesJson)
+                require(spObj.length() <= BackupPreferenceSchema.MAX_KEYS) { "Backup has too many settings" }
                 val editor = sharedPrefs.edit()
+                val localValues = sharedPrefs.all
                 val keys = spObj.keys()
                 while (keys.hasNext()) {
                     val key = keys.next()
-                    if (isBlockedInternalKey(key)) continue
+                    if (isBlockedInternalKey(key) || BackupPreferenceSchema.isDebugKey(key)) continue
                     runCatching {
                         val itemObj = spObj.getJSONObject(key)
                         val type = itemObj.optString("type")
+                        // Known keys must carry the type the app reads them with. Keys the schema doesn't
+                        // name (per-shortcut custom values etc.) must at least match what is stored here now.
                         val expectedType = EXPECTED_SHARED_PREF_TYPES[key]
+                            ?: BackupPreferenceSchema.expectedType(key)
+                            ?: localValues[key]?.let { sharedPrefTypeName(it) }
                         if (expectedType != null && expectedType != type) {
                             return@runCatching
                         }
                         when (type) {
                             "BOOLEAN" -> editor.putBoolean(key, itemObj.getBoolean("value"))
-                            "INT" -> editor.putInt(key, itemObj.getInt("value"))
+                            "INT" -> {
+                                val intVal = itemObj.getInt("value")
+                                val range = BackupPreferenceSchema.intRange(key)
+                                if (range != null && intVal !in range) return@runCatching
+                                editor.putInt(key, intVal)
+                            }
                             "LONG" -> editor.putLong(key, itemObj.getLong("value"))
                             "FLOAT" -> {
                                 val fVal = itemObj.getDouble("value").toFloat()
@@ -537,6 +566,7 @@ class BackupManager @Inject constructor(
                             }
                             "STRING" -> {
                                 val strVal = itemObj.getString("value")
+                                if (strVal.length > BackupPreferenceSchema.MAX_STRING_LENGTH) return@runCatching
                                 if (key == "custom_search_engine_url" && !isValidCustomSearchUrl(strVal)) {
                                     return@runCatching
                                 }
@@ -544,6 +574,7 @@ class BackupManager @Inject constructor(
                             }
                             "STRING_SET" -> {
                                 val arr = itemObj.getJSONArray("value")
+                                if (arr.length() > BackupPreferenceSchema.MAX_STRING_SET_SIZE) return@runCatching
                                 val set = mutableSetOf<String>()
                                 for (i in 0 until arr.length()) {
                                     set.add(arr.getString(i))
@@ -571,7 +602,9 @@ class BackupManager @Inject constructor(
             val restored = BOOLEAN_SETTING_KEYS[k]?.let { key ->
                 v.toBooleanStrictOrNull()?.let { settingsManager.updateSetting(key, it) }
             } ?: INT_SETTING_KEYS[k]?.let { key ->
-                v.toIntOrNull()?.let { settingsManager.updateSetting(key, it) }
+                v.toIntOrNull()
+                    ?.takeIf { value -> BackupPreferenceSchema.intRange(key.name)?.contains(value) ?: true }
+                    ?.let { settingsManager.updateSetting(key, it) }
             } ?: STRING_SETTING_KEYS[k]?.let { key ->
                 if (key == SettingsManager.CUSTOM_SEARCH_ENGINE_URL && !isValidCustomSearchUrl(v)) {
                     null

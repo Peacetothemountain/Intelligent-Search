@@ -131,13 +131,15 @@ class StrongBoxSecurityManager @Inject constructor(
     fun getOrCreateSymmetricKey(
         alias: String = KEY_ALIAS_MASTER,
         requireBiometric: Boolean = false,
-        authTimeoutSeconds: Int = 0
+        authTimeoutSeconds: Int = 0,
+        purgeIfUnrecoverable: Boolean = true
     ): Pair<SecretKey, HardwareSecurityLevel> {
         if (keyStore.containsAlias(alias)) {
             val entry = try {
                 keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry
             } catch (e: Exception) {
                 throwIfTransientKeystoreFailure(e)
+                if (!purgeIfUnrecoverable) throw e
                 Log.w(TAG, "Keystore getEntry failed for $alias: ${e.message}")
                 null
             }
@@ -149,6 +151,7 @@ class StrongBoxSecurityManager @Inject constructor(
                 keyStore.getKey(alias, null) as? SecretKey
             } catch (e: Exception) {
                 throwIfTransientKeystoreFailure(e)
+                if (!purgeIfUnrecoverable) throw e
                 Log.w(TAG, "Keystore getKey failed for $alias: ${e.message}")
                 null
             }
@@ -157,7 +160,11 @@ class StrongBoxSecurityManager @Inject constructor(
                 return Pair(key, currentLevel)
             }
 
-            // Key alias exists but cannot be loaded (e.g. invalidated biometric enrollment or corrupt Keymaster state)
+            // Key alias exists but cannot be loaded (e.g. invalidated biometric enrollment or corrupt Keymaster state).
+            // Keys that protect stored data are never regenerated here: that would orphan the data for good.
+            if (!purgeIfUnrecoverable) {
+                throw java.security.UnrecoverableKeyException("Keystore alias $alias exists but cannot be loaded")
+            }
             Log.w(TAG, "Keystore alias $alias exists but entry is unrecoverable. Purging and regenerating.")
             deleteKey(alias)
         }
@@ -183,6 +190,19 @@ class StrongBoxSecurityManager @Inject constructor(
             val key = generateAesKey(alias, isStrongBox = false, requireBiometric, authTimeoutSeconds)
             Pair(key, getHardwareSecurityLevel(key))
         }
+    }
+
+    /**
+     * Loads an existing key without ever creating or purging one, or returns null if the alias does not
+     * exist. Use this when decrypting stored data: a load failure must surface as an error, not as a
+     * fresh key that can never decrypt it.
+     */
+    @Synchronized
+    fun getExistingSymmetricKey(alias: String): SecretKey? {
+        if (!keyStore.containsAlias(alias)) return null
+        return (keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry)?.secretKey
+            ?: (keyStore.getKey(alias, null) as? SecretKey)
+            ?: throw java.security.UnrecoverableKeyException("Keystore alias $alias exists but cannot be loaded")
     }
 
     private fun generateAesKey(
@@ -516,6 +536,12 @@ class StrongBoxSecurityManager @Inject constructor(
         }
     }
 
+    /** Whether a passphrase is saved, without decrypting it. */
+    fun hasSavedPassphrase(): Boolean = runCatching {
+        getSafeContext().getSharedPreferences("secure_hardware_vault", Context.MODE_PRIVATE)
+            .contains("saved_passphrase_cipher")
+    }.getOrDefault(false)
+
     /**
      * Retrieves and decrypts the backup encryption passphrase from hardware security chip (Titan M2 / StrongBox KeyStore).
      */
@@ -528,7 +554,7 @@ class StrongBoxSecurityManager @Inject constructor(
             val ivBase64 = sp.getString("saved_passphrase_iv", null) ?: return null
             val cipherBytes = Base64.decode(cipherBase64, Base64.NO_WRAP)
             val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
-            val (key, _) = getOrCreateSymmetricKey(KEY_ALIAS_SAVED_PASSPHRASE)
+            val key = getExistingSymmetricKey(KEY_ALIAS_SAVED_PASSPHRASE) ?: return null
             val cipher = Cipher.getInstance(CIPHER_ALGORITHM)
             cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
             decrypted = cipher.doFinal(cipherBytes)

@@ -157,7 +157,6 @@ fun AnimatedBugdroidEmoji(
         return
     }
     val resources = androidx.compose.ui.platform.LocalResources.current
-    val density = LocalDensity.current
 
     val balloonBitmap = remember(resources) {
         android.graphics.BitmapFactory.decodeResource(
@@ -201,8 +200,10 @@ fun AnimatedBugdroidEmoji(
 
     val infiniteTransition = rememberInfiniteTransition(label = "bugdroid_motion_transition")
 
+    // Both phases stay State and are read only inside graphicsLayer {} below, so the float and sway run
+    // in the draw phase instead of recomposing the mascot every frame.
     // Bugdroid body hover float: gentle vertical sine wave
-    val hoverPhase by infiniteTransition.animateFloat(
+    val hoverPhase = infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = (Math.PI * 2).toFloat(),
         animationSpec = infiniteRepeatable(
@@ -213,7 +214,7 @@ fun AnimatedBugdroidEmoji(
     )
 
     // Breeze sway phase: independent natural period for organic air currents
-    val breezePhase by infiniteTransition.animateFloat(
+    val breezePhase = infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = (Math.PI * 2).toFloat(),
         animationSpec = infiniteRepeatable(
@@ -260,10 +261,6 @@ fun AnimatedBugdroidEmoji(
         else -> bodyOpenBitmap
     }
 
-    val bodyHoverPx = (sin(hoverPhase) * with(density) { 1.5.dp.toPx() })
-    val balloonSwayAngle = (sin(breezePhase) * 3.5f) + (sin(breezePhase * 0.5f) * 1.2f)
-    val balloonBobPx = bodyHoverPx + (sin(breezePhase * 1.3f) * with(density) { 1.0.dp.toPx() })
-    val balloonDriftPx = (cos(breezePhase) * with(density) { 0.8.dp.toPx() })
 
     Box(
         modifier = modifier,
@@ -278,10 +275,12 @@ fun AnimatedBugdroidEmoji(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
+                    val breeze = breezePhase.value
+                    val bodyHoverPx = sin(hoverPhase.value) * 1.5.dp.toPx()
                     transformOrigin = TransformOrigin(0.2033f, 0.4455f)
-                    rotationZ = balloonSwayAngle
-                    translationX = balloonDriftPx
-                    translationY = balloonBobPx
+                    rotationZ = (sin(breeze) * 3.5f) + (sin(breeze * 0.5f) * 1.2f)
+                    translationX = cos(breeze) * 0.8.dp.toPx()
+                    translationY = bodyHoverPx + sin(breeze * 1.3f) * 1.0.dp.toPx()
                 }
         )
 
@@ -294,7 +293,7 @@ fun AnimatedBugdroidEmoji(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    translationY = bodyHoverPx
+                    translationY = sin(hoverPhase.value) * 1.5.dp.toPx()
                 }
         )
     }

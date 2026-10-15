@@ -13,11 +13,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Military-grade biometric gating engine for private search, hidden applications,
- * and encrypted data access.
- *
- * Enforces true hardware cryptographic gating via KeyMint StrongBox CryptoObjects,
- * window-level FLAG_SECURE visual protection, and zero-memory-leak credential scrubbing.
+ * Biometric / device-credential prompt for private search and hidden applications, with
+ * FLAG_SECURE applied while a session is unlocked.
  *
  * Engineered by NG Designs.
  */
@@ -27,13 +24,22 @@ class BiometricSearchGate @Inject constructor(
     private val securityManager: StrongBoxSecurityManager,
     private val encryptedVault: EncryptedDataVault
 ) {
-    constructor(context: Context) : this(
-        context = context,
-        securityManager = StrongBoxSecurityManager(context),
-        encryptedVault = EncryptedDataVault(context, StrongBoxSecurityManager(context))
-    )
+    /**
+     * Lets composables reach the singleton. Building a new gate per screen visit registered a
+     * permanent session-lock listener each time and kept the Activity it was built with alive.
+     */
+    @dagger.hilt.EntryPoint
+    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+    interface GateEntryPoint {
+        fun biometricSearchGate(): BiometricSearchGate
+    }
 
     companion object {
+        fun get(context: Context): BiometricSearchGate =
+            dagger.hilt.android.EntryPointAccessors
+                .fromApplication(context.applicationContext, GateEntryPoint::class.java)
+                .biometricSearchGate()
+
         private const val TAG = "BiometricSearchGate"
     }
 

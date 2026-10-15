@@ -249,11 +249,21 @@ fun SearchOverlayLensIcon(
     } else {
         prefs.getString("widget_system_material_g_icon", null)
     }) ?: "Material G Icon"
-    val isCustomSync = prefs.getBoolean("widget_custom_sync_colors", false)
-    val customColor = if (isCustomSync) {
-        prefs.getInt("widget_custom_g_icon_color", scheme.primary.toArgb())
+    // Colours are saved per design; a design never saved falls back to the older shared keys.
+    val designPrefix = if (isMaterialWidget) "widget_material" else "widget_system"
+    fun designInt(element: String, fallback: Int): Int = when {
+        prefs.contains("${designPrefix}_custom_$element") -> prefs.getInt("${designPrefix}_custom_$element", fallback)
+        else -> prefs.getInt("widget_custom_$element", fallback)
+    }
+    val isCustomSync = if (prefs.contains("${designPrefix}_custom_sync_colors")) {
+        prefs.getBoolean("${designPrefix}_custom_sync_colors", false)
     } else {
-        prefs.getInt("widget_custom_action_icon_color", prefs.getInt("widget_custom_shortcuts_color", scheme.primary.toArgb()))
+        prefs.getBoolean("widget_custom_sync_colors", false)
+    }
+    val customColor = if (isCustomSync) {
+        designInt("g_icon_color", scheme.primary.toArgb())
+    } else {
+        designInt("action_icon_color", prefs.getInt("widget_custom_shortcuts_color", scheme.primary.toArgb()))
     }
 
     val resolvedColors = remember(context, isLight) {
@@ -497,6 +507,30 @@ private fun finishWithoutTransition(activity: android.app.Activity?) {
             activity.overridePendingTransition(0, 0)
         }
     }
+}
+
+private fun isMediaStoreUri(uri: Uri): Boolean =
+    uri.authority == android.provider.MediaStore.AUTHORITY && uri.pathSegments.firstOrNull() == "external"
+
+/**
+ * Opens a file result. MediaStore entries prefer Files by Google; documents from the user's chosen
+ * folders or the photo picker go to whichever app handles their type, carrying the read grant along.
+ */
+private fun buildOpenFileIntent(uri: String, mimeType: String): Intent {
+    val parsed = Uri.parse(uri)
+    return Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(parsed, mimeType)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        if (isMediaStoreUri(parsed)) setPackage("com.google.android.apps.nbu.files")
+    }
+}
+
+/** Where a file result lives, e.g. "Documents/Taxes", or the picker label for chosen photos. */
+private fun fileLocationLabel(file: FileItem): String {
+    val parent = file.path.substringBeforeLast('/', missingDelimiterValue = file.path)
+        .removePrefix("/storage/emulated/0/")
+        .removePrefix("/storage/emulated/0")
+    return parent.ifBlank { file.mimeType }
 }
 
 /** Starts [intent]; returns false when nothing could handle it so callers can fall back. */
@@ -891,6 +925,9 @@ fun SearchOverlayScreen(
                 if (isContactsEnabled) {
                     viewModel.refreshContacts()
                 }
+                if (settingsState.searchFiles) {
+                    viewModel.refreshFilesIfStale()
+                }
                 val forceTut = prefs.getBoolean("debug_unlocked", false) && prefs.getBoolean("force_tutorial", false)
                 if (forceTut) {
                     TutorialManager.resetForForceTutorial(prefs)
@@ -1269,8 +1306,15 @@ fun SearchOverlayScreen(
                         keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
                             hasStartedTyping = false
                             keyboardController?.hide()
-                            if (uiState.query.isNotEmpty()) {
-                                viewModel.addSearchHistory(uiState.query)
+                            // The collected uiState can lag a keystroke behind; read the live value so Enter
+                            // never acts on a query missing its last character.
+                            val submittedQuery = viewModel.uiState.value.query
+                            if (submittedQuery.isNotEmpty() && viewModel.resolveBangIntent(submittedQuery) != null) {
+                                // A bang is an explicit request for that site: it must not be taken over by an
+                                // app match or Quick Launch ("!g maps" would otherwise open Maps).
+                                launchWebSearch(submittedQuery)
+                            } else if (submittedQuery.isNotEmpty()) {
+                                viewModel.addSearchHistory(submittedQuery)
                                 val match = bestMatch
                                 if (match != null) {
                                     when (match) {
@@ -1292,11 +1336,7 @@ fun SearchOverlayScreen(
                                             performAppLaunch(match.packageName)
                                         }
                                         is FileItem -> {
-                                            val intent = Intent(Intent.ACTION_VIEW).apply {
-                                                setDataAndType(Uri.parse(match.uri), match.mimeType)
-                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                setPackage("com.google.android.apps.nbu.files")
-                                            }
+                                            val intent = buildOpenFileIntent(match.uri, match.mimeType)
                                             if (!launchSafeIntent(context, intent)) {
                                                 intent.setPackage(null)
                                                 launchSafeIntent(context, intent)
@@ -1306,7 +1346,7 @@ fun SearchOverlayScreen(
                                 } else if (uiState.instantAnswer?.iconType == "url") {
                                     val answer = uiState.instantAnswer
                                     if (answer != null) {
-                                        val targetUrl = if (answer.title.startsWith("http://") || answer.title.startsWith("https://")) {
+                                        val targetUrl = if (answer.title.startsWith("http://", ignoreCase = true) || answer.title.startsWith("https://", ignoreCase = true)) {
                                             answer.title
                                         } else "https://${answer.title}"
                                         launchSafeIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
@@ -1316,8 +1356,8 @@ fun SearchOverlayScreen(
                                 } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
                                     performAppLaunch(visibleApps.first().packageName)
                                 } else {
-                                    launchWebSearch(uiState.query)
-                                 }
+                                    launchWebSearch(submittedQuery)
+                                }
                             }
                         }),
                         decorationBox = { innerTextField ->
@@ -2052,11 +2092,7 @@ fun SearchOverlayScreen(
                                             .fillMaxWidth()
                                             .bouncyClickable {
                                                 hasStartedTyping = false
-                                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                                    setDataAndType(Uri.parse(match.uri), match.mimeType)
-                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                    setPackage("com.google.android.apps.nbu.files")
-                                                }
+                                                val intent = buildOpenFileIntent(match.uri, match.mimeType)
                                                 if (!launchSafeIntent(context, intent)) {
                                                     intent.setPackage(null)
                                                     launchSafeIntent(context, intent)
@@ -2740,22 +2776,26 @@ fun SearchOverlayScreen(
                                         .fillMaxWidth()
                                         .expressiveRowClickable {
                                             hasStartedTyping = false
-                                            val intent = Intent(Intent.ACTION_VIEW).apply {
-                                                setDataAndType(Uri.parse(file.uri), file.mimeType)
-                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            val intent = buildOpenFileIntent(file.uri, file.mimeType)
+                                            if (!launchSafeIntent(context, intent)) {
+                                                intent.setPackage(null)
+                                                launchSafeIntent(context, intent)
                                             }
-                                            launchSafeIntent(context, intent)
                                         }
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                                        Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (settingsState.filesThumbnails) {
+                                        FileIconThumbnail(file.uri, file.mimeType)
+                                    } else {
+                                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                                            Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
                                     }
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(file.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(file.mimeType, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(fileLocationLabel(file), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                             }
@@ -2892,12 +2932,11 @@ fun SearchOverlayScreen(
                             alpha = overlayProgressAnim.value.coerceIn(0f, 1f)
                         }
                 ) {
-                    AnimatedMatrixBackground(isPaused = uiState.query.isNotBlank() || overlayFullyHidden)
+                    AnimatedMatrixBackground(isPaused = overlayFullyHidden)
                 }
             }
             
             val surfaceAlpha = if (isShowWallpaper) ((100 - isTransparency) / 100f).coerceIn(0f, 1f) else 1f
-            val baseShellShape = remember { RoundedCornerShape(24.dp) }
 
             Box(
                 modifier = Modifier
@@ -2932,13 +2971,24 @@ fun SearchOverlayScreen(
                     }
                     .then(
                         if (settingsState.bottomSearch) {
+                            val outlineColor = MaterialTheme.colorScheme.outlineVariant
                             Modifier
                                 .background(MaterialTheme.colorScheme.surface.copy(alpha = surfaceAlpha))
-                                .border(
-                                    width = 1.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant,
-                                    shape = baseShellShape
-                                )
+                                .drawWithContent {
+                                    drawContent()
+                                    // Follows the layer clip's predictive-back radius (read in draw, so
+                                    // the gesture never recomposes); a fixed 24dp outline lost its corners.
+                                    val backProg = predictiveBackProgress.value.coerceIn(0f, 1f)
+                                    val stroke = 1.dp.toPx()
+                                    val radius = androidx.compose.ui.unit.lerp(24.dp, 32.dp, backProg).toPx() - stroke / 2f
+                                    drawRoundRect(
+                                        color = outlineColor,
+                                        topLeft = androidx.compose.ui.geometry.Offset(stroke / 2f, stroke / 2f),
+                                        size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius, radius),
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke)
+                                    )
+                                }
                         } else {
                             Modifier.background(Color.Transparent)
                         }
@@ -3107,11 +3157,18 @@ fun FileIconThumbnail(uri: String, mimeType: String) {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
                     val parsedUri = android.net.Uri.parse(uri)
-                    val id = android.content.ContentUris.parseId(parsedUri)
-                    val specificUri = if (mimeType.startsWith("image/")) {
-                        android.content.ContentUris.withAppendedId(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+                    // Only MediaStore file ids map onto the Images/Video tables. Folder documents and
+                    // photo-picker items serve thumbnails for their own URI (their trailing id would
+                    // otherwise point at an unrelated MediaStore row).
+                    val specificUri = if (!isMediaStoreUri(parsedUri)) {
+                        parsedUri
                     } else {
-                        android.content.ContentUris.withAppendedId(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
+                        val id = android.content.ContentUris.parseId(parsedUri)
+                        if (mimeType.startsWith("image/")) {
+                            android.content.ContentUris.withAppendedId(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+                        } else {
+                            android.content.ContentUris.withAppendedId(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
+                        }
                     }
                     val img = context.contentResolver.loadThumbnail(specificUri, android.util.Size(96, 96), null).asImageBitmap()
                     fileThumbnailCache.put(uri, img)

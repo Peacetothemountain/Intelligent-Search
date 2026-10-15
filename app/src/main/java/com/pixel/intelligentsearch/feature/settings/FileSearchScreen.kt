@@ -1,8 +1,10 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import android.content.Intent
 import android.content.SharedPreferences
 import android.widget.Toast
+import com.pixel.intelligentsearch.core.data.UserGrantedFiles
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,10 +19,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.CreateNewFolder
+import androidx.compose.material.icons.outlined.DeleteSweep
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,9 +33,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,16 +54,34 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+    // File search only reads what the user picks with the system folder picker and photo picker, so it
+    // needs no storage or media permission (see UserGrantedFiles for the Play policy background).
+    var folderUris by remember { mutableStateOf(UserGrantedFiles.folderUris(prefs)) }
+    var mediaCount by remember { mutableIntStateOf(UserGrantedFiles.mediaUris(prefs).size) }
+    val folderNames = remember { mutableStateMapOf<String, String>() }
+    val folderAccessLost = remember { mutableStateMapOf<String, Boolean>() }
+    var folderPendingRemoval by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(folderUris) {
+        val details = withContext(Dispatchers.IO) {
+            folderUris.associateWith { uri ->
+                UserGrantedFiles.folderDisplayName(context, uri) to !UserGrantedFiles.hasReadGrant(context, uri)
+            }
+        }
+        details.forEach { (uri, detail) ->
+            folderNames[uri] = detail.first
+            folderAccessLost[uri] = detail.second
+        }
+    }
+
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
-            try {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            } catch (_: Throwable) {}
-            Toast.makeText(context, "Directory selected: ${uri.lastPathSegment}", Toast.LENGTH_SHORT).show()
-            prefs.edit().putString("search.files.uri", uri.toString()).apply()
+            if (UserGrantedFiles.addFolder(context, prefs, uri)) {
+                folderUris = UserGrantedFiles.folderUris(prefs)
+                Toast.makeText(context, "Folder added to search", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "Android didn't allow lasting access to that folder", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -61,17 +89,33 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
         if (uris.isNotEmpty()) {
-            for (uri in uris) {
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (_: Throwable) {}
+            val added = UserGrantedFiles.addMedia(context, prefs, uris)
+            mediaCount = UserGrantedFiles.mediaUris(prefs).size
+            val message = if (added < uris.size && mediaCount >= UserGrantedFiles.MAX_PICKED_MEDIA) {
+                "Added $added. You can choose up to ${UserGrantedFiles.MAX_PICKED_MEDIA} photos and videos."
+            } else {
+                "$added photos and videos added to search"
             }
-            Toast.makeText(context, "${uris.size} media items selected via Photo Picker", Toast.LENGTH_SHORT).show()
-            prefs.edit().putInt("search.files.photo_count", uris.size).apply()
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    folderPendingRemoval?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { folderPendingRemoval = null },
+            title = { Text("Stop searching this folder?") },
+            text = { Text("\"${folderNames[uri] ?: "This folder"}\" will no longer appear in search results. Nothing in the folder is changed.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    UserGrantedFiles.removeFolder(context, prefs, uri)
+                    folderUris = UserGrantedFiles.folderUris(prefs)
+                    folderPendingRemoval = null
+                }) { Text("Remove") }
+            },
+            dismissButton = {
+                TextButton(onClick = { folderPendingRemoval = null }) { Text("Cancel") }
+            }
+        )
     }
 
     Scaffold(containerColor = Color.Transparent, topBar = {
@@ -88,20 +132,35 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             SettingsCard {
-                val currentFileUri = prefs.getString("search.files.uri", null)
-                val fileUriSubtitle = if (currentFileUri.isNullOrBlank()) "None Selected (Uses System Directory Picker)." else currentFileUri
+                Text(
+                    text = "Intelligent Search only searches the folders and photos you choose here. Nothing else on your storage is read, so no storage permission is needed.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+                folderUris.sortedBy { folderNames[it] ?: it }.forEach { uri ->
+                    SettingsRow(
+                        title = folderNames[uri] ?: "Folder",
+                        subtitle = if (folderAccessLost[uri] == true) {
+                            "Access was removed. Tap to remove, then add it again."
+                        } else {
+                            "Searching this folder. Tap to remove."
+                        },
+                        icon = Icons.Outlined.Folder,
+                        onClick = { folderPendingRemoval = uri },
+                        showDivider = true
+                    )
+                }
                 SettingsRow(
-                    title = "Select Indexing Directory",
-                    subtitle = fileUriSubtitle,
-                    icon = Icons.Outlined.FolderOpen,
-                    onClick = { launcher.launch(null) },
+                    title = "Add Folder",
+                    subtitle = "Pick a folder such as Documents. Android doesn't allow the Download folder itself, but folders inside it work.",
+                    icon = Icons.Outlined.CreateNewFolder,
+                    onClick = { folderPicker.launch(null) },
                     showDivider = true
                 )
-                val photoCount = prefs.getInt("search.files.photo_count", 0)
-                val photoSubtitle = if (photoCount > 0) "$photoCount media items selected" else "Select photos & videos via Android Photo Picker"
                 SettingsRow(
-                    title = "System Photo Picker",
-                    subtitle = photoSubtitle,
+                    title = "Choose Photos & Videos",
+                    subtitle = if (mediaCount > 0) "$mediaCount chosen. Tap to add more." else "Pick photos and videos with the Android photo picker.",
                     icon = Icons.Outlined.Image,
                     onClick = {
                         photoPickerLauncher.launch(
@@ -110,6 +169,18 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     },
                     showDivider = true
                 )
+                if (mediaCount > 0) {
+                    SettingsRow(
+                        title = "Clear Chosen Photos & Videos",
+                        subtitle = "Stop searching the $mediaCount photos and videos chosen above.",
+                        icon = Icons.Outlined.DeleteSweep,
+                        onClick = {
+                            UserGrantedFiles.clearMedia(context, prefs)
+                            mediaCount = 0
+                        },
+                        showDivider = true
+                    )
+                }
                 var hiddenFiles by rememberBooleanPreference(prefs, "search.files.hidden.files", false)
                 SettingsRowToggle(
                     title = "Show Hidden Files",

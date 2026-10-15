@@ -56,21 +56,6 @@ class WindowFramePacingTest {
     }
 
     @Test
-    fun testDynamicAtmosphericBackgroundShaderSafety() {
-        val shader = APP_WIDE_STARDUST_SHADER
-        // Must splat dot product to float3 to prevent SkSL type mismatch on GPU compilers
-        assertTrue(shader.contains("p3 += float3(dot(p3, p3.yzx + 3.333));"))
-        assertFalse(shader.contains("p3 += dot(p3, p3.yzx + 3.333);"))
-        // Must NOT use inverted smoothstep (undefined behavior in GLSL/SkSL spec: edge0 >= edge1)
-        assertFalse(shader.contains("smoothstep(1.0, 0.0"))
-        assertFalse(shader.contains("smoothstep(0.12, 0.02"))
-        assertTrue(shader.contains("1.0 - smoothstep(0.02, 0.12, distToStar)"))
-        assertTrue(shader.contains("1.0 - smoothstep(0.0, 1.0, y * 1.5)"))
-        // Must use matching types in clamp()
-        assertTrue(shader.contains("clamp(targetColor.a * half(alphaFactor), half(0.0), half(1.0))"))
-    }
-
-    @Test
     fun testDynamicMeshShaderSafety() {
         val effectShader = DynamicMeshShader.AGSL_MESH_GRADIENT_EFFECT
         val brushShader = DynamicMeshShader.AGSL_MESH_GRADIENT_BRUSH

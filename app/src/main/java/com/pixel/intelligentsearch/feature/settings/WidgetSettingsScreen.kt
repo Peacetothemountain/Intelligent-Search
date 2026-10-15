@@ -719,17 +719,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .putString("widget_material_shortcut_order", matSlotOrderStr)
         }
 
-        // The widget renderer reads these unprefixed keys for the active design.
+        // Element colours are only written per design above: the widget renderer and the search overlay
+        // read each design's own keys, so a System and a Material widget each follow their own saved
+        // customization. The old shared "widget_custom_*" keys are no longer overwritten; they remain
+        // only as the fallback for a design that has never been saved.
         val activeStyle = if (isSystem) "System Default" else "Material You (Minimal)"
         editor
-            .putBoolean("widget_custom_keep_system_g", if (isSystem) sysKeepSystemG else matKeepSystemG)
-            .putInt("widget_custom_g_icon_color", if (isSystem) sysCustomGIconColor else matCustomGIconColor)
-            .putInt("widget_custom_mic_color", if (isSystem) sysCustomMicColor else matCustomMicColor)
-            .putInt("widget_custom_shortcut1_color", if (isSystem) sysCustomShortcut1Color else matCustomShortcut1Color)
-            .putInt("widget_custom_shortcut2_color", if (isSystem) sysCustomShortcut2Color else matCustomShortcut2Color)
-            .putInt("widget_custom_shortcut3_color", if (isSystem) sysCustomShortcut3Color else matCustomShortcut3Color)
-            .putInt("widget_custom_action_icon_color", if (isSystem) sysCustomActionColor else matCustomActionColor)
-            .putBoolean("widget_custom_sync_colors", if (isSystem) sysCustomSyncColors else matCustomSyncColors)
             .putString("widget.theme.style", activeStyle)
             .apply()
         widgetSettingsViewModel?.updateSetting(SettingsManager.WIDGET_THEME_STYLE, activeStyle)

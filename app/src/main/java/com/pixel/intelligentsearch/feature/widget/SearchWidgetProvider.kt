@@ -431,7 +431,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val actionIconStr: String,
             val allActiveItems: List<ActiveShortcutItem>,
             val isPillLight: Boolean,
-            val customSubtheme: Boolean
+            val customSubtheme: Boolean,
+            /** "widget_system" or "widget_material": prefix of this design's saved custom element colours. */
+            val designPrefix: String
         )
 
         fun updateWidgetsSync(
@@ -633,7 +635,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     actionIconStr = "None",
                     allActiveItems = allActiveItems,
                     isPillLight = isPillLight,
-                    customSubtheme = (subthemeStr == "Custom")
+                    customSubtheme = (subthemeStr == "Custom"),
+                    designPrefix = SYSTEM_DESIGN_PREFIX
                 )
             } else {
                 // MATERIAL DESIGN BAR: Dual-layer accent rim, companion circle button
@@ -699,7 +702,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     prefs.getString("widget_material_material_g_icon", prefs.getString("widget_material_g_icon", "Material G Icon")) ?: "Material G Icon"
                 } else "Material G Icon"
 
-                val keepSystemG = prefs.getBoolean("widget_custom_keep_system_g", false)
+                val keepSystemG = designFlag(prefs, MATERIAL_DESIGN_PREFIX, "keep_system_g", false)
 
                 val gIconRes = when {
                     effectiveIconTheme == "System G Icon" || (effectiveIconTheme == "Custom G Icon" && keepSystemG) -> R.drawable.ic_g_logo_colored
@@ -779,7 +782,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     actionIconStr = actionIconStr,
                     allActiveItems = allActiveItems,
                     isPillLight = isPillLight,
-                    customSubtheme = (subthemeStr == "Custom")
+                    customSubtheme = (subthemeStr == "Custom"),
+                    designPrefix = MATERIAL_DESIGN_PREFIX
                 )
             }
         }
@@ -812,7 +816,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             views.setColorStateList(R.id.widget_sound_background, "setImageTintList", ColorStateList.valueOf(config.circleColorOpaque))
             views.setInt(R.id.widget_sound_background, "setImageAlpha", config.circleAlphaInt)
 
-            bindGIcon(views, config.showGIcon, config.gIconRes, config.themePColor, config.themeSColor, config.themeTColor, config.effectiveIconTheme, context, prefs, config.isPillLight)
+            bindGIcon(views, config.showGIcon, config.gIconRes, config.themePColor, config.themeSColor, config.themeTColor, config.effectiveIconTheme, context, prefs, config.isPillLight, config.designPrefix)
 
             val activeItems = config.allActiveItems.take(maxShortcuts)
             val viewIdTargets = listOf(
@@ -835,16 +839,20 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     val hasCustomShortcuts = config.effectiveIconTheme == "Custom G Icon"
 
                     if (hasCustomShortcuts) {
-                        val isSync = prefs.getBoolean("widget_custom_sync_colors", false)
+                        // Each design keeps its own saved colours, so a System and a Material widget on the
+                        // same home screen each follow their own customization.
+                        val design = config.designPrefix
+                        val isSync = designFlag(prefs, design, "sync_colors", false)
+                        val shortcutsColor = designColor(prefs, design, "shortcuts_color", config.themePColor)
                         val customScColor = if (isSync) {
-                            prefs.getInt("widget_custom_g_icon_color", config.themePColor)
+                            designColor(prefs, design, "g_icon_color", config.themePColor)
                         } else {
                             when (item.slotKey) {
-                                "mic" -> prefs.getInt("widget_custom_mic_color", prefs.getInt("widget_custom_shortcuts_color", config.themePColor))
-                                "shortcut1" -> prefs.getInt("widget_custom_shortcut1_color", prefs.getInt("widget_custom_shortcuts_color", config.themePColor))
-                                "shortcut2" -> prefs.getInt("widget_custom_shortcut2_color", prefs.getInt("widget_custom_shortcuts_color", config.themePColor))
-                                "shortcut3" -> prefs.getInt("widget_custom_shortcut3_color", prefs.getInt("widget_custom_shortcuts_color", config.themePColor))
-                                else -> prefs.getInt("widget_custom_shortcuts_color", config.themePColor)
+                                "mic" -> designColor(prefs, design, "mic_color", shortcutsColor)
+                                "shortcut1" -> designColor(prefs, design, "shortcut1_color", shortcutsColor)
+                                "shortcut2" -> designColor(prefs, design, "shortcut2_color", shortcutsColor)
+                                "shortcut3" -> designColor(prefs, design, "shortcut3_color", shortcutsColor)
+                                else -> shortcutsColor
                             }
                         }
                         views.setImageViewResource(targetViewId, item.iconRes)
@@ -985,11 +993,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 val hasCustomAction = config.effectiveIconTheme == "Custom G Icon"
 
                 if (hasCustomAction) {
-                    val isSync = prefs.getBoolean("widget_custom_sync_colors", false)
+                    val isSync = designFlag(prefs, config.designPrefix, "sync_colors", false)
                     val customActColor = if (isSync) {
-                        prefs.getInt("widget_custom_g_icon_color", config.themePColor)
+                        designColor(prefs, config.designPrefix, "g_icon_color", config.themePColor)
                     } else {
-                        prefs.getInt("widget_custom_action_icon_color", config.themePColor)
+                        designColor(prefs, config.designPrefix, "action_icon_color", config.themePColor)
                     }
                     views.setImageViewResource(R.id.widget_sound_icon, circleActionIconRes)
                     views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", ColorStateList.valueOf(customActColor))
@@ -1298,6 +1306,35 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             return defaultIntent()
         }
 
+        private const val SYSTEM_DESIGN_PREFIX = "widget_system"
+        private const val MATERIAL_DESIGN_PREFIX = "widget_material"
+
+        /**
+         * Reads a design's saved custom element colour (e.g. "mic_color" -> "widget_material_custom_mic_color").
+         * A design that has never been saved falls back to the shared "widget_custom_*" key written
+         * before colours were stored per design.
+         */
+        private fun designColor(prefs: SharedPreferences, designPrefix: String, element: String, fallback: Int): Int {
+            val designKey = "${designPrefix}_custom_$element"
+            val legacyKey = "widget_custom_$element"
+            return when {
+                prefs.contains(designKey) -> prefs.getInt(designKey, fallback)
+                prefs.contains(legacyKey) -> prefs.getInt(legacyKey, fallback)
+                else -> fallback
+            }
+        }
+
+        /** Boolean counterpart of [designColor], e.g. "sync_colors" and "keep_system_g". */
+        private fun designFlag(prefs: SharedPreferences, designPrefix: String, element: String, fallback: Boolean): Boolean {
+            val designKey = "${designPrefix}_custom_$element"
+            val legacyKey = "widget_custom_$element"
+            return when {
+                prefs.contains(designKey) -> prefs.getBoolean(designKey, fallback)
+                prefs.contains(legacyKey) -> prefs.getBoolean(legacyKey, fallback)
+                else -> fallback
+            }
+        }
+
         private fun bindGIcon(
             views: RemoteViews,
             showGIcon: Boolean,
@@ -1308,13 +1345,14 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             materialGIconTheme: String,
             context: Context,
             prefs: SharedPreferences? = null,
-            isPillLight: Boolean = false
+            isPillLight: Boolean = false,
+            designPrefix: String = SYSTEM_DESIGN_PREFIX
         ) {
             views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
             views.setInt(R.id.widget_g_logo, "setImageAlpha", 255)
             views.setContentDescription(R.id.widget_g_logo, context.getString(R.string.widget_talkback_google_logo))
 
-            val keepSystemG = prefs?.getBoolean("widget_custom_keep_system_g", false) ?: false
+            val keepSystemG = prefs?.let { designFlag(it, designPrefix, "keep_system_g", false) } ?: false
 
             if (keepSystemG || materialGIconTheme == "System G Icon") {
                 views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo_colored)
@@ -1324,7 +1362,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 views.setImageViewBitmap(R.id.widget_g_logo, gBitmap)
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
             } else if (materialGIconTheme == "Custom G Icon") {
-                val customGColor = prefs?.getInt("widget_custom_g_icon_color", pColor) ?: pColor
+                val customGColor = prefs?.let { designColor(it, designPrefix, "g_icon_color", pColor) } ?: pColor
                 views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo)
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", ColorStateList.valueOf(customGColor))
             } else if (materialGIconTheme == "Accented G Icon") {

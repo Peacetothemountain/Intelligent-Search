@@ -112,4 +112,33 @@ class AuditRegressionTest {
         // "phone settings" without digits or matched contact should not produce a broken PhoneCall intent
         assertNull(NaturalLanguageIntentParser.parse("phone settings", base.timeInMillis))
     }
+
+    @Test
+    fun packageNameSubtitleIsNotFuzzyMatched() {
+        val appMeta = SearchScoringEngine.ScoringMetadata(domain = SearchScoringEngine.EntityDomain.APPLICATION)
+        // "cam" is one edit from "com", which once ranked every installed app for "cam".
+        val cam = SearchScoringEngine.evaluateScore(
+            query = "cam",
+            targetTitle = "Photos",
+            metadata = appMeta,
+            targetSubtitle = "com.google.android.apps.photos"
+        )
+        assertEquals(0f, cam.totalScore, 0f)
+
+        val goo = SearchScoringEngine.evaluateScore(
+            query = "goo",
+            targetTitle = "Cash App",
+            metadata = appMeta,
+            targetSubtitle = "com.squareup.cash"
+        )
+        assertEquals(0f, goo.totalScore, 0f)
+
+        val dialer = SearchScoringEngine.evaluateScore(
+            query = "dialer",
+            targetTitle = "Phone",
+            metadata = appMeta,
+            targetSubtitle = "com.google.android.dialer"
+        )
+        assertTrue("A whole package segment still matches", dialer.totalScore > 0f)
+    }
 }

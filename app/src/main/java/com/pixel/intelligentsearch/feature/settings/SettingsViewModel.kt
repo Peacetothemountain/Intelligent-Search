@@ -200,6 +200,8 @@ class SettingsViewModel @Inject constructor(
         return strongBoxSecurityManager.savePassphrase(passphrase)
     }
 
+    fun hasSavedPassphraseOnSecurityChip(): Boolean = strongBoxSecurityManager.hasSavedPassphrase()
+
     fun getSavedPassphraseFromSecurityChip(): String? {
         return strongBoxSecurityManager.getSavedPassphrase()
     }

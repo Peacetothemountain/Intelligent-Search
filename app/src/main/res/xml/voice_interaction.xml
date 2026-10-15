@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:sessionService="com.pixel.intelligentsearch.feature.voice.IntelligentVoiceInteractionSessionService"
-    android:recognitionService="com.pixel.intelligentsearch.feature.voice.IntelligentVoiceInteractionService"
+    android:recognitionService="com.pixel.intelligentsearch.feature.voice.IntelligentRecognitionService"
     android:settingsActivity="com.pixel.intelligentsearch.feature.settings.SettingsActivity"
     android:supportsAssist="true"
     android:supportsLaunchVoiceAssistFromKeyguard="true"

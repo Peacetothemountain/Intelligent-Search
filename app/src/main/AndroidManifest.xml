@@ -314,6 +314,16 @@
             </intent-filter>
         </service>
 
+        <!-- Named as recognitionService in voice_interaction.xml: when this app is the assistant Android may make it
+             the default speech recognizer, so it must be a real RecognitionService. It forwards to the on-device
+             recognizer. Recognizers are bound by any app, so it is exported; callers still need RECORD_AUDIO. -->
+        <service android:name=".feature.voice.IntelligentRecognitionService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+            </intent-filter>
+        </service>
+
         <service android:name=".feature.voice.IntelligentVoiceInteractionSessionService"
             android:permission="android.permission.BIND_VOICE_INTERACTION"
             android:exported="true">

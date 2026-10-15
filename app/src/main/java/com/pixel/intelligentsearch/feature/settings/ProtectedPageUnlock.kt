@@ -107,7 +107,11 @@ fun rememberProtectedPageUnlock(
                 activity = activity,
                 title = title,
                 subtitle = subtitle,
-                onSuccess = { unlocked = true },
+                // The prompt itself can stop the activity; a slow unlock mustn't count as time away.
+                onSuccess = {
+                    stoppedAtMs = 0L
+                    unlocked = true
+                },
                 onFailure = { leaveOnce() }
             )
         }

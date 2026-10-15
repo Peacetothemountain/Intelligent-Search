@@ -10,6 +10,13 @@
 - Typing a file name such as "notes.txt" no longer offers "Go to website".
 - App search ranks apps you have opened recently and often first (requires Usage Access).
 - Icon and thumbnail caches are capped by memory rather than entry count.
+- Work-profile and Private Space apps open in their own profile instead of the personal copy.
+- "Meeting tonight at 9" lands at 9 PM, "alarm in 10 minutes" sets an alarm ten minutes out, and "text Sarah: on my way" is understood.
+- Japanese, Hindi, Korean and other non-Latin names are searchable without being split apart.
+- The Contacts switch stays off when turned off; opening Search Pills no longer resets your pills, and the shortcut slider no longer deletes pills.
+- Tutorial steps can't be skipped by a quick double tap; "Slide to remove all" removes the list currently shown.
+- The voice sheet vibrates once when dismissed, and its waveform no longer rebuilds the whole sheet many times a second.
+- Browser History opens the right place for the selected engine: Google My Activity, Bing history, or, for engines that keep no history (DuckDuckGo, Brave Search, Startpage, Ecosia, Tor), the app that holds your history.
 
 ### Settings, security and architecture
 - Settings live in one typed store; older setting names and the previous DataStore copy are migrated automatically on first launch.
@@ -19,6 +26,18 @@
 - Large screens were split into focused files.
 - Hand-rolled animations stop when system animations are turned off, and voice status changes are announced by TalkBack.
 - Release builds strip warning logs as well as debug logs; CI now fails on new lint warnings.
+- Bugdroid animations are stored cropped to the character (about 1 MB smaller), share one player, and the Backup animation loads only after unlocking.
+- The CPU performance hint now follows the display's real refresh rate instead of always assuming 120 Hz.
+
+### Security
+- Custom search engines and custom shortcuts accept only https addresses that pass strict checks (no other schemes, credentials, script characters or look-alike hosts), are re-checked every time they are used, and open only in browser apps.
+- Custom shortcuts restored from a backup can no longer carry app links.
+- Hidden Apps and Backup stay protected from screenshots, screen recording, Recents thumbnails and floating windows while open, and ask again after 30 seconds away.
+- The saved backup passphrase can only be decrypted while the phone is unlocked and shortly after you authenticate; export passphrases need at least 10 characters.
+- Old-format backups (which anyone could create) need confirmation before restoring, and no restore can switch on contact sharing, clipboard suggestions or web suggestions.
+- With Tor selected, typed addresses, copied links and copied-text searches open only in Tor Browser.
+- Copied passwords (clipboard items marked sensitive) are never shown or searched.
+- Other apps can no longer open specific settings pages; crash logs are no longer written to storage readable before first unlock; error logs no longer include package names or file addresses.
 
 ## Release Version 8.9 - System Architecture & Security Hardening
 - **Titan M3+ Hardware Security**: Integrated StrongBox KeyStore (`KeyGenParameterSpec`) with hardware-backed key attestation verification, TEE fallbacks, and biometrically gated cryptographic operations.

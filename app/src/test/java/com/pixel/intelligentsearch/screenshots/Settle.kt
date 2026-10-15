@@ -28,7 +28,13 @@ fun disableHandRolledAnimations() {
 fun ComposeTestRule.settle(steps: Int = 30, stepMs: Long = 100, realWaitMs: Long = 120, maxLoadingWaits: Int = 250) {
     fun drain(advanceMs: Long) {
         Thread.sleep(realWaitMs)
-        shadowOf(Looper.getMainLooper()).idle()
+        // Move the main looper's clock with the Compose clock, so work posted with a delay (debounces) runs at
+        // the same point in every run instead of whenever the looper happens to be idled.
+        if (advanceMs > 0) {
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(advanceMs))
+        } else {
+            shadowOf(Looper.getMainLooper()).idle()
+        }
         mainClock.advanceTimeBy(advanceMs)
     }
     drain(stepMs)

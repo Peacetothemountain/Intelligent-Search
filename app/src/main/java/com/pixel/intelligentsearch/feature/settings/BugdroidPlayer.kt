@@ -1,140 +1,146 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import com.pixel.intelligentsearch.core.data.settings.get
-import androidx.compose.ui.graphics.graphicsLayer
-import android.os.Build
+import android.graphics.Matrix
+import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
-import androidx.compose.animation.*
-import androidx.compose.foundation.layout.*
-import androidx.compose.animation.core.*
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material.icons.automirrored.outlined.*
-import androidx.compose.material.icons.automirrored.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import android.os.Build
+import android.view.TextureView
+import androidx.annotation.RawRes
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.draw.*
-import androidx.compose.ui.semantics.*
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import com.pixel.intelligentsearch.R
 
+/**
+ * The bugdroid clips. They were rendered as 1920x1080 frames on black and are stored cropped to the area the
+ * character ever occupies; the crop rectangle (in source pixels) lets [BugdroidPlayer] place them exactly where
+ * the full frame would have put them.
+ */
+enum class BugdroidClip(@param:RawRes val rawRes: Int, val cropLeft: Int, val cropTop: Int, val cropWidth: Int, val cropHeight: Int) {
+    SETTINGS(R.raw.bugdroid_video, 340, 0, 1216, 1080),
+    WELCOME(R.raw.bugdroid_welcome_video, 500, 144, 800, 800),
+    BACKUP(R.raw.bugdroid_backup_video, 628, 232, 928, 752);
+
+    companion object {
+        const val SOURCE_WIDTH = 1920
+        const val SOURCE_HEIGHT = 1080
+    }
+}
+
+/** The black background is keyed out with a runtime shader, which needs Android 13; without it the clips show as boxes. */
+val isBugdroidVideoSupported: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+
+// Rec. 709 luma key: dark pixels become transparent with a smooth edge; output is premultiplied so no dark fringe.
+private const val LUMA_KEY_SHADER = """
+    uniform shader content;
+    half4 main(float2 coords) {
+        half4 color = content.eval(coords);
+        float luma = dot(color.rgb, half3(0.2126, 0.7152, 0.0722));
+        float alpha = smoothstep(0.14, 0.28, luma);
+        return half4(color.rgb * alpha, alpha);
+    }
+"""
+
+/**
+ * A silent, looping player for [clip], or null when [enabled] is false or the device can't key the video.
+ * It is released when it leaves composition. With [autoPlay] it plays only while the screen is resumed; pass
+ * false when the screen showing it controls playback itself.
+ */
+@Composable
+fun rememberBugdroidPlayer(clip: BugdroidClip, enabled: Boolean = true, autoPlay: Boolean = true): ExoPlayer? {
+    val context = LocalContext.current
+    val player = remember(clip, enabled) {
+        if (!enabled || !isBugdroidVideoSupported) return@remember null
+        runCatching {
+            ExoPlayer.Builder(context).build().apply {
+                setMediaItem(MediaItem.fromUri("android.resource://${context.packageName}/${clip.rawRes}"))
+                repeatMode = Player.REPEAT_MODE_ALL
+                prepare()
+            }
+        }.getOrNull()
+    }
+    DisposableEffect(player) {
+        onDispose { player?.release() }
+    }
+    if (autoPlay) {
+        LifecycleResumeEffect(player) {
+            player?.play()
+            onPauseOrDispose { player?.pause() }
+        }
+    }
+    return player
+}
+
+/**
+ * Draws [player]'s video with the black background keyed out. The frame is scaled to fill the view like the
+ * original 16:9 render (times [scaleFactor]), with the cropped clip offset back to its place in that frame.
+ */
 @Composable
 fun BugdroidPlayer(
-    player: androidx.media3.exoplayer.ExoPlayer?,
+    player: ExoPlayer?,
+    clip: BugdroidClip,
     modifier: Modifier = Modifier,
-    scaleFactor: Float = 1.0f,
-    videoAspect: Float = 16f / 9f
+    scaleFactor: Float = 1.0f
 ) {
-    val shaderSrc = """
-        uniform shader content;
-        half4 main(float2 coords) {
-            half4 color = content.eval(coords);
-            // Perceptually weighted Rec. 709 luminance (Green dominance: 0.7152)
-            float luma = dot(color.rgb, half3(0.2126, 0.7152, 0.0722));
-            // Smooth cubic Hermite keying with edge antialiasing
-            float alpha = smoothstep(0.14, 0.28, luma);
-            // Premultiplied alpha output preventing dark fringe halos
-            return half4(color.rgb * alpha, alpha);
-        }
-    """.trimIndent()
-
-    val cachedVideoRenderEffect = remember(shaderSrc) {
-        if (android.os.Build.VERSION.SDK_INT >= 33) {
-            val shader = android.graphics.RuntimeShader(shaderSrc)
-            val frameworkEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content")
-            frameworkEffect.asComposeRenderEffect()
+    val keyEffect = remember {
+        if (isBugdroidVideoSupported) {
+            RenderEffect.createRuntimeShaderEffect(RuntimeShader(LUMA_KEY_SHADER), "content").asComposeRenderEffect()
         } else null
     }
-
-    val surfaceHolder = remember {
-        object {
-            var currentSurface: android.view.Surface? = null
-        }
-    }
-
-    androidx.compose.ui.viewinterop.AndroidView(
+    AndroidView(
         factory = { ctx ->
-            android.view.TextureView(ctx).apply {
+            TextureView(ctx).apply {
                 isOpaque = false
-                val adjustAspectRatio: (android.view.TextureView) -> Unit = { tv ->
-                    val vw = tv.width
-                    val vh = tv.height
-                    if (vw > 0 && vh > 0) {
-                        val matrix = android.graphics.Matrix()
-                        val viewAspect = vw.toFloat() / vh.toFloat()
-                        var scaleX = 1f
-                        var scaleY = 1f
-                        if (viewAspect > videoAspect) {
-                            scaleY = (vw.toFloat() / videoAspect) / vh.toFloat()
-                        } else {
-                            scaleX = (vh.toFloat() * videoAspect) / vw.toFloat()
-                        }
-                        scaleX *= scaleFactor
-                        scaleY *= scaleFactor
-                        matrix.setScale(scaleX, scaleY, vw / 2f, vh / 2f)
-                        tv.setTransform(matrix)
-                    }
-                }
-
-                surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
-                    override fun onSurfaceTextureAvailable(
-                        surfaceTexture: android.graphics.SurfaceTexture,
-                        width: Int,
-                        height: Int
-                    ) {
-                        surfaceHolder.currentSurface?.release()
-                        val surface = android.view.Surface(surfaceTexture)
-                        surfaceHolder.currentSurface = surface
-                        player?.setVideoSurface(surface)
-                        adjustAspectRatio(this@apply)
-                    }
-
-                    override fun onSurfaceTextureSizeChanged(
-                        surfaceTexture: android.graphics.SurfaceTexture,
-                        width: Int,
-                        height: Int
-                    ) {
-                        adjustAspectRatio(this@apply)
-                    }
-
-                    override fun onSurfaceTextureDestroyed(
-                        surfaceTexture: android.graphics.SurfaceTexture
-                    ): Boolean {
-                        surfaceHolder.currentSurface?.let {
-                            player?.clearVideoSurface(it)
-                            it.release()
-                        }
-                        surfaceHolder.currentSurface = null
-                        return true
-                    }
-
-                    override fun onSurfaceTextureUpdated(
-                        surfaceTexture: android.graphics.SurfaceTexture
-                    ) {}
-                }
-
-                if (isAvailable && surfaceTexture != null) {
-                    val surface = surfaceHolder.currentSurface ?: android.view.Surface(surfaceTexture).also {
-                        surfaceHolder.currentSurface = it
-                    }
-                    player?.setVideoSurface(surface)
-                    adjustAspectRatio(this@apply)
+                addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+                    applyClipTransform(view as TextureView, clip, scaleFactor)
                 }
             }
         },
-        update = { tv ->
-            val existingSurface = surfaceHolder.currentSurface
-            if (existingSurface != null) {
-                player?.setVideoSurface(existingSurface)
-            } else if (tv.isAvailable && tv.surfaceTexture != null) {
-                val surface = android.view.Surface(tv.surfaceTexture)
-                surfaceHolder.currentSurface = surface
-                player?.setVideoSurface(surface)
+        update = { view ->
+            // ExoPlayer manages the TextureView's surface itself; only attach when the player changes.
+            if (view.tag !== player) {
+                (view.tag as? ExoPlayer)?.clearVideoTextureView(view)
+                player?.setVideoTextureView(view)
+                view.tag = player
             }
+            applyClipTransform(view, clip, scaleFactor)
         },
-        modifier = modifier.graphicsLayer {
-            renderEffect = cachedVideoRenderEffect
-        }
+        onRelease = { view ->
+            (view.tag as? ExoPlayer)?.clearVideoTextureView(view)
+            view.tag = null
+        },
+        modifier = modifier.graphicsLayer { renderEffect = keyEffect }
     )
+}
+
+/**
+ * TextureView stretches the (cropped) video over the whole view. This maps it to where that crop sat in the
+ * full 1920x1080 frame, then applies the frame's fill-and-scale about the view centre.
+ */
+internal fun applyClipTransform(view: TextureView, clip: BugdroidClip, scaleFactor: Float) {
+    val vw = view.width.toFloat()
+    val vh = view.height.toFloat()
+    if (vw <= 0f || vh <= 0f) return
+    val sourceW = BugdroidClip.SOURCE_WIDTH.toFloat()
+    val sourceH = BugdroidClip.SOURCE_HEIGHT.toFloat()
+    val frameAspect = sourceW / sourceH
+    // Fill the view with the full frame (cropping the overflow), as the original player did.
+    var fillX = 1f
+    var fillY = 1f
+    if (vw / vh > frameAspect) fillY = (vw / frameAspect) / vh else fillX = (vh * frameAspect) / vw
+    val matrix = Matrix().apply {
+        setScale(clip.cropWidth / sourceW, clip.cropHeight / sourceH)
+        postTranslate(clip.cropLeft * vw / sourceW, clip.cropTop * vh / sourceH)
+        postScale(fillX * scaleFactor, fillY * scaleFactor, vw / 2f, vh / 2f)
+    }
+    view.setTransform(matrix)
 }

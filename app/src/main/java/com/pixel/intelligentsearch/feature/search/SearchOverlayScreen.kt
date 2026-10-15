@@ -373,21 +373,12 @@ fun SearchOverlayScreen(
                 }
             }
             "Tor Project", "Tor Browser" -> {
-                val pm = context.packageManager
-                val torPkg = when {
-                    pm.getLaunchIntentForPackage("org.torproject.torbrowser") != null -> "org.torproject.torbrowser"
-                    pm.getLaunchIntentForPackage("org.torproject.torbrowser_alpha") != null -> "org.torproject.torbrowser_alpha"
-                    else -> null
-                }
-                if (torPkg != null) {
-                    val torUrl = "https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q=$encodedQuery"
-                    Intent(Intent.ACTION_VIEW, Uri.parse(torUrl)).apply {
-                        setPackage(torPkg)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                when (val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.torSearch(context, searchQuery)) {
+                    is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open -> launch.intent
+                    else -> {
+                        showTorInstallPopup = true
+                        null
                     }
-                } else {
-                    showTorInstallPopup = true
-                    null
                 }
             }
             else -> {
@@ -413,6 +404,11 @@ fun SearchOverlayScreen(
         viewModel.addSearchHistory(searchQuery)
         viewModel.onQueryChanged("")
         if (!launchSafeIntent(context, intent)) {
+            // A failed Tor launch must not fall back to a normal browser search.
+            if (com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(engine)) {
+                showTorInstallPopup = true
+                return@launchWebSearch
+            }
             val fallbackIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                 putExtra(SearchManager.QUERY, searchQuery)
                 putExtra("query", searchQuery)
@@ -421,6 +417,15 @@ fun SearchOverlayScreen(
             if (!launchSafeIntent(context, fallbackIntent)) {
                 Toast.makeText(context, "No app available to search the web", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    // Typed or tapped web addresses: http(s) only, browsable apps only, and only Tor Browser when Tor is the engine.
+    val openWebAddress: (String) -> Unit = { address ->
+        when (val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.forAddress(context, address, settingsState.searchEngine)) {
+            is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open -> launchSafeIntent(context, launch.intent)
+            com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.NeedsTorBrowser -> showTorInstallPopup = true
+            com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.NotAWebAddress -> launchWebSearch(address)
         }
     }
 
@@ -842,9 +847,7 @@ fun SearchOverlayScreen(
                                             val intent = if (settingsState.contactDirectCall && match.phoneNumber.isNotBlank()) {
                                                 Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                             } else if (match.lookupUri.isNotBlank()) {
-                                                Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {
-                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                }
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)) // Contacts reads it with its own permission; no grant needed
                                             } else if (match.phoneNumber.isNotBlank()) {
                                                 Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                             } else {
@@ -864,15 +867,7 @@ fun SearchOverlayScreen(
                                         }
                                     }
                                 } else if (uiState.instantAnswer?.iconType == "url") {
-                                    val answer = uiState.instantAnswer
-                                    if (answer != null) {
-                                        val targetUrl = if (answer.title.startsWith("http://", ignoreCase = true) || answer.title.startsWith("https://", ignoreCase = true)) {
-                                            answer.title
-                                        } else "https://${answer.title}"
-                                        launchSafeIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                        })
-                                    }
+                                    uiState.instantAnswer?.let { answer -> openWebAddress(answer.title) }
                                 } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
                                     performAppLaunch(visibleApps.first())
                                 } else {
@@ -1469,9 +1464,7 @@ fun SearchOverlayScreen(
                                                 val intent = if (isDirectCall && match.phoneNumber.isNotBlank()) {
                                                     Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                                 } else if (match.lookupUri.isNotBlank()) {
-                                                    Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {
-                                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                    }
+                                                    Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)) // Contacts reads it with its own permission; no grant needed
                                                 } else if (match.phoneNumber.isNotBlank()) {
                                                     Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                                 } else {
@@ -2058,31 +2051,7 @@ fun SearchOverlayScreen(
                                 url = instantAnswer.title,
                                 onClick = {
                                     hasStartedTyping = false
-                                    val targetUrl = if (instantAnswer.title.startsWith("http://") || instantAnswer.title.startsWith("https://")) {
-                                        instantAnswer.title
-                                    } else "https://${instantAnswer.title}"
-                                    if (settingsState.searchEngine == "Tor Project" || settingsState.searchEngine == "Tor Browser") {
-                                        val pm = context.packageManager
-                                        val torPkg = when {
-                                            pm.getLaunchIntentForPackage("org.torproject.torbrowser") != null -> "org.torproject.torbrowser"
-                                            pm.getLaunchIntentForPackage("org.torproject.torbrowser_alpha") != null -> "org.torproject.torbrowser_alpha"
-                                            else -> null
-                                        }
-                                        if (torPkg != null) {
-                                            val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
-                                                setPackage(torPkg)
-                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                            }
-                                            launchSafeIntent(context, urlIntent)
-                                        } else {
-                                            showTorInstallPopup = true
-                                        }
-                                    } else {
-                                        val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                        }
-                                        launchSafeIntent(context, urlIntent)
-                                    }
+                                    openWebAddress(instantAnswer.title)
                                 }
                             )
                         }
@@ -2250,9 +2219,7 @@ fun SearchOverlayScreen(
                                             val intent = if (isDirectCall && contact.phoneNumber.isNotBlank()) {
                                                 Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
                                             } else if (contact.lookupUri.isNotBlank()) {
-                                                Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri)).apply {
-                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                }
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri)) // Contacts reads it with its own permission; no grant needed
                                             } else if (contact.phoneNumber.isNotBlank()) {
                                                 Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
                                             } else {

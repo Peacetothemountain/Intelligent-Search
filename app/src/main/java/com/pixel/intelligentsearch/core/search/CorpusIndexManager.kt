@@ -226,7 +226,7 @@ class CorpusIndexManager @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Failed indexing contacts", e)
+                Log.e(TAG, "Failed indexing contacts: ${e.javaClass.simpleName}") // messages can name contacts
             }
         }
     }
@@ -258,7 +258,7 @@ class CorpusIndexManager @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Failed indexing files", e)
+                Log.e(TAG, "Failed indexing files: ${e.javaClass.simpleName}") // messages can name files
             }
         }
     }

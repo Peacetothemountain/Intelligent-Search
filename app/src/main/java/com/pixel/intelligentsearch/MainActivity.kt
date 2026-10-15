@@ -218,10 +218,12 @@ open class MainActivity : AppCompatActivity() {
                         ) {
                             SearchOverlayScreen(
                                 onOpenSettings = { route ->
-                                    val intent = Intent(this@MainActivity, SettingsActivity::class.java).apply {
-                                        putExtra("extra_screen", route)
-                                        putExtra("FROM_SEARCH_OVERLAY", true)
-                                    }
+                                    val intent = com.pixel.intelligentsearch.core.security.InternalLaunchToken.stamp(
+                                        Intent(this@MainActivity, SettingsActivity::class.java).apply {
+                                            putExtra("extra_screen", route)
+                                            putExtra("FROM_SEARCH_OVERLAY", true)
+                                        }
+                                    )
                                     val options = android.app.ActivityOptions.makeCustomAnimation(
                                         this@MainActivity,
                                         com.pixel.intelligentsearch.R.anim.slide_in_right,
@@ -244,7 +246,7 @@ open class MainActivity : AppCompatActivity() {
                                             activity = this@MainActivity
                                         )
                                     } catch (e: Throwable) {
-                                        android.util.Log.e("MainActivity", "Failed to launch app $packageName", e)
+                                        android.util.Log.e("MainActivity", "App launch failed: ${e.javaClass.simpleName}") // no package name: it may be a hidden or Private Space app
                                     }
                                 },
                                 viewModel = searchViewModel,

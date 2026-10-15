@@ -14,14 +14,10 @@ import com.pixel.intelligentsearch.core.system.DirectBootManager
 import com.pixel.intelligentsearch.core.system.SystemToggleManager
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
-import java.io.PrintWriter
-import java.io.StringWriter
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -55,7 +51,7 @@ class App : Application() {
         super.onCreate()
 
         setupStrictMode()
-        setupCrashHandler()
+        deleteLegacyCrashLog()
         warmupServices()
     }
 
@@ -78,22 +74,15 @@ class App : Application() {
         }
     }
 
-    private fun setupCrashHandler() {
-        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            try {
-                val sw = StringWriter()
-                throwable.printStackTrace(PrintWriter(sw))
-                val deContext = createDeviceProtectedStorageContext()
-                val dir = deContext.filesDir
-                val file = File(dir, "crash_log.txt")
-                file.writeText(sw.toString().take(16_384))
-                Log.e("CrashLogger", "Crash caught", throwable)
-            } catch (e: Exception) {
-                Log.e("CrashLogger", "Failed to write crash log: ${e.message}")
-            }
-            defaultHandler?.uncaughtException(thread, throwable)
-        }
+    /**
+     * Older versions wrote crash stack traces (which can name files and folders) to device-protected storage,
+     * readable before the first unlock, and nothing ever read them. The system already logs crashes; remove
+     * any leftover file.
+     */
+    private fun deleteLegacyCrashLog() {
+        try {
+            File(createDeviceProtectedStorageContext().filesDir, "crash_log.txt").delete()
+        } catch (_: Exception) {}
     }
 
     override fun onTrimMemory(level: Int) {
@@ -118,7 +107,11 @@ class App : Application() {
     private fun warmupServices() {
         appScope.launch {
             try {
-                com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this@App)
+                // Keep qualifying for the search role only while holding it, so Android doesn't revoke it; never claim
+                // the slot on start otherwise (that would override a later choice made in system settings).
+                if (com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(this@App)) {
+                    com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this@App)
+                }
                 if (!directBootManager.checkIsUserUnlocked()) {
                     directBootManager.isUserUnlocked.filter { it }.first()
                     // Widgets drawn before unlock could only read device-protected (default) settings;

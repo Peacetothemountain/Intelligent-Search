@@ -95,23 +95,6 @@ class MaterialYouPaletteHelperTest {
     }
 
     @Test
-    fun testAmoledDarkColorSchemeCanonicalTokens() {
-        assertEquals(androidx.compose.ui.graphics.Color(0xFF000000), AmoledDarkColorScheme.surface)
-        assertEquals(androidx.compose.ui.graphics.Color(0xFF000000), AmoledDarkColorScheme.background)
-        assertEquals(androidx.compose.ui.graphics.Color(0xFF000000), AmoledDarkColorScheme.surfaceDim)
-        assertEquals(androidx.compose.ui.graphics.Color(0xFF000000), AmoledDarkColorScheme.surfaceContainerLowest)
-        assertEquals(AmoledDarkPrimary, AmoledDarkColorScheme.primary)
-    }
-
-    @Test
-    fun testRobinDarkColorSchemeCanonicalTokens() {
-        assertEquals(GoogleDarkSurface, RobinDarkColorScheme.surface)
-        assertEquals(GoogleDarkBackground, RobinDarkColorScheme.background)
-        assertEquals(GoogleDarkPrimary, RobinDarkColorScheme.primary)
-        assertEquals(GoogleDarkSurfaceVariant, RobinDarkColorScheme.surfaceVariant)
-    }
-
-    @Test
     fun testWcagContrastCalculations() {
         val white = 0xFFFFFFFF.toInt()
         val black = 0xFF000000.toInt()

@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
-import com.pixel.intelligentsearch.core.data.settings.put
 import android.content.SharedPreferences
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -124,7 +123,6 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
             
             Text("Results preferences", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp))
             SettingsCard {
-                var searchPills by rememberSetting(SettingsManager.SEARCH_PILLS)
                 var shortcutResultsCount by rememberSetting(SettingsManager.SHORTCUT_RESULTS_COUNT)
                 val viewModel = LocalSettingsViewModel.current
 
@@ -139,8 +137,6 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                             onClick = {
                                 performClickHaptic(context)
                                 shortcutResultsCount = 6
-                                prefs.edit().put(SettingsManager.SHORTCUT_RESULTS_COUNT, 6).apply()
-                                viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, 6)
                             },
                             modifier = Modifier.size(32.dp)
                         ) {
@@ -160,20 +156,6 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                             onValueChange = { newValue -> 
                                 val newCount = newValue.toInt().coerceIn(1, 20)
                                 shortcutResultsCount = newCount
-                                prefs.edit().put(SettingsManager.SHORTCUT_RESULTS_COUNT, newCount).apply()
-                                viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, newCount)
-
-                                val currentPills = searchPills.split(",").filter { it.isNotBlank() }
-                                if (newCount < currentPills.size) {
-                                    val trimmed = currentPills.take(newCount).joinToString(",")
-                                    searchPills = trimmed
-                                    val activeProfile = prefs.getInt("active_app_search_profile", 1)
-                                    prefs.edit()
-                                        .put(SettingsManager.SEARCH_PILLS, trimmed)
-                                        .putString("app_search_profile_$activeProfile", trimmed)
-                                        .apply()
-                                    viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, trimmed)
-                                }
                             },
                             valueRange = 1f..20f,
                             steps = 18,

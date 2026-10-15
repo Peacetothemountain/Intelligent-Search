@@ -12,7 +12,8 @@ import java.util.regex.Pattern
  */
 object QueryNormalizer {
     private val DIACRITICS_PATTERN = Pattern.compile("\\p{InCombiningDiacriticalMarks}+")
-    private val PUNCTUATION_PATTERN = Pattern.compile("[^\\p{L}\\p{N}\\s]")
+    // Combining marks stay: outside Latin they tell letters apart (バ vs パ, Devanagari vowel signs).
+    private val PUNCTUATION_PATTERN = Pattern.compile("[^\\p{L}\\p{M}\\p{N}\\s]")
     private val WHITESPACE_PATTERN = Pattern.compile("\\s+")
 
     /**
@@ -80,7 +81,8 @@ object QueryNormalizer {
         val decomposed = Normalizer.normalize(preCleaned, Normalizer.Form.NFD)
         val withoutAccents = DIACRITICS_PATTERN.matcher(decomposed).replaceAll("")
         val stripped = PUNCTUATION_PATTERN.matcher(withoutAccents.lowercase(java.util.Locale.ROOT)).replaceAll(" ")
-        return WHITESPACE_PATTERN.matcher(stripped).replaceAll(" ").trim()
+        // Recompose what NFD split apart (Hangul syllables, kana with voicing marks) so keys match typed text.
+        return Normalizer.normalize(WHITESPACE_PATTERN.matcher(stripped).replaceAll(" ").trim(), Normalizer.Form.NFC)
     }
 
     fun tokenize(input: String?): List<String> {

@@ -117,7 +117,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun SearchOverlayScreen(
     onOpenSettings: (String) -> Unit,
-    onLaunchApp: (String) -> Unit,
+    /** Launches an app in its own profile: package, profile (null = personal) and launcher activity if known. */
+    onLaunchApp: (packageName: String, user: android.os.UserHandle?, activityName: String?) -> Unit,
     viewModel: SearchViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel(),
     isKeyboardDisabled: Boolean = false
@@ -208,14 +209,18 @@ fun SearchOverlayScreen(
         }
     }
 
-    val performAppLaunch: (String) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController, focusManager) {
-        { packageName ->
+    val performLaunch: (String, android.os.UserHandle?, String?) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController, focusManager) {
+        { packageName, user, activityName ->
             hasStartedTyping = false
             focusManager.clearFocus(force = true)
             keyboardController?.hide()
             sensoryEngine.appLaunch(view)
-            onLaunchApp(packageName)
+            onLaunchApp(packageName, user, activityName)
         }
+    }
+    // Work and Private Space copies of an app share its package name, so launches carry the profile too.
+    val performAppLaunch: (AppItem) -> Unit = remember(performLaunch) {
+        { app -> performLaunch(app.packageName, app.userHandle, app.activityName) }
     }
 
     LaunchedEffect(uiState.mathResult) {
@@ -869,7 +874,7 @@ fun SearchOverlayScreen(
                                             launchSafeIntent(context, intent)
                                         }
                                         is AppItem -> {
-                                            performAppLaunch(match.packageName)
+                                            performAppLaunch(match)
                                         }
                                         is FileItem -> {
                                             val intent = buildOpenFileIntent(match.uri, match.mimeType)
@@ -890,7 +895,7 @@ fun SearchOverlayScreen(
                                         })
                                     }
                                 } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
-                                    performAppLaunch(visibleApps.first().packageName)
+                                    performAppLaunch(visibleApps.first())
                                 } else {
                                     launchWebSearch(submittedQuery)
                                 }
@@ -1031,12 +1036,12 @@ fun SearchOverlayScreen(
         if (settingsState.quickSearchHorizontal) {
             val pillPackages by remember {
                 derivedStateOf {
-                    val raw = if (settingsState.contextAwareQuickApps) {
-                        uiState.recentApps.map { it.packageName }
+                    // Chosen pills are shown as listed; recent apps are capped by the shortcut count.
+                    if (settingsState.contextAwareQuickApps) {
+                        uiState.recentApps.map { it.packageName }.distinct().take(settingsState.shortcutResultsCount)
                     } else {
-                        settingsState.searchPills.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                        settingsState.searchPills.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
                     }
-                    raw.distinct().take(settingsState.shortcutResultsCount)
                 }
             }
             val dynamicScale = if (pillPackages.size > 6) (6f / pillPackages.size.toFloat()).coerceIn(0.6f, 1f) else 1f
@@ -1070,7 +1075,7 @@ fun SearchOverlayScreen(
                                     
                                     val searchStr = uiState.query
                                     if (searchStr.isEmpty()) {
-                                        performAppLaunch(packageName)
+                                        performLaunch(packageName, null, null)
                                     } else {
                                         val intent = when (packageName) {
                                             "com.android.chrome" -> {
@@ -1556,7 +1561,7 @@ fun SearchOverlayScreen(
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .bouncyClickable { performAppLaunch(match.packageName) }
+                                                .bouncyClickable { performAppLaunch(match) }
                                                 .padding(vertical = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
@@ -2148,7 +2153,7 @@ fun SearchOverlayScreen(
                                         }
                                     }
                                     items(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }, contentType = { "app_item" }) { app ->
-                                        AppGridItem(app) { performAppLaunch(app.packageName) }
+                                        AppGridItem(app) { performAppLaunch(app) }
                                     }
                                 }
                             }

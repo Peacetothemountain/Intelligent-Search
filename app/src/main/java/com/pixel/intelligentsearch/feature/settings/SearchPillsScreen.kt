@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import android.content.Context
 import android.content.Intent
@@ -49,6 +50,8 @@ import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 // -----------------------------------------------------------------------------------------
 private val nativeAppIconCache = com.pixel.intelligentsearch.core.ui.imageBitmapLruCache<String>(heapDivisor = 32)
 
+fun peekNativeAppIcon(packageName: String): androidx.compose.ui.graphics.ImageBitmap? = nativeAppIconCache.get(packageName)
+
 fun getNativeAppIcon(context: Context, packageName: String): androidx.compose.ui.graphics.ImageBitmap? {
     val cached = nativeAppIconCache.get(packageName)
     if (cached != null) return cached
@@ -96,21 +99,6 @@ fun SearchPillsScreen(
     val viewModel = LocalSettingsViewModel.current
     val defaultPills = "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files"
 
-    // One-time restore of Profile 1 back to default state as requested by user
-    LaunchedEffect(Unit) {
-        if (!prefs.getBoolean("profile_1_restored_to_default_v919", false)) {
-            prefs.edit()
-                .putString("app_search_profile_1", defaultPills)
-                .putString("app_search_profile_1_saved", defaultPills)
-                .put(SettingsManager.SEARCH_PILLS, defaultPills)
-                .put(SettingsManager.SHORTCUT_RESULTS_COUNT, 6)
-                .putBoolean("profile_1_restored_to_default_v919", true)
-                .apply()
-            viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, defaultPills)
-            viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, 6)
-        }
-    }
-
     var activeProfile by remember { mutableIntStateOf(prefs.getInt("active_app_search_profile", 1)) }
 
     fun getSavedProfilePills(id: Int): String {
@@ -123,10 +111,10 @@ fun SearchPillsScreen(
         return getSavedProfilePills(id)
     }
 
-    var searchPills by remember { mutableStateOf(getProfilePills(activeProfile)) }
-    var localPillList by remember(searchPills) {
-        mutableStateOf(searchPills.split(",").filter { it.isNotBlank() })
-    }
+    // The active profile's pills are the backed-up SEARCH_PILLS setting (so a restored backup shows here); the
+    // per-profile keys only hold the profiles not in use. One state object, so drag handlers never write a stale copy.
+    var searchPills by remember { mutableStateOf(prefs[SettingsManager.SEARCH_PILLS]) }
+    var localPillList by remember { mutableStateOf(searchPills.split(",").filter { it.isNotBlank() }) }
     var resetCounter by remember { mutableIntStateOf(0) }
 
     fun persistPills(newPills: List<String>) {
@@ -136,13 +124,12 @@ fun SearchPillsScreen(
         prefs.edit()
             .putString("app_search_profile_$activeProfile", pillString)
             .put(SettingsManager.SEARCH_PILLS, pillString)
-            .put(SettingsManager.SHORTCUT_RESULTS_COUNT, newPills.size)
             .apply()
-        viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, pillString)
-        viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, newPills.size)
     }
 
     fun switchProfile(id: Int) {
+        // Keep the profile being left, so switching back restores it.
+        prefs.edit().putString("app_search_profile_$activeProfile", searchPills).apply()
         activeProfile = id
         prefs.edit().putInt("active_app_search_profile", id).apply()
         val pills = getProfilePills(id)
@@ -150,12 +137,7 @@ fun SearchPillsScreen(
         val list = pills.split(",").filter { it.isNotBlank() }
         localPillList = list
         resetCounter++
-        prefs.edit()
-            .put(SettingsManager.SEARCH_PILLS, pills)
-            .put(SettingsManager.SHORTCUT_RESULTS_COUNT, list.size)
-            .apply()
-        viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, pills)
-        viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, list.size)
+        prefs.edit().put(SettingsManager.SEARCH_PILLS, pills).apply()
     }
 
     var showAppPicker by remember { mutableStateOf(false) }
@@ -619,8 +601,11 @@ fun SearchPillsScreen(
                                         }
                                     ) {
                                         val appName = pillAppLabels[packageName] ?: packageName
-                                        val appIcon = remember(packageName) {
-                                            getNativeAppIcon(context, packageName)
+                                        // Cached icons show at once; others are rasterized off the main thread.
+                                        val appIcon by produceState(peekNativeAppIcon(packageName), packageName) {
+                                            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                getNativeAppIcon(context, packageName)
+                                            }
                                         }
 
                                         val containerBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
@@ -645,9 +630,10 @@ fun SearchPillsScreen(
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     modifier = Modifier.weight(1f)
                                                 ) {
-                                                    if (appIcon != null) {
+                                                    val icon = appIcon
+                                                    if (icon != null) {
                                                         Image(
-                                                            bitmap = appIcon,
+                                                            bitmap = icon,
                                                             contentDescription = null,
                                                             modifier = Modifier.size(36.dp)
                                                         )

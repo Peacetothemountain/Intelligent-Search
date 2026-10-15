@@ -1,11 +1,7 @@
 package com.pixel.intelligentsearch.core.ui
 
-import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
-import android.graphics.Shader
 import android.os.Build
-import android.view.View
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
@@ -35,226 +31,8 @@ import kotlinx.coroutines.isActive
 import org.intellij.lang.annotations.Language
 
 /**
- * Android 18 / Material 3 Expressive Dynamic Mesh Gradient Engine.
- *
- * Architecture Improvements:
- * 1. 5-vertex domain-warped AGSL organic mesh gradient:
- *    - 4 corner control vertices (Top-Left, Top-Right, Bottom-Left, Bottom-Right)
- *    - 1 harmonic center vertex with dynamic orbital floating
- *    - Multi-frequency domain warping creating fluid liquid gradient motion.
- * 2. High-frequency triangular dither eliminates 8-bit color banding on high-gamut OLED panels.
- * 3. layout(color) uniform qualifiers with Skia color-space management via setColorUniform.
- * 4. Material 3 Expressive dynamic color palette integration: [Modifier.materialYouMeshGradientBackground].
- * 5. Full lifecycle-aware frame pacing and ADPF Thermal Headroom adaptive fallback.
- */
-object DynamicMeshShader {
-
-    @Language("AGSL")
-    const val AGSL_MESH_GRADIENT_EFFECT = """
-        uniform shader compositedImage;
-        uniform float2 uResolution;
-        uniform float uTime;
-        uniform half uAlpha;
-        layout(color) uniform half4 uColorTL;
-        layout(color) uniform half4 uColorTR;
-        layout(color) uniform half4 uColorBL;
-        layout(color) uniform half4 uColorBR;
-        layout(color) uniform half4 uColorCenter;
-
-        half4 main(float2 fragCoord) {
-            float2 st = fragCoord / max(uResolution, float2(1.0, 1.0));
-            
-            // Android 18 Domain Warping for fluid organic liquid motion
-            float warpX = sin(st.y * 3.14159265 + uTime * 0.40) * 0.12 + cos(st.x * 2.718 - uTime * 0.30) * 0.08;
-            float warpY = cos(st.x * 3.14159265 - uTime * 0.35) * 0.12 + sin(st.y * 2.718 + uTime * 0.25) * 0.08;
-            float2 uv = clamp(st + float2(warpX, warpY), float2(0.0), float2(1.0));
-
-            // Smoothstep Hermite curves between corner vertices
-            float sx = smoothstep(0.0, 1.0, uv.x);
-            float sy = smoothstep(0.0, 1.0, uv.y);
-            
-            half4 top = mix(uColorTL, uColorTR, half(sx));
-            half4 bot = mix(uColorBL, uColorBR, half(sx));
-            half4 cornerMesh = mix(top, bot, half(sy));
-
-            // Harmonic floating center vertex with dynamic orbital shift
-            float2 centerPos = float2(0.5, 0.5) + float2(sin(uTime * 0.55) * 0.12, cos(uTime * 0.45) * 0.10);
-            float distCenter = distance(uv, centerPos);
-            float centerInfluence = (1.0 - smoothstep(0.0, 0.70, distCenter)) * 0.60;
-            
-            half4 meshColor = mix(cornerMesh, uColorCenter, half(centerInfluence));
-
-            // Dither against banding
-            float dither = (fract(sin(dot(fragCoord, float2(12.9898, 78.233))) * 43758.5453) - 0.5) * (1.0 / 255.0);
-            meshColor.rgb += half3(dither);
-            
-            half4 original = compositedImage.eval(fragCoord);
-            half effectiveAlpha = clamp(uAlpha * original.a, half(0.0), half(1.0));
-            half4 premulMesh = half4(meshColor.rgb * meshColor.a, meshColor.a) * original.a;
-            return mix(original, premulMesh, effectiveAlpha);
-        }
-    """
-
-    @Language("AGSL")
-    const val AGSL_MESH_GRADIENT_BRUSH = """
-        uniform float2 uResolution;
-        uniform float uTime;
-        uniform half uAlpha;
-        layout(color) uniform half4 uColorTL;
-        layout(color) uniform half4 uColorTR;
-        layout(color) uniform half4 uColorBL;
-        layout(color) uniform half4 uColorBR;
-        layout(color) uniform half4 uColorCenter;
-
-        half4 main(float2 fragCoord) {
-            float2 st = fragCoord / max(uResolution, float2(1.0, 1.0));
-            
-            // Android 18 Domain Warping for fluid organic liquid motion
-            float warpX = sin(st.y * 3.14159265 + uTime * 0.40) * 0.12 + cos(st.x * 2.718 - uTime * 0.30) * 0.08;
-            float warpY = cos(st.x * 3.14159265 - uTime * 0.35) * 0.12 + sin(st.y * 2.718 + uTime * 0.25) * 0.08;
-            float2 uv = clamp(st + float2(warpX, warpY), float2(0.0), float2(1.0));
-
-            // Smoothstep Hermite curves between corner vertices
-            float sx = smoothstep(0.0, 1.0, uv.x);
-            float sy = smoothstep(0.0, 1.0, uv.y);
-            
-            half4 top = mix(uColorTL, uColorTR, half(sx));
-            half4 bot = mix(uColorBL, uColorBR, half(sx));
-            half4 cornerMesh = mix(top, bot, half(sy));
-
-            // Harmonic floating center vertex with dynamic orbital shift
-            float2 centerPos = float2(0.5, 0.5) + float2(sin(uTime * 0.55) * 0.12, cos(uTime * 0.45) * 0.10);
-            float distCenter = distance(uv, centerPos);
-            float centerInfluence = (1.0 - smoothstep(0.0, 0.70, distCenter)) * 0.60;
-            
-            half4 meshColor = mix(cornerMesh, uColorCenter, half(centerInfluence));
-
-            // Dither against banding
-            float dither = (fract(sin(dot(fragCoord, float2(12.9898, 78.233))) * 43758.5453) - 0.5) * (1.0 / 255.0);
-            meshColor.rgb += half3(dither);
-            
-            half effectiveAlpha = clamp(meshColor.a * uAlpha, half(0.0), half(1.0));
-            return half4(meshColor.rgb * effectiveAlpha, effectiveAlpha);
-        }
-    """
-
-    /**
-     * Factory function to compile and instantiate an [AGSL_MESH_GRADIENT_EFFECT] [RuntimeShader].
-     */
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    fun createEffectShader(): RuntimeShader? {
-        return runCatching { RuntimeShader(AGSL_MESH_GRADIENT_EFFECT) }.getOrNull()
-    }
-
-    /**
-     * Factory function to compile and instantiate an [AGSL_MESH_GRADIENT_BRUSH] [RuntimeShader].
-     */
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    fun createBrushShader(): RuntimeShader? {
-        return runCatching { RuntimeShader(AGSL_MESH_GRADIENT_BRUSH) }.getOrNull()
-    }
-
-    private class MeshState(
-        val shader: RuntimeShader,
-        var lastWidth: Float = -1f,
-        var lastHeight: Float = -1f,
-        var lastColorTL: Int = 0,
-        var lastColorTR: Int = 0,
-        var lastColorBL: Int = 0,
-        var lastColorBR: Int = 0,
-        var lastColorCenter: Int = 0,
-        var lastAlpha: Float = -1f
-    )
-
-    private val viewStateMap = java.util.WeakHashMap<View, MeshState>()
-
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    private fun setUniformColor(shader: RuntimeShader, name: String, colorInt: Int) {
-        val a = (colorInt ushr 24) and 0xFF
-        val packed = if (a == 0) (0xFF shl 24) or (colorInt and 0x00FFFFFF) else colorInt
-        shader.setColorUniform(name, packed)
-    }
-
-    /**
-     * Applies AGSL 5-vertex domain-warped dynamic mesh gradient effect to an Android [View].
-     */
-    fun applyDynamicMesh(
-        view: View,
-        colorTL: Int,
-        colorTR: Int,
-        colorBL: Int,
-        colorBR: Int,
-        colorCenter: Int,
-        timeSec: Float = 0f,
-        alpha: Float = 0.15f
-    ) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            try {
-                val width = view.width.toFloat().coerceAtLeast(1f)
-                val height = view.height.toFloat().coerceAtLeast(1f)
-                val state = viewStateMap[view]
-                    ?: MeshState(createEffectShader() ?: return).also { viewStateMap[view] = it }
-                val shader = state.shader
-
-                if (state.lastWidth != width || state.lastHeight != height) {
-                    shader.setFloatUniform("uResolution", width, height)
-                    state.lastWidth = width
-                    state.lastHeight = height
-                }
-                if (state.lastAlpha != alpha) {
-                    shader.setFloatUniform("uAlpha", alpha)
-                    state.lastAlpha = alpha
-                }
-                if (state.lastColorTL != colorTL || state.lastColorTR != colorTR ||
-                    state.lastColorBL != colorBL || state.lastColorBR != colorBR ||
-                    state.lastColorCenter != colorCenter
-                ) {
-                    setUniformColor(shader, "uColorTL", colorTL)
-                    setUniformColor(shader, "uColorTR", colorTR)
-                    setUniformColor(shader, "uColorBL", colorBL)
-                    setUniformColor(shader, "uColorBR", colorBR)
-                    setUniformColor(shader, "uColorCenter", colorCenter)
-                    state.lastColorTL = colorTL
-                    state.lastColorTR = colorTR
-                    state.lastColorBL = colorBL
-                    state.lastColorBR = colorBR
-                    state.lastColorCenter = colorCenter
-                }
-                shader.setFloatUniform("uTime", timeSec)
-
-                view.setRenderEffect(RenderEffect.createRuntimeShaderEffect(shader, "compositedImage"))
-            } catch (_: Throwable) {
-                // Ignore compilation fallback
-            }
-        }
-    }
-
-    /**
-     * 3-color overload for backward compatibility with existing callers.
-     */
-    fun applyDynamicMesh(
-        view: View,
-        colorA: Int,
-        colorB: Int,
-        colorC: Int,
-        timeSec: Float = 0f,
-        alpha: Float = 0.15f
-    ) {
-        applyDynamicMesh(
-            view = view,
-            colorTL = colorA,
-            colorTR = colorB,
-            colorBL = colorC,
-            colorBR = colorA,
-            colorCenter = colorB,
-            timeSec = timeSec,
-            alpha = alpha
-        )
-    }
-}
-
-/**
- * Modern Compose Modifier rendering an Android 18 5-vertex domain-warped AGSL mesh gradient.
+ * Slowly flowing mesh-gradient background between five colours (four corners and the centre), animated to
+ * each new colour over 600 ms. Draws a static gradient under severe thermal throttling.
  */
 @Composable
 fun Modifier.meshGradientBackground(
@@ -312,50 +90,6 @@ fun Modifier.materialYouMeshGradientBackground(
         isInteracting = isInteracting
     )
 }
-
-/**
- * Backward compatibility 3-color overload of [dynamicMeshBackground].
- */
-@Composable
-fun Modifier.dynamicMeshBackground(
-    colorA: Color,
-    colorB: Color,
-    colorC: Color,
-    alpha: Float = 0.15f,
-    isPaused: Boolean = false,
-    isInteracting: Boolean = false
-): Modifier = meshGradientBackground(
-    colorTL = colorA,
-    colorTR = colorB,
-    colorBL = colorC,
-    colorBR = colorA,
-    colorCenter = colorB,
-    alpha = alpha,
-    isPaused = isPaused,
-    isInteracting = isInteracting
-)
-
-/**
- * Backward compatibility 3-color producer overload of [dynamicMeshBackground].
- */
-@Composable
-fun Modifier.dynamicMeshBackground(
-    colorAProducer: () -> Color,
-    colorBProducer: () -> Color,
-    colorCProducer: () -> Color,
-    alpha: Float = 0.15f,
-    isPaused: Boolean = false,
-    isInteracting: Boolean = false
-): Modifier = meshGradientBackground(
-    colorTLProducer = colorAProducer,
-    colorTRProducer = colorBProducer,
-    colorBLProducer = colorCProducer,
-    colorBRProducer = colorAProducer,
-    colorCenterProducer = colorBProducer,
-    alpha = alpha,
-    isPaused = isPaused,
-    isInteracting = isInteracting
-)
 
 /**
  * Android 18 mesh gradient vertex layout (3x3 vertices / 2x2 patches) for [MeshGradientPainter].
@@ -417,6 +151,7 @@ fun Modifier.meshGradientBackground(
 
     val lifecycleOwner = LocalLifecycleOwner.current
     val timeState = remember { mutableFloatStateOf(0f) }
+    val animationsEnabled by rememberAnimationsEnabled()
 
     val currentTL by androidx.compose.runtime.rememberUpdatedState(colorTLProducer)
     val currentTR by androidx.compose.runtime.rememberUpdatedState(colorTRProducer)
@@ -439,8 +174,8 @@ fun Modifier.meshGradientBackground(
     }
 
     // Pause frame animation loop while paused, interacting, throttled, or in background
-    LaunchedEffect(lifecycleOwner, isPaused, isInteracting, isThermallyThrottled) {
-        if (!isPaused && !isInteracting && !isThermallyThrottled) {
+    LaunchedEffect(lifecycleOwner, isPaused, isInteracting, isThermallyThrottled, animationsEnabled) {
+        if (!isPaused && !isInteracting && !isThermallyThrottled && animationsEnabled) {
             lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 var lastFrame = 0L
                 val period = (2000.0 * Math.PI).toFloat()

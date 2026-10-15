@@ -100,4 +100,45 @@ class NaturalLanguageIntentParserTest {
         assertTrue(navRes is NaturalLanguageIntentParser.ParsedIntent.Navigation)
         assertEquals("Central Park", (navRes as NaturalLanguageIntentParser.ParsedIntent.Navigation).destination)
     }
+
+    private fun at(hour: Int, minute: Int = 0): Long = Calendar.getInstance().apply {
+        set(2026, Calendar.MARCH, 10, hour, minute, 0); set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    private fun hourOf(millis: Long) = Calendar.getInstance().apply { timeInMillis = millis }.get(Calendar.HOUR_OF_DAY)
+    private fun dayOf(millis: Long) = Calendar.getInstance().apply { timeInMillis = millis }.get(Calendar.DAY_OF_MONTH)
+
+    @Test
+    fun alarmInADurationIsTimeFromNowNotAClockHour() {
+        val alarm = NaturalLanguageIntentParser.parse("alarm in 10 minutes", currentTimeMs = at(14, 55)) as NaturalLanguageIntentParser.ParsedIntent.Alarm
+        assertEquals(15, alarm.hour)
+        assertEquals(5, alarm.minute)
+        val wake = NaturalLanguageIntentParser.parse("wake me up in 8 hours", currentTimeMs = at(23, 30)) as NaturalLanguageIntentParser.ParsedIntent.Alarm
+        assertEquals(7, wake.hour)
+        assertEquals(30, wake.minute)
+    }
+
+    @Test
+    fun tonightAndBareHoursPickTheEveningWhenTheMorningHasPassed() {
+        val tonight = NaturalLanguageIntentParser.parse("meeting tonight at 9", currentTimeMs = at(10)) as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
+        assertEquals(21, hourOf(tonight.startMillis))
+        assertEquals(10, dayOf(tonight.startMillis))
+
+        val afternoon = NaturalLanguageIntentParser.parse("meeting at 3", currentTimeMs = at(13)) as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
+        assertEquals(15, hourOf(afternoon.startMillis))
+        assertEquals(10, dayOf(afternoon.startMillis))
+
+        val explicitMorning = NaturalLanguageIntentParser.parse("meeting at 9am", currentTimeMs = at(13)) as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
+        assertEquals(9, hourOf(explicitMorning.startMillis))
+        assertEquals(11, dayOf(explicitMorning.startMillis))
+    }
+
+    @Test
+    fun messagesAcceptColonAndCommaRightAfterTheName() {
+        val colon = NaturalLanguageIntentParser.parse("text Sarah: running late") as NaturalLanguageIntentParser.ParsedIntent.DirectMessage
+        assertEquals("Sarah", colon.recipientName)
+        assertEquals("running late", colon.body)
+        val comma = NaturalLanguageIntentParser.parse("text mom, on my way") as NaturalLanguageIntentParser.ParsedIntent.DirectMessage
+        assertEquals("on my way", comma.body)
+    }
 }

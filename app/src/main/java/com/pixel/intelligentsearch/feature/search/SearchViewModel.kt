@@ -113,8 +113,7 @@ class SearchViewModel @Inject constructor(
     private var initialDataJob: Job? = null
 
     private val adpfThermalManager = com.pixel.intelligentsearch.core.performance.ADPFThermalManager.getInstance(context)
-    private val nexusLauncherBridge = com.pixel.intelligentsearch.core.data.NexusLauncherBridge(context)
-    private val customPrefs by lazy { context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE) }
+    private val customPrefs get() = settingsManager.prefs
     private var initialClipboardActions: List<DirectAction> = emptyList()
 
     init {
@@ -303,21 +302,9 @@ class SearchViewModel @Inject constructor(
         initialDataJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 val appsDeferred = async { SystemDataProvider.getAllApps(context) }
-                val launcherPredictedDeferred = async {
-                    val nativePredicted = nativeAppPredictionProvider.getPredictedApps()
-                    if (nativePredicted.isNotEmpty()) {
-                        nativePredicted
-                    } else {
-                        nexusLauncherBridge.getPredictedApps().mapNotNull { pred ->
-                            try {
-                                val iconDrawable = context.packageManager.getApplicationIcon(pred.packageName)
-                                AppItem(name = pred.displayName, packageName = pred.packageName, icon = iconDrawable)
-                            } catch (e: Exception) {
-                                null
-                            }
-                        }
-                    }
-                }
+                // The provider already tries Pixel Launcher predictions first, then usage stats. (Re-querying the
+                // launcher here returned apps outside the indexed list, which skipped the hidden-app filtering.)
+                val launcherPredictedDeferred = async { nativeAppPredictionProvider.getPredictedApps() }
                 val eventsDeferred = async {
                     if (settingsState.value.searchCalendar) {
                         SystemDataProvider.getUpcomingEvents(context)

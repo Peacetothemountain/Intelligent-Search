@@ -1,4 +1,10 @@
 package com.pixel.intelligentsearch.feature.search
+import com.pixel.intelligentsearch.core.ui.clearThemedIconCache
+import com.pixel.intelligentsearch.core.ui.getAppName
+import com.pixel.intelligentsearch.core.ui.AppIconResult
+import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
+import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
+import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
@@ -9,7 +15,6 @@ import com.pixel.intelligentsearch.feature.settings.tutorialTarget
 import android.app.SearchManager
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
-import com.pixel.intelligentsearch.feature.settings.SettingsDebouncer
 import com.pixel.intelligentsearch.feature.settings.TutorialSpotlightOverlay
 import com.pixel.intelligentsearch.feature.settings.TutorialManager
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
@@ -317,114 +322,11 @@ fun SearchOverlayLensIcon(
     }
 }
 
-data class AppIconResult(val bitmap: androidx.compose.ui.graphics.ImageBitmap, val isMonochrome: Boolean)
-
-private val themedIconCache = android.util.LruCache<String, AppIconResult>(256)
 private val fileThumbnailCache = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(128)
-@Volatile
-private var cachedActivePack: String? = null
-
-fun clearThemedIconCache() {
-    cachedActivePack = null
-    themedIconCache.evictAll()
-    com.pixel.intelligentsearch.core.util.MaterialOutlineManager.clearCache()
-}
 
 fun clearAllUiMemoryCaches() {
     clearThemedIconCache()
     fileThumbnailCache.evictAll()
-}
-
-fun peekThemedAppIcon(packageName: String, activePackOverride: String? = null): AppIconResult? {
-    val activePack = activePackOverride ?: cachedActivePack ?: "system_default"
-    return themedIconCache.get("$activePack:$packageName")
-}
-
-fun getThemedAppIcon(context: Context, packageName: String, activePackOverride: String? = null): AppIconResult? {
-    try {
-        val activePack = activePackOverride ?: cachedActivePack ?: run {
-            context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)[SettingsManager.ACTIVE_ICON_PACK]
-                .also { cachedActivePack = it }
-        }
-        val cacheKey = "$activePack:$packageName"
-        val cached = themedIconCache.get(cacheKey)
-        if (cached != null) {
-            return cached
-        }
-
-        fun drawableToBitmap(d: android.graphics.drawable.Drawable): android.graphics.Bitmap {
-            if (d is android.graphics.drawable.BitmapDrawable && d.bitmap != null) {
-                return d.bitmap
-            }
-            val width = (if (d.intrinsicWidth > 0) d.intrinsicWidth else 100).coerceIn(1, 192)
-            val height = (if (d.intrinsicHeight > 0) d.intrinsicHeight else 100).coerceIn(1, 192)
-            val bmp = android.graphics.Bitmap.createBitmap(
-                width,
-                height,
-                android.graphics.Bitmap.Config.ARGB_8888
-            )
-            val canvas = android.graphics.Canvas(bmp)
-            val mutated = d.mutate()
-            mutated.setBounds(0, 0, canvas.width, canvas.height)
-            mutated.draw(canvas)
-            return bmp
-        }
-
-        if (activePack != "system_default") {
-            val packDrawable = com.pixel.intelligentsearch.core.util.IconPackManager.getIconForPackage(context, activePack, packageName)
-            if (packDrawable != null) {
-                val res = AppIconResult(drawableToBitmap(packDrawable).asImageBitmap(), isMonochrome = false)
-                themedIconCache.put(cacheKey, res)
-                return res
-            }
-        }
-
-        val pm = context.packageManager
-        val icon = pm.getApplicationIcon(packageName)
-        
-        if (icon is android.graphics.drawable.AdaptiveIconDrawable) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val monochrome = icon.monochrome
-                if (monochrome != null) {
-                    val res = AppIconResult(drawableToBitmap(monochrome).asImageBitmap(), isMonochrome = true)
-                    themedIconCache.put(cacheKey, res)
-                    return res
-                }
-            }
-        }
-
-        if (activePack == "system_default") {
-            val appLabel = try {
-                val info = pm.getApplicationInfo(packageName, 0)
-                pm.getApplicationLabel(info).toString()
-            } catch (e: Exception) { null }
-
-            val outlineBitmap = com.pixel.intelligentsearch.core.util.MaterialOutlineManager.getMaterialOutlineIcon(
-                context, packageName, appLabel, icon
-            )
-            if (outlineBitmap != null) {
-                val res = AppIconResult(outlineBitmap.asImageBitmap(), isMonochrome = true)
-                themedIconCache.put(cacheKey, res)
-                return res
-            }
-        }
-
-        val res = AppIconResult(drawableToBitmap(icon).asImageBitmap(), isMonochrome = false)
-        themedIconCache.put(cacheKey, res)
-        return res
-    } catch (e: Exception) {
-        return null
-    }
-}
-
-fun getAppName(context: Context, packageName: String): String {
-    return try {
-        val pm = context.packageManager
-        val info = pm.getApplicationInfo(packageName, 0)
-        pm.getApplicationLabel(info).toString()
-    } catch (e: Exception) {
-        "App"
-    }
 }
 
 @Composable
@@ -1381,7 +1283,7 @@ fun SearchOverlayScreen(
 
                 IconButton(
                     onClick = { 
-                        if (SettingsDebouncer.canClick()) {
+                        if (ClickDebouncer.canClick()) {
                             hasStartedTyping = false
                             focusManager.clearFocus(force = true)
                             keyboardController?.hide()
@@ -2565,7 +2467,7 @@ fun SearchOverlayScreen(
                                     if (uiState.query.isEmpty()) {
                                         item(key = "search_settings_shortcut", contentType = "settings_shortcut") {
                                             SearchSettingsItem {
-                                                if (SettingsDebouncer.canClick()) {
+                                                if (ClickDebouncer.canClick()) {
                                                     onOpenSettings("main")
                                                 }
                                             }

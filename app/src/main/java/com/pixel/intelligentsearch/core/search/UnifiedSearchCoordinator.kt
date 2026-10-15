@@ -34,29 +34,9 @@ import javax.inject.Singleton
 class UnifiedSearchCoordinator @Inject constructor(
     @param:ApplicationContext private val context: Context,
     val systemActionRouter: SystemActionRouter,
-    private val multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager
+    private val multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager,
+    settingsManager: SettingsManager
 ) {
-    constructor(
-        context: Context,
-        systemActionRouter: SystemActionRouter
-    ) : this(
-        context,
-        systemActionRouter,
-        com.pixel.intelligentsearch.core.profile.MultiProfileManager(context)
-    )
-
-    companion object {
-        private fun getSafeContext(ctx: Context): Context {
-            val userManager = ctx.getSystemService(Context.USER_SERVICE) as? android.os.UserManager
-            val isUnlocked = userManager?.isUserUnlocked ?: true
-            return if (!isUnlocked && !ctx.isDeviceProtectedStorage) {
-                ctx.createDeviceProtectedStorageContext()
-            } else {
-                ctx
-            }
-        }
-    }
-
     data class RankedSearchResult(
         val item: SearchItem,
         val scoreBreakdown: SearchScoringEngine.ScoreBreakdown
@@ -113,7 +93,7 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val fileRadixTree = RadixTreeIndex<SearchItem>()
     private val phoneticIndex = ConcurrentHashMap<String, MutableSet<SearchItem>>()
 
-    private val prefs = getSafeContext(context).getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs = settingsManager.prefs
     @Volatile private var cachedAppWeightMul: Float = 1.0f
     @Volatile private var cachedContactWeightMul: Float = 1.0f
     @Volatile private var cachedFileWeightMul: Float = 1.0f

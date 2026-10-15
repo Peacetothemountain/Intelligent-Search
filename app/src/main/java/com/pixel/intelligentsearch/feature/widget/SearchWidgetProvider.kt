@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.widget
 
+import com.pixel.intelligentsearch.di.appEntryPoint
+import com.pixel.intelligentsearch.core.util.storageContext
 import com.pixel.intelligentsearch.core.theme.ThemeMode
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -80,7 +82,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         val pendingResult = goAsync()
-        widgetScope.launch {
+        context.appEntryPoint.applicationScope().launch(Dispatchers.IO) {
             try {
                 updateWidgetsSync(context, appWidgetManager, appWidgetIds, forcedIsMaterial)
             } catch (e: Throwable) {
@@ -98,7 +100,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         newOptions: Bundle
     ) {
         val pendingResult = goAsync()
-        widgetScope.launch {
+        context.appEntryPoint.applicationScope().launch(Dispatchers.IO) {
             try {
                 updateWidgetsSync(context, appWidgetManager, intArrayOf(appWidgetId), forcedIsMaterial)
             } catch (e: Throwable) {
@@ -111,7 +113,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
     companion object {
         private const val TAG = "SearchWidgetProvider"
-        internal val widgetScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         fun hasSavedSystemDesign(prefs: SharedPreferences): Boolean {
             return prefs.getBoolean("widget_system_design_saved", false) ||
@@ -247,11 +248,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         private val PATH_GEMINI_2 by lazy { PathParser.createPathFromPathData("M19.0,9.0 l1.25,-2.75 L23.0,5.0 l-2.75,-1.25 L19.0,1.0 l-1.25,2.75 L15.0,5.0 l2.75,1.25 L19.0,9.0 Z") }
         private val PATH_GEMINI_3 by lazy { PathParser.createPathFromPathData("M19.0,15.0 l-1.25,2.75 L15.0,19.0 l2.75,1.25 L19.0,23.0 l1.25,-2.75 L23.0,19.0 l-2.75,-1.25 L19.0,15.0 Z") }
 
-        fun getSafeSharedPreferences(context: Context, name: String = SettingsManager.PREFS_NAME): SharedPreferences {
-            val isUnlocked = UserManagerCompat.isUserUnlocked(context)
-            val targetContext = if (isUnlocked) context else context.createDeviceProtectedStorageContext()
-            return targetContext.getSharedPreferences(name, Context.MODE_PRIVATE)
-        }
+        fun getSafeSharedPreferences(context: Context, name: String = SettingsManager.PREFS_NAME): SharedPreferences =
+            context.storageContext().getSharedPreferences(name, Context.MODE_PRIVATE)
 
         private fun PackageManager.resolveActivityCompat(intent: Intent, flags: Long = 0L): ResolveInfo? {
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -282,7 +280,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
         fun updateAllWidgets(context: Context, pendingResult: android.content.BroadcastReceiver.PendingResult? = null) {
             val appContext = context.applicationContext
-            widgetScope.launch {
+            context.appEntryPoint.applicationScope().launch(Dispatchers.IO) {
                 try {
                     val appWidgetManager = AppWidgetManager.getInstance(appContext) ?: return@launch
                     val prefs = getSafeSharedPreferences(appContext)
@@ -387,7 +385,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             pendingResult: android.content.BroadcastReceiver.PendingResult? = null
         ) {
             val appContext = context.applicationContext
-            widgetScope.launch {
+            context.appEntryPoint.applicationScope().launch(Dispatchers.IO) {
                 try {
                     val appWidgetManager = AppWidgetManager.getInstance(appContext) ?: return@launch
                     updateWidgetsSync(appContext, appWidgetManager, appWidgetIds, forcedIsMaterial)

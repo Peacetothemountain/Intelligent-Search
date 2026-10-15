@@ -18,13 +18,12 @@ import javax.inject.Singleton
  */
 @Singleton
 class NativeAppPredictionProvider @Inject constructor(
-    @param:ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context,
+    private val nexusLauncherBridge: NexusLauncherBridge
 ) {
     companion object {
         private const val TAG = "NativeAppPredictionProvider"
     }
-
-    private val nexusLauncherBridge = NexusLauncherBridge(context)
 
     suspend fun getPredictedApps(): List<AppItem> = withContext(Dispatchers.IO) {
         val allApps = SystemDataProvider.getAllApps(context).filter { !it.isPrivateProfile }

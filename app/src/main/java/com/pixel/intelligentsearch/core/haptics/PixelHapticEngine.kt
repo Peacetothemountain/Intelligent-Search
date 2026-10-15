@@ -1,5 +1,9 @@
 package com.pixel.intelligentsearch.core.haptics
 
+import com.pixel.intelligentsearch.di.appEntryPoint
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Singleton
+import javax.inject.Inject
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
@@ -49,17 +53,12 @@ enum class PixelHapticType {
  * Employs hardware primitive compositions with dynamic amplitude scaling (0.0 to 1.0),
  * velocity-coupled impedance, interval modulation, and low-latency VibrationAttributes.
  */
-class PixelHapticEngine(private val context: Context) {
+@Singleton
+class PixelHapticEngine @Inject constructor(@param:ApplicationContext private val context: Context) {
 
     companion object {
-        @Volatile
-        private var instance: PixelHapticEngine? = null
-
-        fun get(context: Context): PixelHapticEngine {
-            return instance ?: synchronized(this) {
-                instance ?: PixelHapticEngine(context.applicationContext).also { instance = it }
-            }
-        }
+        /** The app-wide instance, for composables and other places without injection. */
+        fun get(context: Context): PixelHapticEngine = context.appEntryPoint.pixelHapticEngine()
 
         // Detect high-fidelity Pixel hardware
         val isPixelDevice: Boolean by lazy {

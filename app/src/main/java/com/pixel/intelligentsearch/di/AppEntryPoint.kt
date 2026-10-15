@@ -1,5 +1,9 @@
 package com.pixel.intelligentsearch.di
 
+import com.pixel.intelligentsearch.core.performance.ADPFThermalManager
+import com.pixel.intelligentsearch.core.haptics.TactileSonicEngine
+import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
+import kotlinx.coroutines.CoroutineScope
 import android.content.Context
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.profile.MultiProfileManager
@@ -25,6 +29,13 @@ interface AppEntryPoint {
     fun corpusIndexManager(): CorpusIndexManager
     fun biometricSearchGate(): BiometricSearchGate
     fun strongBoxSecurityManager(): StrongBoxSecurityManager
+
+    @ApplicationScope
+    fun applicationScope(): CoroutineScope
+
+    fun pixelHapticEngine(): PixelHapticEngine
+    fun tactileSonicEngine(): TactileSonicEngine
+    fun adpfThermalManager(): ADPFThermalManager
 }
 
 /** The [AppEntryPoint] for this context's application. */

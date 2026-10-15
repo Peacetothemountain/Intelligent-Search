@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
@@ -896,20 +898,20 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         var errorMsg by remember { mutableStateOf<String?>(null) }
                         var showAppPicker by remember { mutableStateOf(false) }
 
-                        val installedApps = remember(context) {
-                            try {
-                                val pm = context.packageManager
-                                val intent = Intent(Intent.ACTION_MAIN, null).apply {
-                                    addCategory(Intent.CATEGORY_LAUNCHER)
+                        // Loading every launcher app's label is slow; do it off the main thread.
+                        val installedApps by produceState(initialValue = emptyList<Pair<String, String>>(), context) {
+                            value = withContext(Dispatchers.IO) {
+                                try {
+                                    val pm = context.packageManager
+                                    val intent = Intent(Intent.ACTION_MAIN, null).apply {
+                                        addCategory(Intent.CATEGORY_LAUNCHER)
+                                    }
+                                    pm.queryIntentActivities(intent, 0).map { resolveInfo ->
+                                        resolveInfo.loadLabel(pm).toString() to resolveInfo.activityInfo.packageName
+                                    }.distinctBy { it.second }.sortedBy { it.first.lowercase() }
+                                } catch (_: Exception) {
+                                    emptyList()
                                 }
-                                val resolveInfos = pm.queryIntentActivities(intent, 0)
-                                resolveInfos.map { resolveInfo ->
-                                    val label = resolveInfo.loadLabel(pm).toString()
-                                    val packageName = resolveInfo.activityInfo.packageName
-                                    label to packageName
-                                }.distinctBy { it.second }.sortedBy { it.first.lowercase() }
-                            } catch (_: Exception) {
-                                emptyList<Pair<String, String>>()
                             }
                         }
 
@@ -1036,15 +1038,18 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                                 .padding(horizontal = 10.dp, vertical = 8.dp),
                                                             verticalAlignment = Alignment.CenterVertically
                                                         ) {
-                                                            val appDrawable = remember(pkgName) {
-                                                                runCatching { context.packageManager.getApplicationIcon(pkgName) }.getOrNull()
+                                                            val appBitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, pkgName) {
+                                                                value = withContext(Dispatchers.IO) {
+                                                                    runCatching {
+                                                                        context.packageManager.getApplicationIcon(pkgName)
+                                                                            .toBitmap(width = 96, height = 96).asImageBitmap()
+                                                                    }.getOrNull()
+                                                                }
                                                             }
-                                                            val appBitmap = remember(appDrawable) {
-                                                                runCatching { appDrawable?.toBitmap(width = 96, height = 96)?.asImageBitmap() }.getOrNull()
-                                                            }
-                                                            if (appBitmap != null) {
+                                                            val loadedBitmap = appBitmap
+                                                            if (loadedBitmap != null) {
                                                                 Image(
-                                                                    bitmap = appBitmap,
+                                                                    bitmap = loadedBitmap,
                                                                     contentDescription = appName,
                                                                     modifier = Modifier
                                                                         .size(28.dp)

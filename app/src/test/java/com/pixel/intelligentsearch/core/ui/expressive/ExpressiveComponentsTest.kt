@@ -1,11 +1,11 @@
 package com.pixel.intelligentsearch.core.ui.expressive
 
+import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import com.pixel.intelligentsearch.feature.settings.SettingsDebouncer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -75,30 +75,30 @@ class ExpressiveComponentsTest {
     }
 
     @Test
-    fun testSettingsDebouncerAtomicCas() {
-        SettingsDebouncer.recordClick(0L)
-        assertTrue(SettingsDebouncer.canClick(cooldownMs = 180L))
+    fun testClickDebouncerAtomicCas() {
+        ClickDebouncer.recordClick(0L)
+        assertTrue(ClickDebouncer.canClick(cooldownMs = 180L))
         // Immediate second click must be rejected
-        assertFalse(SettingsDebouncer.canClick(cooldownMs = 180L))
+        assertFalse(ClickDebouncer.canClick(cooldownMs = 180L))
     }
 
     @Test
-    fun testSettingsDebouncerKeyedIndependentWidgets() {
+    fun testClickDebouncerKeyedIndependentWidgets() {
         val widgetA = "widget_a"
         val widgetB = "widget_b"
 
-        SettingsDebouncer.recordClick(0L, key = widgetA)
-        SettingsDebouncer.recordClick(0L, key = widgetB)
+        ClickDebouncer.recordClick(0L, key = widgetA)
+        ClickDebouncer.recordClick(0L, key = widgetB)
 
         // First click on widget A is allowed
-        assertTrue(SettingsDebouncer.canClick(cooldownMs = 180L, key = widgetA))
+        assertTrue(ClickDebouncer.canClick(cooldownMs = 180L, key = widgetA))
         // Immediate second click on the SAME widget A must be rejected
-        assertFalse(SettingsDebouncer.canClick(cooldownMs = 180L, key = widgetA))
+        assertFalse(ClickDebouncer.canClick(cooldownMs = 180L, key = widgetA))
 
         // Simultaneous / immediate click on independent widget B must STILL SUCCEED (no dead zone)
-        assertTrue(SettingsDebouncer.canClick(cooldownMs = 180L, key = widgetB))
+        assertTrue(ClickDebouncer.canClick(cooldownMs = 180L, key = widgetB))
         // Second click on widget B is rejected
-        assertFalse(SettingsDebouncer.canClick(cooldownMs = 180L, key = widgetB))
+        assertFalse(ClickDebouncer.canClick(cooldownMs = 180L, key = widgetB))
     }
 
     @Test

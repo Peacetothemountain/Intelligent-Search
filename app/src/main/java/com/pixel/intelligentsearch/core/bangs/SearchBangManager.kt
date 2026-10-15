@@ -143,19 +143,7 @@ class SearchBangManager @Inject constructor(
         )
     }
 
-    private fun getSafeContext(): Context {
-        val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
-        val isUnlocked = userManager?.isUserUnlocked ?: true
-        return if (!isUnlocked && !context.isDeviceProtectedStorage) {
-            context.createDeviceProtectedStorageContext()
-        } else {
-            context
-        }
-    }
-
-    private fun getPrefs(): SharedPreferences {
-        return getSafeContext().getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
-    }
+    private fun getPrefs(): SharedPreferences = settingsManager.prefs
 
     private val prefChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == null || key == SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL.name ||

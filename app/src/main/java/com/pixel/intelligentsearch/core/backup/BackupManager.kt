@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.backup
 
+import com.pixel.intelligentsearch.core.system.WidgetUpdater
 import com.pixel.intelligentsearch.core.data.settings.StringSetSetting
 import com.pixel.intelligentsearch.core.data.settings.StringSetting
 import com.pixel.intelligentsearch.core.data.settings.IntSetting
@@ -26,7 +27,8 @@ class BackupManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val settingsManager: SettingsManager,
     private val historyDao: HistoryDao,
-    private val strongBoxSecurityManager: StrongBoxSecurityManager
+    private val strongBoxSecurityManager: StrongBoxSecurityManager,
+    private val widgetUpdater: WidgetUpdater
 ) {
 
     companion object {
@@ -552,7 +554,7 @@ class BackupManager @Inject constructor(
 
         // 5. Update Home Screen Widgets immediately
         try {
-            com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(context)
+            widgetUpdater.updateAll()
         } catch (e: Exception) {
             Log.w("BackupManager", "Widget refresh after restore failed", e)
         }

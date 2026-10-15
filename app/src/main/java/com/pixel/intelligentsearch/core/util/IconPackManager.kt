@@ -227,7 +227,7 @@ object IconPackManager {
     fun clearCache() {
         iconCache.evictAll()
         appFilterMapCache.clear()
-        com.pixel.intelligentsearch.feature.search.clearThemedIconCache()
+        com.pixel.intelligentsearch.core.ui.clearThemedIconCache()
     }
 }
 

@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.data
 
+import com.pixel.intelligentsearch.core.util.storageContext
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.UserManager
@@ -220,15 +221,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
      * there see defaults (and widgets render defaults) until unlock.
      */
     val prefs: SharedPreferences
-        get() {
-            val unlocked = context.getSystemService(UserManager::class.java)?.isUserUnlocked ?: true
-            val storageContext = if (!unlocked && !context.isDeviceProtectedStorage) {
-                context.createDeviceProtectedStorageContext()
-            } else {
-                context
-            }
-            return storageContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        }
+        get() = context.storageContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     operator fun <T : Any> get(key: SettingKey<T>): T = prefs[key]
 

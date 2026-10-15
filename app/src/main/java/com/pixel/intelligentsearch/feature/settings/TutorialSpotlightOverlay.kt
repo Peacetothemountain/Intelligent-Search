@@ -131,17 +131,8 @@ data class TutorialStepInfo(
  */
 @Composable
 fun AnimatedBugdroidEmoji(
-    modifier: Modifier = Modifier.size(width = 40.dp, height = 56.dp),
-    player: androidx.media3.exoplayer.ExoPlayer? = null
+    modifier: Modifier = Modifier.size(width = 40.dp, height = 56.dp)
 ) {
-    if (player != null) {
-        BugdroidPlayer(
-            player = player,
-            modifier = modifier,
-            scaleFactor = 1.0f
-        )
-        return
-    }
     val resources = androidx.compose.ui.platform.LocalResources.current
 
     val balloonBitmap = remember(resources) {
@@ -400,7 +391,6 @@ private fun FluidSpotlightPulseRing(
     }
 }
 
-@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun TutorialSpotlightOverlay(
     prefs: SharedPreferences,
@@ -433,37 +423,7 @@ fun TutorialSpotlightOverlay(
     // Only decode the keyed video on the step that shows it, and only where the AGSL key is supported (API 33+).
     val showsBugdroidVideo = android.os.Build.VERSION.SDK_INT >= 33 &&
         (stepInfo.text.contains("[bugdroid]") || stepInfo.text.contains(":)"))
-    val welcomeExoPlayer = remember(context, showsBugdroidVideo) {
-        if (!showsBugdroidVideo) return@remember null
-        runCatching {
-            val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.bugdroid_welcome_video)
-            val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
-            val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
-            androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
-                setMediaSource(mediaSource)
-                repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
-                volume = 0f
-                prepare()
-                playWhenReady = true
-            }
-        }.getOrNull()
-    }
-
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    androidx.compose.runtime.DisposableEffect(lifecycleOwner, welcomeExoPlayer) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                welcomeExoPlayer?.play()
-            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                welcomeExoPlayer?.pause()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            welcomeExoPlayer?.release()
-        }
-    }
+    val welcomeExoPlayer = rememberBugdroidPlayer(BugdroidClip.WELCOME, enabled = showsBugdroidVideo)
 
     val stepForward: () -> Unit = {
         if (currentStep < TutorialManager.TOTAL_STEPS - 1) {
@@ -898,6 +858,7 @@ fun TutorialSpotlightOverlay(
                             ) {
                                 BugdroidPlayer(
                                     player = welcomeExoPlayer,
+                                    clip = BugdroidClip.WELCOME,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(275.dp)
@@ -905,8 +866,7 @@ fun TutorialSpotlightOverlay(
                                         .semantics {
                                             contentDescription = "Animated 3D Bugdroid holding Google star balloon"
                                         },
-                                    scaleFactor = 0.95f,
-                                    videoAspect = 16f / 9f
+                                    scaleFactor = 0.95f
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(

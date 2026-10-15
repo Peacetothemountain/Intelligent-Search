@@ -10,7 +10,6 @@ import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
 import com.pixel.intelligentsearch.App
 import android.app.Activity
 import android.content.Context
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import kotlinx.coroutines.launch
@@ -67,21 +66,9 @@ fun MainSettingsScreen(
     var showInfoDialog by remember { mutableStateOf(false) }
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, exoPlayer) {
-        val player = exoPlayer
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                player?.play()
-            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                player?.pause()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        player?.play()
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            player?.pause()
-        }
+    androidx.lifecycle.compose.LifecycleResumeEffect(exoPlayer) {
+        exoPlayer?.play()
+        onPauseOrDispose { exoPlayer?.pause() }
     }
 
     Scaffold(
@@ -751,6 +738,7 @@ fun MainSettingsScreen(
                 ) {
                     BugdroidPlayer(
                         player = exoPlayer,
+                        clip = BugdroidClip.SETTINGS,
                         modifier = Modifier
                             .width(playerWidth)
                             .height(playerHeight),

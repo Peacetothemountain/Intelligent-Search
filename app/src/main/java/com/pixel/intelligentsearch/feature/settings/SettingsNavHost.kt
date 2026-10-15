@@ -13,11 +13,9 @@ import com.pixel.intelligentsearch.R
 import android.app.Activity
 import android.content.Context
 import android.os.Build
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import android.content.Intent
 import android.content.SharedPreferences
-import android.net.Uri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.animation.*
 import androidx.compose.ui.graphics.TransformOrigin
@@ -60,7 +58,6 @@ val LocalSettingsState = compositionLocalOf<com.pixel.intelligentsearch.core.dat
     null
 }
 
-@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun SettingsScreensHub(
     initialScreen: String,
@@ -78,7 +75,6 @@ fun SettingsScreensHub(
     )
 }
 
-@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun SettingsScreensHub(
     initialRoute: com.pixel.intelligentsearch.core.navigation.Route = com.pixel.intelligentsearch.core.navigation.Route.Main,
@@ -101,30 +97,9 @@ fun SettingsScreensHub(
         LocalSettingsState provides settingsState
     ) {
         val navController = androidx.navigation.compose.rememberNavController()
-        val exoPlayer = remember(context) {
-            runCatching {
-                val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.bugdroid_video)
-                val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
-                val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
-                androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
-                    setMediaSource(mediaSource)
-                    repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
-                    volume = 0f
-                    prepare()
-                    // MainSettingsScreen starts playback while it is resumed; deep links into other
-                    // settings pages must not decode the looping video in the background.
-                    playWhenReady = false
-                }
-            }.getOrNull()
-        }
-
-        val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-        androidx.compose.runtime.DisposableEffect(lifecycleOwner, exoPlayer) {
-            val player = exoPlayer
-            onDispose {
-                player?.release()
-            }
-        }
+        // Held by the hub so the clip stays loaded while moving between settings pages; MainSettingsScreen plays
+        // it only while it is the resumed page.
+        val exoPlayer = rememberBugdroidPlayer(BugdroidClip.SETTINGS, autoPlay = false)
 
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
             navController.navigate(route) {

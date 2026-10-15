@@ -73,6 +73,15 @@ android {
             languageVersion.set(JavaLanguageVersion.of(17))
         }
     }
+    // CI fails on any lint warning not in the baseline; regenerate it with ./gradlew updateLintBaseline after
+    // fixing entries. Library-update notices are left to dependency review rather than breaking builds.
+    lint {
+      baseline = file("lint-baseline.xml")
+      warningsAsErrors = true
+      abortOnError = true
+      disable += setOf("GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion")
+    }
+
     buildFeatures {
       compose = true
       aidl = false

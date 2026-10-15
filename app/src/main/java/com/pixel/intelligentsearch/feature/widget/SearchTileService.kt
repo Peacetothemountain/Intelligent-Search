@@ -12,7 +12,7 @@ import android.service.quicksettings.TileService
 import com.pixel.intelligentsearch.R
 
 /**
- * Quick Settings tile that opens the search overlay. On Android 14+ SystemUI launches the activity directly
+ * Quick Settings tile that opens the search overlay. On Android 15+ SystemUI launches the activity directly
  * ([Tile.setActivityLaunchForClick]); [onClick] covers older versions and launches SystemUI declined.
  */
 class SearchTileService : TileService() {
@@ -44,7 +44,7 @@ class SearchTileService : TileService() {
         tile.subtitle = getString(R.string.widget_search_description)
         tile.contentDescription = getString(R.string.tile_content_description)
         tile.icon = Icon.createWithResource(this, R.drawable.ic_search_lens_expressive)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             try {
                 tile.activityLaunchForClick = launchPendingIntent()
             } catch (e: Exception) {

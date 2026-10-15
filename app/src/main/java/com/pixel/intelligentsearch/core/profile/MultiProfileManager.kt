@@ -231,9 +231,17 @@ class MultiProfileManager @Inject constructor(
         appList.sortedWith(compareBy({ it.profileType.ordinal }, { it.name.lowercase() }))
     }
 
+    /**
+     * Asked of the system each time rather than read from the snapshot: if Private Space locked after the last
+     * refresh, a stale "unlocked" would let its apps appear in search results.
+     */
     fun isPrivateSpaceLocked(): Boolean {
         val privateProfile = _profilesState.value.firstOrNull { it.profileType == ProfileType.PRIVATE } ?: return false
-        return privateProfile.isLocked
+        return try {
+            userManager?.isQuietModeEnabled(privateProfile.userHandle) ?: privateProfile.isLocked
+        } catch (_: Exception) {
+            privateProfile.isLocked
+        }
     }
 
     fun hasPrivateSpace(): Boolean {

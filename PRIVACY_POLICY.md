@@ -86,7 +86,7 @@ When you execute a web search or request live autocomplete suggestions:
    * [Google Privacy Policy](https://policies.google.com/privacy)
    * [DuckDuckGo Privacy Policy](https://duckduckgo.com/privacy)
    * [Microsoft Bing Privacy Statement](https://privacy.microsoft.com/en-us/privacystatement)
-4. **Tor Browser Integration**: If configured, web queries can be routed directly to the official Tor Browser application on your device for enhanced anonymity.
+4. **Tor Browser Integration**: If configured, web queries can be routed directly to the official Tor Browser application on your device for enhanced anonymity. Searches sent to Tor Browser are never saved to your search history.
 
 ---
 

@@ -1,5 +1,8 @@
 package com.pixel.intelligentsearch.feature.voice
 
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import android.Manifest
 import android.app.SearchManager
 import android.content.Context
@@ -911,11 +914,12 @@ fun VoiceAssistantBottomSheet(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Live transcript or status prompt
+                // Live transcript or status prompt; a live region so TalkBack reads status changes and errors.
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 60.dp),
+                        .heightIn(min = 60.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
                     contentAlignment = Alignment.Center
                 ) {
                     when {
@@ -938,7 +942,7 @@ fun VoiceAssistantBottomSheet(
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .clickable {
+                                    .clickable(onClickLabel = "Search for this") {
                                         onOpenFullSearch(spokenText)
                                     }
                             )

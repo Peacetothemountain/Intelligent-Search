@@ -2,9 +2,7 @@ package com.pixel.intelligentsearch.core.data
 
 import android.app.Activity
 import android.content.Context
-import android.os.UserHandle
 import com.pixel.intelligentsearch.core.profile.MultiProfileManager
-import com.pixel.intelligentsearch.core.profile.ProfileDescriptor
 
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -13,7 +11,6 @@ import javax.inject.Singleton
 data class ProfileContainerState(
     val hasPrivateSpace: Boolean,
     val isPrivateSpaceLocked: Boolean,
-    val activeProfilesCount: Int
 )
 
 @Singleton
@@ -22,21 +19,9 @@ class PrivateSpaceManager @Inject constructor(
     private val multiProfileManager: MultiProfileManager
 ) {
 
-    fun getProfileContainerState(): ProfileContainerState {
-        val profiles = multiProfileManager.refreshProfiles()
-        val privateProfile = profiles.firstOrNull { it.profileType == ProfileType.PRIVATE }
-        return ProfileContainerState(
-            hasPrivateSpace = privateProfile != null,
-            isPrivateSpaceLocked = privateProfile?.isLocked ?: false,
-            activeProfilesCount = profiles.size
-        )
-    }
-
     fun hasPrivateSpace(): Boolean = multiProfileManager.hasPrivateSpace()
 
     fun isPrivateSpaceLocked(): Boolean = multiProfileManager.isPrivateSpaceLocked()
-
-    fun getProfiles(): List<ProfileDescriptor> = multiProfileManager.refreshProfiles()
 
     fun requestUnlockPrivateSpace(activity: Activity) {
         val privateProfile = multiProfileManager.profilesState.value.firstOrNull { it.profileType == ProfileType.PRIVATE }

@@ -2,7 +2,6 @@ package com.pixel.intelligentsearch.core.search
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.AppShortcutItem
 import com.pixel.intelligentsearch.core.data.ContactItem
@@ -10,11 +9,6 @@ import com.pixel.intelligentsearch.core.data.FileItem
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -176,16 +170,6 @@ class UnifiedSearchCoordinator @Inject constructor(
     // ---------------------------------------------------------------------------------------------
 
     /**
-     * Indexes a contact into the Radix Tree and phonetic inverted index.
-     */
-    fun indexContact(contact: ContactItem, lastUsedMs: Long = 0L) {
-        val item = newContactItem(contact, lastUsedMs)
-        val keys = ArrayList<Pair<String, SearchItem>>(8)
-        collectContactKeys(contact, item, keys)
-        contactRadixTree.insertBatch(keys)
-    }
-
-    /**
      * Replaces every indexed contact with [contacts] without ever exposing an empty or half-built
      * contact index to concurrent searches: the new phonetic entries are published first, the radix
      * tree is swapped atomically, and only then are entries of vanished contacts retired.
@@ -200,15 +184,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
         contactRadixTree.replaceAll(keys)
         removeFromPhoneticIndex { it.domain == SearchScoringEngine.EntityDomain.CONTACT && it !in fresh }
-    }
-
-    /**
-     * Indexes an app shortcut.
-     */
-    fun indexShortcut(shortcut: AppShortcutItem) {
-        val keys = ArrayList<Pair<String, SearchItem>>(2)
-        collectShortcutKeys(shortcut, keys)
-        shortcutRadixTree.insertBatch(keys)
     }
 
     /**
@@ -242,13 +217,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         if (shortcut.longLabel.isNotBlank()) {
             out.add(shortcut.longLabel to searchItem)
         }
-    }
-
-    /**
-     * Indexes a local file.
-     */
-    fun indexFile(file: FileItem, modifiedMs: Long = file.lastModifiedMs) {
-        fileRadixTree.insert(file.name, newFileItem(file, modifiedMs))
     }
 
     /**
@@ -456,15 +424,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         shortcutRadixTree.clear()
         fileRadixTree.clear()
         phoneticIndex.clear()
-    }
-
-    /**
-     * Clears only contact entities from in-memory indices. Prefer [replaceContacts] when re-syncing, as
-     * it never exposes an empty contact index to concurrent searches.
-     */
-    fun clearContacts() {
-        contactRadixTree.clear()
-        removeFromPhoneticIndex { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -766,22 +725,6 @@ class UnifiedSearchCoordinator @Inject constructor(
             prefs.unregisterOnSharedPreferenceChangeListener(prefChangeListener)
         } catch (_: Exception) {}
         clearIndex()
-    }
-
-    /**
-     * Modern reactive search pipeline: emits latest unified search results,
-     * automatically cancelling any obsolete in-flight searches via flatMapLatest.
-     */
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    fun searchFlow(queryFlow: Flow<String>): Flow<UnifiedSearchResults> {
-        return queryFlow
-            .distinctUntilChanged()
-            .flatMapLatest { query ->
-                flow {
-                    emit(executeSearch(query))
-                }
-            }
-            .flowOn(Dispatchers.Default)
     }
 
     suspend fun executeSearch(rawQuery: String): UnifiedSearchResults = withContext(Dispatchers.Default) {

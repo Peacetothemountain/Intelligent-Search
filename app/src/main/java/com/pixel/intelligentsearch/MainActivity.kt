@@ -18,11 +18,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.search.SearchOverlayScreen
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
 import android.app.SearchManager
 
@@ -444,19 +440,6 @@ open class MainActivity : AppCompatActivity() {
         return false
     }
 
-    fun dismissOverlayToLauncher() {
-        searchViewModel.onQueryChanged("")
-        val moved = moveTaskToBack(true)
-        if (!moved) {
-            finish()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
-            } else {
-                @Suppress("DEPRECATION")
-                overridePendingTransition(0, 0)
-            }
-        }
-    }
 }
 
 

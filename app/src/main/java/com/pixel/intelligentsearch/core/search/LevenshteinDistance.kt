@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.core.search
 
 import kotlin.math.abs
-import kotlin.math.max
 import kotlin.math.min
 
 /**
@@ -87,17 +86,4 @@ object LevenshteinDistance {
         return if (result <= maxDistance) result else maxDistance + 1
     }
 
-    /**
-     * Calculates normalized similarity in the range [0.0, 1.0].
-     * 1.0 represents an exact match.
-     */
-    fun computeSimilarity(s1: CharSequence, s2: CharSequence, maxDistance: Int = 2): Float {
-        val maxLen = max(s1.length, s2.length)
-        if (maxLen == 0) return 1.0f
-
-        val dist = computeDistance(s1, s2, maxDistance)
-        if (dist > maxDistance) return 0.0f
-
-        return (1.0f - (dist.toFloat() / maxLen.toFloat())).coerceIn(0.0f, 1.0f)
-    }
 }

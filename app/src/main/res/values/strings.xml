@@ -12,7 +12,6 @@
     <string name="widget_talkback_assistant">Google Assistant</string>
     <string name="widget_talkback_translate_text">Translate text</string>
     <string name="widget_talkback_translate_camera">Translate with camera</string>
-    <string name="widget_talkback_song_search">Identify playing music</string>
     <string name="widget_talkback_weather">Check weather forecast</string>
     <string name="widget_talkback_sports">Check sports scores</string>
     <string name="widget_talkback_dictionary">Look up in dictionary</string>

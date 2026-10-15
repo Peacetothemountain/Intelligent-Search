@@ -3,7 +3,6 @@ package com.pixel.intelligentsearch.core.theme
 import androidx.annotation.ColorInt
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import com.google.android.material.color.utilities.DynamicScheme
 import com.google.android.material.color.utilities.Hct
 import com.google.android.material.color.utilities.SchemeContent
@@ -244,101 +243,6 @@ object MaterialYouPaletteHelper {
     }
 
     /**
-     * Builds a complete Compose [ColorScheme] from an arbitrary seed color, style, and contrast level,
-     * memoized via a thread-safe cache with optional pure black AMOLED support.
-     */
-    @Suppress("DEPRECATION")
-    fun createComposeColorScheme(
-        seedColor: Color,
-        isDark: Boolean,
-        paletteStyle: PaletteStyle = PaletteStyle.TONAL_SPOT,
-        contrastLevel: Double = 0.0,
-        isAmoled: Boolean = false
-    ): ColorScheme {
-        val argb = seedColor.toArgb()
-        val key = SchemeCacheKey(
-            seedArgb = argb,
-            isDark = isDark,
-            isAmoled = isAmoled,
-            style = paletteStyle,
-            contrast100 = (contrastLevel * 100.0).toInt()
-        )
-
-        synchronized(cacheLock) {
-            composeSchemeCache[key]?.let { return it }
-        }
-
-        val hct = Hct.fromInt(argb)
-        val scheme = createDynamicScheme(hct, isDark, paletteStyle, contrastLevel)
-
-        fun toColor(argbInt: Int): Color = Color(argbInt or 0xFF000000.toInt())
-
-        val baseScheme = ColorScheme(
-            primary = toColor(scheme.primary),
-            onPrimary = toColor(scheme.onPrimary),
-            primaryContainer = toColor(scheme.primaryContainer),
-            onPrimaryContainer = toColor(scheme.onPrimaryContainer),
-            inversePrimary = toColor(scheme.inversePrimary),
-            secondary = toColor(scheme.secondary),
-            onSecondary = toColor(scheme.onSecondary),
-            secondaryContainer = toColor(scheme.secondaryContainer),
-            onSecondaryContainer = toColor(scheme.onSecondaryContainer),
-            tertiary = toColor(scheme.tertiary),
-            onTertiary = toColor(scheme.onTertiary),
-            tertiaryContainer = toColor(scheme.tertiaryContainer),
-            onTertiaryContainer = toColor(scheme.onTertiaryContainer),
-            background = toColor(scheme.background),
-            onBackground = toColor(scheme.onBackground),
-            surface = toColor(scheme.surface),
-            onSurface = toColor(scheme.onSurface),
-            surfaceVariant = toColor(scheme.surfaceVariant),
-            onSurfaceVariant = toColor(scheme.onSurfaceVariant),
-            surfaceTint = toColor(scheme.primary),
-            inverseSurface = toColor(scheme.inverseSurface),
-            inverseOnSurface = toColor(scheme.inverseOnSurface),
-            error = toColor(scheme.error),
-            onError = toColor(scheme.onError),
-            errorContainer = toColor(scheme.errorContainer),
-            onErrorContainer = toColor(scheme.onErrorContainer),
-            outline = toColor(scheme.outline),
-            outlineVariant = toColor(scheme.outlineVariant),
-            scrim = toColor(scheme.scrim),
-            surfaceBright = toColor(scheme.surfaceBright),
-            surfaceDim = toColor(scheme.surfaceDim),
-            surfaceContainer = toColor(scheme.surfaceContainer),
-            surfaceContainerHigh = toColor(scheme.surfaceContainerHigh),
-            surfaceContainerHighest = toColor(scheme.surfaceContainerHighest),
-            surfaceContainerLow = toColor(scheme.surfaceContainerLow),
-            surfaceContainerLowest = toColor(scheme.surfaceContainerLowest)
-        )
-
-        val finalScheme = if (isDark && isAmoled) {
-            baseScheme.copy(
-                background = AmoledDarkBackground,
-                onBackground = AmoledDarkOnBackground,
-                surface = AmoledDarkSurface,
-                onSurface = AmoledDarkOnSurface,
-                surfaceDim = AmoledDarkSurfaceDim,
-                surfaceBright = AmoledDarkSurfaceBright,
-                surfaceVariant = AmoledDarkSurfaceVariant,
-                surfaceContainerLowest = AmoledDarkSurfaceContainerLowest,
-                surfaceContainerLow = AmoledDarkSurfaceContainerLow,
-                surfaceContainer = AmoledDarkSurfaceContainer,
-                surfaceContainerHigh = AmoledDarkSurfaceContainerHigh,
-                surfaceContainerHighest = AmoledDarkSurfaceContainerHighest
-            )
-        } else {
-            baseScheme
-        }
-
-        synchronized(cacheLock) {
-            composeSchemeCache[key] = finalScheme
-        }
-
-        return finalScheme
-    }
-
-    /**
      * Calculates the standard relative luminance of an sRGB color.
      */
     fun calculateLuminance(@ColorInt color: Int): Double {
@@ -361,26 +265,6 @@ object MaterialYouPaletteHelper {
         val lighter = max(l1, l2)
         val darker = min(l1, l2)
         return (lighter + 0.05) / (darker + 0.05)
-    }
-
-    /**
-     * Checks if two colors satisfy WCAG contrast requirements:
-     * - Normal text: >= 4.5:1 (WCAG AA) or >= 7.0:1 (WCAG AAA)
-     * - Large text / UI elements: >= 3.0:1
-     */
-    fun meetsWcagContrast(
-        @ColorInt foreground: Int,
-        @ColorInt background: Int,
-        isLargeText: Boolean = false,
-        isAaa: Boolean = false
-    ): Boolean {
-        val ratio = calculateContrastRatio(foreground, background)
-        return when {
-            isAaa && isLargeText -> ratio >= 4.5
-            isAaa -> ratio >= 7.0
-            isLargeText -> ratio >= 3.0
-            else -> ratio >= 4.5
-        }
     }
 
     /**
@@ -448,19 +332,6 @@ object MaterialYouPaletteHelper {
                 ThreeTierAccentedPalette(0xFF00796B.toInt(), 0xFF009688.toInt(), 0xFF26A69A.toInt())
             }
         }
-    }
-
-    /**
-     * Resolves the authentic light accented Material Design 3 color from the primary theme color.
-     * Uses Tone 80 (grounded in darker accented, never bright/washed-out white)
-     * and Tone 60 on light surfaces.
-     *
-     * @param primaryColor The primary theme color ARGB.
-     * @param isPillLight True if the container pill is light-themed, false if dark.
-     */
-    @ColorInt
-    fun getLightAccentedColor(@ColorInt primaryColor: Int, isPillLight: Boolean): Int {
-        return getThreeTierAccentedPalette(primaryColor, primaryColor, isPillLight).thirdLighter
     }
 
     data class FourColorMaterialGPalette(

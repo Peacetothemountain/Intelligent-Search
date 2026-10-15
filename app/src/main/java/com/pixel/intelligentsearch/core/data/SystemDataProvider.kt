@@ -1,6 +1,6 @@
 package com.pixel.intelligentsearch.core.data
+import com.pixel.intelligentsearch.di.appEntryPoint
 import android.app.usage.UsageStatsManager
-import android.app.usage.UsageStats
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -96,17 +96,9 @@ object SystemDataProvider {
     @Volatile
     private var cachedApps: List<AppItem>? = null
 
-    @dagger.hilt.EntryPoint
-    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
-    interface MultiProfileEntryPoint {
-        fun multiProfileManager(): com.pixel.intelligentsearch.core.profile.MultiProfileManager
-    }
-
     /** Uses the Hilt singleton so only one LauncherApps callback and profile cache exist per process. */
     private fun getMultiProfileManager(context: Context): com.pixel.intelligentsearch.core.profile.MultiProfileManager =
-        dagger.hilt.android.EntryPointAccessors
-            .fromApplication(context.applicationContext, MultiProfileEntryPoint::class.java)
-            .multiProfileManager()
+        context.appEntryPoint.multiProfileManager()
 
     fun invalidateAppsCache() {
         cachedApps = null
@@ -434,59 +426,6 @@ object SystemDataProvider {
                         val lastModifiedMs = if (modifiedSec > 0L) modifiedSec * 1000L else 0L
                         val uri = android.content.ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), id).toString()
 
-                        files.add(FileItem(name, path, mimeType, uri, lastModifiedMs))
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            android.util.Log.w("IntelligentSearch", "Unexpected error", e)
-        }
-        files
-    }
-
-    suspend fun getFiles(context: Context, query: String, includeHidden: Boolean): List<FileItem> = withContext(Dispatchers.IO) {
-        val files = mutableListOf<FileItem>()
-        if (query.isBlank()) return@withContext files
-
-        try {
-            val projection = arrayOf(
-                MediaStore.Files.FileColumns.DISPLAY_NAME,
-                MediaStore.Files.FileColumns.DATA,
-                MediaStore.Files.FileColumns.MIME_TYPE,
-                MediaStore.Files.FileColumns._ID,
-                MediaStore.Files.FileColumns.DATE_MODIFIED
-            )
-
-            // Escape LIKE wildcards so a query such as "50%" or "my_file" matches literally.
-            val escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ? ESCAPE '\\'"
-            val selectionArgs = arrayOf("%$escaped%")
-
-            context.contentResolver.query(
-                MediaStore.Files.getContentUri("external"),
-                projection,
-                selection,
-                selectionArgs,
-                "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
-            )?.use { cursor ->
-                val nameIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
-                val dataIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATA)
-                val mimeIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.MIME_TYPE)
-                val idIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns._ID)
-                val modifiedIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATE_MODIFIED)
-
-                while (cursor.moveToNext() && files.size < 15) {
-                    if (nameIndex != -1) {
-                        val name = cursor.getString(nameIndex) ?: continue
-                        if (!includeHidden && name.startsWith(".")) continue
-                        
-                        val path = if (dataIndex != -1) cursor.getString(dataIndex) ?: "" else ""
-                        val mimeType = if (mimeIndex != -1) cursor.getString(mimeIndex) ?: "*/*" else "*/*"
-                        val id = if (idIndex != -1) cursor.getLong(idIndex) else 0L
-                        val modifiedSec = if (modifiedIndex != -1) cursor.getLong(modifiedIndex) else 0L
-                        val lastModifiedMs = if (modifiedSec > 0L) modifiedSec * 1000L else 0L
-                        val uri = android.content.ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), id).toString()
-                        
                         files.add(FileItem(name, path, mimeType, uri, lastModifiedMs))
                     }
                 }

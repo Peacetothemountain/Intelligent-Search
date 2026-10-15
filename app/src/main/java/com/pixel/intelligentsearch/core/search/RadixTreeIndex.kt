@@ -76,21 +76,6 @@ class RadixTreeIndex<T> {
     }
 
     /**
-     * Atomically inserts multiple key-value pairs into the Radix Tree under a single write lock.
-     */
-    fun insertBatch(items: List<Pair<String, T>>) {
-        if (items.isEmpty()) return
-        lock.write {
-            for (item in items) {
-                val key = item.first.trim().lowercase(java.util.Locale.ROOT)
-                if (key.isNotEmpty()) {
-                    insertInternal(key, item.second)
-                }
-            }
-        }
-    }
-
-    /**
      * Atomically swaps the entire index contents for [items] under a single write lock, so concurrent
      * readers observe either the complete old index or the complete new one, never an empty or
      * half-built state.

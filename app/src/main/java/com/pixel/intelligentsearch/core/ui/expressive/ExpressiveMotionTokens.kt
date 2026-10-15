@@ -9,12 +9,8 @@ import androidx.compose.animation.core.spring
  * All springs specify explicit damping ratio and stiffness values.
  */
 object ExpressiveMotionTokens {
-    // Touch compression scales
-    const val PRESS_SCALE_BUTTON = 0.92f
-    const val PRESS_SCALE_PILL = 0.94f
     const val PRESS_SCALE_CARD = 0.96f
     const val PRESS_SCALE_BOUNCY = 0.97f
-    const val PRESS_SCALE_SEARCH_BAR = 0.98f
     const val PRESS_SCALE_ROW = 0.985f
 
     // Explicit physics constants for Spatial motion (layout bounds, translation, size)
@@ -24,18 +20,12 @@ object ExpressiveMotionTokens {
     const val SPATIAL_FAST_DAMPING = 0.6f
     const val SPATIAL_FAST_STIFFNESS = 800f
 
-    const val SPATIAL_SLOW_DAMPING = 0.8f
-    const val SPATIAL_SLOW_STIFFNESS = 200f
-
     // Explicit physics constants for Effects motion (opacity, color, elevation, scale)
     const val EFFECTS_FAST_DAMPING = 1.0f
     const val EFFECTS_FAST_STIFFNESS = 3800f
 
     const val EFFECTS_DEFAULT_DAMPING = 1.0f
     const val EFFECTS_DEFAULT_STIFFNESS = 1600f
-
-    const val EFFECTS_SLOW_DAMPING = 1.0f
-    const val EFFECTS_SLOW_STIFFNESS = 800f
 
     // Explicit physics constants for Specialized springs
     const val CRITICALLY_DAMPED_DAMPING = 1.0f
@@ -77,16 +67,6 @@ object ExpressiveMotionTokens {
             visibilityThreshold = visibilityThreshold
         )
 
-        /**
-         * Material 3 Expressive Slow Spatial spring.
-         * Damping: 0.8f, Stiffness: 200f.
-         * Fluid, leisurely spatial movement for large sheet expansions and immersive backdrop reveals.
-         */
-        fun <T> SlowSpatial(visibilityThreshold: T? = null) = spring<T>(
-            dampingRatio = SPATIAL_SLOW_DAMPING,
-            stiffness = SPATIAL_SLOW_STIFFNESS,
-            visibilityThreshold = visibilityThreshold
-        )
     }
 
     /**
@@ -106,11 +86,6 @@ object ExpressiveMotionTokens {
         )
 
         /**
-         * Semantic alias for FastSpatial in non-spatial effect contexts.
-         */
-        fun <T> FastEffects(visibilityThreshold: T? = null) = FastSpatial<T>(visibilityThreshold)
-
-        /**
          * Material 3 Expressive Default Effects spring.
          * Damping: 1.0f (critically damped), Stiffness: 1600f.
          * Standard token for color fades, elevation changes, and shadow pacing.
@@ -121,16 +96,6 @@ object ExpressiveMotionTokens {
             visibilityThreshold = visibilityThreshold
         )
 
-        /**
-         * Material 3 Expressive Slow Effects spring.
-         * Damping: 1.0f, Stiffness: 800f.
-         * Smooth cross-fades and ambient light transitions.
-         */
-        fun <T> SlowEffects(visibilityThreshold: T? = null) = spring<T>(
-            dampingRatio = EFFECTS_SLOW_DAMPING,
-            stiffness = EFFECTS_SLOW_STIFFNESS,
-            visibilityThreshold = visibilityThreshold
-        )
     }
 
     /**
@@ -143,12 +108,6 @@ object ExpressiveMotionTokens {
         stiffness = CRITICALLY_DAMPED_STIFFNESS,
         visibilityThreshold = visibilityThreshold
     )
-
-    /**
-     * Snappy spring animation specification for rapid touch micro-interactions.
-     * Damping: 0.6f, Stiffness: 800f.
-     */
-    fun <T> snappySpring(visibilityThreshold: T? = null) = Spatial.FastSpatial<T>(visibilityThreshold)
 
     /**
      * Snappy spring animation specification for expressive shape morphing.
@@ -171,12 +130,6 @@ object ExpressiveMotionTokens {
         stiffness = BOUNCY_STIFFNESS,
         visibilityThreshold = visibilityThreshold
     )
-
-    /**
-     * Elastic push physics spring specification for layout weight expansions.
-     * Damping: 0.8f, Stiffness: 380f.
-     */
-    fun <T> elasticSpring(visibilityThreshold: T? = null) = Spatial.ExpressiveDefault<T>(visibilityThreshold)
 
     /**
      * Gentle spring animation specification without overshoot.

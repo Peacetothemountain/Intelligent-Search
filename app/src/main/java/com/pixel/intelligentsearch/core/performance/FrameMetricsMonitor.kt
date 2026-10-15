@@ -6,9 +6,6 @@ import android.os.HandlerThread
 import android.view.FrameMetrics
 import android.view.Window
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import java.util.concurrent.atomic.AtomicLong
 
 /**
  * High-precision HWUI Frame Metrics Monitor.
@@ -35,7 +32,6 @@ class FrameMetricsMonitor(
     )
 
     private val _jankStats = MutableStateFlow(FrameJankStats())
-    val jankStats: StateFlow<FrameJankStats> = _jankStats.asStateFlow()
 
     companion object {
         // One looper shared by every monitor: each overlay activity creates its own monitor, and a

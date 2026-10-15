@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.backup.BackupManager
-import com.pixel.intelligentsearch.core.bangs.SearchBangManager
 import com.pixel.intelligentsearch.core.data.HistoryEntity
 import com.pixel.intelligentsearch.core.data.IntelligentSearchDatabase
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -39,7 +38,6 @@ class BackupRoundTripTest {
             context,
             settingsManager,
             dao,
-            SearchBangManager(context, settingsManager),
             StrongBoxSecurityManager(context)
         )
 

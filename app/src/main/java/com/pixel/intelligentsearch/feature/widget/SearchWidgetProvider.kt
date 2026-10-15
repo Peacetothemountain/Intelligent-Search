@@ -124,10 +124,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     prefs.contains("widget_material_lock_black")
         }
 
-        fun hasSavedDesign(prefs: SharedPreferences): Boolean {
-            return hasSavedSystemDesign(prefs) || hasSavedMaterialDesign(prefs)
-        }
-
         fun resolveIsMaterialYou(
             appWidgetManager: AppWidgetManager?,
             appWidgetId: Int,
@@ -1175,29 +1171,12 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             }
         }
 
+        /**
+         * Opens Google's assistant for the widget's assistant button. Only public intents are used (no
+         * hidden-API reflection); ACTION_ASSIST itself is avoided because this app registers for it and
+         * would loop back into its own overlay.
+         */
         fun launchGeminiCornerOverlay(context: Context): Boolean {
-            // Canonical system assist / Gemini corner swipe overlay hook
-            try {
-                val sm = context.getSystemService(Context.SEARCH_SERVICE) as? android.app.SearchManager
-                if (sm != null) {
-                    val method = sm.javaClass.methods.find { it.name == "launchAssist" && it.parameterTypes.size == 1 }
-                    if (method != null) {
-                        method.isAccessible = true
-                        val args = Bundle().apply {
-                            putInt("invocation_type", 1) // INVOCATION_TYPE_GESTURE (corner swipe)
-                            putBoolean("launch_gemini_overlay", true)
-                        }
-                        method.invoke(sm, args)
-                        return true
-                    }
-                }
-            } catch (e: Throwable) {
-                android.util.Log.w("SearchWidgetProvider", "SearchManager.launchAssist invocation failed", e)
-            }
-
-            // launchAssist is a hidden API that newer releases may block; open the assistant directly instead
-            // of letting the tap silently do nothing. ACTION_ASSIST itself is avoided because this app
-            // registers for it and would loop back into its own overlay.
             val fallbacks = listOfNotNull(
                 Intent(Intent.ACTION_VOICE_COMMAND).setPackage("com.google.android.googlequicksearchbox"),
                 context.packageManager.getLaunchIntentForPackage("com.google.android.apps.bard"),
@@ -1604,153 +1583,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun createGoogleLensColoredBitmap(context: Context): Bitmap {
-            val metrics = context.resources.displayMetrics
-            val density = metrics.density
-            val densityDpi = metrics.densityDpi
-            val sizePx = (24 * density).toInt().coerceAtLeast(48)
-            val cacheKey = "lens_colored_google_${sizePx}_${densityDpi}"
-            bitmapCache.get(cacheKey)?.let { return it }
-
-            return try {
-                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-                val canvas = Canvas(bitmap)
-                val scale = sizePx / 100f
-                canvas.scale(scale, scale)
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.FILL
-                }
-
-                // 1. Bottom-right dot (Green)
-                paint.color = 0xFF34A853.toInt()
-                canvas.drawPath(PATH_LENS_1, paint)
-
-                // 2. Center aperture circle (Blue)
-                paint.color = 0xFF4285F4.toInt()
-                canvas.drawPath(PATH_LENS_2, paint)
-
-                // 3. Bottom-left bracket (Yellow)
-                paint.color = 0xFFFBBC05.toInt()
-                canvas.drawPath(PATH_LENS_3, paint)
-
-                // 4. Top-right bracket (Green)
-                paint.color = 0xFF34A853.toInt()
-                canvas.drawPath(PATH_LENS_4, paint)
-
-                // 5. Top-left bracket (Red)
-                paint.color = 0xFFEA4335.toInt()
-                canvas.drawPath(PATH_LENS_5, paint)
-
-                bitmapCache.put(cacheKey, bitmap)
-                bitmap
-            } catch (e: Throwable) {
-                Log.w(TAG, "Failed to create Google Lens colored bitmap", e)
-                val fallbackSize = (24 * density).toInt().coerceAtLeast(48)
-                Bitmap.createBitmap(fallbackSize, fallbackSize, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-            }
-        }
-
-        private fun createGoogleMicColoredBitmap(context: Context): Bitmap {
-            val metrics = context.resources.displayMetrics
-            val density = metrics.density
-            val densityDpi = metrics.densityDpi
-            val sizePx = (24 * density).toInt().coerceAtLeast(48)
-            val cacheKey = "mic_colored_google_${sizePx}_${densityDpi}"
-            bitmapCache.get(cacheKey)?.let { return it }
-
-            return try {
-                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-                val canvas = Canvas(bitmap)
-                val scale = sizePx / 24f
-                canvas.scale(scale, scale)
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.FILL
-                }
-
-                // Google Mic official 4 colors
-                // 1. Center microphone body (Blue)
-                paint.color = 0xFF4285F4.toInt()
-                canvas.drawPath(PATH_MIC_1, paint)
-
-                // 2. Base stem (Green)
-                paint.color = 0xFF34A853.toInt()
-                canvas.drawPath(PATH_MIC_2, paint)
-
-                // 3. Left cradle (Yellow)
-                paint.color = 0xFFFBBC05.toInt()
-                canvas.drawPath(PATH_MIC_3, paint)
-
-                // 4. Right / bottom cradle (Red)
-                paint.color = 0xFFEA4335.toInt()
-                canvas.drawPath(PATH_MIC_4, paint)
-
-                bitmapCache.put(cacheKey, bitmap)
-                bitmap
-            } catch (e: Throwable) {
-                Log.w(TAG, "Failed to create Google Mic colored bitmap", e)
-                val fallbackSize = (24 * density).toInt().coerceAtLeast(48)
-                Bitmap.createBitmap(fallbackSize, fallbackSize, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-            }
-        }
-
-        private fun createGoogleSearchActionBitmap(context: Context): Bitmap {
-            val metrics = context.resources.displayMetrics
-            val density = metrics.density
-            val densityDpi = metrics.densityDpi
-            val sizePx = (24 * density).toInt().coerceAtLeast(48)
-            val cacheKey = "action_search_google_${sizePx}_${densityDpi}"
-            bitmapCache.get(cacheKey)?.let { return it }
-
-            return try {
-                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-                val canvas = Canvas(bitmap)
-                val scale = sizePx / 24f
-                canvas.scale(scale, scale)
-                val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.STROKE
-                    strokeCap = Paint.Cap.ROUND
-                }
-                val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.FILL
-                }
-
-                // Official Google 4-color Search Lens: Blue rim, Yellow sparkle, Green handle, Red dot
-                strokePaint.strokeWidth = 2.5f
-                strokePaint.color = 0xFF4285F4.toInt()
-                canvas.drawPath(PATH_SEARCH_EXPR_1, strokePaint)
-
-                strokePaint.strokeWidth = 2.5f
-                strokePaint.color = 0xFFFBBC05.toInt()
-                canvas.drawPath(PATH_SEARCH_EXPR_2, strokePaint)
-
-                strokePaint.strokeWidth = 3.0f
-                strokePaint.color = 0xFF34A853.toInt()
-                canvas.drawPath(PATH_SEARCH_EXPR_3, strokePaint)
-
-                fillPaint.color = 0xFFEA4335.toInt()
-                canvas.drawPath(PATH_SEARCH_EXPR_4, fillPaint)
-
-                bitmapCache.put(cacheKey, bitmap)
-                bitmap
-            } catch (e: Throwable) {
-                Log.w(TAG, "Failed to create Google Search action colored bitmap", e)
-                val fallbackSize = (24 * density).toInt().coerceAtLeast(48)
-                Bitmap.createBitmap(fallbackSize, fallbackSize, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-            }
-        }
-
         private fun createThemedActionIconBitmap(
             context: Context,
             resId: Int,
@@ -1866,44 +1698,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             } catch (e: Throwable) {
                 Log.w(TAG, "Failed to create themed action icon bitmap", e)
                 null
-            }
-        }
-
-        private fun createGoogleAssistantColoredBitmap(context: Context): Bitmap {
-            val metrics = context.resources.displayMetrics
-            val density = metrics.density
-            val densityDpi = metrics.densityDpi
-            val sizePx = (24 * density).toInt().coerceAtLeast(48)
-            val cacheKey = "assistant_colored_google_${sizePx}_${densityDpi}"
-            bitmapCache.get(cacheKey)?.let { return it }
-
-            return try {
-                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-                val canvas = Canvas(bitmap)
-                val scale = sizePx / 24f
-                canvas.scale(scale, scale)
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.FILL
-                }
-
-                // Official Google Gemini 3-color sparkle: Blue, Yellow, Red
-                paint.color = 0xFF4285F4.toInt()
-                canvas.drawPath(PATH_GEMINI_1, paint)
-                paint.color = 0xFFEA4335.toInt()
-                canvas.drawPath(PATH_GEMINI_2, paint)
-                paint.color = 0xFFFBBC05.toInt()
-                canvas.drawPath(PATH_GEMINI_3, paint)
-
-                bitmapCache.put(cacheKey, bitmap)
-                bitmap
-            } catch (e: Throwable) {
-                Log.w(TAG, "Failed to create Google Assistant colored bitmap", e)
-                val fallbackSize = (24 * density).toInt().coerceAtLeast(48)
-                Bitmap.createBitmap(fallbackSize, fallbackSize, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
             }
         }
 

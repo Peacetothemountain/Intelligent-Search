@@ -8,7 +8,6 @@ import android.content.Intent
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.Process
@@ -16,19 +15,7 @@ import android.os.UserManager
 import android.provider.BaseColumns
 import android.util.Log
 import com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine
-import com.pixel.intelligentsearch.core.search.UnifiedSearchCoordinator
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.components.SingletonComponent
-
-@EntryPoint
-@InstallIn(SingletonComponent::class)
-interface GlobalSearchProviderEntryPoint {
-    fun unifiedSearchCoordinator(): UnifiedSearchCoordinator
-    fun corpusIndexManager(): com.pixel.intelligentsearch.core.search.CorpusIndexManager
-    fun multiProfileManager(): com.pixel.intelligentsearch.core.profile.MultiProfileManager
-}
+import com.pixel.intelligentsearch.di.appEntryPoint
 
 class GlobalSearchProvider : ContentProvider() {
 
@@ -98,12 +85,7 @@ class GlobalSearchProvider : ContentProvider() {
         val safeCtx = getSafeContext()
         val entryPoint = try {
             val appCtx = safeCtx?.applicationContext ?: safeCtx
-            if (appCtx != null) {
-                EntryPointAccessors.fromApplication(
-                    appCtx,
-                    GlobalSearchProviderEntryPoint::class.java
-                )
-            } else null
+            appCtx?.appEntryPoint
         } catch (e: Exception) {
             Log.w(TAG, "GlobalSearchProvider entry point unavailable: ${e.message}")
             null

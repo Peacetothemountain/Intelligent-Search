@@ -3,12 +3,10 @@ package com.pixel.intelligentsearch.feature.settings
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.util.LruCache
-import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -25,10 +23,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -36,13 +32,11 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
-import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -50,7 +44,6 @@ import kotlinx.coroutines.withContext
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.navigation.Route
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
-import com.pixel.intelligentsearch.core.haptics.TactileSonicEngine
 
 // SEARCH PILLS SCREEN
 // -----------------------------------------------------------------------------------------
@@ -850,39 +843,6 @@ fun SearchPillsScreen(
             }
         }
     }
-}
-
-@Composable
-fun Modifier.waterBackground(color: androidx.compose.ui.graphics.Color, shape: androidx.compose.ui.graphics.Shape): Modifier {
-    val transition = rememberInfiniteTransition(label = "waterTransition")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 2f * Math.PI.toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 3000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "waterPhase"
-    )
-    return this
-        .clip(shape)
-        .drawBehind {
-            drawRect(color.copy(alpha = 0.3f))
-            val path = androidx.compose.ui.graphics.Path()
-            val waveHeight = this.size.height * 0.15f
-            val baseLine = this.size.height * 0.55f
-            path.moveTo(0f, this.size.height)
-            path.lineTo(0f, baseLine)
-            var x = 0f
-            while (x <= this.size.width) {
-                val y = baseLine + kotlin.math.sin((x / this.size.width) * 2 * Math.PI + phase).toFloat() * waveHeight
-                path.lineTo(x, y)
-                x += 5f
-            }
-            path.lineTo(this.size.width, this.size.height)
-            path.close()
-            drawPath(path, color.copy(alpha = 0.8f))
-        }
 }
 
 

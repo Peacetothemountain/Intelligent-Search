@@ -18,16 +18,6 @@ data class SecurityHardwareInfo(
 
 object HardwareSecurityDetector {
 
-    private fun getSystemProperty(key: String): String {
-        return try {
-            val systemPropertiesClass = Class.forName("android.os.SystemProperties")
-            val getMethod = systemPropertiesClass.getMethod("get", String::class.java, String::class.java)
-            (getMethod.invoke(null, key, "") as? String).orEmpty().trim()
-        } catch (_: Throwable) {
-            ""
-        }
-    }
-
     private fun hasStrongBoxFeature(context: Context): Boolean {
         return try {
             context.packageManager?.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE) == true
@@ -60,13 +50,13 @@ object HardwareSecurityDetector {
         } catch (_: Throwable) {
             ""
         }
-
-        val propStrongBoxModel = getSystemProperty("ro.strongbox.model")
-        val propStrongBoxMfg = getSystemProperty("ro.strongbox.manufacturer")
-        val propKeystore = getSystemProperty("ro.hardware.keystore")
-        val propSocModel = getSystemProperty("ro.soc.model")
-        val propPlatform = getSystemProperty("ro.board.platform")
-        val propKnoxVault = getSystemProperty("ro.security.vault.version")
+        // Public SoC vendor (e.g. "QTI", "Mediatek", "Google"); replaces reading hidden system properties,
+        // which apps targeting recent SDKs can't rely on.
+        val socManufacturer = try {
+            Build.SOC_MANUFACTURER.orEmpty()
+        } catch (_: Throwable) {
+            ""
+        }
         val hasStrongBox = hasStrongBoxFeature(context) && effectiveLevel == HardwareSecurityLevel.STRONGBOX
 
         return resolveHardwareInfo(
@@ -78,12 +68,7 @@ object HardwareSecurityDetector {
             board = board,
             product = product,
             socModel = socModel,
-            propStrongBoxModel = propStrongBoxModel,
-            propStrongBoxMfg = propStrongBoxMfg,
-            propKeystore = propKeystore,
-            propSocModel = propSocModel,
-            propPlatform = propPlatform,
-            propKnoxVault = propKnoxVault,
+            socManufacturer = socManufacturer,
             hasStrongBoxFeature = hasStrongBox,
             effectiveLevel = effectiveLevel
         )
@@ -98,12 +83,7 @@ object HardwareSecurityDetector {
         board: String,
         product: String,
         socModel: String,
-        propStrongBoxModel: String = "",
-        propStrongBoxMfg: String = "",
-        propKeystore: String = "",
-        propSocModel: String = "",
-        propPlatform: String = "",
-        propKnoxVault: String = "",
+        socManufacturer: String = "",
         hasStrongBoxFeature: Boolean = false,
         effectiveLevel: HardwareSecurityLevel = if (hasStrongBoxFeature) HardwareSecurityLevel.STRONGBOX else HardwareSecurityLevel.TEE
     ): SecurityHardwareInfo {
@@ -115,13 +95,10 @@ object HardwareSecurityDetector {
         val boardLower = board.lowercase()
         val productLower = product.lowercase()
         val socLower = socModel.lowercase()
-        val propSocLower = propSocModel.lowercase()
-        val propPlatformLower = propPlatform.lowercase()
+        val socVendorLower = socManufacturer.lowercase()
 
         val resolvedSoc = when {
             socLower.isNotBlank() -> socLower
-            propSocLower.isNotBlank() -> propSocLower
-            propPlatformLower.isNotBlank() -> propPlatformLower
             boardLower.isNotBlank() -> boardLower
             else -> hardwareLower
         }
@@ -133,19 +110,6 @@ object HardwareSecurityDetector {
             // 1. Google Pixel Family
             isPixel -> {
                 val (pixelChip, pixelShort) = when {
-                    // Direct dynamic property from OS KeyMint HAL
-                    propStrongBoxModel.contains("Titan-M3", ignoreCase = true) ||
-                            propStrongBoxModel.contains("Titan M3", ignoreCase = true) ->
-                        Pair("Google Titan M3", "Titan M3")
-
-                    propStrongBoxModel.contains("Titan-M2", ignoreCase = true) ||
-                            propStrongBoxModel.contains("Titan M2", ignoreCase = true) ->
-                        Pair("Google Titan M2", "Titan M2")
-
-                    propStrongBoxModel.contains("Titan-M", ignoreCase = true) ||
-                            propStrongBoxModel.contains("Titan M", ignoreCase = true) ->
-                        Pair("Google Titan M", "Titan M")
-
                     // Pixel 11 / Tensor G6 generation (Malibu platform, Kodiak device)
                     modelLower.contains("pixel 11") || modelLower.contains("pixel11") ||
                             resolvedSoc.contains("tensor g6") || resolvedSoc.contains("malibu") ||
@@ -197,9 +161,7 @@ object HardwareSecurityDetector {
 
             // 2. Samsung Galaxy Family
             mfgLower.contains("samsung") || brandLower.contains("samsung") -> {
-                val hasKnoxVault = effectiveLevel == HardwareSecurityLevel.STRONGBOX ||
-                        hasStrongBoxFeature ||
-                        propKnoxVault.isNotBlank()
+                val hasKnoxVault = effectiveLevel == HardwareSecurityLevel.STRONGBOX || hasStrongBoxFeature
 
                 if (hasKnoxVault) {
                     Triple("Samsung Knox Vault", "Knox Vault", "Samsung Knox TEE (TEEGRIS / Kinibi)")
@@ -310,19 +272,16 @@ object HardwareSecurityDetector {
             }
 
             // 22. Qualcomm Snapdragon Devices
-            resolvedSoc.contains("snapdragon") || hardwareLower.contains("qcom") ||
-                    boardLower.contains("qcom") || mfgLower.contains("qualcomm") ||
-                    propPlatformLower.contains("msm") || propPlatformLower.contains("sm") ||
-                    propPlatformLower.contains("lahaina") || propPlatformLower.contains("taro") ||
-                    propPlatformLower.contains("kalama") || propPlatformLower.contains("pineapple") ||
-                    propPlatformLower.contains("sun") -> {
+            socVendorLower == "qti" || socVendorLower.contains("qualcomm") ||
+                    resolvedSoc.contains("snapdragon") || resolvedSoc.startsWith("sm") || resolvedSoc.startsWith("msm") ||
+                    hardwareLower.contains("qcom") || boardLower.contains("qcom") || mfgLower.contains("qualcomm") -> {
                 Triple("Qualcomm SPU (Secure Processing Unit)", "Qualcomm SPU", "Qualcomm Secure Execution Environment (QTEE)")
             }
 
             // 23. MediaTek Dimensity / Helio
-            resolvedSoc.contains("dimensity") || resolvedSoc.contains("helio") ||
-                    hardwareLower.contains("mt") || mfgLower.contains("mediatek") ||
-                    propPlatformLower.contains("mt") -> {
+            socVendorLower.contains("mediatek") || resolvedSoc.startsWith("mt") ||
+                    resolvedSoc.contains("dimensity") || resolvedSoc.contains("helio") ||
+                    hardwareLower.startsWith("mt") || mfgLower.contains("mediatek") -> {
                 Triple("MediaTek MTEE StrongBox Coprocessor", "MediaTek MTEE", "MediaTek Micro-TEE (MTEE)")
             }
 

@@ -1,4 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
+import com.pixel.intelligentsearch.di.appEntryPoint
+import com.pixel.intelligentsearch.core.util.findActivity
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.draw.clip
@@ -18,37 +20,19 @@ import androidx.graphics.shapes.toPath
 import androidx.graphics.shapes.CornerRounding
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
-import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
-import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
-import com.pixel.intelligentsearch.feature.widget.SearchTileService
-import com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
-import com.pixel.intelligentsearch.core.bangs.SearchBang
-import com.pixel.intelligentsearch.core.bangs.SearchBangManager
-import com.pixel.intelligentsearch.core.data.SystemDataProvider
-import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.App
-import androidx.compose.foundation.gestures.scrollBy
-import com.pixel.intelligentsearch.feature.search.getAppName
-import com.pixel.intelligentsearch.feature.search.getThemedAppIcon
-import com.pixel.intelligentsearch.feature.search.AppIconResult
 import com.pixel.intelligentsearch.feature.search.AnimatedMatrixBackground
 import com.pixel.intelligentsearch.R
 import android.app.Activity
-import android.app.Application
 import android.content.Context
-import android.view.HapticFeedbackConstants
-import androidx.compose.ui.graphics.toArgb
 
 import android.os.Build
-import android.os.VibrationEffect
-import android.os.VibratorManager
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -57,50 +41,33 @@ import kotlinx.coroutines.withContext
 
 import android.content.Intent
 import android.content.SharedPreferences
-import android.app.StatusBarManager
-import android.content.ComponentName
-import android.content.pm.ShortcutInfo
-import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
-import android.app.PendingIntent
-import java.util.concurrent.Executor
-import java.util.concurrent.Executors
 import android.net.Uri
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.drawable.toBitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.launch
 import android.widget.Toast
 import android.content.pm.PackageManager
-import android.content.pm.ResolveInfo
 import org.intellij.lang.annotations.Language
 import android.graphics.RuntimeShader
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.graphics.ShaderBrush
-import android.annotation.SuppressLint
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.animation.*
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.NavDestination.Companion.hasRoute
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.animation.core.*
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.material.icons.Icons
 
 import androidx.compose.material.icons.filled.*
@@ -119,27 +86,16 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.ui.BiasAlignment
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
@@ -151,10 +107,8 @@ import androidx.compose.foundation.Image
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.semantics.*
 import com.pixel.intelligentsearch.core.ui.materialYouMeshGradientBackground
-import com.pixel.intelligentsearch.core.ui.expressive.SquircleShape
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 
 import androidx.compose.runtime.CompositionLocalProvider
@@ -457,8 +411,6 @@ val LocalSettingsViewModel = staticCompositionLocalOf<SettingsViewModel?> {
 val LocalSettingsState = compositionLocalOf<com.pixel.intelligentsearch.core.data.IntelligentSearchSettings?> {
     null
 }
-
-val LocalAnimationTime = staticCompositionLocalOf<Long> { 0L }
 
 // --- State Helpers ---
 fun getAlternatePreferenceKey(key: String): String? = when (key) {
@@ -1011,12 +963,6 @@ fun rememberStringPreference(
     }
 }
 
-internal tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is android.content.ContextWrapper -> baseContext.findActivity()
-    else -> null
-}
-
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun SettingsScreensHub(
@@ -1490,12 +1436,12 @@ fun MainSettingsScreen(
         if (showInfoDialog) {
             val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { 3 })
             val coroutineScope = rememberCoroutineScope()
-            val secureRepo = remember { com.pixel.intelligentsearch.core.security.SecureSettingsRepository(context) }
+            val keystore = remember { context.appEntryPoint.strongBoxSecurityManager() }
             val attestationVerifier = remember { com.pixel.intelligentsearch.core.security.KeyAttestationVerifier(context) }
             val hardwareLevel by androidx.compose.runtime.produceState(initialValue = if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)) com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX else com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE) {
                 // A Keystore failure keeps the feature-flag estimate instead of crashing Settings.
                 value = try {
-                    withContext(Dispatchers.IO) { secureRepo.getHardwareSecurityLevel() }
+                    withContext(Dispatchers.IO) { keystore.deviceKeySecurityLevel() }
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     android.util.Log.w("SettingsScreens", "Could not read hardware security level", e)
@@ -3262,23 +3208,6 @@ fun Android17Slider(
 
 fun performClickHaptic(context: android.content.Context) {
     com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click()
-}
-
-// -----------------------------------------------------------------------------------------
-@Composable
-fun SettingsShellBox(title: String, subtitle: String, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
-        color = Color(0xFFFEF7FF),
-        tonalElevation = 2.dp
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text(text = title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1D1B20))
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = subtitle, fontSize = 14.sp, color = Color(0xFF49454F))
-        }
-    }
 }
 
 // -----------------------------------------------------------------------------------------

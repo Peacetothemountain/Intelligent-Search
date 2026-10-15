@@ -257,12 +257,8 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
     }
 
     private fun launchFullSearch(query: String) {
-        val keyguardManager = context.getSystemService(android.app.KeyguardManager::class.java)
-        if (keyguardManager?.isKeyguardLocked == true) {
-            Log.w(TAG, "Blocked launching full search over locked keyguard without authentication")
-            hide()
-            return
-        }
+        // Safe over the lock screen: the search activities never call setShowWhenLocked, so the
+        // system keeps them behind the keyguard until the user unlocks, then shows the search.
         val intent = Intent(context, WidgetActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             putExtra("query", query)

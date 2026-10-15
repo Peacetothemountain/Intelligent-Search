@@ -62,6 +62,11 @@ object SearchScoringEngine {
 
     private val REGEX_WHITESPACE = Regex("\\s+")
 
+    // Package and path segments shared by most subtitles; matching them ranks every app for "goo".
+    private val GENERIC_SUBTITLE_TOKENS = setOf(
+        "com", "org", "net", "io", "android", "google", "apps", "app", "storage", "emulated"
+    )
+
     /**
      * Computes the full relevance score breakdown for an entity candidate given a search query.
      */
@@ -139,19 +144,40 @@ object SearchScoringEngine {
         )
     }
 
+    /**
+     * Scores the secondary line: an app's package name, a contact's number, a file's path or a
+     * shortcut's long label. Only digit runs and whole-token or token-prefix matches count. The
+     * phonetic and edit-distance tiers used for titles would read "cam" as "com" and rank every
+     * installed app, so they are not applied here.
+     */
     private fun computeSubtitleMatchScore(
         query: String,
         foldedQuery: String,
         targetSubtitle: String
     ): Float {
-        val rawSub = targetSubtitle.trim()
-        val sub = rawSub.lowercase()
+        val sub = targetSubtitle.trim().lowercase()
         if (sub.isEmpty()) return 0.0f
 
-        var score = computeMatchScore(query, sub, rawSub) * 0.85f
-        val foldedSub = QueryNormalizer.normalize(sub)
-        if (foldedQuery.isNotEmpty() && foldedSub.isNotEmpty() && (foldedQuery != query || foldedSub != sub)) {
-            score = maxOf(score, computeMatchScore(foldedQuery, foldedSub, rawSub) * 0.85f)
+        var score = 0.0f
+        val queryTokens = foldedQuery.split(' ')
+            .filter { it.isNotEmpty() && !it.all(Char::isDigit) && it !in GENERIC_SUBTITLE_TOKENS }
+        if (queryTokens.isNotEmpty()) {
+            val subTokens = QueryNormalizer.normalize(sub).split(' ')
+                .filter { it.isNotEmpty() && it !in GENERIC_SUBTITLE_TOKENS }
+            var allExact = true
+            val allMatched = queryTokens.all { token ->
+                when {
+                    subTokens.any { it == token } -> true
+                    token.length >= 3 && subTokens.any { it.startsWith(token) } -> {
+                        allExact = false
+                        true
+                    }
+                    else -> false
+                }
+            }
+            if (allMatched) {
+                score = if (allExact) SCORE_PREFIX_MAX * 0.85f else SCORE_SUBSTRING_MAX * 0.85f
+            }
         }
 
         val queryDigits = query.filter { it.isDigit() }

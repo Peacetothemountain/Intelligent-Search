@@ -82,7 +82,7 @@ object SearchRoleManager {
      * ensuring Intelligent Search is always marked as a qualifying package.
      */
     fun ensureUserSetupSearchEngineAllowlist(context: Context): Boolean {
-        // Runs on every overlay resume; without the adb-granted permission the write can only throw.
+        // Without the adb-granted permission the write can only throw.
         if (!canWriteSecureSettings(context)) return false
         return try {
             val current = Settings.Secure.getString(context.contentResolver, SECURE_USER_SETUP_SEARCH_ENGINE)

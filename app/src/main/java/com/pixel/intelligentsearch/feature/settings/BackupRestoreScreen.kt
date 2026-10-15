@@ -102,6 +102,7 @@ fun BackupRestoreScreen(
     var showNoPassphraseWarningDialog by remember { mutableStateOf(false) }
     var showRestorePassphraseDialog by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingLegacyUri by remember { mutableStateOf<Uri?>(null) }
     var pendingEnvelope by remember { mutableStateOf<com.pixel.intelligentsearch.core.backup.EncryptedBackupEnvelope?>(null) }
     var dialogPassphrase by remember { mutableStateOf("") }
     var dialogPassphraseVisible by remember { mutableStateOf(false) }
@@ -138,11 +139,13 @@ fun BackupRestoreScreen(
         }
     }
 
-    val performRestore: (Uri, String?) -> Unit = { targetUri, targetPass ->
+    val performRestore: (Uri, String?, Boolean) -> Unit = { targetUri, targetPass, allowLegacy ->
         if (activity != null) {
             viewModel?.importBackup(
                 uri = targetUri,
                 passphrase = targetPass,
+                allowLegacy = allowLegacy,
+                onUntrustedLegacy = { pendingLegacyUri = targetUri },
                 onSuccess = { count ->
                     showRestorePassphraseDialog = false
                     dialogErrorMessage = null
@@ -188,7 +191,6 @@ fun BackupRestoreScreen(
                     )
                 },
                 onError = { err ->
-                    android.util.Log.e("BackupRestoreScreen", "exportBackup onError: $err")
                     safeShowToast("Export error: $err")
                 }
             )
@@ -222,7 +224,7 @@ fun BackupRestoreScreen(
                         withContext(Dispatchers.IO) { viewModel?.getSavedPassphraseFromSecurityChip() } ?: ""
                     }
                     if (effectivePass.isNotBlank()) {
-                        performRestore(uri, effectivePass)
+                        performRestore(uri, effectivePass, false)
                     } else {
                         pendingRestoreUri = uri
                         dialogPassphrase = ""
@@ -230,10 +232,33 @@ fun BackupRestoreScreen(
                         showRestorePassphraseDialog = true
                     }
                 } else {
-                    performRestore(uri, null)
+                    performRestore(uri, null, false)
                 }
             }
         }
+    }
+
+    pendingLegacyUri?.let { legacyUri ->
+        AlertDialog(
+            onDismissRequest = { pendingLegacyUri = null },
+            title = { Text("Restore Old Backup?") },
+            text = {
+                Text(
+                    "This file uses an old backup format with no passphrase, so anyone could have made it. " +
+                        "Restore it only if you created it yourself. It can change your search engine, shortcuts " +
+                        "and hidden apps; sharing settings stay as they are."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingLegacyUri = null
+                    performRestore(legacyUri, null, true)
+                }) { Text("Restore") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingLegacyUri = null }) { Text("Cancel") }
+            }
+        )
     }
 
     if (showRestorePassphraseDialog && pendingRestoreUri != null) {
@@ -265,9 +290,15 @@ fun BackupRestoreScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(8.dp)) {
+                                    // These come from the file's unencrypted header, so they're shown as claims only.
+                                    Text(
+                                        "As stated in the file (not verified):",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                     if (!env.hardwareChip.isNullOrBlank()) {
                                         Text(
-                                            "Security Chip: ${env.hardwareChip}",
+                                            "Security Chip: ${env.hardwareChip.take(60)}",
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.SemiBold,
                                             color = MaterialTheme.colorScheme.primary
@@ -275,7 +306,7 @@ fun BackupRestoreScreen(
                                     }
                                     if (!env.deviceModel.isNullOrBlank()) {
                                         Text(
-                                            "Device: ${env.deviceModel}",
+                                            "Device: ${env.deviceModel.take(60)}",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -338,7 +369,7 @@ fun BackupRestoreScreen(
                 Button(
                     onClick = {
                         val uri = pendingRestoreUri ?: return@Button
-                        performRestore(uri, dialogPassphrase)
+                        performRestore(uri, dialogPassphrase, false)
                     },
                     shape = RoundedCornerShape(16.dp)
                 ) {
@@ -614,6 +645,9 @@ fun BackupRestoreScreen(
                             hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
                             if (passphrase.isBlank()) {
                                 showNoPassphraseWarningDialog = true
+                            } else if (passphrase.length < 10) {
+                                // A portable backup can be attacked offline, so its passphrase needs some length.
+                                safeShowToast("Use a passphrase of at least 10 characters")
                             } else {
                                 exportLauncher.launch("intelligent_search_backup_${System.currentTimeMillis()}.json")
                             }

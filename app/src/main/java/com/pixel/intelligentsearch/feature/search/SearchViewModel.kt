@@ -342,18 +342,31 @@ class SearchViewModel @Inject constructor(
                 if (settingsState.value.smartClipboardSuggestions && !isAdvancedProtectionOn()) {
                     try {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                        if (clipboard?.hasPrimaryClip() == true && clipboard.primaryClipDescription != null) {
+                        // Password managers mark copied secrets sensitive; never show or search those.
+                        val isSensitive = clipboard?.primaryClipDescription?.extras
+                            ?.getBoolean("android.content.extra.IS_SENSITIVE", false) == true
+                        val engine = settingsState.value.searchEngine
+                        val isTor = com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(engine)
+                        if (!isSensitive && clipboard?.hasPrimaryClip() == true && clipboard.primaryClipDescription != null) {
                             val item = clipboard.primaryClip?.getItemAt(0)
                             val text = item?.text?.toString() ?: item?.coerceToText(context)?.toString()
                             if (!text.isNullOrBlank()) {
                                 val trimmed = text.trim()
                                 if (android.util.Patterns.WEB_URL.matcher(trimmed).matches()) {
-                                    val url = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed else "https://$trimmed"
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                                    clipboardActions.add(DirectAction("Open Link", trimmed, "link", intent))
+                                    // Same rules as a typed address: http(s) only, browsable apps only, Tor Browser under Tor.
+                                    val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.forAddress(context, trimmed, engine)
+                                    if (launch is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open) {
+                                        clipboardActions.add(DirectAction("Open Link", trimmed, "link", launch.intent))
+                                    }
                                 } else if (android.util.Patterns.PHONE.matcher(trimmed).matches() && trimmed.length >= 7) {
                                     val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$trimmed"))
                                     clipboardActions.add(DirectAction("Call Number", trimmed, "phone", intent))
+                                } else if (isTor) {
+                                    // The generic web-search intent would reach a normal browser; search through Tor instead.
+                                    val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.torSearch(context, trimmed)
+                                    if (launch is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open) {
+                                        clipboardActions.add(DirectAction("Search Copied Text", trimmed, "search", launch.intent))
+                                    }
                                 } else {
                                     val intent = android.content.Intent(android.content.Intent.ACTION_WEB_SEARCH)
                                     intent.putExtra(android.app.SearchManager.QUERY, trimmed)
@@ -834,5 +847,4 @@ class SearchViewModel @Inject constructor(
 
 
 /** Whether [engine] (the stored search-engine choice) routes searches through Tor Browser. */
-internal fun isTorSearchEngine(engine: String): Boolean = engine.equals("Tor Project", ignoreCase = true) ||
-    engine.equals("Tor Browser", ignoreCase = true)
+internal fun isTorSearchEngine(engine: String): Boolean = com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(engine)

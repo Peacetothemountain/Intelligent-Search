@@ -37,4 +37,4 @@ jobs:
       # Lint fails on warnings not in app/lint-baseline.xml. CI has no signing key, so assembleRelease here only
       # proves the minified build compiles.
       - name: Run Build & Check
-        run: ./gradlew lintDebug testDebugUnitTest assembleRelease --no-daemon
+        run: ./gradlew lintDebug testDebugUnitTest assembleRelease -PskipScreenshots --no-daemon

@@ -112,11 +112,10 @@ class BackupManager @Inject constructor(
             else -> null
         }
 
-        private fun isValidCustomSearchUrl(url: String): Boolean {
-            if (url.isBlank()) return true
-            val trimmed = url.trim().lowercase(java.util.Locale.ROOT)
-            return trimmed.startsWith("http://") || trimmed.startsWith("https://")
-        }
+        /** Blank (no custom engine) or an address that passes the same checks as one typed in settings. */
+        private fun isValidCustomSearchUrl(url: String): Boolean =
+            url.isBlank() || com.pixel.intelligentsearch.core.security.CustomSearchUrl.validate(url) is
+                com.pixel.intelligentsearch.core.security.CustomSearchUrl.Validation.Valid
     }
 
     suspend fun createBackupPayload(): BackupContentPayload = withContext(Dispatchers.IO) {

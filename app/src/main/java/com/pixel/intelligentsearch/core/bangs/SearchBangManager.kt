@@ -28,9 +28,8 @@ class SearchBangManager @Inject constructor(
 ) {
 
     companion object {
-        private val BLOCKED_APP_URI_SCHEMES = setOf(
-            "file", "content", "javascript", "data", "intent", "vbscript"
-        )
+        /** The only app-link schemes dispatched, all from built-in bangs (YouTube, Maps, Play Store, Spotify). */
+        private val BUILT_IN_APP_URI_SCHEMES = setOf("vnd.youtube", "geo", "market", "spotify")
 
         val BUILT_IN_BANGS = listOf(
             SearchBang(
@@ -277,9 +276,9 @@ class SearchBangManager @Inject constructor(
         if (!bang.targetPackage.isNullOrBlank() && !bang.targetPackage.equals(context.packageName, ignoreCase = true)) {
             val isInstalled = isPackageInstalled(pm, bang.targetPackage)
             if (isInstalled) {
-                val appUri = bang.buildAppUri(query)
+                val appUri = if (bang.isBuiltIn) bang.buildAppUri(query) else null
                 val appScheme = appUri?.scheme?.lowercase(Locale.ROOT)
-                if (appUri != null && !appScheme.isNullOrBlank() && appScheme !in BLOCKED_APP_URI_SCHEMES) {
+                if (appUri != null && appScheme in BUILT_IN_APP_URI_SCHEMES) {
                     val nativeIntent = Intent(Intent.ACTION_VIEW, appUri).apply {
                         addCategory(Intent.CATEGORY_BROWSABLE)
                         setPackage(bang.targetPackage)
@@ -312,13 +311,11 @@ class SearchBangManager @Inject constructor(
             }
         }
 
-        // Priority 2: Universal Web URL Dispatch. Custom bangs can arrive from imported backups, so only
-        // web URLs are dispatched; any other scheme (intent:, file:, javascript:...) is forced onto https.
-        val webUrl = bang.buildWebUrl(query).let { url ->
-            val scheme = Uri.parse(url).scheme?.lowercase(Locale.ROOT)
-            if (scheme == "http" || scheme == "https") url else "https://${url.substringAfter("://")}"
-        }
-        return Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).apply {
+        // Priority 2: the web URL. Custom bangs can arrive from imported backups, so the template goes through the
+        // same validation as a typed custom engine; one that fails is never opened and the query goes to Google.
+        val webUri = com.pixel.intelligentsearch.core.security.CustomSearchUrl.build(bang.urlTemplate, query)
+            ?: Uri.parse("https://www.google.com/search?q=${Uri.encode(query)}")
+        return com.pixel.intelligentsearch.core.security.CustomSearchUrl.browsableViewIntent(webUri).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
     }
@@ -404,7 +401,9 @@ class SearchBangManager @Inject constructor(
                             name = obj.getString("name"),
                             urlTemplate = obj.getString("urlTemplate"),
                             targetPackage = obj.optString("targetPackage").ifBlank { null },
-                            appIntentUriTemplate = obj.optString("appIntentUriTemplate").ifBlank { null },
+                            // Custom bangs never carry an app link: one restored from a crafted backup could
+                            // otherwise open sms:, tel: or another app scheme. Only built-in bangs have them.
+                            appIntentUriTemplate = null,
                             isBuiltIn = false,
                             description = obj.optString("description")
                         )
@@ -425,7 +424,6 @@ class SearchBangManager @Inject constructor(
                 put("name", bang.name)
                 put("urlTemplate", bang.urlTemplate)
                 put("targetPackage", bang.targetPackage ?: "")
-                put("appIntentUriTemplate", bang.appIntentUriTemplate ?: "")
                 put("isBuiltIn", false)
                 put("description", bang.description)
             }

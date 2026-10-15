@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
-import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.SharedPreferences
 import androidx.compose.animation.core.animateDpAsState
@@ -79,9 +78,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var activeIconPack by rememberSetting(SettingsManager.ACTIVE_ICON_PACK)
     var neverShowWarning by rememberSetting(SettingsManager.NEVER_SHOW_ICON_PACK_WARNING) {}
     var storedPillString by rememberSetting(SettingsManager.CUSTOM_ICON_PILLS)
-    val effectivePillString = remember(storedPillString) {
-        if (storedPillString.isNotBlank()) storedPillString else prefs.getString("custom_icon_packs_order", "") ?: ""
-    }
+    val effectivePillString = storedPillString
 
     var installedPacks by remember { mutableStateOf<List<com.pixel.intelligentsearch.core.util.IconPackInfo>>(emptyList()) }
     var allPackMap by remember { mutableStateOf<Map<String, Pair<String, ImageBitmap?>>>(mapOf("system_default" to Pair("System Default", null))) }
@@ -128,7 +125,8 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             while (isActive && draggingPackage != null && autoScrollVelocity != 0f) {
                 val canScroll = if (autoScrollVelocity < 0f) listState.canScrollBackward else listState.canScrollForward
                 if (!canScroll) break
-                listState.scrollBy(autoScrollVelocity)
+                // Keep the dragged card under the finger while the list scrolls beneath it.
+                itemDragOffset += listState.scrollBy(autoScrollVelocity)
                 kotlinx.coroutines.delay(16)
             }
         }
@@ -361,11 +359,6 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                         draggingPackage = null
                                                         itemDragOffset = 0f
                                                         storedPillString = localPillList.joinToString(",")
-                                                        viewModel?.updateCustomIconPills(storedPillString)
-                                                        prefs.edit()
-                                                            .put(SettingsManager.CUSTOM_ICON_PILLS, storedPillString)
-                                                            .putString("custom_icon_packs_order", storedPillString)
-                                                            .apply()
                                                     },
                                                     onDragCancel = {
                                                         autoScrollVelocity = 0f

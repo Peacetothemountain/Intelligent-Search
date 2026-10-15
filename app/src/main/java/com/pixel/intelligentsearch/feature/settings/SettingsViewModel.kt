@@ -42,11 +42,6 @@ class SettingsViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    fun updateCustomIconPills(pills: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            settingsManager.set(SettingsManager.CUSTOM_ICON_PILLS, pills)
-        }
-    }
 
     fun updateActiveIconPack(packageName: String) {
         viewModelScope.launch(Dispatchers.IO) {

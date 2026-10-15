@@ -281,7 +281,6 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             // The URL field shows this default; persist it so searches use what is displayed
                             // instead of silently falling back to the generic web-search intent.
                             val defaultUrl = "https://duckduckgo.com/?q=%s"
-                            prefs.edit().put(SettingsManager.CUSTOM_SEARCH_ENGINE_URL, defaultUrl).apply()
                             settingsViewModel.updateSetting(SettingsManager.CUSTOM_SEARCH_ENGINE_URL, defaultUrl)
                         }
                         searchEngine = selected
@@ -306,16 +305,34 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         Spacer(modifier = Modifier.width(12.dp))
                         androidx.compose.material3.OutlinedTextField(
                             value = customEngineName,
-                            onValueChange = { customEngineName = it },
+                            onValueChange = { customEngineName = com.pixel.intelligentsearch.core.security.CustomSearchUrl.sanitizeEngineName(it) },
+                            singleLine = true,
                             label = { Text("Search App Name") },
                             shape = RoundedCornerShape(24.dp),
                             modifier = Modifier.weight(1f)
                         )
                     }
+                    // The field keeps whatever is typed, but only an address that passes validation is saved
+                    // (in its canonical https form). Searches re-check it anyway, so nothing unvalidated is opened.
+                    var urlText by remember { mutableStateOf(customUrl) }
+                    val urlCheck = remember(urlText) { com.pixel.intelligentsearch.core.security.CustomSearchUrl.validate(urlText) }
                     androidx.compose.material3.OutlinedTextField(
-                        value = customUrl,
-                        onValueChange = { customUrl = it },
+                        value = urlText,
+                        onValueChange = { typed ->
+                            urlText = typed.take(com.pixel.intelligentsearch.core.security.CustomSearchUrl.MAX_LENGTH)
+                            val check = com.pixel.intelligentsearch.core.security.CustomSearchUrl.validate(urlText)
+                            if (check is com.pixel.intelligentsearch.core.security.CustomSearchUrl.Validation.Valid) customUrl = check.template
+                        },
                         label = { Text("Custom Search URL (use %s for query)") },
+                        singleLine = true,
+                        isError = urlText.isNotBlank() && urlCheck is com.pixel.intelligentsearch.core.security.CustomSearchUrl.Validation.Invalid,
+                        supportingText = (urlCheck as? com.pixel.intelligentsearch.core.security.CustomSearchUrl.Validation.Invalid)
+                            ?.takeIf { urlText.isNotBlank() }
+                            ?.let { invalid -> { Text(invalid.reason) } },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri,
+                            autoCorrectEnabled = false
+                        ),
                         shape = RoundedCornerShape(24.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1173,8 +1190,16 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             errorMsg = "Trigger must be at least 2 characters (e.g. ${shortcutTriggerSymbol}wiki)"
                                             return@TextButton
                                         }
-                                        if (trimmedUrl.isBlank() || (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://"))) {
-                                            errorMsg = "URL must start with http:// or https://"
+                                        if (trimmedPrefix.length > 24 || trimmedPrefix.any { it.isWhitespace() || it.isISOControl() }) {
+                                            errorMsg = "Trigger must be one word of at most 24 characters"
+                                            return@TextButton
+                                        }
+                                        if (trimmedPackage.isNotBlank() && !Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$").matches(trimmedPackage)) {
+                                            errorMsg = "That isn't a valid app package name"
+                                            return@TextButton
+                                        }
+                                        if (trimmedUrl.isBlank()) {
+                                            errorMsg = "Enter a search address"
                                             return@TextButton
                                         }
                                         if (!trimmedUrl.contains("%s")) {
@@ -1184,6 +1209,15 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 "${trimmedUrl}&q=%s"
                                             } else {
                                                 "${trimmedUrl}/?q=%s"
+                                            }
+                                        }
+                                        // Same checks as the custom search engine: https only, no credentials, no script or
+                                        // other schemes. The canonical form is what gets stored.
+                                        when (val check = com.pixel.intelligentsearch.core.security.CustomSearchUrl.validate(trimmedUrl)) {
+                                            is com.pixel.intelligentsearch.core.security.CustomSearchUrl.Validation.Valid -> trimmedUrl = check.template
+                                            is com.pixel.intelligentsearch.core.security.CustomSearchUrl.Validation.Invalid -> {
+                                                errorMsg = check.reason
+                                                return@TextButton
                                             }
                                         }
 

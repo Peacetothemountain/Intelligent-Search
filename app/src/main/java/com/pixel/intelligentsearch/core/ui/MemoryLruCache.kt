@@ -1,6 +1,5 @@
 package com.pixel.intelligentsearch.core.ui
 
-import android.graphics.Bitmap
 import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -15,9 +14,6 @@ fun <K : Any, V : Any> memoryLruCache(heapDivisor: Int, bytesOf: (V) -> Int): Lr
         override fun sizeOf(key: K, value: V): Int = (bytesOf(value) / 1024).coerceAtLeast(1)
     }
 }
-
-fun <K : Any> bitmapLruCache(heapDivisor: Int): LruCache<K, Bitmap> =
-    memoryLruCache(heapDivisor) { it.allocationByteCount }
 
 fun <K : Any> imageBitmapLruCache(heapDivisor: Int): LruCache<K, ImageBitmap> =
     memoryLruCache(heapDivisor) { it.asAndroidBitmap().allocationByteCount }

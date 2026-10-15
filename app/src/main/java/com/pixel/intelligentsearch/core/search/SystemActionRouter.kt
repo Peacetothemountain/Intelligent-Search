@@ -4,7 +4,6 @@ import android.content.Context
 import android.media.AudioManager
 import com.pixel.intelligentsearch.core.system.SystemToggleManager
 import com.pixel.intelligentsearch.core.ui.SystemToggleUiState
-import kotlinx.coroutines.flow.MutableStateFlow
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -15,7 +14,7 @@ import javax.inject.Singleton
  *
  * Supports:
  * - Wi-Fi, Bluetooth, Flashlight, Battery Saver, Do Not Disturb, Airplane Mode, Auto-Rotate, Hotspot, Dark Theme, NFC, Location
- * - Direct inline Volume Sliders for Media, Ringtone, Alarm, and Notification streams
+ * - Inline volume sliders for the Media, Ringtone and Alarm streams
  */
 @Singleton
 class SystemActionRouter @Inject constructor(
@@ -23,20 +22,6 @@ class SystemActionRouter @Inject constructor(
     private val systemToggleManager: SystemToggleManager
 ) {
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-
-    data class VolumeSliderState(
-        val streamType: Int,
-        val streamName: String,
-        val currentVolume: Int,
-        val maxVolume: Int,
-        val iconType: String
-    )
-
-    private val _mediaVolumeState = MutableStateFlow(getStreamState(AudioManager.STREAM_MUSIC, "Media Volume", "volume_media"))
-
-    private val _ringVolumeState = MutableStateFlow(getStreamState(AudioManager.STREAM_RING, "Ringtone Volume", "volume_ring"))
-
-    private val _alarmVolumeState = MutableStateFlow(getStreamState(AudioManager.STREAM_ALARM, "Alarm Volume", "volume_alarm"))
 
     sealed class ActionResult {
         data class Toggle(val toggleUiState: SystemToggleUiState) : ActionResult()
@@ -49,20 +34,6 @@ class SystemActionRouter @Inject constructor(
         ) : ActionResult()
     }
 
-    private fun getStreamState(stream: Int, name: String, icon: String): VolumeSliderState {
-        val current = try {
-            audioManager?.getStreamVolume(stream) ?: 0
-        } catch (_: Throwable) {
-            0
-        }
-        val max = try {
-            audioManager?.getStreamMaxVolume(stream) ?: 100
-        } catch (_: Throwable) {
-            100
-        }
-        return VolumeSliderState(stream, name, current, max, icon)
-    }
-
     fun setStreamVolume(streamType: Int, level: Int) {
         try {
             audioManager?.setStreamVolume(streamType, level, 0)
@@ -71,11 +42,13 @@ class SystemActionRouter @Inject constructor(
         } catch (e: Throwable) {
             android.util.Log.w("SystemActionRouter", "Failed to set volume", e)
         }
-        when (streamType) {
-            AudioManager.STREAM_MUSIC -> _mediaVolumeState.value = getStreamState(streamType, "Media Volume", "volume_media")
-            AudioManager.STREAM_RING -> _ringVolumeState.value = getStreamState(streamType, "Ringtone Volume", "volume_ring")
-            AudioManager.STREAM_ALARM -> _alarmVolumeState.value = getStreamState(streamType, "Alarm Volume", "volume_alarm")
-        }
+    }
+
+    /** A volume slider for [stream]; [fallbackMax] is used only if the audio service can't be read. */
+    private fun volumeSlider(stream: Int, title: String, fallbackMax: Int): ActionResult.VolumeSlider {
+        val current = try { audioManager?.getStreamVolume(stream) ?: 0 } catch (_: Throwable) { 0 }
+        val max = try { audioManager?.getStreamMaxVolume(stream) ?: fallbackMax } catch (_: Throwable) { fallbackMax }
+        return ActionResult.VolumeSlider(stream, title, current, max) { setStreamVolume(stream, it) }
     }
 
     /**
@@ -105,41 +78,11 @@ class SystemActionRouter @Inject constructor(
         val q = rawQuery.trim().lowercase()
         if (q.isEmpty()) return null
 
-        // 1. Volume Sliders matching
-        if (q in KEYWORDS_MEDIA_VOLUME) {
-            val current = try { audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0 } catch (_: Throwable) { 0 }
-            val max = try { audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15 } catch (_: Throwable) { 15 }
-            return ActionResult.VolumeSlider(
-                streamType = AudioManager.STREAM_MUSIC,
-                title = "Media Volume",
-                currentLevel = current,
-                maxLevel = max,
-                onVolumeChange = { setStreamVolume(AudioManager.STREAM_MUSIC, it) }
-            )
-        }
-
-        if (q in KEYWORDS_RING_VOLUME) {
-            val current = try { audioManager?.getStreamVolume(AudioManager.STREAM_RING) ?: 0 } catch (_: Throwable) { 0 }
-            val max = try { audioManager?.getStreamMaxVolume(AudioManager.STREAM_RING) ?: 7 } catch (_: Throwable) { 7 }
-            return ActionResult.VolumeSlider(
-                streamType = AudioManager.STREAM_RING,
-                title = "Ringtone Volume",
-                currentLevel = current,
-                maxLevel = max,
-                onVolumeChange = { setStreamVolume(AudioManager.STREAM_RING, it) }
-            )
-        }
-
-        if (q in KEYWORDS_ALARM_VOLUME) {
-            val current = try { audioManager?.getStreamVolume(AudioManager.STREAM_ALARM) ?: 0 } catch (_: Throwable) { 0 }
-            val max = try { audioManager?.getStreamMaxVolume(AudioManager.STREAM_ALARM) ?: 7 } catch (_: Throwable) { 7 }
-            return ActionResult.VolumeSlider(
-                streamType = AudioManager.STREAM_ALARM,
-                title = "Alarm Volume",
-                currentLevel = current,
-                maxLevel = max,
-                onVolumeChange = { setStreamVolume(AudioManager.STREAM_ALARM, it) }
-            )
+        // 1. Volume sliders
+        when (q) {
+            in KEYWORDS_MEDIA_VOLUME -> return volumeSlider(AudioManager.STREAM_MUSIC, "Media Volume", fallbackMax = 15)
+            in KEYWORDS_RING_VOLUME -> return volumeSlider(AudioManager.STREAM_RING, "Ringtone Volume", fallbackMax = 7)
+            in KEYWORDS_ALARM_VOLUME -> return volumeSlider(AudioManager.STREAM_ALARM, "Alarm Volume", fallbackMax = 7)
         }
 
         // 2. Binary System Toggles

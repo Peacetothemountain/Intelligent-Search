@@ -24,26 +24,16 @@ enum class PixelHapticType {
     OVERLAY_OPEN,
     OVERLAY_DISMISS,
     GESTURE_THRESHOLD,
-    SPIN_TICK,
     HEAVY_IMPACT,
     TOGGLE_ON,
     TOGGLE_OFF,
     CONFIRM,
     REJECT,
     APP_LAUNCH,
-    MATH_CALCULATION,
-    SECURITY_HEARTBEAT,
     DELETE_THUD,
     SCROLL_DETENT,
     MAGNETIC_RESISTANCE,
     SPRING_RELEASE,
-    // Material 3 Expressive semantic tactile profiles (Android 17 Canary ZP11)
-    SEARCH_RESULT_COMMIT,
-    SEGMENT_SWITCH,
-    EXPAND_COLLAPSE,
-    SLIDER_DETENT,
-    WARP_SPEED,
-    PREDICTIVE_BACK_PROGRESS
 }
 
 /**
@@ -60,10 +50,6 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
         /** The app-wide instance, for composables and other places without injection. */
         fun get(context: Context): PixelHapticEngine = context.appEntryPoint.pixelHapticEngine()
 
-        // Detect high-fidelity Pixel hardware
-        val isPixelDevice: Boolean by lazy {
-            Build.MANUFACTURER.equals("Google", ignoreCase = true)
-        }
     }
 
     private val vibrator: Vibrator? = run {
@@ -260,36 +246,7 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
                 }
             }
 
-            PixelHapticType.MATH_CALCULATION -> {
-                // Math completion: Ultra-delicate micro tick
-                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.35f * scale)
-                    return composition.compose()
-                }
-            }
 
-            PixelHapticType.SECURITY_HEARTBEAT -> {
-                // Biometric Unlock Heartbeat: Bi-phasic cardiac pulse (Lub - Dub)
-                val hasAll = arePrimitivesSupported(
-                    VibrationEffect.Composition.PRIMITIVE_SLOW_RISE,
-                    VibrationEffect.Composition.PRIMITIVE_CLICK,
-                    VibrationEffect.Composition.PRIMITIVE_QUICK_RISE,
-                    VibrationEffect.Composition.PRIMITIVE_QUICK_FALL
-                )
-                if (hasAll) {
-                    // Systole (Lub)
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_SLOW_RISE, 0.45f * scale)
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.65f * scale, 10)
-                    // Diastole (Dub)
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_QUICK_RISE, 0.75f * scale, 85)
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_QUICK_FALL, 0.45f * scale, 10)
-                    return composition.compose()
-                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_CLICK)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.60f * scale)
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.75f * scale, 90)
-                    return composition.compose()
-                }
-            }
 
             PixelHapticType.DELETE_THUD -> {
                 // Delete / Dismiss confirmation: Heavy dampening thud
@@ -388,12 +345,6 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
                 }
             }
 
-            PixelHapticType.SPIN_TICK -> {
-                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_SPIN)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_SPIN, 0.50f * scale)
-                    return composition.compose()
-                }
-            }
 
             PixelHapticType.HEAVY_IMPACT -> {
                 if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_THUD)) {
@@ -418,78 +369,11 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
                 }
             }
 
-            PixelHapticType.SEARCH_RESULT_COMMIT -> {
-                // Crisp dual-harmonic commit tick for launching instant query results
-                if (arePrimitivesSupported(
-                        VibrationEffect.Composition.PRIMITIVE_CLICK,
-                        VibrationEffect.Composition.PRIMITIVE_QUICK_FALL
-                    )
-                ) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.85f * scale)
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_QUICK_FALL, 0.40f * scale, 12)
-                    return composition.compose()
-                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_CLICK)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.80f * scale)
-                    return composition.compose()
-                }
-            }
 
-            PixelHapticType.SEGMENT_SWITCH -> {
-                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.50f * scale)
-                    return composition.compose()
-                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.40f * scale)
-                    return composition.compose()
-                }
-            }
 
-            PixelHapticType.EXPAND_COLLAPSE -> {
-                if (arePrimitivesSupported(
-                        VibrationEffect.Composition.PRIMITIVE_QUICK_RISE,
-                        VibrationEffect.Composition.PRIMITIVE_LOW_TICK
-                    )
-                ) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_QUICK_RISE, 0.45f * scale)
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.55f * scale, 15)
-                    return composition.compose()
-                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_CLICK)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.60f * scale)
-                    return composition.compose()
-                }
-            }
 
-            PixelHapticType.SLIDER_DETENT -> {
-                val tickScale = (0.30f * scale).coerceIn(0.1f, 1.0f)
-                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, tickScale)
-                    return composition.compose()
-                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, tickScale)
-                    return composition.compose()
-                }
-            }
 
-            PixelHapticType.WARP_SPEED -> {
-                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_SPIN)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_SPIN, 0.40f * scale)
-                    return composition.compose()
-                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.35f * scale)
-                    return composition.compose()
-                }
-            }
 
-            PixelHapticType.PREDICTIVE_BACK_PROGRESS -> {
-                val progressScale = (0.20f + 0.60f * scale).coerceIn(0.1f, 1.0f)
-                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, progressScale)
-                    return composition.compose()
-                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, progressScale)
-                    return composition.compose()
-                }
-            }
         }
 
         return null
@@ -497,7 +381,7 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
 
     private fun performViewFallback(view: View, type: PixelHapticType) {
         val feedbackConstant = when (type) {
-            PixelHapticType.CLICK, PixelHapticType.APP_LAUNCH, PixelHapticType.SEARCH_RESULT_COMMIT ->
+            PixelHapticType.CLICK, PixelHapticType.APP_LAUNCH ->
                 HapticFeedbackConstants.KEYBOARD_TAP
             PixelHapticType.HEAVY_IMPACT, PixelHapticType.DELETE_THUD ->
                 HapticFeedbackConstants.LONG_PRESS
@@ -513,10 +397,6 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) HapticFeedbackConstants.TOGGLE_ON else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.KEYBOARD_TAP
             PixelHapticType.TOGGLE_OFF ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) HapticFeedbackConstants.TOGGLE_OFF else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.KEYBOARD_TAP
-            PixelHapticType.SEGMENT_SWITCH ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK
-            PixelHapticType.SLIDER_DETENT ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.SEGMENT_FREQUENT_TICK else HapticFeedbackConstants.CLOCK_TICK
             else ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK
         }

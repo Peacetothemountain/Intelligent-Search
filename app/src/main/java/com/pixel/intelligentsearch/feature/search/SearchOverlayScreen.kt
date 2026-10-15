@@ -138,21 +138,7 @@ fun SearchOverlayScreen(
             "DuckDuckGo" -> "DuckDuckGo"
             "Bing" -> "Bing"
             "Google" -> "Google"
-            "Custom" -> {
-                if (settingsState.customSearchEngineUrl.isNotBlank()) {
-                    try {
-                        val host = Uri.parse(
-                            if (settingsState.customSearchEngineUrl.startsWith("http")) settingsState.customSearchEngineUrl 
-                            else "https://${settingsState.customSearchEngineUrl}"
-                        ).host?.removePrefix("www.")?.substringBefore(".")?.replaceFirstChar { it.uppercase() }
-                        if (!host.isNullOrBlank()) host else "Web"
-                    } catch (e: Exception) {
-                        "Web"
-                    }
-                } else {
-                    "Web"
-                }
-            }
+            "Custom" -> com.pixel.intelligentsearch.core.security.CustomSearchUrl.displayName(settingsState.customSearchEngineUrl) ?: "Web"
             else -> if (settingsState.searchEngine.isNotBlank()) settingsState.searchEngine else "Google"
         }
     }
@@ -341,18 +327,11 @@ fun SearchOverlayScreen(
         
         val intent = when (engine) {
             "Custom" -> {
-                if (customUrl.isNotBlank()) {
-                    val rawUrl = if (customUrl.contains("%s")) {
-                        customUrl.replace("%s", encodedQuery)
-                    } else {
-                        "$customUrl$encodedQuery"
-                    }
-                    val fullUrl = if (rawUrl.startsWith("http://", ignoreCase = true) || rawUrl.startsWith("https://", ignoreCase = true)) {
-                        rawUrl
-                    } else {
-                        "https://$rawUrl"
-                    }
-                    Intent(Intent.ACTION_VIEW, Uri.parse(fullUrl)).apply {
+                // Re-validated on every search: only an https address that passes the custom-URL checks is opened,
+                // and only by a browsable activity. Anything else falls back to the system web search.
+                val customUri = com.pixel.intelligentsearch.core.security.CustomSearchUrl.build(customUrl, searchQuery)
+                if (customUri != null) {
+                    com.pixel.intelligentsearch.core.security.CustomSearchUrl.browsableViewIntent(customUri).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     }
                 } else {
@@ -938,7 +917,7 @@ fun SearchOverlayScreen(
                 }
 
                 AnimatedVisibility(
-                    visible = uiState.query.isNotEmpty() && !uiState.isLoading,
+                    visible = uiState.query.isNotEmpty(),
                     enter = fadeIn() + scaleIn(),
                     exit = fadeOut() + scaleOut()
                 ) {

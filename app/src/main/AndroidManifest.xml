@@ -235,11 +235,7 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
-        <receiver android:name="com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver" android:exported="false">
-            <intent-filter>
-                <action android:name="com.pixel.intelligentsearch.PIN_WIDGET" />
-            </intent-filter>
-        </receiver>
+        <receiver android:name="com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver" android:exported="false" />
 
 
 
@@ -273,12 +269,9 @@
 
         <receiver
             android:name="com.pixel.intelligentsearch.core.system.DirectBootReceiver"
-            android:directBootAware="true"
             android:exported="false">
             <intent-filter>
-                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.USER_UNLOCKED" />
             </intent-filter>
         </receiver>
 

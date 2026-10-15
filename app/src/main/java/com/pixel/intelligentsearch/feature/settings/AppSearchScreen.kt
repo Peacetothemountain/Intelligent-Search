@@ -29,7 +29,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -167,53 +166,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                var appWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_APPS)
-                val appLevelIndex = remember(appWeight) { PriorityWeightHelper.weightToLevelIndex(appWeight) }
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "App Priority Weight: ${PriorityWeightHelper.levelLabel(appLevelIndex)}",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        IconButton(
-                            onClick = {
-                                performClickHaptic(context)
-                                appWeight = PriorityWeightHelper.DEFAULT_WEIGHT
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.RestartAlt,
-                                contentDescription = "Reset to Default",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                    Text(
-                        text = "Adjust Ranking Priority of App Search.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Android17Slider(
-                        label = "App priority weight",
-                        value = appLevelIndex.toFloat(),
-                        onValueChange = { newValue ->
-                            val idx = Math.round(newValue).coerceIn(0, PriorityWeightHelper.LEVELS.size - 1)
-                            appWeight = PriorityWeightHelper.levelIndexToWeight(idx)
-                        },
-                        valueRange = 0f..(PriorityWeightHelper.LEVELS.size - 1).toFloat(),
-                        steps = PriorityWeightHelper.LEVELS.size - 2,
-                        isSquiggly = false,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
-                    )
-                }
+                PrioritySetting(SettingsManager.SEARCH_WEIGHT_APPS, "App", largeTitle = true)
             }
         }
     }

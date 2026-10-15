@@ -85,7 +85,6 @@ open class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         settingsFingerprintAtResume = settingsFingerprint()
-        com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this)
         if (checkAndForwardIfSearchOverlayDisabled()) return
     }
 
@@ -308,76 +307,40 @@ open class MainActivity : AppCompatActivity() {
         super.onWindowFocusChanged(hasFocus)
     }
 
+    /** Handles intents that hand off to another surface (Gemini overlay, Lens, voice) and close this activity. */
     private fun handleIntent(intent: Intent?): Boolean {
-        if (this is com.pixel.intelligentsearch.feature.search.SearchActivity) {
-            return false
-        }
-        if (intent?.action == "com.pixel.intelligentsearch.LAUNCH_GEMINI_OVERLAY" ||
-            intent?.getBooleanExtra("launch_gemini_overlay", false) == true) {
-            launchGeminiCornerOverlay(this)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
-            } else {
-                @Suppress("DEPRECATION")
-                overridePendingTransition(0, 0)
+        if (intent == null || this is com.pixel.intelligentsearch.feature.search.SearchActivity) return false
+        when {
+            intent.action == "com.pixel.intelligentsearch.LAUNCH_GEMINI_OVERLAY" ||
+                intent.getBooleanExtra("launch_gemini_overlay", false) -> launchGeminiCornerOverlay(this)
+            intent.action == "com.pixel.intelligentsearch.LAUNCH_LENS" -> launchLens(translate = false)
+            intent.action == "com.pixel.intelligentsearch.LAUNCH_LENS_TRANSLATE" -> launchLens(translate = true)
+            // The launcher's "Voice search" shortcut. With no recognizer installed, the overlay opens instead.
+            intent.getBooleanExtra("auto_voice", false) -> {
+                val voice = com.pixel.intelligentsearch.feature.widget.getVoiceSearchIntent(this)
+                if (voice.component?.packageName == packageName) return false
+                try { startActivity(voice) } catch (e: Exception) { return false }
             }
-            finish()
-            return true
+            else -> return false
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        }
+        finish()
+        return true
+    }
 
-        if (intent?.action == "com.pixel.intelligentsearch.LAUNCH_LENS") {
-            try {
-                val lensStandalone = packageManager.getLaunchIntentForPackage("com.google.ar.lens")?.apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                if (lensStandalone != null) {
-                    startActivity(lensStandalone)
-                } else {
-                    val lensIntent = Intent().apply {
-                        setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    startActivity(lensIntent)
-                }
-            } catch (e: Exception) {}
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
-            } else {
-                @Suppress("DEPRECATION")
-                overridePendingTransition(0, 0)
-            }
-            finish()
-            return true
-        }
-        
-        if (intent?.action == "com.pixel.intelligentsearch.LAUNCH_LENS_TRANSLATE") {
-            try {
-                val lensStandalone = packageManager.getLaunchIntentForPackage("com.google.ar.lens")?.apply {
-                    putExtra("lens_mode", "translate")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                if (lensStandalone != null) {
-                    startActivity(lensStandalone)
-                } else {
-                    val translateIntent = Intent().apply {
-                        setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
-                        putExtra("lens_mode", "translate")
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    startActivity(translateIntent)
-                }
-            } catch (ex: Exception) {}
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
-            } else {
-                @Suppress("DEPRECATION")
-                overridePendingTransition(0, 0)
-            }
-            finish()
-            return true
-        }
-
-        return false
+    /** Opens Google Lens: the standalone app if installed, otherwise the Google app's Lens deep link. */
+    private fun launchLens(translate: Boolean) {
+        val lens = packageManager.getLaunchIntentForPackage("com.google.ar.lens") ?: Intent().setClassName(
+            "com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink"
+        )
+        lens.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (translate) lens.putExtra("lens_mode", "translate")
+        try { startActivity(lens) } catch (_: Exception) {}
     }
 
     override fun onPause() {

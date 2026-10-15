@@ -24,7 +24,6 @@
     <string name="widget_talkback_gemini_search">Gemini and assistant search</string>
     <string name="widget_talkback_now_playing">Pixel Now Playing song history</string>
     <string name="tile_content_description">Search phone and web quick launcher</string>
-    <string name="tile_subtitle_last_query">Last: %1$s</string>
     <string name="widget_talkback_open_app">Open %1$s</string>
     <string name="widget_talkback_open_web">Open %1$s</string>
 </resources>

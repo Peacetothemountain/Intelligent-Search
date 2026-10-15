@@ -74,28 +74,17 @@ class SettingsViewModel @Inject constructor(
     }
 
     // --- Search Bangs Operations ---
-    fun saveCustomBang(bang: SearchBang) {
-        viewModelScope.launch(Dispatchers.IO) {
-            bangManager.saveCustomBang(bang)
-        }
+    // Each user action is one manager call, so its writes can't interleave with another action's.
+    fun saveBang(bang: SearchBang, replacing: SearchBang? = null) {
+        viewModelScope.launch(Dispatchers.IO) { bangManager.saveBang(bang, replacing) }
     }
 
-    fun deleteCustomBang(prefix: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            bangManager.deleteCustomBang(prefix)
-        }
+    fun removeBangs(bangs: List<SearchBang>) {
+        viewModelScope.launch(Dispatchers.IO) { bangManager.removeBangs(bangs) }
     }
 
-    fun disableBuiltInBang(prefix: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            bangManager.disableBuiltInBang(prefix)
-        }
-    }
-
-    fun enableBuiltInBang(prefix: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            bangManager.enableBuiltInBang(prefix)
-        }
+    fun restoreBuiltInBang(prefix: String) {
+        viewModelScope.launch(Dispatchers.IO) { bangManager.restoreBuiltInBang(prefix) }
     }
 
     // --- Backup & Restore Operations ---

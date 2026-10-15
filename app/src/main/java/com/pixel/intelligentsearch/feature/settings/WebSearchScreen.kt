@@ -653,13 +653,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             SlideToRemoveAllBar(
                                 onRemoveAll = {
                                     localDismissedPrefixes = localDismissedPrefixes + displayedActiveBangs.map { it.displayPrefix }
-                                    displayedActiveBangs.forEach { bang ->
-                                        if (bang.isBuiltIn) {
-                                            viewModel?.disableBuiltInBang(bang.displayPrefix)
-                                        } else {
-                                            viewModel?.deleteCustomBang(bang.displayPrefix)
-                                        }
-                                    }
+                                    viewModel?.removeBangs(displayedActiveBangs)
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -677,11 +671,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             ) {
                                                 hapticEngine.performPredictiveBackHaptic(view)
                                                 localDismissedPrefixes = localDismissedPrefixes + bang.displayPrefix
-                                                if (bang.isBuiltIn) {
-                                                    viewModel?.disableBuiltInBang(bang.displayPrefix)
-                                                } else {
-                                                    viewModel?.deleteCustomBang(bang.displayPrefix)
-                                                }
+                                                viewModel?.removeBangs(listOf(bang))
                                             }
                                         }
 
@@ -870,7 +860,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                     onClick = {
                                                         hapticEngine.performPredictiveBackHaptic(view)
                                                         localDismissedPrefixes = localDismissedPrefixes - bang.displayPrefix
-                                                        viewModel?.enableBuiltInBang(bang.displayPrefix)
+                                                        viewModel?.restoreBuiltInBang(bang.displayPrefix)
                                                     },
                                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                                                     shape = RoundedCornerShape(16.dp)
@@ -1211,18 +1201,8 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             description = "Custom shortcut for $derivedName"
                                         )
 
-                                        val prevBang = editingBang
-                                        if (prevBang != null) {
-                                            if (prevBang.isBuiltIn) {
-                                                viewModel?.disableBuiltInBang(prevBang.displayPrefix)
-                                            } else if (!prevBang.displayPrefix.equals(newBang.displayPrefix, ignoreCase = true)) {
-                                                viewModel?.deleteCustomBang(prevBang.displayPrefix)
-                                            }
-                                        }
-
                                         localDismissedPrefixes = localDismissedPrefixes - newBang.displayPrefix
-                                        viewModel?.enableBuiltInBang(newBang.displayPrefix)
-                                        viewModel?.saveCustomBang(newBang)
+                                        viewModel?.saveBang(newBang, replacing = editingBang)
                                         editingBang = null
                                         showAddDialog = false
                                     }

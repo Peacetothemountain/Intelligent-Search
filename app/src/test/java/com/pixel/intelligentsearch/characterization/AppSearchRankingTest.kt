@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.characterization
 
+import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
 import android.graphics.drawable.ColorDrawable
@@ -56,5 +57,15 @@ class AppSearchRankingTest {
         )
         assertEquals(emptyList<String>(), coordinator.executeTier0Search("com").apps.map { it.name })
         assertTrue("Spotify" in coordinator.executeTier0Search("com.spotify").apps.map { it.name })
+    }
+
+    @Test
+    fun recentlyAndOftenUsedAppsRankFirstAmongEqualMatches() {
+        val coordinator = coordinatorWith(listOf(app("Chrome", "com.android.chrome"), app("Chess", "com.chess")))
+        coordinator.updateAppUsage(mapOf("com.android.chrome" to SystemDataProvider.AppUsage(daysUsed = 12, lastUsedMs = System.currentTimeMillis())))
+        assertEquals("Chrome", coordinator.searchApps("ch").first().name)
+
+        coordinator.updateAppUsage(mapOf("com.chess" to SystemDataProvider.AppUsage(daysUsed = 12, lastUsedMs = System.currentTimeMillis())))
+        assertEquals("Chess", coordinator.searchApps("ch").first().name)
     }
 }

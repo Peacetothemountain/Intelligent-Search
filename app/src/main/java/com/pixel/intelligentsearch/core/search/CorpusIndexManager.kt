@@ -56,6 +56,7 @@ class CorpusIndexManager @Inject constructor(
         private const val TAG = "CorpusIndexManager"
         private const val SETTINGS_PREFS = SettingsManager.PREFS_NAME
         private const val FILES_REFRESH_INTERVAL_MS = 2 * 60 * 1000L
+        private const val APP_USAGE_REFRESH_INTERVAL_MS = 5 * 60 * 1000L
         private const val CONTACTS_REFRESH_INTERVAL_MS = 60 * 1000L
     }
 
@@ -88,6 +89,8 @@ class CorpusIndexManager @Inject constructor(
     private var lastFilesIndexAtMs = 0L
     @Volatile
     private var lastContactsIndexAtMs = 0L
+    @Volatile
+    private var lastAppUsageAtMs = 0L
 
     /**
      * Bootstraps eager background indexing of all corpuses.
@@ -104,6 +107,7 @@ class CorpusIndexManager @Inject constructor(
                 // Concurrently index all corpuses using Kotlin coroutines for instant readiness
                 coroutineScope {
                     val appsDeferred = async { reindexAppsInternal(forceRefresh = force) }
+                    refreshAppUsageIfStale()
                     val shortcutsDeferred = async { reindexShortcutsInternal() }
                     val contactsDeferred = async { reindexContactsInternal() }
                     val filesDeferred = async { reindexFilesInternal(onlyIfOlderThanMs = if (force) null else FILES_REFRESH_INTERVAL_MS) }
@@ -162,6 +166,16 @@ class CorpusIndexManager @Inject constructor(
     fun reindexFilesIfStale() {
         scope.launch(Dispatchers.IO) {
             reindexFilesInternal(onlyIfOlderThanMs = FILES_REFRESH_INTERVAL_MS)
+        }
+    }
+
+    /** Re-reads app usage for ranking at most every [APP_USAGE_REFRESH_INTERVAL_MS]; one cheap system call. */
+    fun refreshAppUsageIfStale() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (lastAppUsageAtMs != 0L && now - lastAppUsageAtMs < APP_USAGE_REFRESH_INTERVAL_MS) return
+        lastAppUsageAtMs = now
+        scope.launch(Dispatchers.IO) {
+            searchCoordinator.updateAppUsage(SystemDataProvider.getAppUsage(context))
         }
     }
 
@@ -299,17 +313,10 @@ class CorpusIndexManager @Inject constructor(
             if (packageReceiver == null) {
                 packageReceiver = object : BroadcastReceiver() {
                     override fun onReceive(context: Context?, intent: Intent?) {
-                        val pkg = intent?.data?.schemeSpecificPart
-                        val isReplacing = intent?.getBooleanExtra(Intent.EXTRA_REPLACING, false) ?: false
-                        if (intent?.action == Intent.ACTION_PACKAGE_REMOVED && !isReplacing) {
-                            if (!pkg.isNullOrBlank()) {
-                                searchCoordinator.removePackage(pkg)
-                                SystemDataProvider.invalidateAppsCache()
-                            }
-                        } else {
-                            reindexApps(forceRefresh = true)
-                            reindexShortcuts()
-                        }
+                        // A full re-scan (rather than dropping the package by name) keeps copies of the same app
+                        // in other profiles; installs, updates and removals are rare enough for that to be cheap.
+                        reindexApps(forceRefresh = true)
+                        reindexShortcuts()
                     }
                 }
                 val filter = IntentFilter().apply {

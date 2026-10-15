@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.characterization
 
+import org.junit.Assert.assertFalse
+import kotlinx.coroutines.runBlocking
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.bangs.SearchBang
@@ -48,5 +50,22 @@ class BangDispatchTest {
         val parsed = bangs.parseBangQuery("!ev x", availableBangs = listOf(evil))!!
         val uri = bangs.dispatchBangSearch(parsed).data!!
         assertEquals("https", uri.scheme)
+    }
+
+    @Test
+    fun editingABuiltInReplacesItAndRemovedBuiltInsCanBeRestored() = runBlocking {
+        val builtIn = bangs.getAllBangsSync().first { it.isBuiltIn }
+        val edited = SearchBang(prefix = "!mine", name = "Mine", urlTemplate = "https://example.com/?q=%s")
+
+        bangs.saveBang(edited, replacing = builtIn)
+        var prefixes = bangs.getAllBangsSync().map { it.displayPrefix }
+        assertTrue("!mine" in prefixes)
+        assertFalse(builtIn.displayPrefix in prefixes)
+
+        bangs.removeBangs(listOf(bangs.getAllBangsSync().first { it.displayPrefix == "!mine" }))
+        bangs.restoreBuiltInBang(builtIn.displayPrefix)
+        prefixes = bangs.getAllBangsSync().map { it.displayPrefix }
+        assertFalse("!mine" in prefixes)
+        assertTrue(builtIn.displayPrefix in prefixes)
     }
 }

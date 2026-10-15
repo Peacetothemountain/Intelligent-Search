@@ -44,16 +44,13 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
     open val forcedIsMaterial: Boolean? = null
 
-    @Suppress("DEPRECATION")
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
+        // This receiver is exported (the launcher binds widgets through it), so it ignores custom actions any
+        // app could send to force redraws; only an app update triggers a full refresh here. (Wallpaper and
+        // configuration broadcasts are never delivered to manifest receivers.)
         when (intent.action) {
-            Intent.ACTION_MY_PACKAGE_REPLACED,
-            Intent.ACTION_WALLPAPER_CHANGED,
-            Intent.ACTION_CONFIGURATION_CHANGED,
-            "com.pixel.intelligentsearch.ACTION_UPDATE_WIDGET",
-            "com.pixel.intelligentsearch.ACTION_SHOW_WIDGET",
-            "android.appwidget.action.ACTION_SHOW_WIDGET" -> {
+            Intent.ACTION_MY_PACKAGE_REPLACED -> {
                 DynamicThemeDetector.invalidateCache()
                 clearBitmapCache()
                 val pendingResult = goAsync()

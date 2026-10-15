@@ -62,8 +62,8 @@ fun getVoiceSearchIntent(context: Context): Intent {
     if (context.packageManager.resolveActivityCompat(speech) != null) {
         return speech
     }
+    // No recognizer at all: open the overlay so the user can type instead.
     return Intent(context, WidgetActivity::class.java).apply {
-        putExtra("auto_voice", true)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
     }
 }

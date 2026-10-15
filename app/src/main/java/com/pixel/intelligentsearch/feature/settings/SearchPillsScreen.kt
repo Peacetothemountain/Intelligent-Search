@@ -7,7 +7,6 @@ import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
-import android.util.LruCache
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -48,7 +47,7 @@ import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 
 // SEARCH PILLS SCREEN
 // -----------------------------------------------------------------------------------------
-private val nativeAppIconCache = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(256)
+private val nativeAppIconCache = com.pixel.intelligentsearch.core.ui.imageBitmapLruCache<String>(heapDivisor = 32)
 
 fun getNativeAppIcon(context: Context, packageName: String): androidx.compose.ui.graphics.ImageBitmap? {
     val cached = nativeAppIconCache.get(packageName)

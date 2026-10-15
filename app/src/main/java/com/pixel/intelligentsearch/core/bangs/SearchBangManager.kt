@@ -163,60 +163,35 @@ class SearchBangManager @Inject constructor(
     @Volatile
     private var cachedTriggerSymbol: String? = null
 
-    fun getTriggerSymbol(): String {
-        val cached = cachedTriggerSymbol
-        if (cached != null) return cached
-        val symbol = try {
-            getPrefs()[SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL]?.ifBlank { "!" } ?: "!"
-        } catch (_: Exception) {
-            "!"
-        }
-        cachedTriggerSymbol = symbol
-        return symbol
-    }
+    fun getTriggerSymbol(): String =
+        cachedTriggerSymbol ?: getPrefs()[SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL].ifBlank { "!" }
+            .also { cachedTriggerSymbol = it }
 
     val bangsFlow: Flow<List<SearchBang>> = settingsManager.settingsFlow.map { settings ->
-        cachedTriggerSymbol = null
-        val trigger = getTriggerSymbol()
-        val customBangs = parseCustomBangs(settings.customBangsJson)
-        val disabled = settings.disabledWebShortcuts
-        val builtIns = BUILT_IN_BANGS.map { bang ->
-            if (trigger != "!" && bang.prefix.startsWith("!")) {
-                bang.copy(prefix = "$trigger${bang.prefix.removePrefix("!")}")
-            } else {
-                bang
-            }
-        }
-        val res = (customBangs + builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase(Locale.ROOT) !in disabled }).distinctBy { it.displayPrefix }
-        cachedSyncBangs = res
-        res
+        val trigger = settings.webShortcutTriggerSymbol.ifBlank { "!" }
+        cachedTriggerSymbol = trigger
+        buildBangs(trigger, settings.customBangsJson, settings.disabledWebShortcuts).also { cachedSyncBangs = it }
     }
 
     @Volatile
     private var cachedSyncBangs: List<SearchBang>? = null
     private val mutex = Mutex()
 
-    fun getAllBangsSync(): List<SearchBang> {
-        val cached = cachedSyncBangs
-        if (cached != null) return cached
-        val prefs = getPrefs()
-        val trigger = prefs[SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL]?.ifBlank { "!" } ?: "!"
-        val customBangsJson = prefs[SettingsManager.CUSTOM_BANGS_JSON]
-            ?: settingsManager.getInitialSettings().customBangsJson
-        val customBangs = parseCustomBangs(customBangsJson)
-        val disabled = prefs[SettingsManager.DISABLED_WEB_SHORTCUTS]?.toSet()
-            ?: settingsManager.getInitialSettings().disabledWebShortcuts
+    fun getAllBangsSync(): List<SearchBang> = cachedSyncBangs ?: getPrefs().let { prefs ->
+        buildBangs(
+            getTriggerSymbol(),
+            prefs[SettingsManager.CUSTOM_BANGS_JSON],
+            prefs[SettingsManager.DISABLED_WEB_SHORTCUTS]
+        ).also { cachedSyncBangs = it }
+    }
 
+    /** Custom bangs first, then the built-ins that aren't disabled, re-prefixed when the trigger isn't "!". */
+    private fun buildBangs(trigger: String, customBangsJson: String, disabled: Set<String>): List<SearchBang> {
         val builtIns = BUILT_IN_BANGS.map { bang ->
-            if (trigger != "!" && bang.prefix.startsWith("!")) {
-                bang.copy(prefix = "$trigger${bang.prefix.removePrefix("!")}")
-            } else {
-                bang
-            }
+            if (trigger != "!" && bang.prefix.startsWith("!")) bang.copy(prefix = trigger + bang.prefix.removePrefix("!")) else bang
         }
-        val result = (customBangs + builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase(Locale.ROOT) !in disabled }).distinctBy { it.displayPrefix }
-        cachedSyncBangs = result
-        return result
+        return (parseCustomBangs(customBangsJson) + builtIns.filter { it.displayPrefix !in disabled })
+            .distinctBy { it.displayPrefix }
     }
 
     fun parseBangQuery(query: String, availableBangs: List<SearchBang> = getAllBangsSync()): ParsedBangQuery? {
@@ -362,59 +337,42 @@ class SearchBangManager @Inject constructor(
         }
     }
 
-    suspend fun saveCustomBang(bang: SearchBang) {
-        mutex.withLock {
-            cachedSyncBangs = null
-            val prefs = getPrefs()
-            val currentJson = prefs[SettingsManager.CUSTOM_BANGS_JSON]
-                ?: settingsManager.getInitialSettings().customBangsJson
-            val currentCustom = parseCustomBangs(currentJson).toMutableList()
-            currentCustom.removeAll { it.displayPrefix == bang.displayPrefix || it.prefix.equals(bang.prefix, ignoreCase = true) }
-            currentCustom.add(bang.copy(isBuiltIn = false))
-            val jsonStr = serializeCustomBangs(currentCustom)
-            prefs.edit().put(SettingsManager.CUSTOM_BANGS_JSON, jsonStr).apply()
-            settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, jsonStr)
-        }
+    /**
+     * Adds or edits a custom bang in one atomic write. When editing, the bang it replaces is removed first: a
+     * built-in is disabled (so it can be restored), a custom bang under a different prefix is deleted.
+     */
+    suspend fun saveBang(bang: SearchBang, replacing: SearchBang? = null) = editBangs { custom, disabled ->
+        replacing?.let { removeFrom(custom, disabled, it) }
+        custom.removeAll { it.displayPrefix == bang.displayPrefix }
+        custom.add(bang.copy(isBuiltIn = false))
+        disabled.remove(bang.displayPrefix)
     }
 
-    suspend fun deleteCustomBang(prefix: String) {
-        mutex.withLock {
-            cachedSyncBangs = null
-            val normPrefix = prefix.lowercase().trim()
-            val prefs = getPrefs()
-            val currentJson = prefs[SettingsManager.CUSTOM_BANGS_JSON]
-                ?: settingsManager.getInitialSettings().customBangsJson
-            val currentCustom = parseCustomBangs(currentJson).toMutableList()
-            currentCustom.removeAll { it.displayPrefix == normPrefix || it.prefix.equals(normPrefix, ignoreCase = true) }
-            val jsonStr = serializeCustomBangs(currentCustom)
-            prefs.edit().put(SettingsManager.CUSTOM_BANGS_JSON, jsonStr).apply()
-            settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, jsonStr)
-        }
+    /** Removes bangs in one write: built-ins are disabled, custom bangs are deleted. */
+    suspend fun removeBangs(bangs: List<SearchBang>) = editBangs { custom, disabled ->
+        bangs.forEach { removeFrom(custom, disabled, it) }
     }
 
-    suspend fun disableBuiltInBang(prefix: String) {
-        mutex.withLock {
-            cachedSyncBangs = null
-            val normPrefix = prefix.lowercase().trim()
-            val prefs = getPrefs()
-            val currentDisabled = (prefs[SettingsManager.DISABLED_WEB_SHORTCUTS]?.toSet()
-                ?: settingsManager.getInitialSettings().disabledWebShortcuts).toMutableSet()
-            currentDisabled.add(normPrefix)
-            prefs.edit().put(SettingsManager.DISABLED_WEB_SHORTCUTS, HashSet(currentDisabled)).apply()
-            settingsManager.updateSetting(SettingsManager.DISABLED_WEB_SHORTCUTS, currentDisabled)
-        }
+    suspend fun restoreBuiltInBang(prefix: String) = editBangs { _, disabled ->
+        disabled.remove(prefix.lowercase(Locale.ROOT).trim())
     }
 
-    suspend fun enableBuiltInBang(prefix: String) {
+    private fun removeFrom(custom: MutableList<SearchBang>, disabled: MutableSet<String>, bang: SearchBang) {
+        if (bang.isBuiltIn) disabled.add(bang.displayPrefix) else custom.removeAll { it.displayPrefix == bang.displayPrefix }
+    }
+
+    /** Read-modify-write of both bang settings under one lock, committed together so edits can't interleave. */
+    private suspend fun editBangs(edit: (MutableList<SearchBang>, MutableSet<String>) -> Unit) {
         mutex.withLock {
-            cachedSyncBangs = null
-            val normPrefix = prefix.lowercase().trim()
             val prefs = getPrefs()
-            val currentDisabled = (prefs[SettingsManager.DISABLED_WEB_SHORTCUTS]?.toSet()
-                ?: settingsManager.getInitialSettings().disabledWebShortcuts).toMutableSet()
-            currentDisabled.remove(normPrefix)
-            prefs.edit().put(SettingsManager.DISABLED_WEB_SHORTCUTS, HashSet(currentDisabled)).apply()
-            settingsManager.updateSetting(SettingsManager.DISABLED_WEB_SHORTCUTS, currentDisabled)
+            val custom = parseCustomBangs(prefs[SettingsManager.CUSTOM_BANGS_JSON]).toMutableList()
+            val disabled = prefs[SettingsManager.DISABLED_WEB_SHORTCUTS].toMutableSet()
+            edit(custom, disabled)
+            cachedSyncBangs = null
+            prefs.edit()
+                .put(SettingsManager.CUSTOM_BANGS_JSON, serializeCustomBangs(custom))
+                .put(SettingsManager.DISABLED_WEB_SHORTCUTS, disabled.toSet())
+                .commit()
         }
     }
 

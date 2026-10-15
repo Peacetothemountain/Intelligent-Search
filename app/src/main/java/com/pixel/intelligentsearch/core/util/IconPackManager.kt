@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
-import android.util.LruCache
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.InputStream
@@ -18,7 +17,7 @@ data class IconPackInfo(
 
 object IconPackManager {
 
-    private val iconCache = LruCache<String, Drawable>(512)
+    // Drawables aren't cached here: AppIconLoader caches the downscaled bitmap, which is far smaller.
     private val appFilterMapCache = ConcurrentHashMap<String, Map<String, String>>()
 
     private val ICON_PACK_ACTIONS = listOf(
@@ -76,12 +75,6 @@ object IconPackManager {
     fun getIconForPackage(context: Context, iconPackPackage: String?, targetPackage: String): Drawable? {
         if (iconPackPackage.isNullOrEmpty() || iconPackPackage == "system_default") {
             return null
-        }
-
-        val cacheKey = "$iconPackPackage:$targetPackage"
-        val cached = iconCache.get(cacheKey)
-        if (cached != null) {
-            return cached
         }
 
         try {
@@ -145,10 +138,7 @@ object IconPackManager {
                 } else {
                     iconPackRes.getDrawable(resId, null)
                 }
-                if (drawable != null) {
-                    iconCache.put(cacheKey, drawable)
-                    return drawable
-                }
+                if (drawable != null) return drawable
             }
         } catch (e: Exception) {
             android.util.Log.w("IntelligentSearch", "Unexpected error", e)
@@ -225,7 +215,6 @@ object IconPackManager {
     }
 
     fun clearCache() {
-        iconCache.evictAll()
         appFilterMapCache.clear()
         com.pixel.intelligentsearch.core.ui.clearThemedIconCache()
     }

@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.data.*
 
 /** Decoded file thumbnails for the results list. */
-private val fileThumbnailCache = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(128)
+private val fileThumbnailCache = com.pixel.intelligentsearch.core.ui.imageBitmapLruCache<String>(heapDivisor = 32)
 
 /** Frees the in-memory icon and thumbnail caches (called when the system asks for memory). */
 fun clearAllUiMemoryCaches() {

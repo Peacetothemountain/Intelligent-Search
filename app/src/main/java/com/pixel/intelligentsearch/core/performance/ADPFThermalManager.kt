@@ -393,17 +393,6 @@ class ADPFThermalManager @Inject constructor(@param:ApplicationContext private v
         }
     }
 
-    fun applyTopAppThreadPriority() {
-        try {
-            // -10 corresponds to TOP_APP foreground audio/rendering nice level in Android Linux kernel
-            Process.setThreadPriority(-10)
-        } catch (_: Throwable) {
-            try {
-                Process.setThreadPriority(Process.THREAD_PRIORITY_FOREGROUND)
-            } catch (_: Throwable) {}
-        }
-    }
-
     fun release() {
         if (powerManager != null && thermalStatusListener != null) {
             try {

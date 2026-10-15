@@ -287,10 +287,11 @@ class BackupManager @Inject constructor(
                 val payload = createBackupPayload()
                 val plainJson = serializePayload(payload)
 
-                val isHwBacked = strongBoxSecurityManager.isStrongBoxSupported()
                 val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
 
                 val envelope = if (!passphrase.isNullOrBlank()) {
+                    // Passphrase backups are encrypted in software from the passphrase so they restore on
+                    // any phone; the device Keystore is not involved, so they are not hardware backed.
                     val salt = BackupCryptoEngine.generateRandomSalt()
                     val iv = BackupCryptoEngine.generateRandomIv()
                     val passChars = passphrase.toCharArray()
@@ -303,7 +304,7 @@ class BackupManager @Inject constructor(
                     val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
 
                     EncryptedBackupEnvelope(
-                        isHardwareBacked = isHwBacked,
+                        isHardwareBacked = false,
                         hardwareChip = hwInfo.chipName,
                         deviceModel = hwInfo.deviceDisplayName,
                         kdf = KdfMetadata(iterations = BackupCryptoEngine.PBKDF2_ITERATIONS, saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
@@ -311,31 +312,26 @@ class BackupManager @Inject constructor(
                         encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
                         payloadSha256 = sha
                     )
-                } else if (isHwBacked) {
-                    val (key, _) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
+                } else {
+                    // No passphrase: encrypt with a non-exportable AES-256 key generated inside this phone's
+                    // Keystore (StrongBox when present, otherwise the TEE). The key never leaves the
+                    // hardware, so the file only restores on this phone and this install. The old
+                    // APK-embedded "portable" key is kept for restoring legacy files only.
+                    val (key, keyLevel) = strongBoxSecurityManager.getOrCreateSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
                     // Keystore keys require randomized encryption and reject a caller-supplied IV, so the
                     // cipher generates the IV itself.
                     val (iv, cipherBytes) = BackupCryptoEngine.encryptPayloadWithGeneratedIv(plainJson, key)
                     val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
 
+                    // Record where the key actually landed: StrongBox can fall back to the TEE, and some
+                    // keystores report software backing.
                     EncryptedBackupEnvelope(
-                        isHardwareBacked = true,
-                        hardwareChip = hwInfo.chipName,
-                        deviceModel = hwInfo.deviceDisplayName,
-                        kdf = null,
-                        cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
-                        encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
-                        payloadSha256 = sha
-                    )
-                } else {
-                    val key = BackupCryptoEngine.getPortableDefaultKey()
-                    val iv = BackupCryptoEngine.generateRandomIv()
-                    val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
-                    val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
-
-                    EncryptedBackupEnvelope(
-                        isHardwareBacked = false,
-                        hardwareChip = hwInfo.chipName,
+                        isHardwareBacked = keyLevel != com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.SOFTWARE,
+                        hardwareChip = when (keyLevel) {
+                            com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> hwInfo.chipName
+                            com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE -> hwInfo.teeName
+                            com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.SOFTWARE -> "Android Keystore (software)"
+                        },
                         deviceModel = hwInfo.deviceDisplayName,
                         kdf = null,
                         cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
@@ -483,7 +479,7 @@ class BackupManager @Inject constructor(
                         throw SecurityException("Device KeyStore key unavailable or backup integrity check failed.", e)
                     }
                 } else {
-                    // Standard portable non-passphrase backup
+                    // Legacy portable file (APK-embedded key, not secret); new exports never use this.
                     try {
                         val key = BackupCryptoEngine.getPortableDefaultKey()
                         BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)

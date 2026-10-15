@@ -208,8 +208,7 @@ fun BackupRestoreScreen(
                     safeShowToast(
                         when {
                             passphrase.isNotBlank() -> "Encrypted backup exported successfully!"
-                            hardwareInfo.isStrongBox -> "Backup exported. Without a passphrase it can only be restored on this phone."
-                            else -> "Backup exported (no passphrase: not securely encrypted)"
+                            else -> "Backup exported. Without a passphrase it can only be restored on this phone."
                         }
                     )
                 },
@@ -411,11 +410,7 @@ fun BackupRestoreScreen(
             },
             text = {
                 Text(
-                    if (hardwareInfo.isStrongBox) {
-                        "Without a passphrase, this backup is locked to this phone's ${hardwareInfo.shortChipName}. It can't be restored on another phone, or on this one after Intelligent Search is reinstalled or its data is cleared. Do you want to set a passphrase first?"
-                    } else {
-                        "Without a passphrase, your backup will not be securely encrypted. Anyone with access to the exported file will be able to read your settings, history, and configuration. Do you want to set a passphrase first, or export without encryption?"
-                    },
+                    "Without a passphrase, this backup is locked to this phone's ${hardwareInfo.shortChipName}. It can't be restored on another phone, or on this one after Intelligent Search is reinstalled or its data is cleared. Do you want to set a passphrase first?",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -475,11 +470,7 @@ fun BackupRestoreScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
                 Text(
-                    if (hardwareInfo.isStrongBox) {
-                        "Set a passphrase to restore your backup on any device. If left blank, the backup is encrypted with a key in this phone's ${hardwareInfo.shortChipName} and can only be restored on this phone."
-                    } else {
-                        "Set a passphrase to securely encrypt your backup. If left blank, the backup restores automatically on any device, but it is not securely encrypted: anyone with the file can read it."
-                    },
+                    "Set a passphrase to restore your backup on any device. If left blank, the backup is encrypted with a key in this phone's ${hardwareInfo.shortChipName} and can only be restored on this phone.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)

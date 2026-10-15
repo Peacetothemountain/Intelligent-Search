@@ -25,12 +25,12 @@ class HardwareSecurityDetectorTest {
 
         assertEquals("Google Titan M3", info.chipName)
         assertEquals("Titan M3", info.shortChipName)
-        assertEquals("Google Trusty TEE (Post-Quantum Secure)", info.teeName)
+        assertEquals("Google Trusty TEE", info.teeName)
         assertEquals("Google Pixel 11 Pro XL", info.deviceDisplayName)
         assertEquals("Tensor G6", info.socDisplayName)
         assertTrue(info.isStrongBox)
         assertEquals("Google Titan M3 Hardware Secured", info.title)
-        assertTrue(info.description.contains("NIST post-quantum cryptography"))
+        assertTrue(info.description.contains("StrongBox"))
     }
 
     @Test
@@ -50,7 +50,7 @@ class HardwareSecurityDetectorTest {
 
         assertEquals("Google Titan M3", info.chipName)
         assertEquals("Titan M3", info.shortChipName)
-        assertEquals("Google Trusty TEE (Post-Quantum Secure)", info.teeName)
+        assertEquals("Google Trusty TEE", info.teeName)
         assertEquals("Tensor G5", info.socDisplayName)
         assertTrue(info.isStrongBox)
     }
@@ -172,7 +172,7 @@ class HardwareSecurityDetectorTest {
             effectiveLevel = HardwareSecurityLevel.STRONGBOX
         )
 
-        assertEquals("Samsung Knox Vault (EAL6+)", info.chipName)
+        assertEquals("Samsung Knox Vault", info.chipName)
         assertEquals("Knox Vault", info.shortChipName)
         assertEquals("Samsung Knox TEE (TEEGRIS / Kinibi)", info.teeName)
         assertTrue(info.isStrongBox)

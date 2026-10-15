@@ -3,7 +3,6 @@ package com.pixel.intelligentsearch.core.backup
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import com.pixel.intelligentsearch.core.bangs.SearchBangManager
 import com.pixel.intelligentsearch.core.data.HistoryDao
 import com.pixel.intelligentsearch.core.data.HistoryEntity
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -22,7 +21,6 @@ class BackupManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val settingsManager: SettingsManager,
     private val historyDao: HistoryDao,
-    private val searchBangManager: SearchBangManager,
     private val strongBoxSecurityManager: StrongBoxSecurityManager
 ) {
 

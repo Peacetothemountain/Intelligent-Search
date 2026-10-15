@@ -8,14 +8,10 @@ import androidx.appfunctions.AppFunctionSerializable
 import androidx.appfunctions.AppFunctionService
 import androidx.appfunctions.AppFunctionServiceEntryPoint
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
-import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine
 import com.pixel.intelligentsearch.core.security.AdvancedProtectionMonitor
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.components.SingletonComponent
+import com.pixel.intelligentsearch.di.appEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 
@@ -62,15 +58,8 @@ data class CalculationResult(
 )
 abstract class IntelligentSearchAppFunctions : AppFunctionService() {
 
-    @EntryPoint
-    @InstallIn(SingletonComponent::class)
-    interface SettingsEntryPoint {
-        fun settingsManager(): SettingsManager
-    }
-
     private suspend fun currentSettings(): IntelligentSearchSettings? = try {
-        EntryPointAccessors.fromApplication(applicationContext, SettingsEntryPoint::class.java)
-            .settingsManager()
+        applicationContext.appEntryPoint.settingsManager()
             .settingsFlow
             .first()
     } catch (e: CancellationException) {

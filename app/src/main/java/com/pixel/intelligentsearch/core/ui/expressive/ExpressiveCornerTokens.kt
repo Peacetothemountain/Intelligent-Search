@@ -163,23 +163,15 @@ class SquircleShape(
  */
 object ExpressiveCornerTokens {
     val None: Dp = 0.dp
-    val ExtraSmall: Dp = 8.dp
     val Small: Dp = 12.dp
     val Medium: Dp = 16.dp
     val Large: Dp = 20.dp
-    val LargeIncreased: Dp = 24.dp
     val ExtraLarge: Dp = 28.dp
-    val ExtraLargeIncreased: Dp = 32.dp
     val Full: Dp = 1000.dp
 
-    val ShapeNone: Shape = SquircleShape(None)
-    val ShapeExtraSmall: Shape = SquircleShape(ExtraSmall)
-    val ShapeSmall: Shape = SquircleShape(Small)
     val ShapeMedium: Shape = SquircleShape(Medium)
     val ShapeLarge: Shape = SquircleShape(Large)
-    val ShapeLargeIncreased: Shape = SquircleShape(LargeIncreased)
     val ShapeExtraLarge: Shape = SquircleShape(ExtraLarge)
-    val ShapeExtraLargeIncreased: Shape = SquircleShape(ExtraLargeIncreased)
     val ShapeFull: Shape = SquircleShape(Full)
 
     fun squircle(radius: Dp, smoothing: Float = 0.6f): Shape = SquircleShape(radius, smoothing)

@@ -37,9 +37,6 @@ class TactileSonicEngine private constructor(private val context: Context) {
             prefs.edit().putBoolean("vibration_enabled", value).apply()
         }
 
-    @Volatile
-    var isSonicEnabled: Boolean = false
-
     // High-frequency debouncing timestamps
     private var lastScrollDetentTimestamp: Long = 0L
     private var lastMagneticResistanceTimestamp: Long = 0L
@@ -138,29 +135,11 @@ class TactileSonicEngine private constructor(private val context: Context) {
     }
 
     /**
-     * Security unlock biometric heartbeat.
-     */
-    fun securityHeartbeat(view: View? = null) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.SECURITY_HEARTBEAT)
-        }
-    }
-
-    /**
      * Delete / clear confirmation tick.
      */
     fun deleteThud(view: View? = null) {
         if (isHapticEnabled) {
             hapticEngine.performHaptic(view, PixelHapticType.DELETE_THUD)
-        }
-    }
-
-    /**
-     * Overlay expansion tactile tick.
-     */
-    fun overlayOpen(view: View? = null) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.SPRING_RELEASE)
         }
     }
 
@@ -173,14 +152,6 @@ class TactileSonicEngine private constructor(private val context: Context) {
         }
     }
 
-    /**
-     * Reorder drag-and-drop item swap.
-     */
-    fun reorderSwap(view: View? = null) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.TICK)
-        }
-    }
 }
 
 /**

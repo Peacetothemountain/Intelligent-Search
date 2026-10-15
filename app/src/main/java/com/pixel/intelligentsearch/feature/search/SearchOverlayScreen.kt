@@ -1,20 +1,17 @@
 package com.pixel.intelligentsearch.feature.search
+import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
 import com.pixel.intelligentsearch.feature.settings.tutorialTarget
 import android.app.SearchManager
-import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
 import com.pixel.intelligentsearch.feature.settings.SettingsDebouncer
 import com.pixel.intelligentsearch.feature.settings.TutorialSpotlightOverlay
 import com.pixel.intelligentsearch.feature.settings.TutorialManager
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
-import com.pixel.intelligentsearch.feature.settings.performClickHaptic
-import com.pixel.intelligentsearch.core.haptics.TactileSonicEngine
 import com.pixel.intelligentsearch.core.haptics.PixelHapticType
 import com.pixel.intelligentsearch.core.haptics.rememberTactileSonicEngine
 import com.pixel.intelligentsearch.core.haptics.rememberScrollDetentController
-import com.pixel.intelligentsearch.core.haptics.rememberMagneticDismissController
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.ContactItem
@@ -26,12 +23,8 @@ import android.net.Uri
 import android.os.Build
 import android.content.Context
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.BackEventCompat
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import android.speech.RecognizerIntent
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.*
@@ -55,7 +48,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -63,7 +55,6 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.outlined.*
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -110,7 +101,6 @@ import com.pixel.intelligentsearch.core.ui.ConversionOneBox
 import com.pixel.intelligentsearch.core.ui.DictionaryOneBox
 import com.pixel.intelligentsearch.core.ui.UrlNavigationOneBox
 import com.pixel.intelligentsearch.core.ui.TimeWeatherOneBox
-import com.pixel.intelligentsearch.core.ui.expressive.SquircleShape
 import com.pixel.intelligentsearch.core.ui.progressiveEdgeBlur
 import com.pixel.intelligentsearch.core.ui.ProgressiveBlurDirection
 import com.pixel.intelligentsearch.core.ui.materialYouGeminiPlate
@@ -119,12 +109,6 @@ import androidx.compose.ui.graphics.Brush
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
-    is android.app.Activity -> this
-    is android.content.ContextWrapper -> baseContext.findActivity()
-    else -> null
-}
 
 @Composable
 fun AppGridItem(app: AppItem, onClick: () -> Unit) {
@@ -636,9 +620,6 @@ fun SearchOverlayScreen(
     val isOpening = transitionState.targetState
     
     val activity = context.findActivity()
-    val isFromBackSwipe = remember(activity) {
-        activity?.intent?.getBooleanExtra("FROM_BACK_SWIPE", false) == true
-    }
 
     val density = LocalDensity.current
 

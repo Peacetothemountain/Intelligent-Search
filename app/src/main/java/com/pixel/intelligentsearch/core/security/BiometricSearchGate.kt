@@ -3,325 +3,105 @@ package com.pixel.intelligentsearch.core.security
 import android.app.Activity
 import android.app.KeyguardManager
 import android.content.Context
-import android.content.ContextWrapper
 import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
 import android.os.CancellationSignal
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.lang.ref.WeakReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Biometric / device-credential prompt for private search and hidden applications, with
- * FLAG_SECURE applied while a session is unlocked.
+ * Asks for the user's fingerprint, face or screen lock before protected content (hidden apps, the
+ * backup screen) is shown, and blocks screenshots of that window while the session is unlocked.
  *
  * Engineered by NG Designs.
  */
 @Singleton
 class BiometricSearchGate @Inject constructor(
-    @param:ApplicationContext private val context: Context,
-    private val securityManager: StrongBoxSecurityManager,
-    private val encryptedVault: EncryptedDataVault
+    @param:ApplicationContext private val context: Context
 ) {
-    /**
-     * Lets composables reach the singleton. Building a new gate per screen visit registered a
-     * permanent session-lock listener each time and kept the Activity it was built with alive.
-     */
-    @dagger.hilt.EntryPoint
-    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
-    interface GateEntryPoint {
-        fun biometricSearchGate(): BiometricSearchGate
-    }
-
     companion object {
-        fun get(context: Context): BiometricSearchGate =
-            dagger.hilt.android.EntryPointAccessors
-                .fromApplication(context.applicationContext, GateEntryPoint::class.java)
-                .biometricSearchGate()
-
         private const val TAG = "BiometricSearchGate"
     }
 
     private val sessionLock = SecuritySessionLock.instance
 
     @Volatile
-    private var shieldedActivityRef: java.lang.ref.WeakReference<Activity>? = null
-
-    private val sessionLockListener: () -> Unit = {
-        val activity = shieldedActivityRef?.get()
-        shieldedActivityRef = null
-        if (activity != null) {
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                WindowSecurityGuard.disableScreenShield(activity)
-            }
-        }
-    }
+    private var shieldedActivityRef: WeakReference<Activity>? = null
 
     init {
-        sessionLock.registerLockListener(sessionLockListener)
-    }
-
-    fun getActivity(providedContext: Context? = null): Activity? {
-        var currentContext = providedContext ?: context
-        while (currentContext is ContextWrapper) {
-            if (currentContext is Activity) {
-                return currentContext
+        // When the session locks (app backgrounded or timed out), lift the screenshot block again.
+        sessionLock.registerLockListener {
+            val activity = shieldedActivityRef?.get()
+            shieldedActivityRef = null
+            if (activity != null) {
+                Handler(Looper.getMainLooper()).post { WindowSecurityGuard.disableScreenShield(activity) }
             }
-            currentContext = currentContext.baseContext
-        }
-        return currentContext as? Activity
-    }
-
-    fun isBiometricHardwareAvailable(): Boolean {
-        return try {
-            val biometricManager = context.getSystemService(Context.BIOMETRIC_SERVICE) as? BiometricManager
-            val status = biometricManager?.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            status == BiometricManager.BIOMETRIC_SUCCESS
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to query biometric hardware availability: ${e.message}")
-            false
         }
     }
 
-    fun canAuthenticateWithDeviceCredential(): Boolean {
-        return try {
-            val biometricManager = context.getSystemService(Context.BIOMETRIC_SERVICE) as? BiometricManager
-            val status = biometricManager?.canAuthenticate(
-                BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
-            )
-            status == BiometricManager.BIOMETRIC_SUCCESS
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to query device credential availability: ${e.message}")
-            false
-        }
-    }
+    /** Whether the device has a screen lock (PIN, pattern, password), which biometrics also require. */
+    fun isDeviceSecure(): Boolean =
+        (context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager)?.isDeviceSecure == true
 
-    fun isDeviceSecure(): Boolean {
-        val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-        return keyguardManager?.isDeviceSecure == true
-    }
-
-    fun isSessionUnlocked(timeoutMs: Long = 30_000L): Boolean {
-        return sessionLock.isUnlocked(timeoutMs)
-    }
-
-    fun lockSession() {
-        val activity = shieldedActivityRef?.get() ?: getActivity()
-        shieldedActivityRef = null
-        sessionLock.lockdown()
-        WindowSecurityGuard.disableScreenShield(activity)
+    /** Whether a prompt can be shown at all: there is a screen lock or an enrolled strong biometric. */
+    fun canPrompt(): Boolean = isDeviceSecure() || try {
+        (context.getSystemService(Context.BIOMETRIC_SERVICE) as? BiometricManager)
+            ?.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+    } catch (e: Exception) {
+        Log.w(TAG, "Failed to query biometric availability: ${e.message}")
+        false
     }
 
     /**
-     * Executes standard or crypto-bound biometric authentication with screen shielding.
+     * Shows the system prompt (strong biometric or screen lock). [onSuccess] runs once the user is verified;
+     * [onFailure] runs if they cancel, fail too many times, or the prompt can't be shown.
      */
     fun authenticate(
         activity: Activity,
-        cryptoObject: BiometricPrompt.CryptoObject? = null,
-        title: String = "Authenticate to Access Hidden Items",
-        subtitle: String? = null,
-        description: String? = null,
-        cancellationSignal: CancellationSignal = CancellationSignal(),
-        enableScreenShield: Boolean = true,
-        onSuccess: (BiometricPrompt.AuthenticationResult) -> Unit,
-        onError: (errorCode: Int, errString: String) -> Unit,
-        onCancel: () -> Unit = {}
+        title: String,
+        subtitle: String?,
+        onSuccess: () -> Unit,
+        onFailure: () -> Unit
     ) {
-        if (enableScreenShield) {
-            shieldedActivityRef = java.lang.ref.WeakReference(activity)
-            WindowSecurityGuard.enableScreenShield(activity)
-        }
-
-        cancellationSignal.setOnCancelListener {
-            if (enableScreenShield && !sessionLock.isUnlocked()) {
+        shieldedActivityRef = WeakReference(activity)
+        WindowSecurityGuard.enableScreenShield(activity)
+        val unshieldIfLocked = {
+            if (!sessionLock.isUnlocked()) {
                 shieldedActivityRef = null
                 WindowSecurityGuard.disableScreenShield(activity)
             }
-        }
-
-        val executor = activity.mainExecutor
-        val builder = BiometricPrompt.Builder(activity).setTitle(title)
-        subtitle?.let { builder.setSubtitle(it) }
-        description?.let { builder.setDescription(it) }
-
-        if (cryptoObject != null) {
-            builder.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            builder.setNegativeButton("Cancel", executor) { _, _ ->
-                if (enableScreenShield && !sessionLock.isUnlocked()) {
-                    shieldedActivityRef = null
-                    WindowSecurityGuard.disableScreenShield(activity)
-                }
-                onCancel()
-            }
-        } else {
-            builder.setAllowedAuthenticators(
-                BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
-            )
         }
 
         val callback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                super.onAuthenticationSucceeded(result)
                 sessionLock.notifyAuthenticated()
-                onSuccess(result)
+                onSuccess()
             }
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
-                super.onAuthenticationError(errorCode, errString)
-                if (enableScreenShield && !sessionLock.isUnlocked()) {
-                    shieldedActivityRef = null
-                    WindowSecurityGuard.disableScreenShield(activity)
-                }
-                if (errorCode == BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED ||
-                    errorCode == BiometricPrompt.BIOMETRIC_ERROR_CANCELED
-                ) {
-                    onCancel()
-                } else {
-                    onError(errorCode, errString?.toString() ?: "Authentication failed ($errorCode)")
-                }
-            }
-
-            override fun onAuthenticationFailed() {
-                super.onAuthenticationFailed()
+                unshieldIfLocked()
+                onFailure()
             }
         }
 
         try {
-            val prompt = builder.build()
-            if (cryptoObject != null) {
-                prompt.authenticate(cryptoObject, cancellationSignal, executor, callback)
-            } else {
-                prompt.authenticate(cancellationSignal, executor, callback)
-            }
+            BiometricPrompt.Builder(activity)
+                .setTitle(title)
+                .apply { subtitle?.let(::setSubtitle) }
+                .setAllowedAuthenticators(
+                    BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                )
+                .build()
+                .authenticate(CancellationSignal(), activity.mainExecutor, callback)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch BiometricPrompt", e)
-            if (enableScreenShield && !sessionLock.isUnlocked()) {
-                shieldedActivityRef = null
-                WindowSecurityGuard.disableScreenShield(activity)
-            }
-            onError(-1, e.message ?: "Authentication initialization failed")
+            unshieldIfLocked()
+            onFailure()
         }
-    }
-
-    /**
-     * Hardware Cryptographic Gating Pipeline:
-     * Unlocks an [EncryptedVaultRecord] bound to a per-operation KeyMint biometric key.
-     * Guarantees that data cannot be decrypted by hooking callbacks without authenticating
-     * the underlying StrongBox / TEE Cipher. If per-operation key was invalidated by new biometric
-     * enrollment, gracefully falls back to master vault authentication.
-     */
-    fun authenticateForCryptographicAccess(
-        activity: Activity,
-        record: EncryptedVaultRecord,
-        profileId: String = "default",
-        title: String = "Biometric Verification Required",
-        onDecrypted: (SecureByteArray) -> Unit,
-        onError: (String) -> Unit,
-        onCancel: () -> Unit = {}
-    ) {
-        if (!isBiometricHardwareAvailable() && !isDeviceSecure()) {
-            onError("Biometric hardware or secure lock screen is not available on this device.")
-            return
-        }
-
-        val cryptoObjectResult = try {
-            val iv = encryptedVault.extractIv(record.payload)
-            securityManager.initBiometricDecryptCryptoObject(iv)
-        } catch (e: Exception) {
-            Log.w(TAG, "Per-operation biometric crypto object init failed; falling back to device auth gate: ${e.message}")
-            null
-        }
-
-        if (cryptoObjectResult != null) {
-            authenticate(
-                activity = activity,
-                cryptoObject = cryptoObjectResult,
-                title = title,
-                subtitle = "Hardware-bound KeyMint verification",
-                enableScreenShield = true,
-                onSuccess = { result ->
-                    val cipher = result.cryptoObject?.cipher
-                    if (cipher == null) {
-                        lockSession()
-                        onError("Hardware cipher is null after authentication.")
-                        return@authenticate
-                    }
-                    // Decrypt first, deliver afterwards: a throwing onDecrypted callback must never be
-                    // mistaken for a decryption failure (which would re-run the fallback and invoke the
-                    // callback a second time while leaking the first buffer).
-                    val decrypted = try {
-                        encryptedVault.decryptWithBiometricCipher(cipher, record, profileId)
-                    } catch (e: Exception) {
-                        try {
-                            encryptedVault.decrypt(record, profileId)
-                        } catch (masterEx: Exception) {
-                            Log.e(TAG, "Biometric decryption failed", masterEx)
-                            lockSession()
-                            onError("Decryption failed: ${masterEx.message}")
-                            return@authenticate
-                        }
-                    }
-                    try {
-                        onDecrypted(decrypted)
-                    } catch (callbackEx: Throwable) {
-                        decrypted.close()
-                        throw callbackEx
-                    }
-                },
-                onError = { _, errString -> onError(errString) },
-                onCancel = onCancel
-            )
-        } else {
-            // Fallback to standard biometric / device credential authentication when per-operation crypto object is unavailable
-            authenticate(
-                activity = activity,
-                cryptoObject = null,
-                title = title,
-                subtitle = "Device Security Verification",
-                enableScreenShield = true,
-                onSuccess = {
-                    val masterBytes = try {
-                        encryptedVault.decrypt(record, profileId)
-                    } catch (masterEx: Exception) {
-                        Log.e(TAG, "Master vault decryption fallback failed", masterEx)
-                        lockSession()
-                        onError("Decryption failed: ${masterEx.message}")
-                        return@authenticate
-                    }
-                    try {
-                        onDecrypted(masterBytes)
-                    } catch (callbackEx: Throwable) {
-                        masterBytes.close()
-                        throw callbackEx
-                    }
-                },
-                onError = { _, errString -> onError(errString) },
-                onCancel = onCancel
-            )
-        }
-    }
-
-    /**
-     * Backward-compatible private search gate.
-     */
-    fun authenticateForPrivateSearch(
-        activity: Activity,
-        onSuccess: () -> Unit,
-        onError: (String) -> Unit
-    ) {
-        if (!isDeviceSecure() && !isBiometricHardwareAvailable()) {
-            onError("No secure lock screen or biometric credential configured on device.")
-            return
-        }
-
-        authenticate(
-            activity = activity,
-            title = "Unlock Private Search",
-            subtitle = "Verify identity to view hidden items",
-            onSuccess = { onSuccess() },
-            onError = { _, errString -> onError(errString) },
-            onCancel = { onError("Authentication cancelled") }
-        )
     }
 }

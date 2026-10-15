@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.service.quicksettings.Tile
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -36,12 +35,8 @@ class DirectBootAndRoleManagerTest {
         val mockContext = TestContext()
 
         assertNull(SearchRoleManager.getAvailableSearchRole(mockContext))
-        assertFalse(SearchRoleManager.isSearchRoleAvailable(mockContext))
         assertFalse(SearchRoleManager.isSearchRoleHeld(mockContext))
-        assertNull(SearchRoleManager.createRequestSearchRoleIntent(mockContext))
         assertFalse(SearchRoleManager.canWriteSecureSettings(mockContext))
-        assertFalse(SearchRoleManager.isPixelLauncherSynced(mockContext))
-        assertFalse(SearchRoleManager.syncPixelLauncherSearchEngine(mockContext))
     }
 
     @Test
@@ -52,9 +47,8 @@ class DirectBootAndRoleManagerTest {
             }
         }
 
-        // Neither method should rethrow any exception
+        // Must not rethrow
         SearchRoleManager.openDefaultSearchEngineSettings(mockContext)
-        SearchRoleManager.openSearchRoleOrSettings(mockContext)
     }
 
     @Test

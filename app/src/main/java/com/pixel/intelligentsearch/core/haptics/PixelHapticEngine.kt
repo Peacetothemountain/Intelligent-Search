@@ -9,7 +9,6 @@ import android.os.VibratorManager
 import android.view.HapticFeedbackConstants
 import android.view.View
 import kotlin.math.abs
-import kotlin.math.min
 
 enum class PixelHapticType {
     CLICK,

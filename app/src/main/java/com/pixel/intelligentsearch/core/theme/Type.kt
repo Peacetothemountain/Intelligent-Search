@@ -67,59 +67,6 @@ val GoogleSansFlex = FontFamily(
     )
 )
 
-private data class VariableFontCacheKey(
-    val weight: Int,
-    val width: Float,
-    val slant: Float,
-    val grade: Int
-)
-
-private val variableFontCache = java.util.concurrent.ConcurrentHashMap<VariableFontCacheKey, FontFamily>()
-
-/**
- * Creates a specialized variable [FontFamily] with custom Material 3 Expressive variable font axes.
- * Supports weight (100..1000), width (25..151), slant (-10..0), and optical grade (-200..150).
- * Results are cached in a thread-safe cache to avoid runtime allocations during 120 FPS rendering.
- */
-fun googleSansFlexVariable(
-    weight: Int = 400,
-    width: Float = 100f,
-    slant: Float = 0f,
-    grade: Int = 0
-): FontFamily {
-    val key = VariableFontCacheKey(
-        weight = weight.coerceIn(100, 1000),
-        width = width.coerceIn(25f, 151f),
-        slant = slant.coerceIn(-10f, 0f),
-        grade = grade.coerceIn(-200, 150)
-    )
-    return variableFontCache.computeIfAbsent(key) { k ->
-        FontFamily(
-            Font(
-                R.font.google_sans_flex,
-                FontWeight(k.weight),
-                variationSettings = FontVariation.Settings(
-                    FontVariation.weight(k.weight),
-                    FontVariation.width(k.width),
-                    FontVariation.slant(k.slant),
-                    FontVariation.grade(k.grade)
-                )
-            )
-        )
-    }
-}
-
-// Canonical M3 Expressive font family singletons (zero-allocation)
-val GoogleSansFlexThin: FontFamily by lazy { googleSansFlexVariable(200) }
-val GoogleSansFlexLight: FontFamily by lazy { googleSansFlexVariable(300) }
-val GoogleSansFlexRegular: FontFamily by lazy { googleSansFlexVariable(400) }
-val GoogleSansFlexMedium: FontFamily by lazy { googleSansFlexVariable(500) }
-val GoogleSansFlexSemiBold: FontFamily by lazy { googleSansFlexVariable(600) }
-val GoogleSansFlexBold: FontFamily by lazy { googleSansFlexVariable(700) }
-val GoogleSansFlexBlack: FontFamily by lazy { googleSansFlexVariable(900) }
-val GoogleSansFlexCompressed: FontFamily by lazy { googleSansFlexVariable(weight = 600, width = 75f) }
-val GoogleSansFlexExpanded: FontFamily by lazy { googleSansFlexVariable(weight = 600, width = 125f) }
-
 /**
  * Expressive typography line-height style for Android 17 / Canary ZP11.
  * Trims extra font ascender/descender leading to guarantee 100% pixel-perfect vertical centering

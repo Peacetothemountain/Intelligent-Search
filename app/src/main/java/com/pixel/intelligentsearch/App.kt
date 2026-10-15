@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch
 
+import com.pixel.intelligentsearch.di.appEntryPoint
 import android.app.Application
 import android.os.Build
 import android.os.StrictMode
@@ -37,6 +38,11 @@ class App : Application() {
     lateinit var settingsManager: SettingsManager
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    private companion object {
+        const val MAINTENANCE_PREFS = "app_maintenance"
+        const val KEY_RETIRED_SECRETS_REMOVED = "retired_secrets_removed_v1"
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -91,6 +97,14 @@ class App : Application() {
         }
     }
 
+    /** Deletes Keystore keys and stores left by removed features, once per install. */
+    private fun removeRetiredSecretsOnce() {
+        val maintenance = getSharedPreferences(MAINTENANCE_PREFS, MODE_PRIVATE)
+        if (maintenance.getBoolean(KEY_RETIRED_SECRETS_REMOVED, false)) return
+        appEntryPoint.strongBoxSecurityManager().removeRetiredSecrets()
+        maintenance.edit().putBoolean(KEY_RETIRED_SECRETS_REMOVED, true).apply()
+    }
+
     /**
      * Non-blocking background warmup to achieve sub-50ms cold-start overlay presentation.
      */
@@ -109,6 +123,7 @@ class App : Application() {
                 settingsManager.syncSharedPreferencesToDataStore()
                 systemToggleManager.clearLegacyAppNightModeOverride()
                 multiProfileManager.refreshProfiles()
+                removeRetiredSecretsOnce()
                 SystemDataProvider.getAllApps(this@App, forceRefresh = false)
             } catch (e: Exception) {
                 Log.w("AppWarmup", "Background service warm-up non-fatal error", e)

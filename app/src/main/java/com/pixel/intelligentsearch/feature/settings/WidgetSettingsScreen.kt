@@ -1,11 +1,8 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
-import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
@@ -26,11 +23,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asComposePath
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
@@ -47,48 +41,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pixel.intelligentsearch.R
-import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
-import com.pixel.intelligentsearch.core.haptics.TactileSonicEngine
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 
 // WIDGET SETTINGS SCREEN
 // -----------------------------------------------------------------------------------------
-
-@Composable
-private fun WidgetCustomizationCard(content: @Composable ColumnScope.() -> Unit) {
-    androidx.compose.material3.Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                1.dp,
-                androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                RoundedCornerShape(24.dp)
-            ),
-        shape = RoundedCornerShape(24.dp),
-        colors = androidx.compose.material3.CardDefaults.cardColors(
-            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
-        ),
-        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 8.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(vertical = 8.dp),
-            content = content
-        )
-    }
-}
 
 private data class SlotPreviewItem(val slotKey: String, val label: String, val resId: Int, val isMic: Boolean)
 private data class WidgetCustomizationSnapshot(
@@ -207,7 +171,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
     val defaultHue = defaultHsv[0]
     val defaultSat = defaultHsv[1] * 100f
-    val defaultVal = defaultHsv[2] * 100f
 
     val resolveCustomColor = { key: String, fallbackKey: String? ->
         val saved = prefs.getInt(key, if (fallbackKey != null) prefs.getInt(fallbackKey, defaultUserMaterialColor) else defaultUserMaterialColor)

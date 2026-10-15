@@ -4,9 +4,7 @@ import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.app.UiModeManager
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
-import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -26,7 +24,6 @@ import android.nfc.NfcAdapter
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
-import android.telephony.TelephonyManager
 import android.util.Log
 import android.widget.Toast
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -56,7 +53,6 @@ class SystemToggleManager @Inject constructor(
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
     private val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
     private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-    private val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
     private val nfcAdapter: NfcAdapter? = try { NfcAdapter.getDefaultAdapter(context) } catch (_: Exception) { null }
 
     // 1. Live Flashlight State
@@ -234,35 +230,6 @@ class SystemToggleManager @Inject constructor(
         }
     }
 
-    fun unregisterListeners() {
-        try {
-            torchCallback?.let {
-                cameraManager?.unregisterTorchCallback(it)
-                torchCallback = null
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to unregister torch callback", e)
-        }
-
-        try {
-            networkCallback?.let {
-                connectivityManager?.unregisterNetworkCallback(it)
-                networkCallback = null
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to unregister network callback", e)
-        }
-
-        try {
-            toggleReceiver?.let {
-                context.unregisterReceiver(it)
-                toggleReceiver = null
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to unregister toggle receiver", e)
-        }
-    }
-
     // ==========================================
     // 1. FLASHLIGHT / TORCH
     // ==========================================
@@ -411,31 +378,6 @@ class SystemToggleManager @Inject constructor(
 
     fun openWifiSettings() {
         openSettingsIntent(Settings.ACTION_WIFI_SETTINGS)
-    }
-
-    // ==========================================
-    // 4. MOBILE DATA / CELLULAR
-    // ==========================================
-    fun isMobileDataEnabled(): Boolean {
-        return try {
-            val activeNet = connectivityManager?.activeNetwork
-            val caps = connectivityManager?.getNetworkCapabilities(activeNet)
-            caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
-        } catch (_: Exception) { false }
-    }
-
-    fun getMobileDataStatusText(): String {
-        val operator = telephonyManager?.networkOperatorName
-        val isConnected = isMobileDataEnabled()
-        return if (isConnected) {
-            if (!operator.isNullOrBlank()) "Connected to $operator" else "Cellular data is active"
-        } else {
-            if (!operator.isNullOrBlank()) "$operator • Mobile data inactive" else "Mobile data is off"
-        }
-    }
-
-    fun openMobileDataSettings() {
-        openSettingsIntent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
     }
 
     // ==========================================
@@ -661,13 +603,6 @@ class SystemToggleManager @Inject constructor(
     }
 
     // ==========================================
-    // 12. NIGHT LIGHT
-    // ==========================================
-    fun openNightLightSettings() {
-        openSettingsIntent(Settings.ACTION_NIGHT_DISPLAY_SETTINGS)
-    }
-
-    // ==========================================
     // 13. NFC
     // ==========================================
     fun isNfcEnabled(): Boolean = try { nfcAdapter?.isEnabled == true } catch (_: Exception) { false }
@@ -678,55 +613,6 @@ class SystemToggleManager @Inject constructor(
 
     fun openNfcSettings() {
         openSettingsIntent(Settings.ACTION_NFC_SETTINGS)
-    }
-
-    // ==========================================
-    // 14. VOLUME / SOUND RINGER MODE
-    // ==========================================
-    fun isSilentOrVibrate(): Boolean {
-        return try {
-            _ringerMode.value != AudioManager.RINGER_MODE_NORMAL
-        } catch (_: Exception) { false }
-    }
-
-    fun toggleSoundMode(makeSilent: Boolean) {
-        val newMode = if (makeSilent) AudioManager.RINGER_MODE_VIBRATE else AudioManager.RINGER_MODE_NORMAL
-        try {
-            if (notificationManager?.isNotificationPolicyAccessGranted == true) {
-                audioManager?.ringerMode = newMode
-                _ringerMode.value = newMode
-            } else {
-                try {
-                    audioManager?.ringerMode = newMode
-                    _ringerMode.value = newMode
-                } catch (se: SecurityException) {
-                    Log.w(TAG, "Changing ringer mode restricted without DND policy access", se)
-                    openSoundSettings()
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to toggle sound mode", e)
-            openSoundSettings()
-        }
-    }
-
-    fun getSoundStatusText(isVibrateOrSilent: Boolean): String {
-        return when (_ringerMode.value) {
-            AudioManager.RINGER_MODE_SILENT -> "Silent mode active"
-            AudioManager.RINGER_MODE_VIBRATE -> "Vibrate mode active"
-            else -> "Ringtone & alerts active"
-        }
-    }
-
-    fun openSoundSettings() {
-        try {
-            val panelIntent = Intent(Settings.Panel.ACTION_VOLUME).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-            if (panelIntent.resolveActivity(context.packageManager) != null) {
-                context.startActivity(panelIntent)
-                return
-            }
-        } catch (_: Exception) {}
-        openSettingsIntent(Settings.ACTION_SOUND_SETTINGS)
     }
 
     // ==========================================

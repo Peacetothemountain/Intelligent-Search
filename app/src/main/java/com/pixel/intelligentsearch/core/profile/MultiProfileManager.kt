@@ -17,7 +17,6 @@ import android.os.Process
 import android.os.UserHandle
 import android.os.UserManager
 import android.util.Log
-import com.pixel.intelligentsearch.core.data.AppAction
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ProfileType
 import com.pixel.intelligentsearch.core.data.SystemDataProvider

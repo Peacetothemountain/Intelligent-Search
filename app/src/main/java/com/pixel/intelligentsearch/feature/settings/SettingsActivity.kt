@@ -27,22 +27,6 @@ class SettingsActivity : AppCompatActivity() {
 
     var isExitingToHome: Boolean = false
 
-    private val requestRoleLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val roleManager = getSystemService(android.app.role.RoleManager::class.java)
-        val isHeld = roleManager?.isRoleHeld(ROLE_SEARCH_ENGINE) == true
-        android.util.Log.d("SettingsActivity", "ROLE_SEARCH_ENGINE request result: ${result.resultCode}, isHeld: $isHeld")
-    }
-
-    fun requestSearchEngineRole() {
-        com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this)
-        val roleManager = getSystemService(android.app.role.RoleManager::class.java) ?: return
-        if (roleManager.isRoleAvailable(ROLE_SEARCH_ENGINE) && !roleManager.isRoleHeld(ROLE_SEARCH_ENGINE)) {
-            requestRoleLauncher.launch(roleManager.createRequestRoleIntent(ROLE_SEARCH_ENGINE))
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)

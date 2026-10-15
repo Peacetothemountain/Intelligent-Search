@@ -4,8 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.hardware.display.DisplayManager
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.view.Choreographer
 import android.view.Display
 import android.view.Surface
@@ -30,22 +28,6 @@ object WindowFramePacing {
     const val FRAME_RATE_CATEGORY_HIGH = 4
     const val FRAME_RATE_CATEGORY_NORMAL = 2
     const val FRAME_RATE_CATEGORY_LOW = 1
-    const val FRAME_RATE_CATEGORY_NO_PREFERENCE = 0
-
-    private val mainHandler = Handler(Looper.getMainLooper())
-
-    @Volatile
-    private var cachedFrameIntervalNanos: Long = 8_333_333L // Default 120Hz (8.33ms)
-
-    /**
-     * Safely resolves the active Activity from any Context, unwrapping ContextWrapper hierarchies.
-     */
-    tailrec fun findActivity(context: Context?): Activity? = when (context) {
-        null -> null
-        is Activity -> context
-        is android.content.ContextWrapper -> findActivity(context.baseContext)
-        else -> null
-    }
 
     /**
      * Safely retrieves the Display instance even if called early in Activity lifecycle before window attachment.
@@ -88,18 +70,6 @@ object WindowFramePacing {
     }
 
     /**
-     * Ramps down refresh rate to low category (1Hz to 30Hz) for static reading or idle state,
-     * saving substantial battery on LTPO OLED panels.
-     */
-    fun setLowRefreshRateCategory(activity: Activity?) {
-        if (activity == null) return
-        setFrameRateCategory(activity, FRAME_RATE_CATEGORY_LOW)
-        enableHardwareTouchBoost(activity, false)
-        enablePowerSavingsBalanced(activity, true)
-        unlockDisplayRefreshRate(activity)
-    }
-
-    /**
      * Enables hardware touch boost on Android 15+ (API 35+ / Android 17 Canary ZP11).
      * Hardware dynamically boosts LTPO panel to 120Hz upon finger contact.
      */
@@ -110,22 +80,6 @@ object WindowFramePacing {
                 val params = window.attributes
                 if (params.frameRateBoostOnTouchEnabled != enabled) {
                     params.setFrameRateBoostOnTouchEnabled(enabled)
-                    window.attributes = params
-                }
-            } catch (_: Throwable) {}
-        }
-    }
-
-    /**
-     * Enables or disables balanced frame rate power savings on Android 15+ (API 35+).
-     */
-    private fun enablePowerSavingsBalanced(activity: Activity, enabled: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            try {
-                val window = activity.window ?: return
-                val params = window.attributes
-                if (params.isFrameRatePowerSavingsBalanced != enabled) {
-                    params.setFrameRatePowerSavingsBalanced(enabled)
                     window.attributes = params
                 }
             } catch (_: Throwable) {}
@@ -231,30 +185,6 @@ object WindowFramePacing {
     }
 
     /**
-     * Returns the maximum hardware refresh rate supported by the current display (e.g. 144.0, 120.0, 90.0, 60.0).
-     */
-    fun getDisplayMaxRefreshRate(activity: Activity?): Float {
-        if (activity == null) return 60f
-        return try {
-            getDisplaySafely(activity)?.supportedModes?.maxOfOrNull { it.refreshRate } ?: 60f
-        } catch (_: Throwable) {
-            60f
-        }
-    }
-
-    /**
-     * Returns the current active hardware refresh rate of the display.
-     */
-    fun getDisplayCurrentRefreshRate(activity: Activity?): Float {
-        if (activity == null) return 60f
-        return try {
-            getDisplaySafely(activity)?.refreshRate ?: 60f
-        } catch (_: Throwable) {
-            60f
-        }
-    }
-
-    /**
      * Android 15+ (API 35+ / Android 17 Canary ZP11) direct requested frame rate or category setter.
      */
     fun setRequestedFrameRate(activity: Activity?, rateOrCategory: Float) {
@@ -263,190 +193,6 @@ object WindowFramePacing {
             try {
                 activity.window?.decorView?.setRequestedFrameRate(rateOrCategory)
             } catch (_: Throwable) {}
-        }
-    }
-
-
-
-    /**
-     * Configures hardware-level Surface frame pacing with [Surface.CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS] override,
-     * ensuring smooth 60Hz/90Hz/120Hz display transitions without screen blackout or frame drops.
-     */
-    fun setSurfacePacing(surface: Surface?, frameRate: Float = 120f) {
-        if (surface == null || !surface.isValid) return
-        try {
-            surface.setFrameRate(frameRate, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT, Surface.CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS)
-        } catch (_: Throwable) {}
-    }
-
-    /**
-     * Calculates the frame interval in nanoseconds for the current active display refresh rate,
-     * dynamically adapting to 60Hz, 90Hz, 120Hz, or 144Hz panels to prevent thread starvation.
-     */
-    fun getFrameIntervalNanos(activity: Activity? = null): Long {
-        val currentRate = if (activity != null) {
-            getDisplayCurrentRefreshRate(activity).takeIf { it > 0f }
-                ?: getDisplayMaxRefreshRate(activity)
-        } else {
-            60f
-        }
-        val rate = currentRate.coerceIn(30f, 240f)
-        val interval = if (rate > 0f) (1_000_000_000L / rate.toLong()).coerceAtLeast(1L) else 16_666_666L
-        cachedFrameIntervalNanos = interval
-        return interval
-    }
-
-    /**
-     * Returns remaining microsecond budget before VSYNC deadline miss.
-     */
-    fun getFrameBudgetRemainingNanos(deadlineNanos: Long): Long {
-        return (deadlineNanos - System.nanoTime()).coerceAtLeast(0L)
-    }
-
-    /**
-     * Checks if current execution is within safe VSYNC budget.
-     */
-    fun isWithinFrameBudget(deadlineNanos: Long, safetyMarginNanos: Long = 1_000_000L): Boolean {
-        return (System.nanoTime() + safetyMarginNanos) < deadlineNanos
-    }
-
-    /**
-     * Registers a [DisplayManager.DisplayListener] to react dynamically to hardware refresh rate
-     * transitions (e.g., LTPO panel 60Hz <-> 120Hz switching) and update frame pacing budgets.
-     */
-    fun registerDisplayRefreshRateListener(
-        context: Context,
-        onRefreshRateChanged: (Float) -> Unit
-    ): AutoCloseable {
-        val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
-            ?: return AutoCloseable {}
-
-        val targetDisplayId = findActivity(context)?.display?.displayId ?: Display.DEFAULT_DISPLAY
-
-        val listener = object : DisplayManager.DisplayListener {
-            override fun onDisplayAdded(displayId: Int) {}
-            override fun onDisplayRemoved(displayId: Int) {}
-            override fun onDisplayChanged(displayId: Int) {
-                if (displayId != targetDisplayId) return
-                val display = displayManager.getDisplay(displayId) ?: return
-                val currentRate = display.refreshRate.coerceIn(1f, 240f)
-                cachedFrameIntervalNanos = (1_000_000_000L / currentRate.coerceAtLeast(30f)).toLong()
-                onRefreshRateChanged(currentRate)
-            }
-        }
-
-        displayManager.registerDisplayListener(listener, mainHandler)
-        return AutoCloseable {
-            displayManager.unregisterDisplayListener(listener)
-        }
-    }
-
-    /**
-     * Posts a callback synchronized with the hardware VSYNC pulse.
-     * Guaranteed to execute on the Main Looper, preventing thread starvation and IllegalStateExceptions.
-     * Returns an [AutoCloseable] token to cancel the callback if needed.
-     */
-    fun postPacedFrame(onFrame: (frameTimeNanos: Long) -> Unit): AutoCloseable {
-        val isCancelled = java.util.concurrent.atomic.AtomicBoolean(false)
-        val callback = Choreographer.FrameCallback { frameTimeNanos ->
-            if (!isCancelled.get()) {
-                onFrame(frameTimeNanos)
-            }
-        }
-
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            Choreographer.getInstance().postFrameCallback(callback)
-        } else {
-            mainHandler.post {
-                if (!isCancelled.get()) {
-                    Choreographer.getInstance().postFrameCallback(callback)
-                }
-            }
-        }
-
-        return AutoCloseable {
-            isCancelled.set(true)
-            if (Looper.myLooper() == Looper.getMainLooper()) {
-                Choreographer.getInstance().removeFrameCallback(callback)
-            } else {
-                mainHandler.post {
-                    Choreographer.getInstance().removeFrameCallback(callback)
-                }
-            }
-        }
-    }
-
-    /**
-     * High-precision VSYNC timeline callback on Android 13+ (API 33), exposing vsyncId,
-     * expected presentation time, and deadline nanoseconds.
-     * Guaranteed to execute on the Main Looper with dynamically paced frame deadline calculation.
-     * Zero allocations on main thread, returns an [AutoCloseable] cancellation token.
-     */
-    fun postVsyncPacedFrame(
-        onVsync: (vsyncId: Long, expectedPresentationTimeNanos: Long, deadlineNanos: Long) -> Unit
-    ): AutoCloseable {
-        val isCancelled = java.util.concurrent.atomic.AtomicBoolean(false)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val vsyncCallback = Choreographer.VsyncCallback { frameData ->
-                if (!isCancelled.get()) {
-                    val timeline = frameData.preferredFrameTimeline
-                    onVsync(
-                        timeline.vsyncId,
-                        timeline.expectedPresentationTimeNanos,
-                        timeline.deadlineNanos
-                    )
-                }
-            }
-
-            if (Looper.myLooper() == Looper.getMainLooper()) {
-                Choreographer.getInstance().postVsyncCallback(vsyncCallback)
-            } else {
-                mainHandler.post {
-                    if (!isCancelled.get()) {
-                        Choreographer.getInstance().postVsyncCallback(vsyncCallback)
-                    }
-                }
-            }
-
-            return AutoCloseable {
-                isCancelled.set(true)
-                if (Looper.myLooper() == Looper.getMainLooper()) {
-                    Choreographer.getInstance().removeVsyncCallback(vsyncCallback)
-                } else {
-                    mainHandler.post {
-                        Choreographer.getInstance().removeVsyncCallback(vsyncCallback)
-                    }
-                }
-            }
-        }
-
-        // Fallback for API < 33 with dynamic refresh rate deadline
-        val frameCallback = Choreographer.FrameCallback { frameTimeNanos ->
-            if (!isCancelled.get()) {
-                val simulatedDeadline = frameTimeNanos + cachedFrameIntervalNanos
-                onVsync(0L, frameTimeNanos, simulatedDeadline)
-            }
-        }
-
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            Choreographer.getInstance().postFrameCallback(frameCallback)
-        } else {
-            mainHandler.post {
-                if (!isCancelled.get()) {
-                    Choreographer.getInstance().postFrameCallback(frameCallback)
-                }
-            }
-        }
-
-        return AutoCloseable {
-            isCancelled.set(true)
-            if (Looper.myLooper() == Looper.getMainLooper()) {
-                Choreographer.getInstance().removeFrameCallback(frameCallback)
-            } else {
-                mainHandler.post {
-                    Choreographer.getInstance().removeFrameCallback(frameCallback)
-                }
-            }
         }
     }
 }

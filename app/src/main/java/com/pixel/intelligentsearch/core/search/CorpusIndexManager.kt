@@ -153,12 +153,6 @@ class CorpusIndexManager @Inject constructor(
         }
     }
 
-    fun reindexFiles() {
-        scope.launch {
-            reindexFilesInternal()
-        }
-    }
-
     /**
      * Picks up files added to the user's chosen folders since the last pass. Folder providers send no
      * reliable change notifications, so the search overlay calls this each time it opens.

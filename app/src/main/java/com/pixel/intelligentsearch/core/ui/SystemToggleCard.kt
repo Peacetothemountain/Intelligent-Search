@@ -14,7 +14,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.VolumeOff
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -213,16 +212,6 @@ fun SystemToggleCard(
     val cardShape = remember { ExpressiveCornerTokens.ShapeExtraLarge }
     val cardBorder = remember(animatedBorderColor) {
         BorderStroke(1.dp, animatedBorderColor)
-    }
-
-    val checkedThumbContent = remember {
-        @Composable {
-            Icon(
-                imageVector = Icons.Filled.Check,
-                contentDescription = null,
-                modifier = Modifier.size(SwitchDefaults.IconSize)
-            )
-        }
     }
 
     // Unified single-target semantics for accessibility

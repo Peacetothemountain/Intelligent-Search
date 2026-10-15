@@ -1,106 +1,30 @@
 ﻿package com.pixel.intelligentsearch.feature.settings
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
-import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
-import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
 import androidx.compose.foundation.Canvas
-import androidx.compose.ui.graphics.asComposePath
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.geometry.Offset
-import androidx.graphics.shapes.RoundedPolygon
-import androidx.graphics.shapes.star
-import androidx.graphics.shapes.Morph
-import androidx.graphics.shapes.toPath
-import androidx.graphics.shapes.CornerRounding
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.clipToBounds
-import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
-import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
-import com.pixel.intelligentsearch.feature.widget.SearchTileService
-import com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
-import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
-import com.pixel.intelligentsearch.core.bangs.SearchBang
-import com.pixel.intelligentsearch.core.bangs.SearchBangManager
-import com.pixel.intelligentsearch.core.data.SystemDataProvider
-import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.App
-import androidx.compose.foundation.gestures.scrollBy
-import com.pixel.intelligentsearch.feature.search.getAppName
-import com.pixel.intelligentsearch.feature.search.getThemedAppIcon
-import com.pixel.intelligentsearch.feature.search.AppIconResult
-import com.pixel.intelligentsearch.feature.search.AnimatedMatrixBackground
-import com.pixel.intelligentsearch.R
-import android.app.Activity
-import android.app.Application
 import android.content.Context
-import android.view.HapticFeedbackConstants
-import androidx.compose.ui.graphics.toArgb
 
 import android.os.Build
-import android.os.VibrationEffect
-import android.os.VibratorManager
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.compose.ui.platform.LocalView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 import android.content.Intent
 import android.content.SharedPreferences
-import android.app.StatusBarManager
-import android.content.ComponentName
-import android.content.pm.ShortcutInfo
-import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
-import android.app.PendingIntent
-import java.util.concurrent.Executor
-import java.util.concurrent.Executors
-import android.net.Uri
-import android.graphics.drawable.Drawable
-import androidx.core.graphics.drawable.toBitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.ImageBitmap
-import kotlinx.coroutines.launch
 import android.widget.Toast
-import android.content.pm.PackageManager
-import android.content.pm.ResolveInfo
-import org.intellij.lang.annotations.Language
-import android.graphics.RuntimeShader
-import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.graphics.ShaderBrush
-import android.annotation.SuppressLint
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.animation.*
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.NavDestination.Companion.hasRoute
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.animation.core.*
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.material.icons.Icons
 
 import androidx.compose.material.icons.filled.*
@@ -109,56 +33,19 @@ import androidx.compose.material.icons.automirrored.outlined.*
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.composed
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.ui.BiasAlignment
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 import androidx.compose.ui.draw.*
-import androidx.compose.foundation.Image
-import androidx.core.graphics.drawable.toBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.semantics.*
-import com.pixel.intelligentsearch.core.ui.materialYouMeshGradientBackground
-import com.pixel.intelligentsearch.core.ui.expressive.SquircleShape
-import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.runtime.compositionLocalOf
 import com.pixel.intelligentsearch.core.data.SettingsManager
 
 
@@ -356,16 +243,6 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
 
     LaunchedEffect(Unit) {
         val appContext = context.applicationContext ?: context
-        val cachedPowerProfileCapacity = withContext(Dispatchers.IO) {
-            try {
-                val powerProfileClass = Class.forName("com.android.internal.os.PowerProfile")
-                val constructor = powerProfileClass.getConstructor(Context::class.java)
-                val powerProfile = constructor.newInstance(appContext)
-                val getBatteryCapacityMethod = powerProfileClass.getMethod("getBatteryCapacity")
-                (getBatteryCapacityMethod.invoke(powerProfile) as? Double)?.toFloat()
-            } catch (_: Throwable) { null }
-        }
-
         while (true) {
             try {
                 val (bSnap, mSnap) = withContext(Dispatchers.IO) {
@@ -530,8 +407,8 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         if (resId > 0) appContext.resources.getDimension(resId) else null
                     } catch (_: Throwable) { null }
 
-                    val designMah = cachedPowerProfileCapacity?.takeIf { it in 1500f..10000f }
-                        ?: sysfsCapacity?.takeIf { it in 1500f..10000f }
+                    // Public sources only: the hidden PowerProfile class is blocked for apps targeting new SDKs.
+                    val designMah = sysfsCapacity?.takeIf { it in 1500f..10000f }
                         ?: resourceCapacity?.takeIf { it in 1500f..10000f }
                         ?: 5000f
 

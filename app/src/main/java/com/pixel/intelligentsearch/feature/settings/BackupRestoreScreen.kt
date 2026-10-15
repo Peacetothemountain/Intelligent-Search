@@ -1,7 +1,8 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import android.app.Activity
-import android.content.Context
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import com.pixel.intelligentsearch.core.util.findActivity
 import android.content.SharedPreferences
 import android.net.Uri
 import android.widget.Toast
@@ -61,11 +62,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -138,60 +137,26 @@ fun BackupRestoreScreen(
     var dialogPassphrase by remember { mutableStateOf("") }
     var dialogPassphraseVisible by remember { mutableStateOf(false) }
     var dialogErrorMessage by remember { mutableStateOf<String?>(null) }
-    val coroutineScopeForAuth = rememberCoroutineScope()
-
     // Backups carry the hidden-app list (export reveals it, restore replaces it) and this screen fills in
-    // the saved passphrase, so whenever either exists it asks for the same fingerprint or screen lock as
-    // Manage Hidden Apps before showing anything.
-    var isScreenUnlocked by remember { mutableStateOf(false) }
-    val enteredAtMs = remember { android.os.SystemClock.uptimeMillis() }
-    val currentOnBack by androidx.compose.runtime.rememberUpdatedState(onBack)
-    // Leaves exactly once, like Manage Hidden Apps: a failure right after opening waits for the enter
-    // transition to settle, since backing out mid-transition popped the page underneath as well.
-    val leaveAfterAuthFailure: () -> Unit = {
-        val leave = {
-            SettingsDebouncer.recordClick(0L)
-            SettingsDebouncer.recordClick(0L, key = "settings_top_bar_back")
-            currentOnBack()
-        }
-        val elapsed = android.os.SystemClock.uptimeMillis() - enteredAtMs
-        if (elapsed < 450L) {
-            coroutineScopeForAuth.launch {
-                kotlinx.coroutines.delay(450L - elapsed)
-                if (!isScreenUnlocked) leave()
-            }
-        } else {
-            leave()
-        }
-    }
-    LaunchedEffect(Unit) {
-        val needsAuth = withContext(Dispatchers.IO) {
-            !prefs.getStringSet("hidden_apps", null).isNullOrEmpty() ||
-                viewModel?.hasSavedPassphraseOnSecurityChip() == true
-        }
-        val loadSavedPassphrase: () -> Unit = {
-            isScreenUnlocked = true
-            coroutineScopeForAuth.launch {
-                // Keystore (StrongBox) decryption can take hundreds of milliseconds; keep it off the main thread.
-                val saved = withContext(Dispatchers.IO) { viewModel?.getSavedPassphraseFromSecurityChip() }
-                if (!saved.isNullOrBlank()) {
-                    passphrase = saved
-                    isPassphraseSavedOnChip = true
-                }
+    // the saved passphrase, so whenever either exists it asks for the same unlock as Manage Hidden Apps.
+    val isScreenUnlocked = rememberProtectedPageUnlock(
+        title = "Unlock Encrypted Backup",
+        subtitle = "Verify it’s you to back up or restore your settings",
+        onBack = onBack,
+        isProtectionNeeded = {
+            withContext(Dispatchers.IO) {
+                !prefs.getStringSet("hidden_apps", null).isNullOrEmpty() ||
+                    viewModel?.hasSavedPassphraseOnSecurityChip() == true
             }
         }
-        val gate = com.pixel.intelligentsearch.core.security.BiometricSearchGate.get(context)
-        if (!needsAuth || !gate.isDeviceSecure() || activity == null) {
-            loadSavedPassphrase()
-        } else {
-            gate.authenticate(
-                activity = activity,
-                title = "Unlock Encrypted Backup",
-                subtitle = "Verify it's you to back up or restore your settings",
-                onSuccess = { loadSavedPassphrase() },
-                onError = { _, _ -> leaveAfterAuthFailure() },
-                onCancel = { leaveAfterAuthFailure() }
-            )
+    )
+    LaunchedEffect(isScreenUnlocked) {
+        if (!isScreenUnlocked) return@LaunchedEffect
+        // Keystore (StrongBox) decryption can take hundreds of milliseconds; keep it off the main thread.
+        val saved = withContext(Dispatchers.IO) { viewModel?.getSavedPassphraseFromSecurityChip() }
+        if (!saved.isNullOrBlank()) {
+            passphrase = saved
+            isPassphraseSavedOnChip = true
         }
     }
 

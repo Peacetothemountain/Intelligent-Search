@@ -1,0 +1,1774 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 9.4.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.4.1)" variant="all" version="9.4.1">
+
+    <issue
+        id="ApplySharedPref"
+        message="Consider using `apply()` instead; `commit` writes its data to persistent storage immediately, whereas `apply` will handle it in the background"
+        errorLine1="                editor.commit()"
+        errorLine2="                       ~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/backup/BackupManager.kt"
+            line="510"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="ApplySharedPref"
+        message="Consider using `apply()` instead; `commit` writes its data to persistent storage immediately, whereas `apply` will handle it in the background"
+        errorLine1="        editor.commit()"
+        errorLine2="               ~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/data/SettingsManager.kt"
+            line="392"
+            column="16"/>
+    </issue>
+
+    <issue
+        id="ApplySharedPref"
+        message="Consider using `apply()` instead; `commit` writes its data to persistent storage immediately, whereas `apply` will handle it in the background"
+        errorLine1="                .commit()"
+        errorLine2="                 ~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/security/StrongBoxSecurityManager.kt"
+            line="286"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="ApplySharedPref"
+        message="Consider using `apply()` instead; `commit` writes its data to persistent storage immediately, whereas `apply` will handle it in the background"
+        errorLine1="            sp.edit().remove(&quot;saved_passphrase_cipher&quot;).remove(&quot;saved_passphrase_iv&quot;).commit()"
+        errorLine2="                                                                                      ~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/security/StrongBoxSecurityManager.kt"
+            line="334"
+            column="87"/>
+    </issue>
+
+    <issue
+        id="ConfigurationScreenWidthHeight"
+        message="Using Configuration.screenWidthDp instead of LocalWindowInfo.current.containerSize"
+        errorLine1="    val deviceWidth = configuration.screenWidthDp * density.density"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsScreens.kt"
+            line="263"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="ConfigurationScreenWidthHeight"
+        message="Using Configuration.screenHeightDp instead of LocalWindowInfo.current.containerSize"
+        errorLine1="    val deviceHeight = configuration.screenHeightDp * density.density"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsScreens.kt"
+            line="264"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/GeminiCornerSwipeWave.kt"
+            line="91"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier,"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/ui/OneBoxCards.kt"
+            line="193"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Optional Modifier parameter should have a default value of `Modifier`"
+        errorLine1="    modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsComponents.kt"
+            line="63"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsComponents.kt"
+            line="91"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsComponents.kt"
+            line="341"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Optional Modifier parameter should have a default value of `Modifier`"
+        errorLine1="    modifier: Modifier = Modifier.size(width = 40.dp, height = 56.dp),"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/TutorialSpotlightOverlay.kt"
+            line="134"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="DiscouragedApi"
+        message="Use of this function is discouraged because resource reflection makes it harder to perform build optimizations and compile-time verification of code. It is much more efficient to retrieve resources by identifier (e.g. `R.foo.bar`) than by name (e.g. `getIdentifier(&quot;bar&quot;, &quot;foo&quot;, null)`)."
+        errorLine1="                        val resId = appContext.resources.getIdentifier(&quot;config_batteryCapacity&quot;, &quot;dimen&quot;, &quot;android&quot;)"
+        errorLine2="                                                         ~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/DebugDiagnosticsPage.kt"
+            line="285"
+            column="58"/>
+    </issue>
+
+    <issue
+        id="DiscouragedApi"
+        message="Use of this function is discouraged because resource reflection makes it harder to perform build optimizations and compile-time verification of code. It is much more efficient to retrieve resources by identifier (e.g. `R.foo.bar`) than by name (e.g. `getIdentifier(&quot;bar&quot;, &quot;foo&quot;, null)`)."
+        errorLine1="                resId = iconPackRes.getIdentifier(drawableName, &quot;drawable&quot;, iconPackPackage)"
+        errorLine2="                                    ~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/util/IconPackManager.kt"
+            line="116"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="DiscouragedApi"
+        message="Use of this function is discouraged because resource reflection makes it harder to perform build optimizations and compile-time verification of code. It is much more efficient to retrieve resources by identifier (e.g. `R.foo.bar`) than by name (e.g. `getIdentifier(&quot;bar&quot;, &quot;foo&quot;, null)`)."
+        errorLine1="                resId = iconPackRes.getIdentifier(actSimpleName, &quot;drawable&quot;, iconPackPackage)"
+        errorLine2="                                    ~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/util/IconPackManager.kt"
+            line="122"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="DiscouragedApi"
+        message="Use of this function is discouraged because resource reflection makes it harder to perform build optimizations and compile-time verification of code. It is much more efficient to retrieve resources by identifier (e.g. `R.foo.bar`) than by name (e.g. `getIdentifier(&quot;bar&quot;, &quot;foo&quot;, null)`)."
+        errorLine1="                resId = iconPackRes.getIdentifier(simplePkg, &quot;drawable&quot;, iconPackPackage)"
+        errorLine2="                                    ~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/util/IconPackManager.kt"
+            line="128"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="DiscouragedApi"
+        message="Use of this function is discouraged because resource reflection makes it harder to perform build optimizations and compile-time verification of code. It is much more efficient to retrieve resources by identifier (e.g. `R.foo.bar`) than by name (e.g. `getIdentifier(&quot;bar&quot;, &quot;foo&quot;, null)`)."
+        errorLine1="                    resId = iconPackRes.getIdentifier(&quot;ic_$simplePkg&quot;, &quot;drawable&quot;, iconPackPackage)"
+        errorLine2="                                        ~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/util/IconPackManager.kt"
+            line="130"
+            column="41"/>
+    </issue>
+
+    <issue
+        id="DiscouragedApi"
+        message="Use of this function is discouraged because resource reflection makes it harder to perform build optimizations and compile-time verification of code. It is much more efficient to retrieve resources by identifier (e.g. `R.foo.bar`) than by name (e.g. `getIdentifier(&quot;bar&quot;, &quot;foo&quot;, null)`)."
+        errorLine1="            val resId = iconPackRes.getIdentifier(&quot;appfilter&quot;, &quot;xml&quot;, iconPackPackage)"
+        errorLine2="                                    ~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/util/IconPackManager.kt"
+            line="152"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="UseCompatLoadingForDrawables"
+        message="Use `ResourcesCompat.getDrawable()`"
+        errorLine1="                val drawable = iconPackRes.getDrawable(resId, iconPackContext?.theme)"
+        errorLine2="                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/util/IconPackManager.kt"
+            line="135"
+            column="32"/>
+    </issue>
+
+    <issue
+        id="UselessParent"
+        message="This `FrameLayout` layout or its `FrameLayout` parent is possibly unnecessary"
+        errorLine1="    &lt;FrameLayout"
+        errorLine2="     ~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/widget_search.xml"
+            line="14"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="UselessParent"
+        message="This `FrameLayout` layout or its `FrameLayout` parent is possibly unnecessary"
+        errorLine1="        &lt;FrameLayout"
+        errorLine2="         ~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/widget_search_colorful.xml"
+            line="14"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="IconNoDpi"
+        message="The following images appear in both `-nodpi` and in a density folder: ic_bugdroid_balloon.png, ic_bugdroid_body.png, ic_bugdroid_body_blink.png, ic_bugdroid_body_half.png">
+        <location
+            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_body_half.png"/>
+        <location
+            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_body_blink.png"/>
+        <location
+            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_body.png"/>
+        <location
+            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_balloon.png"/>
+    </issue>
+
+    <issue
+        id="IconXmlAndPng"
+        message="The following images appear both as density independent `.xml` files and as bitmap files: src\main\res\mipmap-anydpi\ic_launcher.xml, src\main\res\mipmap-hdpi\ic_launcher.png">
+        <location
+            file="src/main/res/mipmap-xxxhdpi/ic_launcher.png"/>
+        <location
+            file="src/main/res/mipmap-xxhdpi/ic_launcher.png"/>
+        <location
+            file="src/main/res/mipmap-xhdpi/ic_launcher.png"/>
+        <location
+            file="src/main/res/mipmap-mdpi/ic_launcher.png"/>
+        <location
+            file="src/main/res/mipmap-hdpi/ic_launcher.png"/>
+        <location
+            file="src/main/res/mipmap-anydpi/ic_launcher.xml"/>
+    </issue>
+
+    <issue
+        id="IconXmlAndPng"
+        message="The following images appear both as density independent `.xml` files and as bitmap files: src\main\res\mipmap-anydpi\ic_launcher_round.xml, src\main\res\mipmap-hdpi\ic_launcher_round.png">
+        <location
+            file="src/main/res/mipmap-xxxhdpi/ic_launcher_round.png"/>
+        <location
+            file="src/main/res/mipmap-xxhdpi/ic_launcher_round.png"/>
+        <location
+            file="src/main/res/mipmap-xhdpi/ic_launcher_round.png"/>
+        <location
+            file="src/main/res/mipmap-mdpi/ic_launcher_round.png"/>
+        <location
+            file="src/main/res/mipmap-hdpi/ic_launcher_round.png"/>
+        <location
+            file="src/main/res/mipmap-anydpi/ic_launcher_round.xml"/>
+    </issue>
+
+    <issue
+        id="IconLauncherShape"
+        message="Launcher icons should not fill every pixel of their square region; see the design guide for details">
+        <location
+            file="src/main/res/mipmap-hdpi/ic_launcher.png"/>
+    </issue>
+
+    <issue
+        id="IconLauncherShape"
+        message="Launcher icons should not fill every pixel of their square region; see the design guide for details">
+        <location
+            file="src/main/res/mipmap-mdpi/ic_launcher.png"/>
+    </issue>
+
+    <issue
+        id="IconLauncherShape"
+        message="Launcher icons should not fill every pixel of their square region; see the design guide for details">
+        <location
+            file="src/main/res/mipmap-xhdpi/ic_launcher.png"/>
+    </issue>
+
+    <issue
+        id="IconLauncherShape"
+        message="Launcher icons should not fill every pixel of their square region; see the design guide for details">
+        <location
+            file="src/main/res/mipmap-xxhdpi/ic_launcher.png"/>
+    </issue>
+
+    <issue
+        id="IconLauncherShape"
+        message="Launcher icons should not fill every pixel of their square region; see the design guide for details">
+        <location
+            file="src/main/res/mipmap-xxxhdpi/ic_launcher.png"/>
+    </issue>
+
+    <issue
+        id="IconDuplicatesConfig"
+        message="The `ic_bugdroid_balloon.png` icon has identical contents in the following configuration folders: drawable-nodpi, drawable-xxxhdpi, drawable">
+        <location
+            file="src/main/res/drawable/ic_bugdroid_balloon.png"/>
+        <location
+            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_balloon.png"/>
+        <location
+            file="src/main/res/drawable-nodpi/ic_bugdroid_balloon.png"/>
+    </issue>
+
+    <issue
+        id="IconDuplicatesConfig"
+        message="The `ic_bugdroid_body.png` icon has identical contents in the following configuration folders: drawable-nodpi, drawable-xxxhdpi, drawable">
+        <location
+            file="src/main/res/drawable/ic_bugdroid_body.png"/>
+        <location
+            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_body.png"/>
+        <location
+            file="src/main/res/drawable-nodpi/ic_bugdroid_body.png"/>
+    </issue>
+
+    <issue
+        id="IconDuplicatesConfig"
+        message="The `ic_bugdroid_body_blink.png` icon has identical contents in the following configuration folders: drawable-nodpi, drawable-xxxhdpi, drawable">
+        <location
+            file="src/main/res/drawable/ic_bugdroid_body_blink.png"/>
+        <location
+            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_body_blink.png"/>
+        <location
+            file="src/main/res/drawable-nodpi/ic_bugdroid_body_blink.png"/>
+    </issue>
+
+    <issue
+        id="IconDuplicatesConfig"
+        message="The `ic_bugdroid_body_half.png` icon has identical contents in the following configuration folders: drawable-nodpi, drawable-xxxhdpi, drawable">
+        <location
+            file="src/main/res/drawable/ic_bugdroid_body_half.png"/>
+        <location
+            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_body_half.png"/>
+        <location
+            file="src/main/res/drawable-nodpi/ic_bugdroid_body_half.png"/>
+    </issue>
+
+    <issue
+        id="IconLocation"
+        message="Found bitmap drawable `res/drawable/ic_bugdroid_balloon.png` in densityless folder">
+        <location
+            file="src/main/res/drawable/ic_bugdroid_balloon.png"/>
+    </issue>
+
+    <issue
+        id="IconLocation"
+        message="Found bitmap drawable `res/drawable/ic_bugdroid_body.png` in densityless folder">
+        <location
+            file="src/main/res/drawable/ic_bugdroid_body.png"/>
+    </issue>
+
+    <issue
+        id="IconLocation"
+        message="Found bitmap drawable `res/drawable/ic_bugdroid_body_blink.png` in densityless folder">
+        <location
+            file="src/main/res/drawable/ic_bugdroid_body_blink.png"/>
+    </issue>
+
+    <issue
+        id="IconLocation"
+        message="Found bitmap drawable `res/drawable/ic_bugdroid_body_half.png` in densityless folder">
+        <location
+            file="src/main/res/drawable/ic_bugdroid_body_half.png"/>
+    </issue>
+
+    <issue
+        id="IconDensities"
+        message="Missing the following drawables in `drawable-xhdpi`: ic_bugdroid_balloon.png, ic_bugdroid_body.png, ic_bugdroid_body_blink.png, ic_bugdroid_body_half.png">
+        <location
+            file="src/main/res/drawable-xhdpi"/>
+    </issue>
+
+    <issue
+        id="IconDensities"
+        message="Missing the following drawables in `drawable-xxhdpi`: ic_bugdroid_balloon.png, ic_bugdroid_body.png, ic_bugdroid_body_blink.png, ic_bugdroid_body_half.png">
+        <location
+            file="src/main/res/drawable-xxhdpi"/>
+    </issue>
+
+    <issue
+        id="IconMissingDensityFolder"
+        message="Missing density variation folders in `src\main\res`: drawable-hdpi, drawable-mdpi">
+        <location
+            file="src/main/res"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="            val spriteBitmap = Bitmap.createBitmap(spriteDimension, spriteDimension, Bitmap.Config.ARGB_8888)"
+        errorLine2="                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/AnimatedMatrixBackground.kt"
+            line="243"
+            column="32"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        maintenance.edit().putBoolean(KEY_RETIRED_SECRETS_REMOVED, true).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/App.kt"
+            line="112"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)"
+        errorLine2="                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/ui/AppIconLoader.kt"
+            line="35"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                                prefs.edit().put(SettingsManager.SHORTCUT_RESULTS_COUNT, 6).apply()"
+        errorLine2="                                ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/AppSearchScreen.kt"
+            line="142"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                                    prefs.edit()"
+        errorLine2="                                    ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/AppSearchScreen.kt"
+            line="171"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                val editor = sharedPrefs.edit()"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/backup/BackupManager.kt"
+            line="451"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val uri = android.net.Uri.parse(&quot;android.resource://&quot; + context.packageName + &quot;/&quot; + com.pixel.intelligentsearch.R.raw.gemini_generated_video_2209818f)"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/BackupRestoreScreen.kt"
+            line="102"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                                    prefs.edit().put(SettingsManager.NEVER_SHOW_ICON_PACK_WARNING, true).apply()"
+        errorLine2="                                    ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/CustomIconsScreen.kt"
+            line="178"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                                                        prefs.edit()"
+        errorLine2="                                                        ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/CustomIconsScreen.kt"
+            line="366"
+            column="57"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                    prefs.edit()"
+        errorLine2="                    ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/DebugScreen.kt"
+            line="79"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    val parsedUri = android.net.Uri.parse(uri)"
+        errorLine2="                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/FileIconThumbnail.kt"
+            line="49"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val CONTENT_URI: Uri = Uri.parse(&quot;content://$AUTHORITY/search&quot;)"
+        errorLine2="                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/data/GlobalSearchProvider.kt"
+            line="27"
+            column="32"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `Int.toDrawable` instead?"
+        errorLine1="        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))"
+        errorLine2="                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/MainActivity.kt"
+            line="120"
+            column="38"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="            prefs.edit()"
+        errorLine2="            ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/MainActivity.kt"
+            line="131"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(&quot;https://myactivity.google.com/myactivity&quot;))"
+        errorLine2="                                                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/MainSettingsScreen.kt"
+            line="655"
+            column="69"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(&quot;https://www.bing.com/profile/history&quot;)).apply {"
+        errorLine2="                                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/MainSettingsScreen.kt"
+            line="681"
+            column="77"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                        ?: Intent(Intent.ACTION_VIEW, android.net.Uri.parse(&quot;https://duckduckgo.com&quot;)).apply {"
+        errorLine2="                                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/MainSettingsScreen.kt"
+            line="693"
+            column="71"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(&quot;https://myactivity.google.com/myactivity?product=6&quot;)).apply {"
+        errorLine2="                                                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/MainSettingsScreen.kt"
+            line="715"
+            column="73"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                                prefs.edit().put(SettingsManager.HIDDEN_APPS, newSet).apply()"
+        errorLine2="                                ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/ManageHiddenAppsScreen.kt"
+            line="221"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)"
+        errorLine2="                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/util/MaterialOutlineManager.kt"
+            line="72"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="            val srcBitmap = Bitmap.createBitmap(srcSize, srcSize, Bitmap.Config.ARGB_8888)"
+        errorLine2="                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/util/MaterialOutlineManager.kt"
+            line="224"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="            val outBitmap = Bitmap.createBitmap(srcSize, srcSize, Bitmap.Config.ARGB_8888)"
+        errorLine2="                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/util/MaterialOutlineManager.kt"
+            line="255"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="            val finalBitmap = Bitmap.createBitmap(srcSize, srcSize, Bitmap.Config.ARGB_8888)"
+        errorLine2="                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/util/MaterialOutlineManager.kt"
+            line="335"
+            column="31"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="            prefs.edit()"
+        errorLine2="            ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/system/NativeAppPredictionProvider.kt"
+            line="90"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                data = Uri.parse(&quot;https://api.whatsapp.com/send?${phoneParam}text=${java.net.URLEncoder.encode(body, &quot;UTF-8&quot;)}&quot;)"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
+            line="332"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                data = Uri.parse(&quot;https://api.whatsapp.com/send?${phoneParam}text=${java.net.URLEncoder.encode(body, &quot;UTF-8&quot;)}&quot;)"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
+            line="332"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                data = Uri.parse(&quot;smsto:&quot; + (number?.let { Uri.encode(it) } ?: &quot;&quot;))"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
+            line="337"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                data = Uri.parse(&quot;smsto:&quot; + (number?.let { Uri.encode(it) } ?: &quot;&quot;))"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
+            line="337"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val uri = Uri.parse(&quot;tel:$dialDigits&quot;)"
+        errorLine2="                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
+            line="393"
+            column="19"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val uri = Uri.parse(&quot;google.navigation:q=${java.net.URLEncoder.encode(dest, &quot;UTF-8&quot;)}&quot;)"
+        errorLine2="                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
+            line="412"
+            column="19"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        private val PREDICTION_URI: Uri = Uri.parse(&quot;content://com.google.android.apps.nexuslauncher.prediction/predictions&quot;)"
+        errorLine2="                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/data/NexusLauncherBridge.kt"
+            line="24"
+            column="43"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="    val parsed = Uri.parse(uri)"
+        errorLine2="                 ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/OverlayIntents.kt"
+            line="42"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        return android.net.Uri.parse(uriStr)"
+        errorLine2="               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/bangs/SearchBang.kt"
+            line="42"
+            column="16"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val scheme = Uri.parse(url).scheme?.lowercase(Locale.ROOT)"
+        errorLine2="                         ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/bangs/SearchBangManager.kt"
+            line="318"
+            column="26"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        return Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).apply {"
+        errorLine2="                                          ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/bangs/SearchBangManager.kt"
+            line="321"
+            column="43"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="            prefs.edit()"
+        errorLine2="            ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/bangs/SearchBangManager.kt"
+            line="372"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                        val host = Uri.parse("
+        errorLine2="                                   ^">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="143"
+            column="36"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    Intent(Intent.ACTION_VIEW, Uri.parse(fullUrl)).apply {"
+        errorLine2="                                               ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="350"
+            column="48"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                val ddgIntent = Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://duckduckgo.com/?q=$encodedQuery&quot;)).apply {"
+        errorLine2="                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="362"
+            column="60"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                val bingIntent = Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://www.bing.com/search?q=$encodedQuery&quot;)).apply {"
+        errorLine2="                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="377"
+            column="61"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    Intent(Intent.ACTION_VIEW, Uri.parse(torUrl)).apply {"
+        errorLine2="                                               ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="400"
+            column="48"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                                prefs.edit().put(SettingsManager.DEBUG_UNLOCKED, true).apply()"
+        errorLine2="                                ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="818"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:${match.phoneNumber}&quot;))"
+        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="859"
+            column="76"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {"
+        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="861"
+            column="76"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:${match.phoneNumber}&quot;))"
+        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="865"
+            column="76"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                        launchSafeIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {"
+        errorLine2="                                                                                             ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="888"
+            column="94"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply { "
+        errorLine2="                                                                           ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="1078"
+            column="76"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                Intent(Intent.ACTION_VIEW, Uri.parse(&quot;geo:0,0?q=${Uri.encode(searchStr.ifEmpty { &quot;Restaurants&quot; })}&quot;)).apply { "
+        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="1084"
+            column="76"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                Intent(Intent.ACTION_VIEW, Uri.parse(&quot;market://search?q=${Uri.encode(searchStr)}&quot;)).apply {"
+        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="1097"
+            column="76"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                    Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:${match.phoneNumber}&quot;))"
+        errorLine2="                                                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="1486"
+            column="80"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                    Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {"
+        errorLine2="                                                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="1488"
+            column="80"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                    Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:${match.phoneNumber}&quot;))"
+        errorLine2="                                                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="1492"
+            column="80"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                            if (action.dataUri != null) intent.data = android.net.Uri.parse(action.dataUri)"
+        errorLine2="                                                                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="1608"
+            column="103"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                            if (action.dataUri != null) intent.data = android.net.Uri.parse(action.dataUri)"
+        errorLine2="                                                                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="1608"
+            column="103"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                            val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {"
+        errorLine2="                                                                                       ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="2088"
+            column="88"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                        val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {"
+        errorLine2="                                                                                   ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="2097"
+            column="84"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:${contact.phoneNumber}&quot;))"
+        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="2267"
+            column="76"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri)).apply {"
+        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="2269"
+            column="76"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:${contact.phoneNumber}&quot;))"
+        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="2273"
+            column="76"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                                launchSafeIntent(context, Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:${contact.phoneNumber}&quot;)))"
+        errorLine2="                                                                                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
+            line="2294"
+            column="102"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="            val bmp = android.graphics.Bitmap.createBitmap("
+        errorLine2="                      ^">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
+            line="64"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="            prefs.edit()"
+        errorLine2="            ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
+            line="102"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit()"
+        errorLine2="        ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
+            line="136"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit()"
+        errorLine2="        ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
+            line="153"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="            prefs.edit().putString(&quot;app_search_profile_1_saved&quot;, defaultPills).apply()"
+        errorLine2="            ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
+            line="200"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                            prefs.edit().putString(&quot;app_search_profile_${activeProfile}_saved&quot;, pillString).apply()"
+        errorLine2="                            ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
+            line="262"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                                        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, hasContacts).apply()"
+        errorLine2="                                        ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchSourcesScreen.kt"
+            line="132"
+            column="41"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                                prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).apply()"
+        errorLine2="                                ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchSourcesScreen.kt"
+            line="152"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                                prefs.edit().put(SettingsManager.SEARCH_CONTACTS, false).apply()"
+        errorLine2="                                ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchSourcesScreen.kt"
+            line="157"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                                        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).apply()"
+        errorLine2="                                        ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchSourcesScreen.kt"
+            line="239"
+            column="41"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                                    prefs.edit().put(SettingsManager.SEARCH_CONTACTS, false).apply()"
+        errorLine2="                                    ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchSourcesScreen.kt"
+            line="247"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                                prefs.edit().put(SettingsManager.SEARCH_FILES, isChecked).apply()"
+        errorLine2="                                ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchSourcesScreen.kt"
+            line="268"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))"
+        errorLine2="                                                                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchViewModel.kt"
+            line="355"
+            column="109"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                    val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse(&quot;tel:$trimmed&quot;))"
+        errorLine2="                                                                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchViewModel.kt"
+            line="358"
+            column="109"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                    callIntent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse(&quot;tel:$clean&quot;))"
+        errorLine2="                                                                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchViewModel.kt"
+            line="518"
+            column="109"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toColorInt` instead?"
+        errorLine1="                    Color.parseColor(&quot;#121212&quot;)"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/SearchWidgetProvider.kt"
+            line="585"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                        Uri.parse(if (customValue.startsWith(&quot;http&quot;)) customValue else &quot;https://$customValue&quot;).host ?: customValue"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/SearchWidgetProvider.kt"
+            line="950"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit().put(key, value).apply()"
+        errorLine2="        ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/data/SettingsManager.kt"
+            line="230"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        val editor = deviceProtectedPrefs.edit().clear()"
+        errorLine2="                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/data/SettingsManager.kt"
+            line="336"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        val editor = to.edit()"
+        errorLine2="                     ~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/data/SettingsManager.kt"
+            line="354"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        val editor = sp.edit()"
+        errorLine2="                     ~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/data/SettingsManager.kt"
+            line="379"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                val uri = android.net.Uri.parse(&quot;android.resource://&quot; + context.packageName + &quot;/&quot; + com.pixel.intelligentsearch.R.raw.bugdroid_video)"
+        errorLine2="                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsNavHost.kt"
+            line="106"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                                    prefs.edit().put(SettingsManager.DEBUG_UNLOCKED, false).apply()"
+        errorLine2="                                    ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsNavHost.kt"
+            line="320"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="            sp.edit()"
+        errorLine2="            ~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/security/StrongBoxSecurityManager.kt"
+            line="283"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="            sp.edit().remove(&quot;saved_passphrase_cipher&quot;).remove(&quot;saved_passphrase_iv&quot;).commit()"
+        errorLine2="            ~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/security/StrongBoxSecurityManager.kt"
+            line="334"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    data = Uri.parse(&quot;package:${context.packageName}&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/system/SystemToggleManager.kt"
+            line="436"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    data = Uri.parse(&quot;package:${context.packageName}&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/system/SystemToggleManager.kt"
+            line="436"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="            prefs.edit().putBoolean(KEY_APP_NIGHT_MODE_RESET, true).apply()"
+        errorLine2="            ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/system/SystemToggleManager.kt"
+            line="585"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="            prefs.edit().put(SettingsManager.VIBRATION, value).apply()"
+        errorLine2="            ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/haptics/TactileSonicEngine.kt"
+            line="41"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val playStoreIntent = Intent(Intent.ACTION_VIEW, Uri.parse(playStoreUri)).apply {"
+        errorLine2="                                                         ~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/ui/TorBrowserInstallDialog.kt"
+            line="208"
+            column="58"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webFallbackUri)).apply {"
+        errorLine2="                                                       ~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/ui/TorBrowserInstallDialog.kt"
+            line="214"
+            column="56"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit().put(SettingsManager.TUTORIAL_COMPLETED, true).apply()"
+        errorLine2="        ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/TutorialManager.kt"
+            line="40"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit()"
+        errorLine2="        ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/TutorialManager.kt"
+            line="45"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val uri = android.net.Uri.parse(&quot;android.resource://&quot; + context.packageName + &quot;/&quot; + com.pixel.intelligentsearch.R.raw.bugdroid_welcome_video)"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/TutorialSpotlightOverlay.kt"
+            line="439"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val uri = Uri.parse(treeUri)"
+        errorLine2="                  ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/data/UserGrantedFiles.kt"
+            line="117"
+            column="19"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val treeUri = Uri.parse(treeUriString)"
+        errorLine2="                          ~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/data/UserGrantedFiles.kt"
+            line="154"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                val uri = Uri.parse(uriString)"
+        errorLine2="                          ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/data/UserGrantedFiles.kt"
+            line="192"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            context.contentResolver.releasePersistableUriPermission(Uri.parse(uri), Intent.FLAG_GRANT_READ_URI_PERMISSION)"
+        errorLine2="                                                                    ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/core/data/UserGrantedFiles.kt"
+            line="224"
+            column="69"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                            prefs.edit().put(SettingsManager.CUSTOM_SEARCH_ENGINE_URL, defaultUrl).apply()"
+        errorLine2="                            ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/WebSearchScreen.kt"
+            line="280"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {"
+        errorLine2="                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetBitmaps.kt"
+            line="77"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="        Bitmap.createBitmap(fallbackSize, fallbackSize, Bitmap.Config.ARGB_8888).apply {"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetBitmaps.kt"
+            line="116"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetBitmaps.kt"
+            line="141"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetBitmaps.kt"
+            line="168"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetBitmaps.kt"
+            line="196"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetBitmaps.kt"
+            line="220"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetBitmaps.kt"
+            line="253"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetBitmaps.kt"
+            line="310"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetBitmaps.kt"
+            line="346"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX function `createBitmap` instead?"
+        errorLine1="                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetBitmaps.kt"
+            line="378"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="    val webLens = Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://lens.google.com&quot;)).apply {"
+        errorLine2="                                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetIntents.kt"
+            line="109"
+            column="46"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            ?: Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://translate.google.com&quot;)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }"
+        errorLine2="                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetIntents.kt"
+            line="187"
+            column="43"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://google.com/search?q=weather&quot;)).apply {"
+        errorLine2="                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetIntents.kt"
+            line="201"
+            column="48"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://www.google.com/search?q=Sports&quot;)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }"
+        errorLine2="                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetIntents.kt"
+            line="217"
+            column="44"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://play.google.com/store/apps/details?id=com.google.android.apps.books&quot;)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }"
+        errorLine2="                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetIntents.kt"
+            line="225"
+            column="44"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                ?: Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://play.google.com/store/apps/details?id=com.google.android.apps.labs.language.tailwind&quot;)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }"
+        errorLine2="                                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetIntents.kt"
+            line="232"
+            column="47"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        &quot;Finance&quot; -> Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://www.google.com/finance&quot;)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }"
+        errorLine2="                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetIntents.kt"
+            line="234"
+            column="49"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        &quot;Saved&quot; -> Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://google.com/save&quot;)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }"
+        errorLine2="                                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetIntents.kt"
+            line="235"
+            column="47"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        &quot;News&quot; -> Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://news.google.com&quot;)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }"
+        errorLine2="                                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetIntents.kt"
+            line="236"
+            column="46"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        return Intent(Intent.ACTION_VIEW, Uri.parse(urlString)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }"
+        errorLine2="                                          ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetIntents.kt"
+            line="248"
+            column="43"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="    return Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://www.google.com/search?q=what+song+is+this&quot;)).apply {"
+        errorLine2="                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetIntents.kt"
+            line="352"
+            column="39"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="    val host = android.net.Uri.parse(withScheme).host ?: return false"
+        errorLine2="               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/WidgetPreviewIcons.kt"
+            line="42"
+            column="16"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                                prefs.edit().putBoolean(&quot;widget_suppress_unsaved_warning&quot;, true).apply()"
+        errorLine2="                                ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/WidgetSettingsScreen.kt"
+            line="753"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toColorInt` instead?"
+        errorLine1="                                val color = android.graphics.Color.parseColor(if (tempHexInput.startsWith(&quot;#&quot;)) tempHexInput else &quot;#$tempHexInput&quot;)"
+        errorLine2="                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/WidgetSettingsScreen.kt"
+            line="2602"
+            column="45"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toColorInt` instead?"
+        errorLine1="                                val color = android.graphics.Color.parseColor(if (tempCustomHexInput.startsWith(&quot;#&quot;)) tempCustomHexInput else &quot;#$tempCustomHexInput&quot;)"
+        errorLine2="                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/pixel/intelligentsearch/feature/settings/WidgetSettingsScreen.kt"
+            line="2634"
+            column="45"/>
+    </issue>
+
+</issues>

@@ -132,12 +132,7 @@ object IconPackManager {
             }
 
             if (resId != 0) {
-                val theme = iconPackContext?.theme
-                val drawable = if (theme != null) {
-                    iconPackRes.getDrawable(resId, theme)
-                } else {
-                    iconPackRes.getDrawable(resId, null)
-                }
+                val drawable = iconPackRes.getDrawable(resId, iconPackContext?.theme)
                 if (drawable != null) return drawable
             }
         } catch (e: Exception) {

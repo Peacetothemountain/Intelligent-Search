@@ -85,6 +85,9 @@ Target:
 
 ## Phase 4: Split the giant files
 
+Status: pure-move splits done (3df915e). Decomposing the remaining large composables waits for on-device
+visual checks.
+
 | File | Lines | Split into |
 |---|---|---|
 | `SettingsScreens.kt` | 3,560 | nav host, main screen, info/attestation dialog, shared settings components, engine brand icons (locked block stays) |
@@ -98,6 +101,8 @@ are easy to bisect.
 
 ## Phase 5: Remaining bugs from the audit
 
+Status: done (96c2474, plus the live Private Space lock check and the API 35 tile guard).
+
 Voice recognition kept running after the sheet closes; Tor searches saved to history (plus a real "pause
 history" behaviour for the existing toggle); `user_setup_search_engine` rewritten on every open (write
 only on explicit user action); tile click API guard (34 → 35); exported widget receivers accepting
@@ -109,12 +114,18 @@ Space lock not observed; edited-bang save race; icon packs loaded with no memory
 
 ## Phase 6: User-facing quality
 
+Status: accessibility and reduced-motion done (8bbbfa3). String extraction (~475 strings, English only) is
+an owner decision.
+
 - Strings into `strings.xml` (~190 hard-coded settings strings + toasts) so the app can be translated.
 - Accessibility pass on the overlay, widgets, tile and voice sheet (labels, roles, 48 dp targets, no
   colour-only state, no double-announced titles).
 - Remaining per-frame work outside settings (overlay ambient animations honour animator scale 0).
 
 ## Phase 7: Tooling & CI
+
+Status: lint gate with baseline done (6bf8a0f); `appfunctions` has no stable release yet. Coverage report
+not added.
 
 Lint in CI with a checked-in baseline (fail on new issues), Gradle wrapper validation (done), dependency
 updates through the catalog, alpha dependency review (`appfunctions 1.0.0-alpha13`), test coverage report.
@@ -126,6 +137,8 @@ foldable profile, landscape, 200% font, RTL; a work profile; reboot-before-unloc
 same phone and on a second install.
 
 ## Phase 9: Play policy & docs
+
+Status: CHANGELOG "Unreleased" entry and privacy policy updated.
 
 Permission justifications (`QUERY_ALL_PACKAGES`, `PACKAGE_USAGE_STATS`, `RECORD_AUDIO`,
 `WRITE_SECURE_SETTINGS`), privacy policy and README kept in step with each phase, CHANGELOG entry per phase.

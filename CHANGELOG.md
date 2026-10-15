@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased - Codebase Overhaul
+### Fixes
+- Search history is no longer saved when history is turned off or when searching through Tor Browser, and deleting a history entry now matches regardless of letter case.
+- Voice recognition stops when the assistant sheet is dismissed instead of listening in the background.
+- Editing, removing and restoring web shortcuts (bangs) is saved in one step, so quick edits can no longer undo each other.
+- The launcher's "Voice search" shortcut now starts voice search.
+- Calculator: thousands separators ("1,000 + 1"), bits versus bytes ("100 Mb in MB"), and out-of-range bit shifts are handled correctly.
+- Typing a file name such as "notes.txt" no longer offers "Go to website".
+- App search ranks apps you have opened recently and often first (requires Usage Access).
+- Icon and thumbnail caches are capped by memory rather than entry count.
+
+### Settings, security and architecture
+- Settings live in one typed store; older setting names and the previous DataStore copy are migrated automatically on first launch.
+- Removed the fail-open encrypted vault, hidden-API reflection, unused code and about 2 MB of unused assets.
+- Hidden Apps and Backup pages share one biometric unlock gate; the saved backup passphrase is kept only in credential-protected storage.
+- Singletons are provided through Hilt with one shared application scope; slow package lookups moved off the main thread.
+- Large screens were split into focused files.
+- Hand-rolled animations stop when system animations are turned off, and voice status changes are announced by TalkBack.
+- Release builds strip warning logs as well as debug logs; CI now fails on new lint warnings.
+
 ## Release Version 8.9 - System Architecture & Security Hardening
 - **Titan M3+ Hardware Security**: Integrated StrongBox KeyStore (`KeyGenParameterSpec`) with hardware-backed key attestation verification, TEE fallbacks, and biometrically gated cryptographic operations.
 - **Trampoline-Free Window Acceleration**: Direct subclassing of `MainActivity` in `SearchActivity` and `WidgetActivity`, eliminating cold-boot trampoline latency.

@@ -77,21 +77,23 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val enteredAtMs = remember { android.os.SystemClock.uptimeMillis() }
     val currentOnBack by androidx.compose.runtime.rememberUpdatedState(onBack)
 
+    // Leaves exactly once. A failure right after opening waits for the enter transition to settle
+    // first; calling back a second time as a retry popped the page underneath as well.
     val navigateBackOnAuthFailure: () -> Unit = {
         isAuthenticated = false
-        SettingsDebouncer.recordClick(0L)
-        SettingsDebouncer.recordClick(0L, key = "settings_top_bar_back")
-        currentOnBack()
+        val leave = {
+            SettingsDebouncer.recordClick(0L)
+            SettingsDebouncer.recordClick(0L, key = "settings_top_bar_back")
+            currentOnBack()
+        }
         val elapsed = android.os.SystemClock.uptimeMillis() - enteredAtMs
         if (elapsed < 450L) {
             authScope.launch {
-                delay((450L - elapsed).coerceAtLeast(50L))
-                if (!isAuthenticated) {
-                    SettingsDebouncer.recordClick(0L)
-                    SettingsDebouncer.recordClick(0L, key = "settings_top_bar_back")
-                    currentOnBack()
-                }
+                delay(450L - elapsed)
+                if (!isAuthenticated) leave()
             }
+        } else {
+            leave()
         }
     }
 

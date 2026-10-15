@@ -2930,7 +2930,6 @@ fun SearchOverlayScreen(
             }
             
             val surfaceAlpha = if (isShowWallpaper) ((100 - isTransparency) / 100f).coerceIn(0f, 1f) else 1f
-            val baseShellShape = remember { RoundedCornerShape(24.dp) }
 
             Box(
                 modifier = Modifier
@@ -2965,13 +2964,24 @@ fun SearchOverlayScreen(
                     }
                     .then(
                         if (settingsState.bottomSearch) {
+                            val outlineColor = MaterialTheme.colorScheme.outlineVariant
                             Modifier
                                 .background(MaterialTheme.colorScheme.surface.copy(alpha = surfaceAlpha))
-                                .border(
-                                    width = 1.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant,
-                                    shape = baseShellShape
-                                )
+                                .drawWithContent {
+                                    drawContent()
+                                    // Follows the layer clip's predictive-back radius (read in draw, so
+                                    // the gesture never recomposes); a fixed 24dp outline lost its corners.
+                                    val backProg = predictiveBackProgress.value.coerceIn(0f, 1f)
+                                    val stroke = 1.dp.toPx()
+                                    val radius = androidx.compose.ui.unit.lerp(24.dp, 32.dp, backProg).toPx() - stroke / 2f
+                                    drawRoundRect(
+                                        color = outlineColor,
+                                        topLeft = androidx.compose.ui.geometry.Offset(stroke / 2f, stroke / 2f),
+                                        size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius, radius),
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke)
+                                    )
+                                }
                         } else {
                             Modifier.background(Color.Transparent)
                         }

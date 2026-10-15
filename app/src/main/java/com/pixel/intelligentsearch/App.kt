@@ -118,9 +118,9 @@ class App : Application() {
                     // redraw them from the user's real settings now that they are readable.
                     com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(this@App)
                 }
-                // DataStore is the source of truth for settings; carry over any values that only
-                // exist in the legacy SharedPreferences before the overlay first reads them.
-                settingsManager.syncSharedPreferencesToDataStore()
+                // One-time: fold old setting spellings and the retired DataStore copy into the single store.
+                settingsManager.migrateToSingleStore()
+                settingsManager.startDirectBootMirror()
                 systemToggleManager.clearLegacyAppNightModeOverride()
                 multiProfileManager.refreshProfiles()
                 removeRetiredSecretsOnce()

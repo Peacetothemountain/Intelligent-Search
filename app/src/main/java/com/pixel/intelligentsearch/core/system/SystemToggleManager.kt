@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.system
 
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.app.UiModeManager
@@ -577,7 +578,7 @@ class SystemToggleManager @Inject constructor(
      * follows the system theme again. Runs once.
      */
     fun clearLegacyAppNightModeOverride() {
-        val prefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
         if (prefs.getBoolean(KEY_APP_NIGHT_MODE_RESET, false)) return
         try {
             uiModeManager?.setApplicationNightMode(UiModeManager.MODE_NIGHT_AUTO)

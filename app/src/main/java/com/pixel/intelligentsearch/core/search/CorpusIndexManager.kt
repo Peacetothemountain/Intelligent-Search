@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.search
 
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -51,7 +52,7 @@ class CorpusIndexManager @Inject constructor(
 ) {
     companion object {
         private const val TAG = "CorpusIndexManager"
-        private const val SETTINGS_PREFS = "PREFERENCES_CUSTOMISATIONS"
+        private const val SETTINGS_PREFS = SettingsManager.PREFS_NAME
         private const val FILES_REFRESH_INTERVAL_MS = 2 * 60 * 1000L
         private const val CONTACTS_REFRESH_INTERVAL_MS = 60 * 1000L
     }

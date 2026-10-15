@@ -1,5 +1,8 @@
 package com.pixel.intelligentsearch.feature.widget
 
+import com.pixel.intelligentsearch.core.theme.ThemeMode
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -244,7 +247,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         private val PATH_GEMINI_2 by lazy { PathParser.createPathFromPathData("M19.0,9.0 l1.25,-2.75 L23.0,5.0 l-2.75,-1.25 L19.0,1.0 l-1.25,2.75 L15.0,5.0 l2.75,1.25 L19.0,9.0 Z") }
         private val PATH_GEMINI_3 by lazy { PathParser.createPathFromPathData("M19.0,15.0 l-1.25,2.75 L15.0,19.0 l2.75,1.25 L19.0,23.0 l1.25,-2.75 L23.0,19.0 l-2.75,-1.25 L19.0,15.0 Z") }
 
-        fun getSafeSharedPreferences(context: Context, name: String = "PREFERENCES_CUSTOMISATIONS"): SharedPreferences {
+        fun getSafeSharedPreferences(context: Context, name: String = SettingsManager.PREFS_NAME): SharedPreferences {
             val isUnlocked = UserManagerCompat.isUserUnlocked(context)
             val targetContext = if (isUnlocked) context else context.createDeviceProtectedStorageContext()
             return targetContext.getSharedPreferences(name, Context.MODE_PRIVATE)
@@ -283,12 +286,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 try {
                     val appWidgetManager = AppWidgetManager.getInstance(appContext) ?: return@launch
                     val prefs = getSafeSharedPreferences(appContext)
-                    val themeMode = prefs.getString("night.mode", "System") ?: "System"
-                    val isDark = when (themeMode) {
-                        "Material Dark", "Dark mode", "Dark" -> true
-                        "Material Light", "Light mode", "Light" -> false
-                        else -> (appContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-                    }
+                    val isDark = ThemeMode.from(prefs[SettingsManager.THEME])
+                        .isDark(ThemeMode.systemIsDark(appContext.resources.configuration))
                     val widgetColors = DynamicThemeDetector.resolveWidgetColors(appContext, isDark)
 
                     val providers = listOf(
@@ -439,15 +438,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             forcedIsMaterial: Boolean? = null
         ) {
             val prefs = getSafeSharedPreferences(context)
-            val themeMode = prefs.getString("night.mode", "System") ?: "System"
-            val isDark = when (themeMode) {
-                "Material Dark", "Dark mode", "Dark" -> true
-                "Material Light", "Light mode", "Light" -> false
-                else -> (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-            }
+            val isDark = ThemeMode.from(prefs[SettingsManager.THEME])
+                .isDark(ThemeMode.systemIsDark(context.resources.configuration))
 
             val widgetColors = DynamicThemeDetector.resolveWidgetColors(context, isDark)
-            val widgetThemeStyle = prefs.getString("widget.theme.style", "System Default")
+            val widgetThemeStyle = prefs[SettingsManager.WIDGET_THEME_STYLE]
 
             for (appWidgetId in appWidgetIds) {
                 try {
@@ -902,7 +897,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             }
 
             // Tap pill -> main search overlay
-            val enableSearchOverlay = prefs.getBoolean("search_overlay_enabled", true)
+            val enableSearchOverlay = prefs[SettingsManager.SEARCH_OVERLAY_ENABLED]
             val mainIntent = if (enableSearchOverlay) {
                 Intent(context, WidgetActivity::class.java).apply {
                     identifier = "widget_${appWidgetId}_slot_pill"

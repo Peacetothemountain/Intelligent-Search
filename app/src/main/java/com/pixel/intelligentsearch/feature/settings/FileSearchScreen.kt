@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.SharedPreferences
 import android.widget.Toast
 import com.pixel.intelligentsearch.core.data.UserGrantedFiles
@@ -181,7 +183,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         showDivider = true
                     )
                 }
-                var hiddenFiles by rememberBooleanPreference(prefs, "search.files.hidden.files", false)
+                var hiddenFiles by rememberSetting(SettingsManager.FILES_HIDDEN_FILES)
                 SettingsRowToggle(
                     title = "Show Hidden Files",
                     subtitle = "Include Files Hidden from Android Index.",
@@ -190,7 +192,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onCheckedChange = { hiddenFiles = it },
                     showDivider = true
                 )
-                var thumbnails by rememberBooleanPreference(prefs, "search.files.thumbnails", true)
+                var thumbnails by rememberSetting(SettingsManager.FILES_THUMBNAILS)
                 SettingsRowToggle(
                     title = "Show Thumbnails",
                     subtitle = "Show Images and Video Thumbnails.",
@@ -200,7 +202,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     showDivider = true
                 )
                 
-                var fileResultsCount by rememberIntPreference(prefs, "file_results_count", 5)
+                var fileResultsCount by rememberSetting(SettingsManager.FILE_RESULTS_COUNT)
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -236,7 +238,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                var fileWeight by rememberIntPreference(prefs, "search_weight_files", 50)
+                var fileWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_FILES)
                 val fileLevelIndex = remember(fileWeight) { PriorityWeightHelper.weightToLevelIndex(fileWeight) }
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Row(

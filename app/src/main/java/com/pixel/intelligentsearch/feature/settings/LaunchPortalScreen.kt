@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.app.PendingIntent
 import android.app.StatusBarManager
 import android.content.ComponentName
@@ -48,7 +50,7 @@ import com.pixel.intelligentsearch.feature.widget.SearchTileService
 fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        val morphAnimationEnabled by rememberBooleanPreference(prefs, "morph_animation_enabled", false) {}
+        val morphAnimationEnabled by rememberSetting(SettingsManager.MORPH_ANIMATION_ENABLED) {}
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {

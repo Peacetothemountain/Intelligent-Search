@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import com.pixel.intelligentsearch.core.util.findActivity
@@ -145,7 +147,7 @@ fun BackupRestoreScreen(
         onBack = onBack,
         isProtectionNeeded = {
             withContext(Dispatchers.IO) {
-                !prefs.getStringSet("hidden_apps", null).isNullOrEmpty() ||
+                !prefs[SettingsManager.HIDDEN_APPS].isNullOrEmpty() ||
                     viewModel?.hasSavedPassphraseOnSecurityChip() == true
             }
         }

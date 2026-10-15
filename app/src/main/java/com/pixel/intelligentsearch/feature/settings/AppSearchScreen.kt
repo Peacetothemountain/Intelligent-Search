@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import com.pixel.intelligentsearch.core.data.settings.put
 import android.content.SharedPreferences
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -77,7 +79,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                     onClick = { onNavigate(Route.ManageHiddenApps) },
                     showDivider = true
                 )
-                var fuzzySearch by rememberBooleanPreference(prefs, "app.fuzzy.search", true)
+                var fuzzySearch by rememberSetting(SettingsManager.APP_FUZZY_SEARCH)
                 SettingsRowToggle(
                     title = "Fuzzy Search",
                     subtitle = "Allow Typos When Searching for Apps.",
@@ -86,7 +88,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                     onCheckedChange = { fuzzySearch = it },
                     showDivider = true
                 )
-                var appAnimation by rememberBooleanPreference(prefs, "app.animation", true)
+                var appAnimation by rememberSetting(SettingsManager.APP_ANIMATIONS)
                 SettingsRowToggle(
                     title = "App Animations",
                     subtitle = "Use Dynamic Animations When Launching Apps from Search Overlay Page.",
@@ -99,7 +101,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
 
             Text("Include in search result", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp))
             SettingsCard {
-                var searchShortcuts by rememberBooleanPreference(prefs, "search.shortcuts", false)
+                var searchShortcuts by rememberSetting(SettingsManager.SEARCH_SHORTCUTS)
                 SettingsRowToggle(
                     title = "Shortcuts",
                     subtitle = "Manage Shortcuts for 20 Apps.",
@@ -109,7 +111,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                     showDivider = true
                 )
                 
-                var recentShortcuts by rememberBooleanPreference(prefs, "shortcut.recent", true)
+                var recentShortcuts by rememberSetting(SettingsManager.SHORTCUT_RECENT)
                 SettingsRowToggle(
                     title = "Include Recent Shortcuts",
                     subtitle = "Show Recently Used Shortcuts as Suggestions.",
@@ -122,8 +124,8 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
             
             Text("Results preferences", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp))
             SettingsCard {
-                var searchPills by rememberStringPreference(prefs, "search.pills", "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files")
-                var shortcutResultsCount by rememberIntPreference(prefs, "shortcut_results_count", 6)
+                var searchPills by rememberSetting(SettingsManager.SEARCH_PILLS)
+                var shortcutResultsCount by rememberSetting(SettingsManager.SHORTCUT_RESULTS_COUNT)
                 val viewModel = LocalSettingsViewModel.current
 
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -137,7 +139,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                             onClick = {
                                 performClickHaptic(context)
                                 shortcutResultsCount = 6
-                                prefs.edit().putInt("shortcut_results_count", 6).apply()
+                                prefs.edit().put(SettingsManager.SHORTCUT_RESULTS_COUNT, 6).apply()
                                 viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, 6)
                             },
                             modifier = Modifier.size(32.dp)
@@ -158,7 +160,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                             onValueChange = { newValue -> 
                                 val newCount = newValue.toInt().coerceIn(1, 20)
                                 shortcutResultsCount = newCount
-                                prefs.edit().putInt("shortcut_results_count", newCount).apply()
+                                prefs.edit().put(SettingsManager.SHORTCUT_RESULTS_COUNT, newCount).apply()
                                 viewModel?.updateSetting(SettingsManager.SHORTCUT_RESULTS_COUNT, newCount)
 
                                 val currentPills = searchPills.split(",").filter { it.isNotBlank() }
@@ -167,7 +169,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                                     searchPills = trimmed
                                     val activeProfile = prefs.getInt("active_app_search_profile", 1)
                                     prefs.edit()
-                                        .putString("search.pills", trimmed)
+                                        .put(SettingsManager.SEARCH_PILLS, trimmed)
                                         .putString("app_search_profile_$activeProfile", trimmed)
                                         .apply()
                                     viewModel?.updateSetting(SettingsManager.SEARCH_PILLS, trimmed)
@@ -183,7 +185,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                var appWeight by rememberIntPreference(prefs, "search_weight_apps", 50)
+                var appWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_APPS)
                 val appLevelIndex = remember(appWeight) { PriorityWeightHelper.weightToLevelIndex(appWeight) }
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Row(

@@ -1,4 +1,6 @@
 ﻿package com.pixel.intelligentsearch.feature.settings
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import com.pixel.intelligentsearch.core.data.settings.put
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.drawscope.scale
@@ -79,7 +81,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             )
             
             val settingsViewModel = LocalSettingsViewModel.current
-            var forceTutorial by rememberBooleanPreference(prefs, "force_tutorial", false)
+            var forceTutorial by rememberSetting(SettingsManager.FORCE_TUTORIAL)
             SettingsRowToggle(
                 title = "Force Tutorial Mode",
                 subtitle = "When checked, the tutorial will play every time the app opens",
@@ -94,8 +96,8 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                 icon = Icons.Outlined.Refresh,
                 onClick = {
                     prefs.edit()
-                        .putInt("tutorial_step", 0)
-                        .putBoolean("tutorial_completed", false)
+                        .put(SettingsManager.TUTORIAL_STEP, 0)
+                        .put(SettingsManager.TUTORIAL_COMPLETED, false)
                         .apply()
                     // Settings screens read tutorial state from DataStore, not the prefs mirror.
                     settingsViewModel?.updateSetting(SettingsManager.TUTORIAL_STEP, 0)
@@ -118,7 +120,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             
             
             
-            var verboseLogging by rememberBooleanPreference(prefs, "debug.verbose_logging", false)
+            var verboseLogging by rememberSetting(SettingsManager.DEBUG_VERBOSE_LOGGING)
             SettingsRowToggle(
                 title = "Enable Verbose Logging",
                 subtitle = "Print Query Logs and Load Frame Times in Logcat.",
@@ -129,7 +131,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             )
             
 
-            var showPerfStats by rememberBooleanPreference(prefs, "debug.show_perf_stats", false)
+            var showPerfStats by rememberSetting(SettingsManager.DEBUG_SHOW_PERF_STATS)
             SettingsRowToggle(
                 title = "Show Performance HUD",
                 subtitle = "Render Search Latency and Results Count at Top of Overlay.",
@@ -140,7 +142,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             )
             
             
-            var forceSearchError by rememberBooleanPreference(prefs, "debug.force_search_error", false)
+            var forceSearchError by rememberSetting(SettingsManager.DEBUG_FORCE_SEARCH_ERROR)
             SettingsRowToggle(
                 title = "Force Search API Error",
                 subtitle = "Simulate Suggestion Fetch Failure and Display Error Banner.",

@@ -1,5 +1,10 @@
 package com.pixel.intelligentsearch.core.backup
 
+import com.pixel.intelligentsearch.core.data.settings.StringSetSetting
+import com.pixel.intelligentsearch.core.data.settings.StringSetting
+import com.pixel.intelligentsearch.core.data.settings.IntSetting
+import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
+import com.pixel.intelligentsearch.core.data.settings.SettingKey
 import android.content.Context
 import android.net.Uri
 import android.util.Log
@@ -73,89 +78,6 @@ class BackupManager @Inject constructor(
             "adaptiveIconShape" to SettingsManager.ADAPTIVE_ICON_SHAPE
         )
 
-        private val EXPECTED_SHARED_PREF_TYPES = mapOf(
-            "search.apps" to "BOOLEAN",
-            "search_apps" to "BOOLEAN",
-            "search.contacts" to "BOOLEAN",
-            "search_contacts" to "BOOLEAN",
-            "search.files" to "BOOLEAN",
-            "search_files" to "BOOLEAN",
-            "search.web" to "BOOLEAN",
-            "search_web" to "BOOLEAN",
-            "search_previous_searches" to "BOOLEAN",
-            "search.calculator" to "BOOLEAN",
-            "search_calculator" to "BOOLEAN",
-            "search.calendar" to "BOOLEAN",
-            "search_calendar" to "BOOLEAN",
-            "search.shortcuts" to "BOOLEAN",
-            "search_shortcuts" to "BOOLEAN",
-            "search.background.show.wall" to "BOOLEAN",
-            "show_wallpaper" to "BOOLEAN",
-            "show.wallpaper" to "BOOLEAN",
-            "search.files.hidden.files" to "BOOLEAN",
-            "search_files_hidden_files" to "BOOLEAN",
-            "search.files.thumbnails" to "BOOLEAN",
-            "search_files_thumbnails" to "BOOLEAN",
-            "app_animations" to "BOOLEAN",
-            "settings.bottom.search" to "BOOLEAN",
-            "bottom_search" to "BOOLEAN",
-            "settings.bottom.search.result" to "BOOLEAN",
-            "bottom_search_result" to "BOOLEAN",
-            "tutorial_completed" to "BOOLEAN",
-            "force_tutorial" to "BOOLEAN",
-            "g_icon_enabled" to "BOOLEAN",
-            "widget_show_voice" to "BOOLEAN",
-            "widget_show_gemini" to "BOOLEAN",
-            "quick_search_youtube" to "BOOLEAN",
-            "quick_search_wikipedia" to "BOOLEAN",
-            "quick_search_play_store" to "BOOLEAN",
-            "quick_search_maps" to "BOOLEAN",
-            "app_quick_launch" to "BOOLEAN",
-            "contact_direct_call" to "BOOLEAN",
-            "shortcut.inline" to "BOOLEAN",
-            "shortcut_inline" to "BOOLEAN",
-            "app.fuzzy.search" to "BOOLEAN",
-            "app_fuzzy_search" to "BOOLEAN",
-            "quick_search_horizontal" to "BOOLEAN",
-            "quick.search.horizontal" to "BOOLEAN",
-            "context_aware_quick_apps" to "BOOLEAN",
-            "smart_clipboard_suggestions" to "BOOLEAN",
-            "search_overlay_enabled" to "BOOLEAN",
-            "never_show_icon_pack_warning" to "BOOLEAN",
-            "dynamic_icon_masking" to "BOOLEAN",
-            "diagnostics_overlay_enabled" to "BOOLEAN",
-            "matrix_animation_enabled" to "BOOLEAN",
-            "settings_back_to_search_overlay" to "BOOLEAN",
-            "vibration_enabled" to "BOOLEAN",
-            "search.background.blur" to "INT",
-            "background.blur" to "INT",
-            "search.background.transparency" to "INT",
-            "background.transparency" to "INT",
-            "search.pill.opacity" to "INT",
-            "pill.opacity" to "INT",
-            "tutorial_step" to "INT",
-            "web_results_count" to "INT",
-            "contact_results_count" to "INT",
-            "file_results_count" to "INT",
-            "shortcut_results_count" to "INT",
-            "night.mode" to "STRING",
-            "theme" to "STRING",
-            "search.engine" to "STRING",
-            "custom_search_engine_url" to "STRING",
-            "search_pills" to "STRING",
-            "search.pills" to "STRING",
-            "widget.theme.style" to "STRING",
-            "widget_theme_style" to "STRING",
-            "active_icon_pack" to "STRING",
-            "custom_icon_pills" to "STRING",
-            "custom_bangs_json" to "STRING",
-            "search_sections_config_json" to "STRING",
-            "adaptive_icon_shape" to "STRING",
-            "web_shortcut_trigger_symbol" to "STRING",
-            "hidden_apps" to "STRING_SET",
-            "disabled_web_shortcuts" to "STRING_SET"
-        )
-
         private fun isBlockedInternalKey(key: String): Boolean {
             if (key.isBlank() || key.length > 128) return true
             return key.endsWith("_vault") ||
@@ -168,6 +90,14 @@ class BackupManager @Inject constructor(
                 key == "datastore_migration_v1_completed" ||
                 key == "profile_1_restored_to_default_v918" ||
                 key == "app_night_mode_override_cleared_v1"
+        }
+
+        /** The backup file's type label for a declared setting. */
+        private fun sharedPrefTypeName(setting: SettingKey<*>): String = when (setting) {
+            is BooleanSetting -> "BOOLEAN"
+            is IntSetting -> "INT"
+            is StringSetting -> "STRING"
+            is StringSetSetting -> "STRING_SET"
         }
 
         private fun sharedPrefTypeName(value: Any): String? = when (value) {
@@ -229,7 +159,7 @@ class BackupManager @Inject constructor(
         prefsMap["dynamicIconMasking"] = currentSettings.dynamicIconMasking.toString()
 
         // 2. Comprehensive capture of ALL customizations from PREFERENCES_CUSTOMISATIONS with type fidelity
-        val sharedPrefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val sharedPrefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
         val allCustomPrefs = sharedPrefs.all
         val spJsonObj = JSONObject()
         for ((k, v) in allCustomPrefs) {
@@ -276,7 +206,7 @@ class BackupManager @Inject constructor(
             appVersionCode = currentVersionCode,
             preferencesMap = prefsMap,
             customBangsJson = currentSettings.customBangsJson,
-            sectionConfigsJson = currentSettings.searchSectionsConfigJson,
+            sectionConfigsJson = "[]", // retired feature; field kept for older readers
             searchHistory = historyList,
             hiddenApps = currentSettings.hiddenApps.toList(),
             sharedPreferencesJson = spJsonObj.toString()
@@ -509,7 +439,7 @@ class BackupManager @Inject constructor(
 
     private suspend fun restorePayload(payload: BackupContentPayload): Int = withContext(Dispatchers.IO) {
         var restoredCount = 0
-        val sharedPrefs = context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
+        val sharedPrefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
 
         // 1. Restore all rich typed preferences from sharedPreferencesJson (Schema 2+)
         if (payload.sharedPreferencesJson.isNotBlank() && payload.sharedPreferencesJson != "{}") {
@@ -522,37 +452,42 @@ class BackupManager @Inject constructor(
                 while (keys.hasNext()) {
                     val key = keys.next()
                     if (isBlockedInternalKey(key) || BackupPreferenceSchema.isDebugKey(key)) continue
+                    // Older files carry several spellings of one setting: restore it under its canonical name,
+                    // taking the canonical entry when the file has one.
+                    val setting = SettingsManager.keyFor(key)
+                    if (setting != null && key != setting.name && spObj.has(setting.name)) continue
+                    val target = setting?.name ?: key
                     runCatching {
                         val itemObj = spObj.getJSONObject(key)
                         val type = itemObj.optString("type")
                         // Known keys must carry the type the app reads them with. Keys the schema doesn't
                         // name (per-shortcut custom values etc.) must at least match what is stored here now.
-                        val expectedType = EXPECTED_SHARED_PREF_TYPES[key]
+                        val expectedType = setting?.let(::sharedPrefTypeName)
                             ?: BackupPreferenceSchema.expectedType(key)
                             ?: localValues[key]?.let { sharedPrefTypeName(it) }
                         if (expectedType != null && expectedType != type) {
                             return@runCatching
                         }
                         when (type) {
-                            "BOOLEAN" -> editor.putBoolean(key, itemObj.getBoolean("value"))
+                            "BOOLEAN" -> editor.putBoolean(target, itemObj.getBoolean("value"))
                             "INT" -> {
                                 val intVal = itemObj.getInt("value")
-                                val range = BackupPreferenceSchema.intRange(key)
+                                val range = (setting as? IntSetting)?.range ?: BackupPreferenceSchema.intRange(key)
                                 if (range != null && intVal !in range) return@runCatching
-                                editor.putInt(key, intVal)
+                                editor.putInt(target, intVal)
                             }
-                            "LONG" -> editor.putLong(key, itemObj.getLong("value"))
+                            "LONG" -> editor.putLong(target, itemObj.getLong("value"))
                             "FLOAT" -> {
                                 val fVal = itemObj.getDouble("value").toFloat()
-                                if (fVal.isFinite()) editor.putFloat(key, fVal) else return@runCatching
+                                if (fVal.isFinite()) editor.putFloat(target, fVal) else return@runCatching
                             }
                             "STRING" -> {
                                 val strVal = itemObj.getString("value")
                                 if (strVal.length > BackupPreferenceSchema.MAX_STRING_LENGTH) return@runCatching
-                                if (key == "custom_search_engine_url" && !isValidCustomSearchUrl(strVal)) {
+                                if (target == SettingsManager.CUSTOM_SEARCH_ENGINE_URL.name && !isValidCustomSearchUrl(strVal)) {
                                     return@runCatching
                                 }
-                                editor.putString(key, strVal)
+                                editor.putString(target, strVal)
                             }
                             "STRING_SET" -> {
                                 val arr = itemObj.getJSONArray("value")
@@ -561,10 +496,12 @@ class BackupManager @Inject constructor(
                                 for (i in 0 until arr.length()) {
                                     set.add(arr.getString(i))
                                 }
-                                editor.putStringSet(key, set)
+                                editor.putStringSet(target, set)
                             }
                             else -> return@runCatching
                         }
+                        // The restored canonical value replaces any old spelling still stored locally.
+                        setting?.legacyNames?.forEach(editor::remove)
                         restoredCount++
                     }
                 }
@@ -573,10 +510,6 @@ class BackupManager @Inject constructor(
                 android.util.Log.w("BackupManager", "Failed to restore typed SharedPreferences", e)
             }
         }
-
-        // Typed prefs only feed settingsFlow where DataStore has no value, so push every restored key
-        // into DataStore as well; otherwise settings already customised on this device would win.
-        settingsManager.syncSharedPreferencesToDataStore(overwrite = true)
 
         // 2. Restore the DataStore snapshot (the only settings source in schema 1 backups). updateSetting
         // writes DataStore plus every SharedPreferences spelling of the key.
@@ -602,8 +535,6 @@ class BackupManager @Inject constructor(
             settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, payload.customBangsJson)
             restoredCount++
         }
-        settingsManager.updateSetting(SettingsManager.SEARCH_SECTIONS_CONFIG_JSON, payload.sectionConfigsJson)
-        restoredCount++
 
         settingsManager.updateSetting(SettingsManager.HIDDEN_APPS, payload.hiddenApps.toSet())
         restoredCount += payload.hiddenApps.size

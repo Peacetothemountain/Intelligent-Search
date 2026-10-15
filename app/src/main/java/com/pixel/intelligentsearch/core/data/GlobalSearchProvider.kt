@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.data
 
+import com.pixel.intelligentsearch.core.data.settings.get
 import android.app.SearchManager
 import android.content.ContentProvider
 import android.content.ContentValues
@@ -105,12 +106,12 @@ class GlobalSearchProvider : ContentProvider() {
 
         var rowId = 1L
 
-        val prefs = safeCtx?.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE)
-        val suggestionsEnabled = prefs?.getBoolean("search.web.suggestions", true) ?: true
-        val engine = prefs?.getString("search.engine", "Google") ?: "Google"
-        val customUrl = prefs?.getString("custom_search_engine_url", "") ?: ""
+        val prefs = safeCtx?.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+        val suggestionsEnabled = prefs?.get(SettingsManager.SEARCH_WEB_SUGGESTIONS) ?: true
+        val engine = prefs?.get(SettingsManager.SEARCH_ENGINE) ?: "Google"
+        val customUrl = prefs?.get(SettingsManager.CUSTOM_SEARCH_ENGINE_URL) ?: ""
         // Apps the user hid in-app must not resurface through system global search.
-        val hiddenApps = prefs?.getStringSet("hidden_apps", emptySet()).orEmpty()
+        val hiddenApps = prefs?.get(SettingsManager.HIDDEN_APPS).orEmpty()
 
         val isTorEngine = engine == "Tor Project" || engine == "Tor Browser"
         val isCustomEngine = engine == "Custom"

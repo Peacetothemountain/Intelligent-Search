@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch.feature.search
+import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.WebSearchProvider
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.data.FileItem
@@ -113,7 +114,7 @@ class SearchViewModel @Inject constructor(
 
     private val adpfThermalManager = com.pixel.intelligentsearch.core.performance.ADPFThermalManager.getInstance(context)
     private val nexusLauncherBridge = com.pixel.intelligentsearch.core.data.NexusLauncherBridge(context)
-    private val customPrefs by lazy { context.getSharedPreferences("PREFERENCES_CUSTOMISATIONS", Context.MODE_PRIVATE) }
+    private val customPrefs by lazy { context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE) }
     private var initialClipboardActions: List<DirectAction> = emptyList()
 
     init {
@@ -450,8 +451,8 @@ class SearchViewModel @Inject constructor(
 
     private fun executeLocalSearch(newQuery: String, previousQuery: String = "") {
         val prefs = customPrefs
-        val verboseLogging = prefs.getBoolean("debug.verbose_logging", false)
-        val forceSearchError = prefs.getBoolean("debug.force_search_error", false)
+        val verboseLogging = prefs[SettingsManager.DEBUG_VERBOSE_LOGGING]
+        val forceSearchError = prefs[SettingsManager.DEBUG_FORCE_SEARCH_ERROR]
 
         searchJob?.cancel()
         searchJob = viewModelScope.launch(Dispatchers.Default) {
@@ -576,7 +577,7 @@ class SearchViewModel @Inject constructor(
                 unifiedResults.shortcuts.filter { it.packageName !in settings.hiddenApps }.take(settings.shortcutResultsCount)
             } else emptyList()
 
-            val suggestionsEnabled = settings.searchWeb && customPrefs.getBoolean("search.web.suggestions", true) && !isAdvancedProtectionOn()
+            val suggestionsEnabled = settings.searchWeb && customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS] && !isAdvancedProtectionOn()
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
                 WebSearchProvider.getCachedSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(5))
@@ -700,7 +701,7 @@ class SearchViewModel @Inject constructor(
             return
         }
 
-        val suggestionsEnabled = customPrefs.getBoolean("search.web.suggestions", true)
+        val suggestionsEnabled = customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]
         if (!suggestionsEnabled || isAdvancedProtectionOn()) {
             _uiState.update { it.copy(webSuggestions = emptyList()) }
             return

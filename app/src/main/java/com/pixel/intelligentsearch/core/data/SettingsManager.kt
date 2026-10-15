@@ -1,480 +1,424 @@
 package com.pixel.intelligentsearch.core.data
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.UserManager
 import android.util.Log
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.*
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.datastore.preferences.preferencesDataStoreFile
+import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
+import com.pixel.intelligentsearch.core.data.settings.IntSetting
+import com.pixel.intelligentsearch.core.data.settings.SettingKey
+import com.pixel.intelligentsearch.core.data.settings.StringSetSetting
+import com.pixel.intelligentsearch.core.data.settings.StringSetting
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.theme.ThemeMode
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "intelligent_search_settings")
+/** Settings stored in DataStore by versions before the single-store migration; read once, then deleted. */
+private val Context.legacySettingsDataStore by preferencesDataStore(name = SettingsManager.LEGACY_DATASTORE_NAME)
 
+/** Immutable snapshot of the app-wide settings, read by the overlay, settings screens and services. */
 @androidx.compose.runtime.Immutable
 data class IntelligentSearchSettings(
-    val theme: String = "system",
-    val searchApps: Boolean = true,
-    val searchContacts: Boolean = false,
-    val searchFiles: Boolean = false,
-    val searchWeb: Boolean = true,
-    val searchCalculator: Boolean = true,
-    val searchCalendar: Boolean = true,
-    val searchShortcuts: Boolean = true,
-    val backgroundBlur: Int = 50,
-    val showWallpaper: Boolean = true,
-    val backgroundTransparency: Int = 50,
-    val pillOpacity: Int = 50,
-    val searchEngine: String = "Google",
-    val customSearchEngineUrl: String = "",
-    val filesHiddenFiles: Boolean = false,
-    val filesThumbnails: Boolean = true,
-    val appAnimations: Boolean = true,
-    val bottomSearch: Boolean = true,
-    val bottomSearchResult: Boolean = true,
-    val tutorialCompleted: Boolean = false,
-    val forceTutorial: Boolean = false,
-    val tutorialStep: Int = 0,
-    val gIconEnabled: Boolean = true,
-    val widgetShowVoice: Boolean = true,
-    val widgetShowGemini: Boolean = true,
-    val quickSearchYoutube: Boolean = true,
-    val quickSearchWikipedia: Boolean = true,
-    val quickSearchPlayStore: Boolean = true,
-    val quickSearchMaps: Boolean = true,
-    val searchPills: String = "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files",
-    val widgetThemeStyle: String = "System Default",
-    val hiddenApps: Set<String> = emptySet(),
-    val appQuickLaunch: Boolean = false,
-    val contactDirectCall: Boolean = false,
-    val shortcutInline: Boolean = true,
-    val appFuzzySearch: Boolean = true,
-    val quickSearchHorizontal: Boolean = false,
-    val webResultsCount: Int = 5,
-    val contactResultsCount: Int = 5,
-    val fileResultsCount: Int = 5,
-    val shortcutResultsCount: Int = 6,
-    val contextAwareQuickApps: Boolean = false,
-    val smartClipboardSuggestions: Boolean = false,
-    val activeIconPack: String = "system_default",
-    val searchOverlayEnabled: Boolean = true,
-    val customIconPills: String = "",
-    val neverShowIconPackWarning: Boolean = false,
-    val searchPreviousSearches: Boolean = true,
-    val customBangsJson: String = "[]",
-    val searchSectionsConfigJson: String = "",
-    val adaptiveIconShape: String = "SYSTEM_DEFAULT",
-    val dynamicIconMasking: Boolean = true,
-    val diagnosticsOverlayEnabled: Boolean = false,
-    val matrixAnimationEnabled: Boolean = true,
-    val backToSearchOverlay: Boolean = true,
-    val disabledWebShortcuts: Set<String> = emptySet(),
-    val vibrationEnabled: Boolean = true
+    val theme: String = SettingsManager.THEME.default,
+    val searchApps: Boolean = SettingsManager.SEARCH_APPS.default,
+    val searchContacts: Boolean = SettingsManager.SEARCH_CONTACTS.default,
+    val searchFiles: Boolean = SettingsManager.SEARCH_FILES.default,
+    val searchWeb: Boolean = SettingsManager.SEARCH_WEB.default,
+    val searchCalculator: Boolean = SettingsManager.SEARCH_CALCULATOR.default,
+    val searchCalendar: Boolean = SettingsManager.SEARCH_CALENDAR.default,
+    val searchShortcuts: Boolean = SettingsManager.SEARCH_SHORTCUTS.default,
+    val backgroundBlur: Int = SettingsManager.BACKGROUND_BLUR.default,
+    val showWallpaper: Boolean = SettingsManager.SHOW_WALLPAPER.default,
+    val backgroundTransparency: Int = SettingsManager.BACKGROUND_TRANSPARENCY.default,
+    val pillOpacity: Int = SettingsManager.PILL_OPACITY.default,
+    val searchEngine: String = SettingsManager.SEARCH_ENGINE.default,
+    val customSearchEngineUrl: String = SettingsManager.CUSTOM_SEARCH_ENGINE_URL.default,
+    val filesHiddenFiles: Boolean = SettingsManager.FILES_HIDDEN_FILES.default,
+    val filesThumbnails: Boolean = SettingsManager.FILES_THUMBNAILS.default,
+    val appAnimations: Boolean = SettingsManager.APP_ANIMATIONS.default,
+    val bottomSearch: Boolean = SettingsManager.BOTTOM_SEARCH.default,
+    val bottomSearchResult: Boolean = SettingsManager.BOTTOM_SEARCH_RESULT.default,
+    val tutorialCompleted: Boolean = SettingsManager.TUTORIAL_COMPLETED.default,
+    val forceTutorial: Boolean = SettingsManager.FORCE_TUTORIAL.default,
+    val tutorialStep: Int = SettingsManager.TUTORIAL_STEP.default,
+    val gIconEnabled: Boolean = SettingsManager.G_ICON_ENABLED.default,
+    val widgetShowVoice: Boolean = SettingsManager.WIDGET_SHOW_VOICE.default,
+    val widgetShowGemini: Boolean = SettingsManager.WIDGET_SHOW_GEMINI.default,
+    val quickSearchYoutube: Boolean = SettingsManager.QUICK_SEARCH_YOUTUBE.default,
+    val quickSearchWikipedia: Boolean = SettingsManager.QUICK_SEARCH_WIKIPEDIA.default,
+    val quickSearchPlayStore: Boolean = SettingsManager.QUICK_SEARCH_PLAY_STORE.default,
+    val quickSearchMaps: Boolean = SettingsManager.QUICK_SEARCH_MAPS.default,
+    val searchPills: String = SettingsManager.SEARCH_PILLS.default,
+    val widgetThemeStyle: String = SettingsManager.WIDGET_THEME_STYLE.default,
+    val hiddenApps: Set<String> = SettingsManager.HIDDEN_APPS.default,
+    val appQuickLaunch: Boolean = SettingsManager.APP_QUICK_LAUNCH.default,
+    val contactDirectCall: Boolean = SettingsManager.CONTACT_DIRECT_CALL.default,
+    val shortcutInline: Boolean = SettingsManager.SHORTCUT_INLINE.default,
+    val appFuzzySearch: Boolean = SettingsManager.APP_FUZZY_SEARCH.default,
+    val quickSearchHorizontal: Boolean = SettingsManager.QUICK_SEARCH_HORIZONTAL.default,
+    val webResultsCount: Int = SettingsManager.WEB_RESULTS_COUNT.default,
+    val contactResultsCount: Int = SettingsManager.CONTACT_RESULTS_COUNT.default,
+    val fileResultsCount: Int = SettingsManager.FILE_RESULTS_COUNT.default,
+    val shortcutResultsCount: Int = SettingsManager.SHORTCUT_RESULTS_COUNT.default,
+    val contextAwareQuickApps: Boolean = SettingsManager.CONTEXT_AWARE_QUICK_APPS.default,
+    val smartClipboardSuggestions: Boolean = SettingsManager.SMART_CLIPBOARD_SUGGESTIONS.default,
+    val activeIconPack: String = SettingsManager.ACTIVE_ICON_PACK.default,
+    val searchOverlayEnabled: Boolean = SettingsManager.SEARCH_OVERLAY_ENABLED.default,
+    val customIconPills: String = SettingsManager.CUSTOM_ICON_PILLS.default,
+    val neverShowIconPackWarning: Boolean = SettingsManager.NEVER_SHOW_ICON_PACK_WARNING.default,
+    val searchPreviousSearches: Boolean = SettingsManager.SEARCH_PREVIOUS_SEARCHES.default,
+    val customBangsJson: String = SettingsManager.CUSTOM_BANGS_JSON.default,
+    val adaptiveIconShape: String = SettingsManager.ADAPTIVE_ICON_SHAPE.default,
+    val dynamicIconMasking: Boolean = SettingsManager.DYNAMIC_ICON_MASKING.default,
+    val diagnosticsOverlayEnabled: Boolean = SettingsManager.DIAGNOSTICS_OVERLAY_ENABLED.default,
+    val matrixAnimationEnabled: Boolean = SettingsManager.MATRIX_ANIMATION_ENABLED.default,
+    val backToSearchOverlay: Boolean = SettingsManager.BACK_TO_SEARCH_OVERLAY.default,
+    val disabledWebShortcuts: Set<String> = SettingsManager.DISABLED_WEB_SHORTCUTS.default,
+    val vibrationEnabled: Boolean = SettingsManager.VIBRATION.default
 )
 
+/**
+ * The single store for app-wide settings: one SharedPreferences file, read synchronously (widgets,
+ * direct boot and the overlay's first frame need that) and observed as flows. Every setting is declared
+ * once below with its type, default and any older spellings.
+ */
 @Singleton
 class SettingsManager @Inject constructor(@param:ApplicationContext private val context: Context) {
+
     companion object {
         private const val TAG = "SettingsManager"
-        private const val PREFS_NAME = "PREFERENCES_CUSTOMISATIONS"
+        const val PREFS_NAME = "PREFERENCES_CUSTOMISATIONS"
+        internal const val LEGACY_DATASTORE_NAME = "intelligent_search_settings"
 
-        val THEME = stringPreferencesKey("night.mode")
-        val SEARCH_APPS = booleanPreferencesKey("search.apps")
-        val SEARCH_CONTACTS = booleanPreferencesKey("search.contacts")
-        val SEARCH_FILES = booleanPreferencesKey("search.files")
-        val SEARCH_WEB = booleanPreferencesKey("search.web")
-        val SEARCH_PREVIOUS_SEARCHES = booleanPreferencesKey("search_previous_searches")
-        val SEARCH_CALCULATOR = booleanPreferencesKey("search.calculator")
-        val SEARCH_CALENDAR = booleanPreferencesKey("search.calendar")
-        val SEARCH_SHORTCUTS = booleanPreferencesKey("search.shortcuts")
-        val BACKGROUND_BLUR = intPreferencesKey("search.background.blur")
-        val SHOW_WALLPAPER = booleanPreferencesKey("search.background.show.wall")
-        val BACKGROUND_TRANSPARENCY = intPreferencesKey("search.background.transparency")
-        val PILL_OPACITY = intPreferencesKey("search.pill.opacity")
-        val SEARCH_ENGINE = stringPreferencesKey("search.engine")
-        val CUSTOM_SEARCH_ENGINE_URL = stringPreferencesKey("custom_search_engine_url")
-        val FILES_HIDDEN_FILES = booleanPreferencesKey("search.files.hidden.files")
-        val FILES_THUMBNAILS = booleanPreferencesKey("search.files.thumbnails")
-        val APP_ANIMATIONS = booleanPreferencesKey("app_animations")
-        val BOTTOM_SEARCH = booleanPreferencesKey("settings.bottom.search")
-        val BOTTOM_SEARCH_RESULT = booleanPreferencesKey("settings.bottom.search.result")
-        val TUTORIAL_COMPLETED = booleanPreferencesKey("tutorial_completed")
-        val FORCE_TUTORIAL = booleanPreferencesKey("force_tutorial")
-        val TUTORIAL_STEP = intPreferencesKey("tutorial_step")
-        val G_ICON_ENABLED = booleanPreferencesKey("g_icon_enabled")
-        val WIDGET_SHOW_VOICE = booleanPreferencesKey("widget_show_voice")
-        val WIDGET_SHOW_GEMINI = booleanPreferencesKey("widget_show_gemini")
-        val QUICK_SEARCH_YOUTUBE = booleanPreferencesKey("quick_search_youtube")
-        val QUICK_SEARCH_WIKIPEDIA = booleanPreferencesKey("quick_search_wikipedia")
-        val QUICK_SEARCH_PLAY_STORE = booleanPreferencesKey("quick_search_play_store")
-        val QUICK_SEARCH_MAPS = booleanPreferencesKey("quick_search_maps")
-        val SEARCH_PILLS = stringPreferencesKey("search_pills")
-        val WIDGET_THEME_STYLE = stringPreferencesKey("widget.theme.style")
-        val HIDDEN_APPS = stringSetPreferencesKey("hidden_apps")
-        val APP_QUICK_LAUNCH = booleanPreferencesKey("app_quick_launch")
-        val CONTACT_DIRECT_CALL = booleanPreferencesKey("contact_direct_call")
-        val SHORTCUT_INLINE = booleanPreferencesKey("shortcut.inline")
-        val APP_FUZZY_SEARCH = booleanPreferencesKey("app.fuzzy.search")
-        val QUICK_SEARCH_HORIZONTAL = booleanPreferencesKey("quick_search_horizontal")
-        val WEB_RESULTS_COUNT = intPreferencesKey("web_results_count")
-        val CONTACT_RESULTS_COUNT = intPreferencesKey("contact_results_count")
-        val FILE_RESULTS_COUNT = intPreferencesKey("file_results_count")
-        val SHORTCUT_RESULTS_COUNT = intPreferencesKey("shortcut_results_count")
-        val CONTEXT_AWARE_QUICK_APPS = booleanPreferencesKey("context_aware_quick_apps")
-        val SMART_CLIPBOARD_SUGGESTIONS = booleanPreferencesKey("smart_clipboard_suggestions")
-        val ACTIVE_ICON_PACK = stringPreferencesKey("active_icon_pack")
-        val SEARCH_OVERLAY_ENABLED = booleanPreferencesKey("search_overlay_enabled")
-        val CUSTOM_ICON_PILLS = stringPreferencesKey("custom_icon_pills")
-        val NEVER_SHOW_ICON_PACK_WARNING = booleanPreferencesKey("never_show_icon_pack_warning")
-        val CUSTOM_BANGS_JSON = stringPreferencesKey("custom_bangs_json")
-        val SEARCH_SECTIONS_CONFIG_JSON = stringPreferencesKey("search_sections_config_json")
-        val ADAPTIVE_ICON_SHAPE = stringPreferencesKey("adaptive_icon_shape")
-        val DYNAMIC_ICON_MASKING = booleanPreferencesKey("dynamic_icon_masking")
-        val DIAGNOSTICS_OVERLAY_ENABLED = booleanPreferencesKey("diagnostics_overlay_enabled")
-        val MATRIX_ANIMATION_ENABLED = booleanPreferencesKey("matrix_animation_enabled")
-        val BACK_TO_SEARCH_OVERLAY = booleanPreferencesKey("settings_back_to_search_overlay")
-        val DISABLED_WEB_SHORTCUTS = stringSetPreferencesKey("disabled_web_shortcuts")
-        val VIBRATION = booleanPreferencesKey("vibration_enabled")
-        val DATASTORE_MIGRATED = booleanPreferencesKey("datastore_migration_v1_completed")
+        /** Bumped when stored data needs a one-time migration. */
+        private const val STORAGE_VERSION_KEY = "settings_storage_version"
+        private const val CURRENT_STORAGE_VERSION = 1
+
+        private const val DEFAULT_SEARCH_PILLS = "com.android.chrome,com.google.android.apps.maps," +
+            "com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files"
+
+        val THEME = StringSetting("night.mode", ThemeMode.SYSTEM.storedValue, "theme")
+        val SEARCH_APPS = BooleanSetting("search.apps", true, "search_apps")
+        val SEARCH_CONTACTS = BooleanSetting("search.contacts", false, "search_contacts")
+        val SEARCH_FILES = BooleanSetting("search.files", false, "search_files")
+        val SEARCH_WEB = BooleanSetting("search.web", true, "search_web")
+        val SEARCH_WEB_SUGGESTIONS = BooleanSetting("search.web.suggestions", true)
+        val SEARCH_PREVIOUS_SEARCHES = BooleanSetting("search_previous_searches", true)
+        val SEARCH_CALCULATOR = BooleanSetting("search.calculator", true, "search_calculator")
+        val SEARCH_CALENDAR = BooleanSetting("search.calendar", true, "search_calendar")
+        val SEARCH_SHORTCUTS = BooleanSetting("search.shortcuts", true, "search_shortcuts")
+        val BACKGROUND_BLUR = IntSetting("search.background.blur", 50, 0..100, "background.blur")
+        val SHOW_WALLPAPER = BooleanSetting("search.background.show.wall", true, "show_wallpaper", "show.wallpaper")
+        val BACKGROUND_TRANSPARENCY = IntSetting("search.background.transparency", 50, 0..100, "background.transparency")
+        val PILL_OPACITY = IntSetting("search.pill.opacity", 50, 0..100, "pill.opacity")
+        val SEARCH_ENGINE = StringSetting("search.engine", "Google")
+        val CUSTOM_SEARCH_ENGINE_URL = StringSetting("custom_search_engine_url", "")
+        val CUSTOM_SEARCH_ENGINE_NAME = StringSetting("custom_search_engine_name", "Custom")
+        val FILES_HIDDEN_FILES = BooleanSetting("search.files.hidden.files", false, "search_files_hidden_files")
+        val FILES_THUMBNAILS = BooleanSetting("search.files.thumbnails", true, "search_files_thumbnails")
+        val APP_ANIMATIONS = BooleanSetting("app_animations", true, "app.animation")
+        val MORPH_ANIMATION_ENABLED = BooleanSetting("morph_animation_enabled", false)
+        val BOTTOM_SEARCH = BooleanSetting("settings.bottom.search", true, "bottom_search")
+        val BOTTOM_SEARCH_RESULT = BooleanSetting("settings.bottom.search.result", true, "bottom_search_result")
+        val TUTORIAL_COMPLETED = BooleanSetting("tutorial_completed", false)
+        val FORCE_TUTORIAL = BooleanSetting("force_tutorial", false)
+        val TUTORIAL_STEP = IntSetting("tutorial_step", 0, 0..20)
+        val G_ICON_ENABLED = BooleanSetting("g_icon_enabled", true)
+        val WIDGET_SHOW_VOICE = BooleanSetting("widget_show_voice", true)
+        val WIDGET_SHOW_GEMINI = BooleanSetting("widget_show_gemini", true)
+        val QUICK_SEARCH_YOUTUBE = BooleanSetting("quick_search_youtube", true)
+        val QUICK_SEARCH_WIKIPEDIA = BooleanSetting("quick_search_wikipedia", true)
+        val QUICK_SEARCH_PLAY_STORE = BooleanSetting("quick_search_play_store", true)
+        val QUICK_SEARCH_MAPS = BooleanSetting("quick_search_maps", true)
+        val SEARCH_PILLS = StringSetting("search_pills", DEFAULT_SEARCH_PILLS, "search.pills")
+        val WIDGET_THEME_STYLE = StringSetting("widget.theme.style", "System Default", "widget_theme_style")
+        val HIDDEN_APPS = StringSetSetting("hidden_apps", emptySet())
+        val APP_QUICK_LAUNCH = BooleanSetting("app_quick_launch", false)
+        val CONTACT_DIRECT_CALL = BooleanSetting("contact_direct_call", false, "contact.direct.call")
+        val SHORTCUT_INLINE = BooleanSetting("shortcut.inline", true, "shortcut_inline")
+        val SHORTCUT_RECENT = BooleanSetting("shortcut.recent", true)
+        val APP_FUZZY_SEARCH = BooleanSetting("app.fuzzy.search", true, "app_fuzzy_search")
+        val QUICK_SEARCH_HORIZONTAL = BooleanSetting("quick_search_horizontal", false, "quick.search.horizontal")
+        val WEB_RESULTS_COUNT = IntSetting("web_results_count", 5, 0..20)
+        val CONTACT_RESULTS_COUNT = IntSetting("contact_results_count", 5, 0..20)
+        val FILE_RESULTS_COUNT = IntSetting("file_results_count", 5, 0..20)
+        val SHORTCUT_RESULTS_COUNT = IntSetting("shortcut_results_count", 6, 0..20)
+        val SEARCH_WEIGHT_APPS = IntSetting("search_weight_apps", 50, 0..100)
+        val SEARCH_WEIGHT_CONTACTS = IntSetting("search_weight_contacts", 50, 0..100)
+        val SEARCH_WEIGHT_FILES = IntSetting("search_weight_files", 50, 0..100)
+        val SEARCH_WEIGHT_WEB = IntSetting("search_weight_web", 50, 0..100)
+        val CONTEXT_AWARE_QUICK_APPS = BooleanSetting("context_aware_quick_apps", false)
+        val SMART_CLIPBOARD_SUGGESTIONS = BooleanSetting("smart_clipboard_suggestions", false)
+        val ACTIVE_ICON_PACK = StringSetting("active_icon_pack", "system_default")
+        val SEARCH_OVERLAY_ENABLED = BooleanSetting("search_overlay_enabled", true)
+        val CUSTOM_ICON_PILLS = StringSetting("custom_icon_pills", "")
+        val NEVER_SHOW_ICON_PACK_WARNING = BooleanSetting("never_show_icon_pack_warning", false)
+        val CUSTOM_BANGS_JSON = StringSetting("custom_bangs_json", "[]")
+        val WEB_SHORTCUT_TRIGGER_SYMBOL = StringSetting("web_shortcut_trigger_symbol", "!")
+        val SEARCH_QUICK_SHORTCUTS = BooleanSetting("search_quick_shortcuts", true)
+        val SHOW_AVAILABLE_DIRECT_SHORTCUTS = BooleanSetting("search_show_available_direct_shortcuts", true)
+        val ADAPTIVE_ICON_SHAPE = StringSetting("adaptive_icon_shape", "SYSTEM_DEFAULT")
+        val DYNAMIC_ICON_MASKING = BooleanSetting("dynamic_icon_masking", true)
+        val DIAGNOSTICS_OVERLAY_ENABLED = BooleanSetting("diagnostics_overlay_enabled", false)
+        val MATRIX_ANIMATION_ENABLED = BooleanSetting("matrix_animation_enabled", true)
+        val BACK_TO_SEARCH_OVERLAY = BooleanSetting("settings_back_to_search_overlay", true)
+        val DISABLED_WEB_SHORTCUTS = StringSetSetting("disabled_web_shortcuts", emptySet())
+        val VIBRATION = BooleanSetting("vibration_enabled", true)
+        val DEBUG_UNLOCKED = BooleanSetting("debug_unlocked", false)
+        val DEBUG_VERBOSE_LOGGING = BooleanSetting("debug.verbose_logging", false)
+        val DEBUG_SHOW_PERF_STATS = BooleanSetting("debug.show_perf_stats", false)
+        val DEBUG_FORCE_SEARCH_ERROR = BooleanSetting("debug.force_search_error", false)
+        /** The user's consent to let on-device assistants search contacts (AppFunctions); off by default. */
+        val APP_FUNCTIONS_SHARE_CONTACTS = BooleanSetting("appfunctions_share_contacts", false)
+
+        /** Every declared setting, for migration, backup validation and change filtering. */
+        val ALL: List<SettingKey<*>> = listOf(
+            THEME, SEARCH_APPS, SEARCH_CONTACTS, SEARCH_FILES, SEARCH_WEB, SEARCH_WEB_SUGGESTIONS,
+            SEARCH_PREVIOUS_SEARCHES, SEARCH_CALCULATOR, SEARCH_CALENDAR, SEARCH_SHORTCUTS, BACKGROUND_BLUR,
+            SHOW_WALLPAPER, BACKGROUND_TRANSPARENCY, PILL_OPACITY, SEARCH_ENGINE, CUSTOM_SEARCH_ENGINE_URL,
+            CUSTOM_SEARCH_ENGINE_NAME, FILES_HIDDEN_FILES, FILES_THUMBNAILS, APP_ANIMATIONS, MORPH_ANIMATION_ENABLED,
+            BOTTOM_SEARCH, BOTTOM_SEARCH_RESULT, TUTORIAL_COMPLETED, FORCE_TUTORIAL, TUTORIAL_STEP, G_ICON_ENABLED,
+            WIDGET_SHOW_VOICE, WIDGET_SHOW_GEMINI, QUICK_SEARCH_YOUTUBE, QUICK_SEARCH_WIKIPEDIA,
+            QUICK_SEARCH_PLAY_STORE, QUICK_SEARCH_MAPS, SEARCH_PILLS, WIDGET_THEME_STYLE, HIDDEN_APPS,
+            APP_QUICK_LAUNCH, CONTACT_DIRECT_CALL, SHORTCUT_INLINE, SHORTCUT_RECENT, APP_FUZZY_SEARCH,
+            QUICK_SEARCH_HORIZONTAL, WEB_RESULTS_COUNT, CONTACT_RESULTS_COUNT, FILE_RESULTS_COUNT,
+            SHORTCUT_RESULTS_COUNT, SEARCH_WEIGHT_APPS, SEARCH_WEIGHT_CONTACTS, SEARCH_WEIGHT_FILES,
+            SEARCH_WEIGHT_WEB, CONTEXT_AWARE_QUICK_APPS, SMART_CLIPBOARD_SUGGESTIONS, ACTIVE_ICON_PACK,
+            SEARCH_OVERLAY_ENABLED, CUSTOM_ICON_PILLS, NEVER_SHOW_ICON_PACK_WARNING, CUSTOM_BANGS_JSON,
+            WEB_SHORTCUT_TRIGGER_SYMBOL, SEARCH_QUICK_SHORTCUTS, SHOW_AVAILABLE_DIRECT_SHORTCUTS,
+            ADAPTIVE_ICON_SHAPE, DYNAMIC_ICON_MASKING, DIAGNOSTICS_OVERLAY_ENABLED, MATRIX_ANIMATION_ENABLED,
+            BACK_TO_SEARCH_OVERLAY, DISABLED_WEB_SHORTCUTS, VIBRATION, DEBUG_UNLOCKED, DEBUG_VERBOSE_LOGGING,
+            DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, APP_FUNCTIONS_SHARE_CONTACTS
+        )
+
+        private val BY_STORED_NAME: Map<String, SettingKey<*>> =
+            ALL.flatMap { key -> key.allNames.map { it to key } }.toMap()
+
+        /** The declared setting stored under [storedName] (canonical or legacy spelling), if any. */
+        fun keyFor(storedName: String): SettingKey<*>? = BY_STORED_NAME[storedName]
+
+        /** Settings keys retired with their features; removed by the migration. */
+        private val RETIRED_NAMES = listOf("search_sections_config_json", "datastore_migration_v1_completed")
     }
-
-    private val defaultSettings = IntelligentSearchSettings()
-
-    @Volatile
-    private var cachedSettings: IntelligentSearchSettings = defaultSettings
-
-    private fun getSafeContext(): Context {
-        val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
-        val isUnlocked = userManager?.isUserUnlocked ?: true
-        return if (!isUnlocked && !context.isDeviceProtectedStorage) {
-            context.createDeviceProtectedStorageContext()
-        } else {
-            context
-        }
-    }
-
-    private fun getSafePrefs(): android.content.SharedPreferences {
-        return getSafeContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    }
-
-    val settingsFlow: Flow<IntelligentSearchSettings> = context.dataStore.data
-        .catch { exception ->
-            if (exception is kotlinx.coroutines.CancellationException) throw exception
-            if (exception is Exception) {
-                Log.w(TAG, "DataStore read error, falling back to defaults: ${exception.message}")
-                emit(emptyPreferences())
-            } else {
-                throw exception
-            }
-        }
-        .map { preferences ->
-            val s = IntelligentSearchSettings(
-                theme = preferences[THEME] ?: defaultSettings.theme,
-                searchApps = preferences[SEARCH_APPS] ?: defaultSettings.searchApps,
-                searchContacts = preferences[SEARCH_CONTACTS] ?: defaultSettings.searchContacts,
-                searchFiles = preferences[SEARCH_FILES] ?: defaultSettings.searchFiles,
-                searchWeb = preferences[SEARCH_WEB] ?: defaultSettings.searchWeb,
-                searchCalculator = preferences[SEARCH_CALCULATOR] ?: defaultSettings.searchCalculator,
-                searchCalendar = preferences[SEARCH_CALENDAR] ?: defaultSettings.searchCalendar,
-                searchShortcuts = preferences[SEARCH_SHORTCUTS] ?: defaultSettings.searchShortcuts,
-                backgroundBlur = preferences[BACKGROUND_BLUR] ?: defaultSettings.backgroundBlur,
-                showWallpaper = preferences[SHOW_WALLPAPER] ?: defaultSettings.showWallpaper,
-                backgroundTransparency = preferences[BACKGROUND_TRANSPARENCY] ?: defaultSettings.backgroundTransparency,
-                pillOpacity = preferences[PILL_OPACITY] ?: defaultSettings.pillOpacity,
-                searchEngine = preferences[SEARCH_ENGINE] ?: defaultSettings.searchEngine,
-                customSearchEngineUrl = preferences[CUSTOM_SEARCH_ENGINE_URL] ?: defaultSettings.customSearchEngineUrl,
-                filesHiddenFiles = preferences[FILES_HIDDEN_FILES] ?: defaultSettings.filesHiddenFiles,
-                filesThumbnails = preferences[FILES_THUMBNAILS] ?: defaultSettings.filesThumbnails,
-                appAnimations = preferences[APP_ANIMATIONS] ?: defaultSettings.appAnimations,
-                bottomSearch = preferences[BOTTOM_SEARCH] ?: defaultSettings.bottomSearch,
-                bottomSearchResult = preferences[BOTTOM_SEARCH_RESULT] ?: defaultSettings.bottomSearchResult,
-                tutorialCompleted = preferences[TUTORIAL_COMPLETED] ?: defaultSettings.tutorialCompleted,
-                forceTutorial = preferences[FORCE_TUTORIAL] ?: defaultSettings.forceTutorial,
-                tutorialStep = preferences[TUTORIAL_STEP] ?: defaultSettings.tutorialStep,
-                gIconEnabled = preferences[G_ICON_ENABLED] ?: defaultSettings.gIconEnabled,
-                widgetShowVoice = preferences[WIDGET_SHOW_VOICE] ?: defaultSettings.widgetShowVoice,
-                widgetShowGemini = preferences[WIDGET_SHOW_GEMINI] ?: defaultSettings.widgetShowGemini,
-                quickSearchYoutube = preferences[QUICK_SEARCH_YOUTUBE] ?: defaultSettings.quickSearchYoutube,
-                quickSearchWikipedia = preferences[QUICK_SEARCH_WIKIPEDIA] ?: defaultSettings.quickSearchWikipedia,
-                quickSearchPlayStore = preferences[QUICK_SEARCH_PLAY_STORE] ?: defaultSettings.quickSearchPlayStore,
-                quickSearchMaps = preferences[QUICK_SEARCH_MAPS] ?: defaultSettings.quickSearchMaps,
-                searchPills = preferences[SEARCH_PILLS] ?: defaultSettings.searchPills,
-                widgetThemeStyle = preferences[WIDGET_THEME_STYLE] ?: defaultSettings.widgetThemeStyle,
-                hiddenApps = preferences[HIDDEN_APPS] ?: defaultSettings.hiddenApps,
-                appQuickLaunch = preferences[APP_QUICK_LAUNCH] ?: defaultSettings.appQuickLaunch,
-                contactDirectCall = preferences[CONTACT_DIRECT_CALL] ?: defaultSettings.contactDirectCall,
-                shortcutInline = preferences[SHORTCUT_INLINE] ?: defaultSettings.shortcutInline,
-                appFuzzySearch = preferences[APP_FUZZY_SEARCH] ?: defaultSettings.appFuzzySearch,
-                quickSearchHorizontal = preferences[QUICK_SEARCH_HORIZONTAL] ?: defaultSettings.quickSearchHorizontal,
-                webResultsCount = preferences[WEB_RESULTS_COUNT] ?: defaultSettings.webResultsCount,
-                contactResultsCount = preferences[CONTACT_RESULTS_COUNT] ?: defaultSettings.contactResultsCount,
-                fileResultsCount = preferences[FILE_RESULTS_COUNT] ?: defaultSettings.fileResultsCount,
-                shortcutResultsCount = preferences[SHORTCUT_RESULTS_COUNT] ?: defaultSettings.shortcutResultsCount,
-                contextAwareQuickApps = preferences[CONTEXT_AWARE_QUICK_APPS] ?: defaultSettings.contextAwareQuickApps,
-                smartClipboardSuggestions = preferences[SMART_CLIPBOARD_SUGGESTIONS] ?: defaultSettings.smartClipboardSuggestions,
-                activeIconPack = preferences[ACTIVE_ICON_PACK] ?: defaultSettings.activeIconPack,
-                customIconPills = preferences[CUSTOM_ICON_PILLS] ?: defaultSettings.customIconPills,
-                neverShowIconPackWarning = preferences[NEVER_SHOW_ICON_PACK_WARNING] ?: defaultSettings.neverShowIconPackWarning,
-                searchPreviousSearches = preferences[SEARCH_PREVIOUS_SEARCHES] ?: defaultSettings.searchPreviousSearches,
-                customBangsJson = preferences[CUSTOM_BANGS_JSON] ?: defaultSettings.customBangsJson,
-                searchSectionsConfigJson = preferences[SEARCH_SECTIONS_CONFIG_JSON] ?: defaultSettings.searchSectionsConfigJson,
-                adaptiveIconShape = preferences[ADAPTIVE_ICON_SHAPE] ?: defaultSettings.adaptiveIconShape,
-                dynamicIconMasking = preferences[DYNAMIC_ICON_MASKING] ?: defaultSettings.dynamicIconMasking,
-                diagnosticsOverlayEnabled = preferences[DIAGNOSTICS_OVERLAY_ENABLED] ?: defaultSettings.diagnosticsOverlayEnabled,
-                searchOverlayEnabled = preferences[SEARCH_OVERLAY_ENABLED] ?: defaultSettings.searchOverlayEnabled,
-                matrixAnimationEnabled = preferences[MATRIX_ANIMATION_ENABLED] ?: defaultSettings.matrixAnimationEnabled,
-                backToSearchOverlay = preferences[BACK_TO_SEARCH_OVERLAY] ?: defaultSettings.backToSearchOverlay,
-                disabledWebShortcuts = preferences[DISABLED_WEB_SHORTCUTS] ?: defaultSettings.disabledWebShortcuts,
-                vibrationEnabled = preferences[VIBRATION] ?: defaultSettings.vibrationEnabled
-            )
-            cachedSettings = s
-            s
-        }
 
     /**
-     * Synchronous snapshot backed by memory or SharedPreferences migration fallback,
-     * ensuring fast first-frame rendering without desynchronization.
+     * The backing file. Before the user's first unlock only device-protected storage is readable, so reads
+     * there see defaults (and widgets render defaults) until unlock.
      */
-    fun getInitialSettings(): IntelligentSearchSettings {
-        return if (cachedSettings != defaultSettings) {
-            cachedSettings
-        } else {
-            readLegacySettings()
+    val prefs: SharedPreferences
+        get() {
+            val unlocked = context.getSystemService(UserManager::class.java)?.isUserUnlocked ?: true
+            val storageContext = if (!unlocked && !context.isDeviceProtectedStorage) {
+                context.createDeviceProtectedStorageContext()
+            } else {
+                context
+            }
+            return storageContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        }
+
+    operator fun <T : Any> get(key: SettingKey<T>): T = prefs[key]
+
+    fun <T : Any> set(key: SettingKey<T>, value: T) {
+        prefs.edit().put(key, value).apply()
+    }
+
+    /** Suspend form of [set] for call sites already in coroutines; the write itself is asynchronous. */
+    suspend fun <T : Any> updateSetting(key: SettingKey<T>, value: T) = set(key, value)
+
+    /** The current value of [key], then every change to it. */
+    fun <T : Any> observe(key: SettingKey<T>): Flow<T> = callbackFlow {
+        val store = prefs
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sp, changed ->
+            if (changed == null || changed in key.allNames) trySend(sp[key])
+        }
+        store.registerOnSharedPreferenceChangeListener(listener)
+        trySend(store[key])
+        awaitClose { store.unregisterOnSharedPreferenceChangeListener(listener) }
+    }.conflate().distinctUntilChanged()
+
+    /** The current settings snapshot, then a new one whenever a declared setting changes. */
+    val settingsFlow: Flow<IntelligentSearchSettings> = callbackFlow {
+        val store = prefs
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sp, changed ->
+            // A null key means the file was cleared.
+            if (changed == null || keyFor(changed) != null) trySend(snapshotOf(sp))
+        }
+        store.registerOnSharedPreferenceChangeListener(listener)
+        trySend(snapshotOf(store))
+        awaitClose { store.unregisterOnSharedPreferenceChangeListener(listener) }
+    }.conflate().distinctUntilChanged()
+
+    /** The settings right now, read synchronously (SharedPreferences keeps them in memory). */
+    fun getInitialSettings(): IntelligentSearchSettings = snapshotOf(prefs)
+
+    private fun snapshotOf(sp: SharedPreferences) = IntelligentSearchSettings(
+        theme = sp[THEME],
+        searchApps = sp[SEARCH_APPS],
+        searchContacts = sp[SEARCH_CONTACTS],
+        searchFiles = sp[SEARCH_FILES],
+        searchWeb = sp[SEARCH_WEB],
+        searchCalculator = sp[SEARCH_CALCULATOR],
+        searchCalendar = sp[SEARCH_CALENDAR],
+        searchShortcuts = sp[SEARCH_SHORTCUTS],
+        backgroundBlur = sp[BACKGROUND_BLUR],
+        showWallpaper = sp[SHOW_WALLPAPER],
+        backgroundTransparency = sp[BACKGROUND_TRANSPARENCY],
+        pillOpacity = sp[PILL_OPACITY],
+        searchEngine = sp[SEARCH_ENGINE],
+        customSearchEngineUrl = sp[CUSTOM_SEARCH_ENGINE_URL],
+        filesHiddenFiles = sp[FILES_HIDDEN_FILES],
+        filesThumbnails = sp[FILES_THUMBNAILS],
+        appAnimations = sp[APP_ANIMATIONS],
+        bottomSearch = sp[BOTTOM_SEARCH],
+        bottomSearchResult = sp[BOTTOM_SEARCH_RESULT],
+        tutorialCompleted = sp[TUTORIAL_COMPLETED],
+        forceTutorial = sp[FORCE_TUTORIAL],
+        tutorialStep = sp[TUTORIAL_STEP],
+        gIconEnabled = sp[G_ICON_ENABLED],
+        widgetShowVoice = sp[WIDGET_SHOW_VOICE],
+        widgetShowGemini = sp[WIDGET_SHOW_GEMINI],
+        quickSearchYoutube = sp[QUICK_SEARCH_YOUTUBE],
+        quickSearchWikipedia = sp[QUICK_SEARCH_WIKIPEDIA],
+        quickSearchPlayStore = sp[QUICK_SEARCH_PLAY_STORE],
+        quickSearchMaps = sp[QUICK_SEARCH_MAPS],
+        searchPills = sp[SEARCH_PILLS],
+        widgetThemeStyle = sp[WIDGET_THEME_STYLE],
+        hiddenApps = sp[HIDDEN_APPS],
+        appQuickLaunch = sp[APP_QUICK_LAUNCH],
+        contactDirectCall = sp[CONTACT_DIRECT_CALL],
+        shortcutInline = sp[SHORTCUT_INLINE],
+        appFuzzySearch = sp[APP_FUZZY_SEARCH],
+        quickSearchHorizontal = sp[QUICK_SEARCH_HORIZONTAL],
+        webResultsCount = sp[WEB_RESULTS_COUNT],
+        contactResultsCount = sp[CONTACT_RESULTS_COUNT],
+        fileResultsCount = sp[FILE_RESULTS_COUNT],
+        shortcutResultsCount = sp[SHORTCUT_RESULTS_COUNT],
+        contextAwareQuickApps = sp[CONTEXT_AWARE_QUICK_APPS],
+        smartClipboardSuggestions = sp[SMART_CLIPBOARD_SUGGESTIONS],
+        activeIconPack = sp[ACTIVE_ICON_PACK],
+        searchOverlayEnabled = sp[SEARCH_OVERLAY_ENABLED],
+        customIconPills = sp[CUSTOM_ICON_PILLS],
+        neverShowIconPackWarning = sp[NEVER_SHOW_ICON_PACK_WARNING],
+        searchPreviousSearches = sp[SEARCH_PREVIOUS_SEARCHES],
+        customBangsJson = sp[CUSTOM_BANGS_JSON],
+        adaptiveIconShape = sp[ADAPTIVE_ICON_SHAPE],
+        dynamicIconMasking = sp[DYNAMIC_ICON_MASKING],
+        diagnosticsOverlayEnabled = sp[DIAGNOSTICS_OVERLAY_ENABLED],
+        matrixAnimationEnabled = sp[MATRIX_ANIMATION_ENABLED],
+        backToSearchOverlay = sp[BACK_TO_SEARCH_OVERLAY],
+        disabledWebShortcuts = sp[DISABLED_WEB_SHORTCUTS],
+        vibrationEnabled = sp[VIBRATION]
+    )
+
+    /**
+     * Widgets can render before the user's first unlock, when only device-protected storage is readable.
+     * Keeps a copy of the settings they draw with there: widget appearance keys plus a few app-wide ones.
+     * Private data (hidden apps, chosen files) is never copied. Call once the user is unlocked.
+     */
+    fun startDirectBootMirror() {
+        if (directBootMirror != null) return
+        val credentialPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val deviceProtectedPrefs = context.createDeviceProtectedStorageContext()
+            .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val mirror = SharedPreferences.OnSharedPreferenceChangeListener { sp, changed ->
+            if (changed != null && isMirroredForWidgets(changed)) copyEntry(sp, deviceProtectedPrefs, changed)
+        }
+        // Full copy first, so the mirror is complete even for values changed by older versions.
+        val editor = deviceProtectedPrefs.edit().clear()
+        credentialPrefs.all.forEach { (name, value) -> if (isMirroredForWidgets(name)) putEntry(editor, name, value) }
+        editor.apply()
+        credentialPrefs.registerOnSharedPreferenceChangeListener(mirror)
+        directBootMirror = mirror
+    }
+
+    // Held so SharedPreferences (which keeps listeners weakly) doesn't drop it.
+    @Volatile
+    private var directBootMirror: SharedPreferences.OnSharedPreferenceChangeListener? = null
+
+    private val widgetAppWideNames =
+        listOf(THEME, G_ICON_ENABLED, WIDGET_SHOW_VOICE, WIDGET_SHOW_GEMINI, WIDGET_THEME_STYLE, SEARCH_OVERLAY_ENABLED)
+            .map { it.name }.toSet()
+
+    private fun isMirroredForWidgets(name: String): Boolean = name.startsWith("widget") || name in widgetAppWideNames
+
+    private fun copyEntry(from: SharedPreferences, to: SharedPreferences, name: String) {
+        val editor = to.edit()
+        if (from.contains(name)) putEntry(editor, name, from.all[name]) else editor.remove(name)
+        editor.apply()
+    }
+
+    private fun putEntry(editor: SharedPreferences.Editor, name: String, value: Any?) {
+        when (value) {
+            is Boolean -> editor.putBoolean(name, value)
+            is Int -> editor.putInt(name, value)
+            is Long -> editor.putLong(name, value)
+            is Float -> editor.putFloat(name, value)
+            is String -> editor.putString(name, value)
+            is Set<*> -> editor.putStringSet(name, value.filterIsInstance<String>().toSet())
+            else -> editor.remove(name)
         }
     }
 
-    /** Reads settings from the SharedPreferences mirror, honouring every historical key spelling. */
-    private fun readLegacySettings(): IntelligentSearchSettings {
-        val prefs = try {
-            getSafePrefs()
-        } catch (e: Exception) {
-            Log.w(TAG, "Error accessing SharedPreferences: ${e.message}")
-            null
+    /**
+     * One-time move to the single store (run after the user is unlocked): imports values only the old
+     * DataStore copy still held, folds every legacy spelling into its canonical name, normalizes the theme,
+     * drops retired keys, and deletes the DataStore file. Safe to call repeatedly.
+     */
+    suspend fun migrateToSingleStore() = withContext(Dispatchers.IO) {
+        val sp = prefs
+        if (sp.getInt(STORAGE_VERSION_KEY, 0) >= CURRENT_STORAGE_VERSION) return@withContext
+        val editor = sp.edit()
+        importLegacyDataStore(sp, editor)
+        for (key in ALL) {
+            if (key.legacyNames.isEmpty() || key.allNames.none(sp::contains)) continue
+            @Suppress("UNCHECKED_CAST")
+            val typed = key as SettingKey<Any>
+            editor.put(typed, sp[typed])
         }
-        return IntelligentSearchSettings(
-            theme = prefs?.getString("night.mode", "System") ?: "System",
-            searchApps = if (prefs?.contains("search.apps") == true) prefs.getBoolean("search.apps", true) else prefs?.getBoolean("search_apps", true) ?: true,
-            searchContacts = if (prefs?.contains("search.contacts") == true) prefs.getBoolean("search.contacts", false) else prefs?.getBoolean("search_contacts", false) ?: false,
-            searchFiles = if (prefs?.contains("search.files") == true) prefs.getBoolean("search.files", false) else prefs?.getBoolean("search_files", false) ?: false,
-            searchWeb = if (prefs?.contains("search.web") == true) prefs.getBoolean("search.web", true) else prefs?.getBoolean("search_web", true) ?: true,
-            searchCalculator = if (prefs?.contains("search.calculator") == true) prefs.getBoolean("search.calculator", true) else prefs?.getBoolean("search_calculator", true) ?: true,
-            searchCalendar = if (prefs?.contains("search.calendar") == true) prefs.getBoolean("search.calendar", true) else prefs?.getBoolean("search_calendar", true) ?: true,
-            searchShortcuts = if (prefs?.contains("search.shortcuts") == true) prefs.getBoolean("search.shortcuts", true) else prefs?.getBoolean("search_shortcuts", true) ?: true,
-            backgroundBlur = prefs?.getInt("search.background.blur", prefs.getInt("background.blur", 50)) ?: 50,
-            showWallpaper = if (prefs?.contains("search.background.show.wall") == true) prefs.getBoolean("search.background.show.wall", true) else prefs?.getBoolean("show_wallpaper", prefs.getBoolean("show.wallpaper", true)) ?: true,
-            backgroundTransparency = prefs?.getInt("search.background.transparency", prefs.getInt("background.transparency", 50)) ?: 50,
-            pillOpacity = prefs?.getInt("search.pill.opacity", prefs.getInt("pill.opacity", 50)) ?: 50,
-            searchEngine = prefs?.getString("search.engine", "Google") ?: "Google",
-            customSearchEngineUrl = prefs?.getString("custom_search_engine_url", "") ?: "",
-            filesHiddenFiles = if (prefs?.contains("search.files.hidden.files") == true) prefs.getBoolean("search.files.hidden.files", false) else prefs?.getBoolean("search_files_hidden_files", false) ?: false,
-            filesThumbnails = if (prefs?.contains("search.files.thumbnails") == true) prefs.getBoolean("search.files.thumbnails", true) else prefs?.getBoolean("search_files_thumbnails", true) ?: true,
-            appAnimations = prefs?.getBoolean("app_animations", true) ?: true,
-            bottomSearch = if (prefs?.contains("settings.bottom.search") == true) prefs.getBoolean("settings.bottom.search", true) else prefs?.getBoolean("bottom_search", true) ?: true,
-            bottomSearchResult = if (prefs?.contains("settings.bottom.search.result") == true) prefs.getBoolean("settings.bottom.search.result", true) else prefs?.getBoolean("bottom_search_result", true) ?: true,
-            tutorialCompleted = prefs?.getBoolean("tutorial_completed", false) ?: false,
-            forceTutorial = prefs?.getBoolean("force_tutorial", false) ?: false,
-            tutorialStep = prefs?.getInt("tutorial_step", 0) ?: 0,
-            gIconEnabled = prefs?.getBoolean("g_icon_enabled", true) ?: true,
-            widgetShowVoice = prefs?.getBoolean("widget_show_voice", true) ?: true,
-            widgetShowGemini = prefs?.getBoolean("widget_show_gemini", true) ?: true,
-            quickSearchYoutube = prefs?.getBoolean("quick_search_youtube", true) ?: true,
-            quickSearchWikipedia = prefs?.getBoolean("quick_search_wikipedia", true) ?: true,
-            quickSearchPlayStore = prefs?.getBoolean("quick_search_play_store", true) ?: true,
-            quickSearchMaps = prefs?.getBoolean("quick_search_maps", true) ?: true,
-            searchPills = prefs?.getString("search_pills", "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files") ?: "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files",
-            widgetThemeStyle = (if (prefs?.contains("widget.theme.style") == true) prefs.getString("widget.theme.style", "System Default") else prefs?.getString("widget_theme_style", "System Default")) ?: "System Default",
-            hiddenApps = prefs?.getStringSet("hidden_apps", emptySet())?.toSet() ?: emptySet(),
-            appQuickLaunch = prefs?.getBoolean("app_quick_launch", false) ?: false,
-            contactDirectCall = prefs?.getBoolean("contact_direct_call", false) ?: false,
-            shortcutInline = if (prefs?.contains("shortcut.inline") == true) prefs.getBoolean("shortcut.inline", true) else prefs?.getBoolean("shortcut_inline", true) ?: true,
-            appFuzzySearch = if (prefs?.contains("app.fuzzy.search") == true) prefs.getBoolean("app.fuzzy.search", true) else prefs?.getBoolean("app_fuzzy_search", true) ?: true,
-            quickSearchHorizontal = if (prefs?.contains("quick_search_horizontal") == true) prefs.getBoolean("quick_search_horizontal", false) else prefs?.getBoolean("quick.search.horizontal", false) ?: false,
-            webResultsCount = prefs?.getInt("web_results_count", 5) ?: 5,
-            contactResultsCount = prefs?.getInt("contact_results_count", 5) ?: 5,
-            fileResultsCount = prefs?.getInt("file_results_count", 5) ?: 5,
-            shortcutResultsCount = prefs?.getInt("shortcut_results_count", 6) ?: 6,
-            contextAwareQuickApps = prefs?.getBoolean("context_aware_quick_apps", false) ?: false,
-            smartClipboardSuggestions = prefs?.getBoolean("smart_clipboard_suggestions", false) ?: false,
-            activeIconPack = prefs?.getString("active_icon_pack", "system_default") ?: "system_default",
-            customIconPills = prefs?.getString("custom_icon_pills", "") ?: "",
-            neverShowIconPackWarning = prefs?.getBoolean("never_show_icon_pack_warning", false) ?: false,
-            searchPreviousSearches = prefs?.getBoolean("search_previous_searches", true) ?: true,
-            customBangsJson = prefs?.getString("custom_bangs_json", "[]") ?: "[]",
-            searchSectionsConfigJson = prefs?.getString("search_sections_config_json", "") ?: "",
-            adaptiveIconShape = prefs?.getString("adaptive_icon_shape", "SYSTEM_DEFAULT") ?: "SYSTEM_DEFAULT",
-            dynamicIconMasking = prefs?.getBoolean("dynamic_icon_masking", true) ?: true,
-            diagnosticsOverlayEnabled = prefs?.getBoolean("diagnostics_overlay_enabled", false) ?: false,
-            searchOverlayEnabled = prefs?.getBoolean("search_overlay_enabled", true) ?: true,
-            matrixAnimationEnabled = prefs?.getBoolean("matrix_animation_enabled", true) ?: true,
-            backToSearchOverlay = prefs?.getBoolean("settings_back_to_search_overlay", true) ?: true,
-            disabledWebShortcuts = prefs?.getStringSet("disabled_web_shortcuts", emptySet())?.toSet() ?: emptySet(),
-            vibrationEnabled = prefs?.getBoolean("vibration_enabled", true) ?: true
-        )
+        if (sp.contains(THEME.name) || THEME.legacyNames.any(sp::contains)) {
+            editor.put(THEME, ThemeMode.from(sp[THEME]).storedValue)
+        }
+        RETIRED_NAMES.forEach(editor::remove)
+        editor.putInt(STORAGE_VERSION_KEY, CURRENT_STORAGE_VERSION)
+        editor.commit()
+        runCatching { context.preferencesDataStoreFile(LEGACY_DATASTORE_NAME).delete() }
     }
 
-    suspend fun syncSharedPreferencesToDataStore(overwrite: Boolean = false) {
-        try {
-            val sp = getSafePrefs()
-            context.dataStore.edit { preferences ->
-                if (!overwrite && preferences[DATASTORE_MIGRATED] == true) {
-                    return@edit
-                }
-                if ((overwrite || !preferences.contains(THEME)) && sp.contains("night.mode")) sp.getString("night.mode", null)?.let { preferences[THEME] = it }
-                if ((overwrite || !preferences.contains(SEARCH_APPS)) && (sp.contains("search.apps") || sp.contains("search_apps"))) preferences[SEARCH_APPS] = sp.getBoolean("search.apps", sp.getBoolean("search_apps", true))
-                if ((overwrite || !preferences.contains(SEARCH_CONTACTS)) && (sp.contains("search.contacts") || sp.contains("search_contacts"))) preferences[SEARCH_CONTACTS] = sp.getBoolean("search.contacts", sp.getBoolean("search_contacts", false))
-                if ((overwrite || !preferences.contains(SEARCH_FILES)) && (sp.contains("search.files") || sp.contains("search_files"))) preferences[SEARCH_FILES] = sp.getBoolean("search.files", sp.getBoolean("search_files", false))
-                if ((overwrite || !preferences.contains(SEARCH_WEB)) && (sp.contains("search.web") || sp.contains("search_web"))) preferences[SEARCH_WEB] = sp.getBoolean("search.web", sp.getBoolean("search_web", true))
-                if ((overwrite || !preferences.contains(SEARCH_CALCULATOR)) && (sp.contains("search.calculator") || sp.contains("search_calculator"))) preferences[SEARCH_CALCULATOR] = sp.getBoolean("search.calculator", sp.getBoolean("search_calculator", true))
-                if ((overwrite || !preferences.contains(SEARCH_CALENDAR)) && (sp.contains("search.calendar") || sp.contains("search_calendar"))) preferences[SEARCH_CALENDAR] = sp.getBoolean("search.calendar", sp.getBoolean("search_calendar", true))
-                if ((overwrite || !preferences.contains(SEARCH_SHORTCUTS)) && (sp.contains("search.shortcuts") || sp.contains("search_shortcuts"))) preferences[SEARCH_SHORTCUTS] = sp.getBoolean("search.shortcuts", sp.getBoolean("search_shortcuts", true))
-                if ((overwrite || !preferences.contains(BACKGROUND_BLUR)) && (sp.contains("search.background.blur") || sp.contains("background.blur"))) preferences[BACKGROUND_BLUR] = sp.getInt("search.background.blur", sp.getInt("background.blur", 50))
-                if ((overwrite || !preferences.contains(SHOW_WALLPAPER)) && (sp.contains("search.background.show.wall") || sp.contains("show_wallpaper") || sp.contains("show.wallpaper"))) preferences[SHOW_WALLPAPER] = sp.getBoolean("search.background.show.wall", sp.getBoolean("show_wallpaper", sp.getBoolean("show.wallpaper", true)))
-                if ((overwrite || !preferences.contains(BACKGROUND_TRANSPARENCY)) && (sp.contains("search.background.transparency") || sp.contains("background.transparency"))) preferences[BACKGROUND_TRANSPARENCY] = sp.getInt("search.background.transparency", sp.getInt("background.transparency", 50))
-                if ((overwrite || !preferences.contains(PILL_OPACITY)) && (sp.contains("search.pill.opacity") || sp.contains("pill.opacity"))) preferences[PILL_OPACITY] = sp.getInt("search.pill.opacity", sp.getInt("pill.opacity", 50))
-                if ((overwrite || !preferences.contains(SEARCH_ENGINE)) && sp.contains("search.engine")) sp.getString("search.engine", null)?.let { preferences[SEARCH_ENGINE] = it }
-                if ((overwrite || !preferences.contains(CUSTOM_SEARCH_ENGINE_URL)) && sp.contains("custom_search_engine_url")) sp.getString("custom_search_engine_url", null)?.let { preferences[CUSTOM_SEARCH_ENGINE_URL] = it }
-                if ((overwrite || !preferences.contains(FILES_HIDDEN_FILES)) && (sp.contains("search.files.hidden.files") || sp.contains("search_files_hidden_files"))) preferences[FILES_HIDDEN_FILES] = sp.getBoolean("search.files.hidden.files", sp.getBoolean("search_files_hidden_files", false))
-                if ((overwrite || !preferences.contains(FILES_THUMBNAILS)) && (sp.contains("search.files.thumbnails") || sp.contains("search_files_thumbnails"))) preferences[FILES_THUMBNAILS] = sp.getBoolean("search.files.thumbnails", sp.getBoolean("search_files_thumbnails", true))
-                if ((overwrite || !preferences.contains(APP_ANIMATIONS)) && sp.contains("app_animations")) preferences[APP_ANIMATIONS] = sp.getBoolean("app_animations", true)
-                if ((overwrite || !preferences.contains(BOTTOM_SEARCH)) && (sp.contains("settings.bottom.search") || sp.contains("bottom_search"))) preferences[BOTTOM_SEARCH] = sp.getBoolean("settings.bottom.search", sp.getBoolean("bottom_search", true))
-                if ((overwrite || !preferences.contains(BOTTOM_SEARCH_RESULT)) && (sp.contains("settings.bottom.search.result") || sp.contains("bottom_search_result"))) preferences[BOTTOM_SEARCH_RESULT] = sp.getBoolean("settings.bottom.search.result", sp.getBoolean("bottom_search_result", true))
-                if ((overwrite || !preferences.contains(TUTORIAL_COMPLETED)) && sp.contains("tutorial_completed")) preferences[TUTORIAL_COMPLETED] = sp.getBoolean("tutorial_completed", false)
-                if ((overwrite || !preferences.contains(FORCE_TUTORIAL)) && sp.contains("force_tutorial")) preferences[FORCE_TUTORIAL] = sp.getBoolean("force_tutorial", false)
-                if ((overwrite || !preferences.contains(TUTORIAL_STEP)) && sp.contains("tutorial_step")) preferences[TUTORIAL_STEP] = sp.getInt("tutorial_step", 0)
-                if ((overwrite || !preferences.contains(G_ICON_ENABLED)) && sp.contains("g_icon_enabled")) preferences[G_ICON_ENABLED] = sp.getBoolean("g_icon_enabled", true)
-                if ((overwrite || !preferences.contains(WIDGET_SHOW_VOICE)) && sp.contains("widget_show_voice")) preferences[WIDGET_SHOW_VOICE] = sp.getBoolean("widget_show_voice", true)
-                if ((overwrite || !preferences.contains(WIDGET_SHOW_GEMINI)) && sp.contains("widget_show_gemini")) preferences[WIDGET_SHOW_GEMINI] = sp.getBoolean("widget_show_gemini", true)
-                if ((overwrite || !preferences.contains(QUICK_SEARCH_YOUTUBE)) && sp.contains("quick_search_youtube")) preferences[QUICK_SEARCH_YOUTUBE] = sp.getBoolean("quick_search_youtube", true)
-                if ((overwrite || !preferences.contains(QUICK_SEARCH_WIKIPEDIA)) && sp.contains("quick_search_wikipedia")) preferences[QUICK_SEARCH_WIKIPEDIA] = sp.getBoolean("quick_search_wikipedia", true)
-                if ((overwrite || !preferences.contains(QUICK_SEARCH_PLAY_STORE)) && sp.contains("quick_search_play_store")) preferences[QUICK_SEARCH_PLAY_STORE] = sp.getBoolean("quick_search_play_store", true)
-                if ((overwrite || !preferences.contains(QUICK_SEARCH_MAPS)) && sp.contains("quick_search_maps")) preferences[QUICK_SEARCH_MAPS] = sp.getBoolean("quick_search_maps", true)
-                if ((overwrite || !preferences.contains(SEARCH_PILLS)) && sp.contains("search_pills")) sp.getString("search_pills", null)?.let { preferences[SEARCH_PILLS] = it }
-                if ((overwrite || !preferences.contains(WIDGET_THEME_STYLE)) && (sp.contains("widget.theme.style") || sp.contains("widget_theme_style"))) sp.getString("widget.theme.style", sp.getString("widget_theme_style", null))?.let { preferences[WIDGET_THEME_STYLE] = it }
-                if ((overwrite || !preferences.contains(HIDDEN_APPS)) && sp.contains("hidden_apps")) sp.getStringSet("hidden_apps", null)?.let { preferences[HIDDEN_APPS] = it }
-                if ((overwrite || !preferences.contains(APP_QUICK_LAUNCH)) && sp.contains("app_quick_launch")) preferences[APP_QUICK_LAUNCH] = sp.getBoolean("app_quick_launch", false)
-                if ((overwrite || !preferences.contains(CONTACT_DIRECT_CALL)) && sp.contains("contact_direct_call")) preferences[CONTACT_DIRECT_CALL] = sp.getBoolean("contact_direct_call", false)
-                if ((overwrite || !preferences.contains(SHORTCUT_INLINE)) && (sp.contains("shortcut.inline") || sp.contains("shortcut_inline"))) preferences[SHORTCUT_INLINE] = sp.getBoolean("shortcut.inline", sp.getBoolean("shortcut_inline", true))
-                if ((overwrite || !preferences.contains(APP_FUZZY_SEARCH)) && (sp.contains("app.fuzzy.search") || sp.contains("app_fuzzy_search"))) preferences[APP_FUZZY_SEARCH] = sp.getBoolean("app.fuzzy.search", sp.getBoolean("app_fuzzy_search", true))
-                if ((overwrite || !preferences.contains(QUICK_SEARCH_HORIZONTAL)) && (sp.contains("quick_search_horizontal") || sp.contains("quick.search.horizontal"))) preferences[QUICK_SEARCH_HORIZONTAL] = sp.getBoolean("quick_search_horizontal", sp.getBoolean("quick.search.horizontal", false))
-                if ((overwrite || !preferences.contains(WEB_RESULTS_COUNT)) && sp.contains("web_results_count")) preferences[WEB_RESULTS_COUNT] = sp.getInt("web_results_count", 5)
-                if ((overwrite || !preferences.contains(CONTACT_RESULTS_COUNT)) && sp.contains("contact_results_count")) preferences[CONTACT_RESULTS_COUNT] = sp.getInt("contact_results_count", 5)
-                if ((overwrite || !preferences.contains(FILE_RESULTS_COUNT)) && sp.contains("file_results_count")) preferences[FILE_RESULTS_COUNT] = sp.getInt("file_results_count", 5)
-                if ((overwrite || !preferences.contains(SHORTCUT_RESULTS_COUNT)) && sp.contains("shortcut_results_count")) preferences[SHORTCUT_RESULTS_COUNT] = sp.getInt("shortcut_results_count", 6)
-                if ((overwrite || !preferences.contains(CONTEXT_AWARE_QUICK_APPS)) && sp.contains("context_aware_quick_apps")) preferences[CONTEXT_AWARE_QUICK_APPS] = sp.getBoolean("context_aware_quick_apps", false)
-                if ((overwrite || !preferences.contains(SMART_CLIPBOARD_SUGGESTIONS)) && sp.contains("smart_clipboard_suggestions")) preferences[SMART_CLIPBOARD_SUGGESTIONS] = sp.getBoolean("smart_clipboard_suggestions", false)
-                if ((overwrite || !preferences.contains(ACTIVE_ICON_PACK)) && sp.contains("active_icon_pack")) sp.getString("active_icon_pack", null)?.let { preferences[ACTIVE_ICON_PACK] = it }
-                if ((overwrite || !preferences.contains(CUSTOM_ICON_PILLS)) && sp.contains("custom_icon_pills")) sp.getString("custom_icon_pills", null)?.let { preferences[CUSTOM_ICON_PILLS] = it }
-                if ((overwrite || !preferences.contains(NEVER_SHOW_ICON_PACK_WARNING)) && sp.contains("never_show_icon_pack_warning")) preferences[NEVER_SHOW_ICON_PACK_WARNING] = sp.getBoolean("never_show_icon_pack_warning", false)
-                if ((overwrite || !preferences.contains(SEARCH_PREVIOUS_SEARCHES)) && sp.contains("search_previous_searches")) preferences[SEARCH_PREVIOUS_SEARCHES] = sp.getBoolean("search_previous_searches", true)
-                if ((overwrite || !preferences.contains(CUSTOM_BANGS_JSON)) && sp.contains("custom_bangs_json")) sp.getString("custom_bangs_json", null)?.let { preferences[CUSTOM_BANGS_JSON] = it }
-                if ((overwrite || !preferences.contains(SEARCH_SECTIONS_CONFIG_JSON)) && sp.contains("search_sections_config_json")) sp.getString("search_sections_config_json", null)?.let { preferences[SEARCH_SECTIONS_CONFIG_JSON] = it }
-                if ((overwrite || !preferences.contains(ADAPTIVE_ICON_SHAPE)) && sp.contains("adaptive_icon_shape")) sp.getString("adaptive_icon_shape", null)?.let { preferences[ADAPTIVE_ICON_SHAPE] = it }
-                if ((overwrite || !preferences.contains(DYNAMIC_ICON_MASKING)) && sp.contains("dynamic_icon_masking")) preferences[DYNAMIC_ICON_MASKING] = sp.getBoolean("dynamic_icon_masking", true)
-                if ((overwrite || !preferences.contains(DIAGNOSTICS_OVERLAY_ENABLED)) && sp.contains("diagnostics_overlay_enabled")) preferences[DIAGNOSTICS_OVERLAY_ENABLED] = sp.getBoolean("diagnostics_overlay_enabled", false)
-                if ((overwrite || !preferences.contains(SEARCH_OVERLAY_ENABLED)) && sp.contains("search_overlay_enabled")) preferences[SEARCH_OVERLAY_ENABLED] = sp.getBoolean("search_overlay_enabled", true)
-                if ((overwrite || !preferences.contains(MATRIX_ANIMATION_ENABLED)) && sp.contains("matrix_animation_enabled")) preferences[MATRIX_ANIMATION_ENABLED] = sp.getBoolean("matrix_animation_enabled", true)
-                if ((overwrite || !preferences.contains(BACK_TO_SEARCH_OVERLAY)) && sp.contains("settings_back_to_search_overlay")) preferences[BACK_TO_SEARCH_OVERLAY] = sp.getBoolean("settings_back_to_search_overlay", true)
-                if ((overwrite || !preferences.contains(DISABLED_WEB_SHORTCUTS)) && sp.contains("disabled_web_shortcuts")) sp.getStringSet("disabled_web_shortcuts", null)?.let { preferences[DISABLED_WEB_SHORTCUTS] = it }
-                if ((overwrite || !preferences.contains(VIBRATION)) && sp.contains("vibration_enabled")) preferences[VIBRATION] = sp.getBoolean("vibration_enabled", true)
-                preferences[DATASTORE_MIGRATED] = true
-            }
+    /**
+     * Copies DataStore values for settings that SharedPreferences doesn't hold under any spelling. Every
+     * write since DataStore was added went to SharedPreferences first, so it wins whenever both have a value.
+     */
+    private suspend fun importLegacyDataStore(sp: SharedPreferences, editor: SharedPreferences.Editor) {
+        if (!context.preferencesDataStoreFile(LEGACY_DATASTORE_NAME).exists()) return
+        val stored: Map<Preferences.Key<*>, Any> = try {
+            context.legacySettingsDataStore.data.first().asMap()
         } catch (e: Exception) {
-            Log.w(TAG, "Error syncing SharedPreferences to DataStore", e)
+            Log.w(TAG, "Old settings store unreadable; keeping current settings", e)
+            return
         }
-    }
-
-    suspend fun <T> updateSetting(key: Preferences.Key<T>, value: T) {
-        try {
-            val prefs = getSafePrefs()
-            val editor = prefs.edit()
-            
-            val legacyKey = when (key.name) {
-                "search.apps" -> "search_apps"
-                "search_apps" -> "search.apps"
-                "search.contacts" -> "search_contacts"
-                "search_contacts" -> "search.contacts"
-                "search.files" -> "search_files"
-                "search_files" -> "search.files"
-                "search.web" -> "search_web"
-                "search_web" -> "search.web"
-                "search.calculator" -> "search_calculator"
-                "search_calculator" -> "search.calculator"
-                "search.calendar" -> "search_calendar"
-                "search_calendar" -> "search.calendar"
-                "search.shortcuts" -> "search_shortcuts"
-                "search_shortcuts" -> "search.shortcuts"
-                "search.background.show.wall" -> "show_wallpaper"
-                "show_wallpaper" -> "search.background.show.wall"
-                "search.background.blur" -> "background.blur"
-                "background.blur" -> "search.background.blur"
-                "search.background.transparency" -> "background.transparency"
-                "background.transparency" -> "search.background.transparency"
-                "search.pill.opacity" -> "pill.opacity"
-                "pill.opacity" -> "search.pill.opacity"
-                "search.files.hidden.files" -> "search_files_hidden_files"
-                "search_files_hidden_files" -> "search.files.hidden.files"
-                "search.files.thumbnails" -> "search_files_thumbnails"
-                "search_files_thumbnails" -> "search.files.thumbnails"
-                "settings.bottom.search" -> "bottom_search"
-                "bottom_search" -> "settings.bottom.search"
-                "settings.bottom.search.result" -> "bottom_search_result"
-                "bottom_search_result" -> "settings.bottom.search.result"
-                "shortcut.inline" -> "shortcut_inline"
-                "shortcut_inline" -> "shortcut.inline"
-                "app.fuzzy.search" -> "app_fuzzy_search"
-                "app_fuzzy_search" -> "app.fuzzy.search"
-                "quick_search_horizontal" -> "quick.search.horizontal"
-                "quick.search.horizontal" -> "quick_search_horizontal"
-                "widget.theme.style" -> "widget_theme_style"
-                "widget_theme_style" -> "widget.theme.style"
-                "night.mode" -> "theme"
-                "theme" -> "night.mode"
-                else -> null
+        for ((dsKey, value) in stored) {
+            val key = keyFor(dsKey.name) ?: continue
+            if (key.allNames.any(sp::contains)) continue
+            when (key) {
+                is BooleanSetting -> (value as? Boolean)?.let { editor.put(key, it) }
+                is IntSetting -> (value as? Int)?.let { editor.put(key, it) }
+                is StringSetting -> (value as? String)?.let { editor.put(key, it) }
+                is StringSetSetting -> (value as? Set<*>)?.filterIsInstance<String>()?.let { editor.put(key, it.toSet()) }
             }
-
-            when (value) {
-                is Boolean -> {
-                    editor.putBoolean(key.name, value)
-                    if (legacyKey != null) editor.putBoolean(legacyKey, value)
-                }
-                is Int -> {
-                    editor.putInt(key.name, value)
-                    if (legacyKey != null) editor.putInt(legacyKey, value)
-                }
-                is Long -> {
-                    editor.putLong(key.name, value)
-                    if (legacyKey != null) editor.putLong(legacyKey, value)
-                }
-                is Float -> {
-                    editor.putFloat(key.name, value)
-                    if (legacyKey != null) editor.putFloat(legacyKey, value)
-                }
-                is String -> {
-                    editor.putString(key.name, value)
-                    if (legacyKey != null) editor.putString(legacyKey, value)
-                }
-                is Set<*> -> {
-                    @Suppress("UNCHECKED_CAST")
-                    val stringSet = value as? Set<String> ?: emptySet()
-                    editor.putStringSet(key.name, HashSet(stringSet))
-                    if (legacyKey != null) editor.putStringSet(legacyKey, HashSet(stringSet))
-                }
-            }
-            editor.apply()
-        } catch (e: Exception) {
-            Log.w(TAG, "Error updating SharedPreferences for key ${key.name}: ${e.message}")
-        }
-
-        try {
-            context.dataStore.edit { preferences ->
-                preferences[key] = value
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Error writing to DataStore for key ${key.name}: ${e.message}")
         }
     }
 }

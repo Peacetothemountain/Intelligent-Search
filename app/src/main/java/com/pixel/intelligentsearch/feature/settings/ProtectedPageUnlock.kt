@@ -59,12 +59,13 @@ fun rememberProtectedPageUnlock(
 
     DisposableEffect(activity) {
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        // Other apps' floating windows can't sit over (or spoof) the page; needs HIDE_OVERLAY_WINDOWS.
-        activity?.window?.setHideOverlayWindows(true)
+        // Other apps' floating windows can't sit over (or spoof) the page. HIDE_OVERLAY_WINDOWS is a normal,
+        // auto-granted permission; if it were ever missing the page must still open.
+        runCatching { activity?.window?.setHideOverlayWindows(true) }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) activity?.setRecentsScreenshotEnabled(false)
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-            activity?.window?.setHideOverlayWindows(false)
+            runCatching { activity?.window?.setHideOverlayWindows(false) }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) activity?.setRecentsScreenshotEnabled(true)
         }
     }

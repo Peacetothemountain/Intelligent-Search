@@ -167,9 +167,6 @@ dependencies {
   // Preferences DataStore
   implementation(libs.androidx.datastore.preferences)
 
-  // Lottie for Animations
-  implementation(libs.lottie.compose)
-
   // Graphics Shapes for Material Morph Animations
   implementation(libs.androidx.graphics.shapes)
 

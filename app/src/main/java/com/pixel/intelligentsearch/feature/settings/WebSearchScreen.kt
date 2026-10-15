@@ -61,12 +61,17 @@ import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/** One animation frame shared by every shortcut badge. */
+class ShortcutBadgeFrame(val morph: Morph, val rotationAngle: Float, val morphProgress: Float)
+
+/**
+ * [frame] is read only inside the Canvas draw lambda, so the running animation redraws the badges without
+ * recomposing them or the card around them.
+ */
 @Composable
 fun SynchronizedMorphingShortcutBadge(
     shortcut: String,
-    morph: Morph,
-    rotationAngle: Float,
-    morphProgress: Float,
+    frame: () -> ShortcutBadgeFrame,
     modifier: Modifier = Modifier
 ) {
     val containerColor = MaterialTheme.colorScheme.secondaryContainer
@@ -82,11 +87,12 @@ fun SynchronizedMorphingShortcutBadge(
         Canvas(modifier = Modifier.fillMaxSize()) {
             val center = Offset(size.width / 2f, size.height / 2f)
             val scaleFactor = size.minDimension * 0.44f
+            val current = frame()
 
             translate(left = center.x, top = center.y) {
-                rotate(degrees = rotationAngle, pivot = Offset.Zero) {
+                rotate(degrees = current.rotationAngle, pivot = Offset.Zero) {
                     nativePath.rewind()
-                    morph.toPath(progress = morphProgress, path = nativePath)
+                    current.morph.toPath(progress = current.morphProgress, path = nativePath)
                     scale(scale = scaleFactor, pivot = Offset.Zero) {
                         drawPath(
                             path = composePath,
@@ -330,7 +336,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     subtitle = if (advancedProtectionOn) {
                         "Paused While Android Advanced Protection Is On."
                     } else {
-                        "Helpful Suggestions Appear During Active Search."
+                        "Sends What You Type to Your Search Engine for Live Suggestions."
                     },
                     icon = Icons.Outlined.ChatBubbleOutline,
                     isChecked = webSuggestions && !advancedProtectionOn,
@@ -544,7 +550,9 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
 
                     val infiniteTransition = rememberInfiniteTransition(label = "morphingShortcutsSync")
-                    val totalCycleProgress by infiniteTransition.animateFloat(
+                    // Kept as State and read only in the badges' draw phase (see ShortcutBadgeFrame); reading
+                    // them here recomposed this whole card on every animation frame.
+                    val totalCycleProgress = infiniteTransition.animateFloat(
                         initialValue = 0f,
                         targetValue = morphSequence.size.toFloat(),
                         animationSpec = infiniteRepeatable(
@@ -554,7 +562,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         label = "shortcutBadgeMorphCycle"
                     )
 
-                    val rotationAngle by infiniteTransition.animateFloat(
+                    val rotationAngle = infiniteTransition.animateFloat(
                         initialValue = 0f,
                         targetValue = 360f,
                         animationSpec = infiniteRepeatable(
@@ -564,11 +572,18 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         label = "shortcutBadgeRotation"
                     )
 
-                    val currentCycle = (totalCycleProgress % morphSequence.size.toFloat()).coerceIn(0f, morphSequence.size - 0.0001f)
-                    val morphIndex = currentCycle.toInt().coerceIn(0, morphSequence.size - 1)
-                    val rawProgress = (currentCycle - morphIndex).coerceIn(0f, 1f)
-                    val morphProgress = FastOutSlowInEasing.transform(rawProgress)
-                    val sharedMorph = morphSequence[morphIndex]
+                    val badgeFrame: () -> ShortcutBadgeFrame = remember(morphSequence, totalCycleProgress, rotationAngle) {
+                        {
+                            val currentCycle = (totalCycleProgress.value % morphSequence.size.toFloat()).coerceIn(0f, morphSequence.size - 0.0001f)
+                            val morphIndex = currentCycle.toInt().coerceIn(0, morphSequence.size - 1)
+                            val rawProgress = (currentCycle - morphIndex).coerceIn(0f, 1f)
+                            ShortcutBadgeFrame(
+                                morph = morphSequence[morphIndex],
+                                rotationAngle = rotationAngle.value,
+                                morphProgress = FastOutSlowInEasing.transform(rawProgress)
+                            )
+                        }
+                    }
 
                     val view = LocalView.current
                     val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
@@ -748,9 +763,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                         }
                                                         SynchronizedMorphingShortcutBadge(
                                                             shortcut = badgeLabel,
-                                                            morph = sharedMorph,
-                                                            rotationAngle = rotationAngle,
-                                                            morphProgress = morphProgress
+                                                            frame = badgeFrame
                                                         )
                                                         Spacer(modifier = Modifier.width(16.dp))
                                                         val appLabel = remember(bang.targetPackage, bang.name) {
@@ -840,9 +853,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                     }
                                                     SynchronizedMorphingShortcutBadge(
                                                         shortcut = directBadge,
-                                                        morph = sharedMorph,
-                                                        rotationAngle = rotationAngle,
-                                                        morphProgress = morphProgress
+                                                        frame = badgeFrame
                                                     )
                                                     Spacer(modifier = Modifier.width(14.dp))
                                                     Column {

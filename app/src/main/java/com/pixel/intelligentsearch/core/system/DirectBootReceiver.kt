@@ -36,7 +36,8 @@ class DirectBootReceiver : BroadcastReceiver() {
                 if (now - lastRefreshTimestamp > REFRESH_DEBOUNCE_MS) {
                     lastRefreshTimestamp = now
                     SystemDataProvider.invalidateAppsCache()
-                    com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(context)
+                    // goAsync keeps the low-priority boot-time process alive until the redraw finishes.
+                    com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(context, goAsync())
                 }
             }
         }

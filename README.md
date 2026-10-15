@@ -104,7 +104,7 @@ Visit https://play.google.com/store/apps/details?id=com.pixel.intelligentsearch 
       <h3>🛡️ Privacy First Architecture</h3>
       <ul>
         <li><b>100% On-Device Processing</b> for local search queries.</li>
-        <li>Encrypted local SQLite search history database.</li>
+        <li>Search history kept in a local, sandboxed database (excluded from cloud backup).</li>
         <li>User-controlled permission gating for Contacts & Calendar.</li>
       </ul>
     </td>
@@ -121,7 +121,7 @@ Intelligent Search Architecture
 ├── Feature Modules
 │   ├── Search Overlay (SearchViewModel, Matrix & Shader Backgrounds)
 │   ├── Settings & Customization (SettingsScreens, Icon Pack Resolution)
-│   ├── Widgets & Tiles (SearchWidgetProvider, QuickSearchTileService)
+│   ├── Widgets & Tiles (SearchWidgetProvider, SearchTileService)
 │   └── Voice & Intents (IntelligentVoiceInteractionSession)
 └── Core Infrastructure
     ├── Data Providers (SystemDataProvider, WebSearchProvider, SettingsManager)
@@ -134,8 +134,8 @@ Intelligent Search Architecture
 
 - **IDE**: Android Studio Jellyfish (2024.1.1) or newer
 - **JDK Target**: JDK 17 / JDK 21
-- **Android Target SDK**: SDK 35 (Android 15+) / Android 17 compatibility target
-- **Minimum Supported SDK**: SDK 29 (Android 10+)
+- **Android Target / Compile SDK**: SDK 37 (Android 17)
+- **Minimum Supported SDK**: SDK 31 (Android 12+)
 
 ### Building from Source
 
@@ -148,14 +148,16 @@ cd Intelligent-Search
 ./gradlew assembleRelease
 ```
 
-The compiled release binary is generated at:
+With signing configured (`release.keystore` in the project root plus `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD` in `local.properties` or the environment), the release binary is generated at:
 `app/build/outputs/apk/release/app-release.apk`
+
+Without signing, Gradle produces `app-release-unsigned.apk` instead; release builds are never signed with the debug key.
 
 ---
 
 ## 📦 Automated Release Pipeline
 
-Automated build and release workflows are managed via GitHub Actions (`.github/workflows/release.yml`) utilizing secure **Blacksmith runners** (`blacksmith-4vcpu-ubuntu-2404`) for fast, isolated compilation.
+Automated build and release workflows are managed via GitHub Actions on GitHub-hosted `ubuntu-latest` runners, with every action pinned to a commit SHA. `ci.yml` runs the unit tests and a release build on each push; `release.yml` builds a signed APK for each `v*` tag and attaches it to a GitHub release. The release workflow needs these repository secrets: `RELEASE_KEYSTORE_BASE64` (the keystore, base64-encoded), `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD`; it fails rather than publishing a release without an APK.
 
 - **Releases Page**: Compiled release binaries (`v8.1`) are available under the repository [Releases Section](https://github.com/Peacetothemountain/Intelligent-Search/releases).
 

@@ -113,7 +113,7 @@ object NaturalLanguageIntentParser {
         parseCalendar(lower, query, currentTimeMs)?.let { return it }
 
         // 5. Direct Messaging Intent ("message ...", "text ...")
-        parseDirectMessage(query)?.let { return it }
+        parseDirectMessage(query, contacts, contactLookup)?.let { return it }
 
         // 6. Direct Phone Call Intent ("call ...", "dial ...")
         parsePhoneCall(lower, query, contacts, contactLookup)?.let { return it }
@@ -309,21 +309,29 @@ object NaturalLanguageIntentParser {
     // DIRECT MESSAGING & CALL PARSERS
     // ---------------------------------------------------------------------------------------------
 
-    private fun parseDirectMessage(original: String): ParsedIntent.DirectMessage? {
+    private fun parseDirectMessage(
+        original: String,
+        contacts: List<com.pixel.intelligentsearch.core.data.ContactItem> = emptyList(),
+        contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)? = null
+    ): ParsedIntent.DirectMessage? {
         val match = MESSAGE_REGEX.find(original) ?: return null
 
         val recipient = match.groupValues[1].trim()
         val isWhatsApp = match.groupValues[2].equals("whatsapp", ignoreCase = true)
         val body = match.groupValues[3].trim()
 
+        // Resolve the recipient to a number the same way calls do, so the composer opens addressed to them.
+        val number = resolveRecipientNumber(recipient, contacts, contactLookup)
+
         val intent = if (isWhatsApp) {
+            val phoneParam = number?.filter { it.isDigit() }?.takeIf { it.isNotEmpty() }?.let { "phone=$it&" } ?: ""
             Intent(Intent.ACTION_VIEW).apply {
-                data = Uri.parse("https://api.whatsapp.com/send?text=${java.net.URLEncoder.encode(body, "UTF-8")}")
+                data = Uri.parse("https://api.whatsapp.com/send?${phoneParam}text=${java.net.URLEncoder.encode(body, "UTF-8")}")
                 setPackage("com.whatsapp")
             }
         } else {
             Intent(Intent.ACTION_SENDTO).apply {
-                data = Uri.parse("smsto:")
+                data = Uri.parse("smsto:" + (number?.let { Uri.encode(it) } ?: ""))
                 putExtra("sms_body", body)
             }
         }
@@ -334,6 +342,21 @@ object NaturalLanguageIntentParser {
             isWhatsApp = isWhatsApp,
             intent = intent
         )
+    }
+
+    /** A dialable number for [target]: the target itself if it is one, else a matching contact's number. */
+    private fun resolveRecipientNumber(
+        target: String,
+        contacts: List<com.pixel.intelligentsearch.core.data.ContactItem>,
+        contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)?
+    ): String? {
+        if (target.isEmpty()) return null
+        if (target.all { it.isDigit() || it in "+- ()" }) {
+            return target.filter { it.isDigit() || it == '+' }.takeIf { it.count(Char::isDigit) >= 3 }
+        }
+        val contact = contactLookup?.invoke(target)?.takeIf { it.phoneNumber.isNotBlank() }
+            ?: contacts.firstOrNull { it.phoneNumber.isNotBlank() && it.name.contains(target, ignoreCase = true) }
+        return contact?.phoneNumber?.filter { it.isDigit() || it == '+' }?.takeIf { it.isNotEmpty() }
     }
 
     private fun parsePhoneCall(

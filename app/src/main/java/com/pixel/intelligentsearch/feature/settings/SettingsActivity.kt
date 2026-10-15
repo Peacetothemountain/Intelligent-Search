@@ -46,7 +46,9 @@ class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
-        com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
+        // No session-wide high refresh rate here: pinning it kept the panel at its maximum rate for the whole
+        // settings session and defeated LTPO. The system raises the rate for scrolling and animations, and
+        // the predictive-back gesture boosts it only while it runs.
         super.onCreate(savedInstanceState)
 
         // Refresh the user_setup allowlist without unconditionally launching the system RoleManager dialog

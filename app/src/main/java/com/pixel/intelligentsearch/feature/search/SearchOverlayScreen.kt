@@ -1306,8 +1306,15 @@ fun SearchOverlayScreen(
                         keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
                             hasStartedTyping = false
                             keyboardController?.hide()
-                            if (uiState.query.isNotEmpty()) {
-                                viewModel.addSearchHistory(uiState.query)
+                            // The collected uiState can lag a keystroke behind; read the live value so Enter
+                            // never acts on a query missing its last character.
+                            val submittedQuery = viewModel.uiState.value.query
+                            if (submittedQuery.isNotEmpty() && viewModel.resolveBangIntent(submittedQuery) != null) {
+                                // A bang is an explicit request for that site: it must not be taken over by an
+                                // app match or Quick Launch ("!g maps" would otherwise open Maps).
+                                launchWebSearch(submittedQuery)
+                            } else if (submittedQuery.isNotEmpty()) {
+                                viewModel.addSearchHistory(submittedQuery)
                                 val match = bestMatch
                                 if (match != null) {
                                     when (match) {
@@ -1339,7 +1346,7 @@ fun SearchOverlayScreen(
                                 } else if (uiState.instantAnswer?.iconType == "url") {
                                     val answer = uiState.instantAnswer
                                     if (answer != null) {
-                                        val targetUrl = if (answer.title.startsWith("http://") || answer.title.startsWith("https://")) {
+                                        val targetUrl = if (answer.title.startsWith("http://", ignoreCase = true) || answer.title.startsWith("https://", ignoreCase = true)) {
                                             answer.title
                                         } else "https://${answer.title}"
                                         launchSafeIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
@@ -1349,8 +1356,8 @@ fun SearchOverlayScreen(
                                 } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
                                     performAppLaunch(visibleApps.first().packageName)
                                 } else {
-                                    launchWebSearch(uiState.query)
-                                 }
+                                    launchWebSearch(submittedQuery)
+                                }
                             }
                         }),
                         decorationBox = { innerTextField ->

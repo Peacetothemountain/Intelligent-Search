@@ -2,7 +2,6 @@ package com.pixel.intelligentsearch.feature.settings
 
 import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.widget.Toast
@@ -139,13 +138,60 @@ fun BackupRestoreScreen(
     var dialogPassphrase by remember { mutableStateOf("") }
     var dialogPassphraseVisible by remember { mutableStateOf(false) }
     var dialogErrorMessage by remember { mutableStateOf<String?>(null) }
+    val coroutineScopeForAuth = rememberCoroutineScope()
 
+    // Backups carry the hidden-app list (export reveals it, restore replaces it) and this screen fills in
+    // the saved passphrase, so whenever either exists it asks for the same fingerprint or screen lock as
+    // Manage Hidden Apps before showing anything.
+    var isScreenUnlocked by remember { mutableStateOf(false) }
+    val enteredAtMs = remember { android.os.SystemClock.uptimeMillis() }
+    val currentOnBack by androidx.compose.runtime.rememberUpdatedState(onBack)
+    // Leaves exactly once, like Manage Hidden Apps: a failure right after opening waits for the enter
+    // transition to settle, since backing out mid-transition popped the page underneath as well.
+    val leaveAfterAuthFailure: () -> Unit = {
+        val leave = {
+            SettingsDebouncer.recordClick(0L)
+            SettingsDebouncer.recordClick(0L, key = "settings_top_bar_back")
+            currentOnBack()
+        }
+        val elapsed = android.os.SystemClock.uptimeMillis() - enteredAtMs
+        if (elapsed < 450L) {
+            coroutineScopeForAuth.launch {
+                kotlinx.coroutines.delay(450L - elapsed)
+                if (!isScreenUnlocked) leave()
+            }
+        } else {
+            leave()
+        }
+    }
     LaunchedEffect(Unit) {
-        // Keystore (StrongBox) decryption can take hundreds of milliseconds; keep it off the main thread.
-        val saved = withContext(Dispatchers.IO) { viewModel?.getSavedPassphraseFromSecurityChip() }
-        if (!saved.isNullOrBlank()) {
-            passphrase = saved
-            isPassphraseSavedOnChip = true
+        val needsAuth = withContext(Dispatchers.IO) {
+            !prefs.getStringSet("hidden_apps", null).isNullOrEmpty() ||
+                viewModel?.hasSavedPassphraseOnSecurityChip() == true
+        }
+        val loadSavedPassphrase: () -> Unit = {
+            isScreenUnlocked = true
+            coroutineScopeForAuth.launch {
+                // Keystore (StrongBox) decryption can take hundreds of milliseconds; keep it off the main thread.
+                val saved = withContext(Dispatchers.IO) { viewModel?.getSavedPassphraseFromSecurityChip() }
+                if (!saved.isNullOrBlank()) {
+                    passphrase = saved
+                    isPassphraseSavedOnChip = true
+                }
+            }
+        }
+        val gate = com.pixel.intelligentsearch.core.security.BiometricSearchGate.get(context)
+        if (!needsAuth || !gate.isDeviceSecure() || activity == null) {
+            loadSavedPassphrase()
+        } else {
+            gate.authenticate(
+                activity = activity,
+                title = "Unlock Encrypted Backup",
+                subtitle = "Verify it's you to back up or restore your settings",
+                onSuccess = { loadSavedPassphrase() },
+                onError = { _, _ -> leaveAfterAuthFailure() },
+                onCancel = { leaveAfterAuthFailure() }
+            )
         }
     }
 
@@ -186,15 +232,9 @@ fun BackupRestoreScreen(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
         android.util.Log.d("BackupRestoreScreen", "exportLauncher callback: uri=$uri, activity=$activity, viewModel=$viewModel")
+        // The picker's grant covers this one write; persisting it would use up Android's 512-grant cap,
+        // which also holds the folders and photos chosen for file search.
         if (uri != null && activity != null) {
-            try {
-                activity.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            } catch (e: Throwable) {
-                android.util.Log.d("BackupRestoreScreen", "takePersistableUriPermission: ${e.message}")
-            }
             if (viewModel == null) {
                 android.util.Log.e("BackupRestoreScreen", "viewModel is NULL in exportLauncher!")
                 safeShowToast("Error: Settings manager is not available")
@@ -228,12 +268,6 @@ fun BackupRestoreScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null && activity != null) {
-            try {
-                activity.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            } catch (_: Throwable) {}
             coroutineScope.launch {
                 val inspectResult = withContext(Dispatchers.IO) {
                     viewModel?.inspectBackupEnvelope(uri)
@@ -440,6 +474,8 @@ fun BackupRestoreScreen(
         )
     }
 
+    if (!isScreenUnlocked) return
+
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
@@ -547,13 +583,17 @@ fun BackupRestoreScreen(
                     FilledTonalButton(
                         onClick = {
                             if (passphrase.isNotBlank()) {
-                                val saved = viewModel?.savePassphraseToSecurityChip(passphrase) == true
-                                if (saved) {
-                                    isPassphraseSavedOnChip = true
-                                    hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
-                                    safeShowToast("Passphrase saved to ${hardwareInfo.shortChipName}")
-                                } else {
-                                    safeShowToast("Failed to save to ${hardwareInfo.shortChipName}")
+                                val toSave = passphrase
+                                coroutineScope.launch {
+                                    // StrongBox key generation and the commit() are slow; keep them off the main thread.
+                                    val saved = withContext(Dispatchers.IO) { viewModel?.savePassphraseToSecurityChip(toSave) } == true
+                                    if (saved) {
+                                        isPassphraseSavedOnChip = true
+                                        hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                                        safeShowToast("Passphrase saved to ${hardwareInfo.shortChipName}")
+                                    } else {
+                                        safeShowToast("Failed to save to ${hardwareInfo.shortChipName}")
+                                    }
                                 }
                             } else {
                                 safeShowToast("Enter a passphrase first")
@@ -691,7 +731,9 @@ fun BackupRestoreScreen(
             ) {
                 val isDark = isSystemInDarkTheme()
                 val infiniteTransition = rememberInfiniteTransition(label = "BugdroidFeetShadowTransition")
-                val pulseScale by infiniteTransition.animateFloat(
+                // The animated values stay State and are read only inside the Canvas, so the pulse redraws
+                // the shadow without recomposing this part of the screen every frame.
+                val pulseScale = infiniteTransition.animateFloat(
                     initialValue = 0.94f,
                     targetValue = 1.06f,
                     animationSpec = infiniteRepeatable(
@@ -700,7 +742,7 @@ fun BackupRestoreScreen(
                     ),
                     label = "shadowPulseScale"
                 )
-                val pulseAlpha by infiniteTransition.animateFloat(
+                val pulseAlpha = infiniteTransition.animateFloat(
                     initialValue = 0.85f,
                     targetValue = 1.0f,
                     animationSpec = infiniteRepeatable(
@@ -709,7 +751,7 @@ fun BackupRestoreScreen(
                     ),
                     label = "shadowPulseAlpha"
                 )
-                val swayOffset by infiniteTransition.animateFloat(
+                val swayOffset = infiniteTransition.animateFloat(
                     initialValue = -1.5f,
                     targetValue = 1.5f,
                     animationSpec = infiniteRepeatable(
@@ -719,28 +761,21 @@ fun BackupRestoreScreen(
                     label = "shadowSwayOffset"
                 )
 
-                val contactShadowColor = if (isDark) {
-                    Color.Black.copy(alpha = 0.70f * pulseAlpha)
-                } else {
-                    Color.Black.copy(alpha = 0.38f * pulseAlpha)
-                }
-                val ambientShadowColor = if (isDark) {
-                    Color.Black.copy(alpha = 0.32f * pulseAlpha)
-                } else {
-                    Color.Black.copy(alpha = 0.16f * pulseAlpha)
-                }
-
                 Canvas(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(340.dp)
                 ) {
-                    val centerX = size.width / 2f + swayOffset.dp.toPx()
+                    val alpha = pulseAlpha.value
+                    val scale = pulseScale.value
+                    val contactShadowColor = Color.Black.copy(alpha = (if (isDark) 0.70f else 0.38f) * alpha)
+                    val ambientShadowColor = Color.Black.copy(alpha = (if (isDark) 0.32f else 0.16f) * alpha)
+                    val centerX = size.width / 2f + swayOffset.value.dp.toPx()
                     val groundY = 292.dp.toPx()
 
                     // Ambient ground diffusion shadow
-                    val ambientWidth = 110.dp.toPx() * pulseScale
-                    val ambientHeight = 22.dp.toPx() * pulseScale
+                    val ambientWidth = 110.dp.toPx() * scale
+                    val ambientHeight = 22.dp.toPx() * scale
                     drawOval(
                         brush = Brush.radialGradient(
                             colors = listOf(ambientShadowColor, Color.Transparent),
@@ -753,8 +788,8 @@ fun BackupRestoreScreen(
 
                     // Left foot contact shadow (grounded directly beneath left foot)
                     val leftFootCenterX = centerX - 28.dp.toPx()
-                    val footWidth = 36.dp.toPx() * pulseScale
-                    val footHeight = 12.dp.toPx() * pulseScale
+                    val footWidth = 36.dp.toPx() * scale
+                    val footHeight = 12.dp.toPx() * scale
                     drawOval(
                         brush = Brush.radialGradient(
                             colors = listOf(contactShadowColor, Color.Transparent),

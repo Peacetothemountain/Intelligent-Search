@@ -46,9 +46,6 @@
 }
 -dontwarn androidx.room.paging.**
 
-# Lottie Animations
--keep class com.airbnb.lottie.** { *; }
-
 # Coroutines
 -dontwarn kotlinx.coroutines.**
 

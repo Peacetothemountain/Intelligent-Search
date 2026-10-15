@@ -285,119 +285,114 @@ class BackupManager @Inject constructor(
         )
     }
 
-    suspend fun exportToFile(
-        
-        uri: Uri,
-        passphrase: String?,
-        onSuccess: () -> Unit,
-        onError: (String) -> Unit
-    ) {
-        withContext(Dispatchers.IO) {
+    /** Encrypts the current settings, hidden apps and history and writes them to [uri]. */
+    suspend fun exportToFile(uri: Uri, passphrase: String?): Result<Unit> = withContext(Dispatchers.IO) {
+        backupResult("exportToFile") {
+            val payload = createBackupPayload()
+            val plainJson = serializePayload(payload)
+
+            val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
+
+            val envelope = if (!passphrase.isNullOrBlank()) {
+                // Passphrase backups are encrypted in software from the passphrase so they restore on
+                // any phone; the device Keystore is not involved, so they are not hardware backed.
+                val salt = BackupCryptoEngine.generateRandomSalt()
+                val iv = BackupCryptoEngine.generateRandomIv()
+                val passChars = passphrase.toCharArray()
+                val key = try {
+                    BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt)
+                } finally {
+                    com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
+                }
+                val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
+                val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
+
+                EncryptedBackupEnvelope(
+                    isHardwareBacked = false,
+                    hardwareChip = hwInfo.chipName,
+                    deviceModel = hwInfo.deviceDisplayName,
+                    kdf = KdfMetadata(iterations = BackupCryptoEngine.PBKDF2_ITERATIONS, saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
+                    cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
+                    encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
+                    payloadSha256 = sha
+                )
+            } else {
+                // No passphrase: encrypt with a non-exportable AES-256 key generated inside this phone's
+                // Keystore (StrongBox when present, otherwise the TEE). The key never leaves the
+                // hardware, so the file only restores on this phone and this install. The old
+                // APK-embedded "portable" key is kept for restoring legacy files only.
+                val (key, keyLevel) = strongBoxSecurityManager.getOrCreateSymmetricKey(
+                    HARWARE_BACKUP_KEY_ALIAS,
+                    purgeIfUnrecoverable = false
+                )
+                // Keystore keys require randomized encryption and reject a caller-supplied IV, so the
+                // cipher generates the IV itself.
+                val (iv, cipherBytes) = BackupCryptoEngine.encryptPayloadWithGeneratedIv(plainJson, key)
+                val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
+
+                // isHardwareBacked marks the file as encrypted with this device's Keystore key (import
+                // relies on it); hardwareChip records where the key actually landed, since StrongBox can
+                // fall back to the TEE and some keystores report software backing.
+                EncryptedBackupEnvelope(
+                    isHardwareBacked = true,
+                    hardwareChip = when (keyLevel) {
+                        com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> hwInfo.chipName
+                        com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE -> hwInfo.teeName
+                        com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.SOFTWARE -> "Android Keystore (software)"
+                    },
+                    deviceModel = hwInfo.deviceDisplayName,
+                    kdf = null,
+                    cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
+                    encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
+                    payloadSha256 = sha
+                )
+            }
+
+            val envelopeJson = serializeEnvelope(envelope)
+            val bytes = envelopeJson.toByteArray(Charsets.UTF_8)
+
+            var writeSuccess = false
+            // Method 1: Try openFileDescriptor with rwt / sync
             try {
-                val payload = createBackupPayload()
-                val plainJson = serializePayload(payload)
-
-                val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
-
-                val envelope = if (!passphrase.isNullOrBlank()) {
-                    // Passphrase backups are encrypted in software from the passphrase so they restore on
-                    // any phone; the device Keystore is not involved, so they are not hardware backed.
-                    val salt = BackupCryptoEngine.generateRandomSalt()
-                    val iv = BackupCryptoEngine.generateRandomIv()
-                    val passChars = passphrase.toCharArray()
-                    val key = try {
-                        BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt)
-                    } finally {
-                        com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
-                    }
-                    val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
-                    val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
-
-                    EncryptedBackupEnvelope(
-                        isHardwareBacked = false,
-                        hardwareChip = hwInfo.chipName,
-                        deviceModel = hwInfo.deviceDisplayName,
-                        kdf = KdfMetadata(iterations = BackupCryptoEngine.PBKDF2_ITERATIONS, saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
-                        cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
-                        encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
-                        payloadSha256 = sha
-                    )
-                } else {
-                    // No passphrase: encrypt with a non-exportable AES-256 key generated inside this phone's
-                    // Keystore (StrongBox when present, otherwise the TEE). The key never leaves the
-                    // hardware, so the file only restores on this phone and this install. The old
-                    // APK-embedded "portable" key is kept for restoring legacy files only.
-                    val (key, keyLevel) = strongBoxSecurityManager.getOrCreateSymmetricKey(
-                        HARWARE_BACKUP_KEY_ALIAS,
-                        purgeIfUnrecoverable = false
-                    )
-                    // Keystore keys require randomized encryption and reject a caller-supplied IV, so the
-                    // cipher generates the IV itself.
-                    val (iv, cipherBytes) = BackupCryptoEngine.encryptPayloadWithGeneratedIv(plainJson, key)
-                    val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
-
-                    // isHardwareBacked marks the file as encrypted with this device's Keystore key (import
-                    // relies on it); hardwareChip records where the key actually landed, since StrongBox can
-                    // fall back to the TEE and some keystores report software backing.
-                    EncryptedBackupEnvelope(
-                        isHardwareBacked = true,
-                        hardwareChip = when (keyLevel) {
-                            com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> hwInfo.chipName
-                            com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE -> hwInfo.teeName
-                            com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.SOFTWARE -> "Android Keystore (software)"
-                        },
-                        deviceModel = hwInfo.deviceDisplayName,
-                        kdf = null,
-                        cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
-                        encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
-                        payloadSha256 = sha
-                    )
-                }
-
-                val envelopeJson = serializeEnvelope(envelope)
-                val bytes = envelopeJson.toByteArray(Charsets.UTF_8)
-
-                var writeSuccess = false
-                // Method 1: Try openFileDescriptor with rwt / sync
-                try {
-                    val pfd = context.contentResolver.openFileDescriptor(uri, "rwt")
-                        ?: context.contentResolver.openFileDescriptor(uri, "wt")
-                        ?: context.contentResolver.openFileDescriptor(uri, "w")
-                    if (pfd != null) {
-                        pfd.use { fd ->
-                            java.io.FileOutputStream(fd.fileDescriptor).let { fos ->
-                                fos.write(bytes)
-                                fos.flush()
-                                try { fd.fileDescriptor.sync() } catch (_: Throwable) {}
-                            }
+                val pfd = context.contentResolver.openFileDescriptor(uri, "rwt")
+                    ?: context.contentResolver.openFileDescriptor(uri, "wt")
+                    ?: context.contentResolver.openFileDescriptor(uri, "w")
+                if (pfd != null) {
+                    pfd.use { fd ->
+                        java.io.FileOutputStream(fd.fileDescriptor).let { fos ->
+                            fos.write(bytes)
+                            fos.flush()
+                            try { fd.fileDescriptor.sync() } catch (_: Throwable) {}
                         }
-                        writeSuccess = true
                     }
-                } catch (e: Throwable) {
-                    Log.w("BackupManager", "openFileDescriptor write failed, falling back to openOutputStream", e)
-                }
-
-                // Method 2: Fallback to openOutputStream if PFD failed
-                if (!writeSuccess) {
-                    val os = context.contentResolver.openOutputStream(uri, "wt")
-                        ?: context.contentResolver.openOutputStream(uri, "w")
-                        ?: throw IllegalArgumentException("Could not open destination file for writing")
-                    os.use { stream ->
-                        stream.write(bytes)
-                        stream.flush()
-                    }
-                }
-
-                withContext(Dispatchers.Main) {
-                    onSuccess()
+                    writeSuccess = true
                 }
             } catch (e: Throwable) {
-                if (e is kotlinx.coroutines.CancellationException) throw e; Log.e("BackupManager", "exportToFile failed", e)
-                withContext(Dispatchers.Main) {
-                    onError(e.localizedMessage ?: "Failed to export backup")
+                Log.w("BackupManager", "openFileDescriptor write failed, falling back to openOutputStream", e)
+            }
+
+            // Method 2: Fallback to openOutputStream if PFD failed
+            if (!writeSuccess) {
+                val os = context.contentResolver.openOutputStream(uri, "wt")
+                    ?: context.contentResolver.openOutputStream(uri, "w")
+                    ?: throw IllegalArgumentException("Could not open destination file for writing")
+                os.use { stream ->
+                    stream.write(bytes)
+                    stream.flush()
                 }
             }
+
         }
+    }
+
+    /** Runs [block], turning any failure other than cancellation into a logged [Result.failure]. */
+    private inline fun <T> backupResult(operation: String, block: () -> T): Result<T> = try {
+        Result.success(block())
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        Log.e("BackupManager", "$operation failed", e)
+        Result.failure(e)
     }
 
     /** Reads a user-picked file, refusing to buffer anything larger than [MAX_BACKUP_BYTES]. */
@@ -429,99 +424,88 @@ class BackupManager @Inject constructor(
         }
     }
 
-    suspend fun importFromFile(
-        
-        uri: Uri,
-        passphrase: String?,
-        onSuccess: (itemsRestored: Int) -> Unit,
-        onError: (String) -> Unit
-    ) {
-        withContext(Dispatchers.IO) {
-            try {
-                val envelopeJson = readBackupText(uri)
-                    ?: throw IllegalArgumentException("Could not read backup file")
+    /** Decrypts the backup at [uri], restores it, and returns how many items were restored. */
+    suspend fun importFromFile(uri: Uri, passphrase: String?): Result<Int> = withContext(Dispatchers.IO) {
+        backupResult("importFromFile") {
+            val envelopeJson = readBackupText(uri)
+                ?: throw IllegalArgumentException("Could not read backup file")
 
-                if (envelopeJson.isBlank()) {
-                    throw IllegalArgumentException("Selected backup file is empty (0 bytes). Please create a fresh backup.")
+            if (envelopeJson.isBlank()) {
+                throw IllegalArgumentException("Selected backup file is empty (0 bytes). Please create a fresh backup.")
+            }
+
+            val envelope = parseEnvelope(envelopeJson)
+            require(envelope.format == "INTELLIGENT_SEARCH_ENCRYPTED_BACKUP") {
+                "Unsupported backup format: ${envelope.format}"
+            }
+            require(envelope.cipher.tagLengthBits == 128) {
+                "Unsupported GCM authentication tag length: ${envelope.cipher.tagLengthBits}"
+            }
+
+            // Verify integrity
+            val cipherBytes = BackupCryptoEngine.decodeBase64(envelope.encryptedPayloadBase64)
+            val calculatedSha = BackupCryptoEngine.calculateSha256(cipherBytes)
+            if (calculatedSha != envelope.payloadSha256) {
+                throw SecurityException("Backup integrity verification failed (SHA-256 checksum mismatch). File may be corrupted.")
+            }
+
+            val iv = BackupCryptoEngine.decodeBase64(envelope.cipher.ivBase64)
+            require(iv.size == 12) { "Invalid backup IV length: ${iv.size}" }
+
+            val decryptedJson: String = if (envelope.kdf != null) {
+                if (passphrase.isNullOrBlank()) {
+                    throw IllegalArgumentException("Passphrase required to decrypt this backup")
                 }
-
-                val envelope = parseEnvelope(envelopeJson)
-                require(envelope.format == "INTELLIGENT_SEARCH_ENCRYPTED_BACKUP") {
-                    "Unsupported backup format: ${envelope.format}"
+                val salt = BackupCryptoEngine.decodeBase64(envelope.kdf.saltBase64)
+                require(salt.size >= 16) { "Backup KDF salt is too short (${salt.size} bytes)" }
+                require(envelope.kdf.iterations in 10_000..5_000_000) {
+                    "Backup KDF iteration count out of bounds: ${envelope.kdf.iterations}"
                 }
-                require(envelope.cipher.tagLengthBits == 128) {
-                    "Unsupported GCM authentication tag length: ${envelope.cipher.tagLengthBits}"
+                val passChars = passphrase.toCharArray()
+                val key = try {
+                    BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt, envelope.kdf.iterations)
+                } finally {
+                    com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
                 }
-
-                // Verify integrity
-                val cipherBytes = BackupCryptoEngine.decodeBase64(envelope.encryptedPayloadBase64)
-                val calculatedSha = BackupCryptoEngine.calculateSha256(cipherBytes)
-                if (calculatedSha != envelope.payloadSha256) {
-                    throw SecurityException("Backup integrity verification failed (SHA-256 checksum mismatch). File may be corrupted.")
+                try {
+                    BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                } catch (e: javax.crypto.AEADBadTagException) {
+                    throw SecurityException("Incorrect passphrase. Authentication tag mismatch.")
+                } catch (e: Throwable) {
+                    throw SecurityException("Failed to decrypt: ${e.message ?: "Invalid passphrase"}")
                 }
-
-                val iv = BackupCryptoEngine.decodeBase64(envelope.cipher.ivBase64)
-                require(iv.size == 12) { "Invalid backup IV length: ${iv.size}" }
-
-                val decryptedJson: String = if (envelope.kdf != null) {
-                    if (passphrase.isNullOrBlank()) {
-                        throw IllegalArgumentException("Passphrase required to decrypt this backup")
-                    }
-                    val salt = BackupCryptoEngine.decodeBase64(envelope.kdf.saltBase64)
-                    require(salt.size >= 16) { "Backup KDF salt is too short (${salt.size} bytes)" }
-                    require(envelope.kdf.iterations in 10_000..5_000_000) {
-                        "Backup KDF iteration count out of bounds: ${envelope.kdf.iterations}"
-                    }
-                    val passChars = passphrase.toCharArray()
-                    val key = try {
-                        BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt, envelope.kdf.iterations)
-                    } finally {
-                        com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
-                    }
-                    try {
-                        BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
-                    } catch (e: javax.crypto.AEADBadTagException) {
-                        throw SecurityException("Incorrect passphrase. Authentication tag mismatch.")
-                    } catch (e: Throwable) {
-                        throw SecurityException("Failed to decrypt: ${e.message ?: "Invalid passphrase"}")
-                    }
-                } else if (envelope.isHardwareBacked) {
-                    // Never create or purge the key here: a fresh key can't decrypt the file, and purging a
-                    // briefly unreadable one would orphan every device-bound backup.
-                    val key = try {
+            } else if (envelope.isHardwareBacked) {
+                // Never create or purge the key here: a fresh key can't decrypt the file, and purging a
+                // briefly unreadable one would orphan every device-bound backup.
+                val key = try {
+                    strongBoxSecurityManager.getExistingSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
+                } catch (e: Throwable) {
+                    throw SecurityException("This phone's backup key could not be read. Try again in a moment.", e)
+                } ?: throw SecurityException(
+                    "This backup is locked to the phone and install it was made on, and can't be restored here."
+                )
+                try {
+                    BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                } catch (e: Throwable) {
+                    throw SecurityException("This backup could not be decrypted with this phone's key. It may be corrupt, or from another install.", e)
+                }
+            } else {
+                // Legacy portable file (APK-embedded key, not secret); new exports never use this. One
+                // short-lived build also wrote device-key files with this flag off, so fall back to the
+                // device key before giving up.
+                try {
+                    val key = BackupCryptoEngine.getPortableDefaultKey()
+                    BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
+                } catch (e: Throwable) {
+                    val deviceKey = runCatching {
                         strongBoxSecurityManager.getExistingSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
-                    } catch (e: Throwable) {
-                        throw SecurityException("This phone's backup key could not be read. Try again in a moment.", e)
-                    } ?: throw SecurityException(
-                        "This backup is locked to the phone and install it was made on, and can't be restored here."
-                    )
-                    try {
-                        BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
-                    } catch (e: Throwable) {
-                        throw SecurityException("This backup could not be decrypted with this phone's key. It may be corrupt, or from another install.", e)
-                    }
-                } else {
-                    // Legacy portable file (APK-embedded key, not secret); new exports never use this.
-                    try {
-                        val key = BackupCryptoEngine.getPortableDefaultKey()
-                        BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
-                    } catch (e: Throwable) {
-                        throw SecurityException("Failed to decrypt backup. The file may be corrupt or encrypted with an incompatible key.")
-                    }
-                }
-
-                val payload = parsePayload(decryptedJson)
-                val restoredCount = restorePayload(payload)
-                withContext(Dispatchers.Main) {
-                    onSuccess(restoredCount)
-                }
-            } catch (e: Throwable) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                Log.e("BackupManager", "importFromFile failed", e)
-                withContext(Dispatchers.Main) {
-                    onError(e.localizedMessage ?: "Failed to restore backup")
+                    }.getOrNull()
+                    deviceKey?.let { runCatching { BackupCryptoEngine.decryptPayload(cipherBytes, it, iv) }.getOrNull() }
+                        ?: throw SecurityException("Failed to decrypt backup. The file may be corrupt or encrypted with an incompatible key.")
                 }
             }
+
+            restorePayload(parsePayload(decryptedJson))
         }
     }
 

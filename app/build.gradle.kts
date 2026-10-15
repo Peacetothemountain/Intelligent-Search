@@ -83,6 +83,8 @@ android {
     testOptions {
       unitTests {
         isReturnDefaultValues = true
+        // Robolectric tests load the merged manifest and resources.
+        isIncludeAndroidResources = true
       }
     }
 
@@ -143,6 +145,9 @@ dependencies {
   testImplementation(libs.junit)
   testImplementation("org.jetbrains.kotlin:kotlin-reflect")
   testImplementation(libs.kotlinx.coroutines.test)
+  // Robolectric runs Android-dependent code (SharedPreferences, DataStore, Room, ContentResolver) on the JVM.
+  testImplementation(libs.robolectric)
+  testImplementation(libs.androidx.test.core)
 
   // Instrumented tests: jUnit rules and runners
   androidTestImplementation(libs.androidx.test.core)

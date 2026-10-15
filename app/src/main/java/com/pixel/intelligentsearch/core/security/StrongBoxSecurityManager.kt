@@ -86,8 +86,10 @@ class StrongBoxSecurityManager @Inject constructor(
         private var strongBoxDisabledDueToFailure = false
     }
 
-    private val keyStore: KeyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply {
-        load(null)
+    // Opened on first use, so code paths that never touch the Keystore (e.g. passphrase backups) work
+    // where it is unavailable, such as JVM tests.
+    private val keyStore: KeyStore by lazy {
+        KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
     }
     private val secureRandom = SecureRandom()
 

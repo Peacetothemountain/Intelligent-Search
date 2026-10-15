@@ -10,7 +10,6 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Drawable
-import android.util.LruCache
 import androidx.core.graphics.PathParser
 import kotlin.math.sqrt
 
@@ -21,7 +20,7 @@ import kotlin.math.sqrt
  */
 object MaterialOutlineManager {
 
-    private val outlineCache = LruCache<String, Bitmap>(256)
+    private val outlineCache = com.pixel.intelligentsearch.core.ui.bitmapLruCache<String>(heapDivisor = 32)
 
     fun clearCache() {
         outlineCache.evictAll()

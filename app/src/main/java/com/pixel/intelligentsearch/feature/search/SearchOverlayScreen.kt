@@ -462,7 +462,7 @@ fun SearchOverlayScreen(
                     viewModel.refreshContacts()
                 }
                 if (settingsState.searchFiles) {
-                    viewModel.refreshFilesIfStale()
+                    viewModel.refreshStaleIndexes()
                 }
                 val forceTut = prefs[SettingsManager.DEBUG_UNLOCKED] && prefs[SettingsManager.FORCE_TUTORIAL]
                 if (forceTut) {

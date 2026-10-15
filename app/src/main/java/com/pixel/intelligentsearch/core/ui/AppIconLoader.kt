@@ -7,8 +7,8 @@ import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Build
-import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.scale
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -41,7 +41,7 @@ private fun drawableToBitmap(drawable: Drawable): Bitmap {
 /** An app icon ready to draw; monochrome icons are tinted to the theme. */
 data class AppIconResult(val bitmap: ImageBitmap, val isMonochrome: Boolean)
 
-private val themedIconCache = LruCache<String, AppIconResult>(256)
+private val themedIconCache = memoryLruCache<String, AppIconResult>(heapDivisor = 16) { it.bitmap.asAndroidBitmap().allocationByteCount }
 @Volatile
 private var cachedActivePack: String? = null
 

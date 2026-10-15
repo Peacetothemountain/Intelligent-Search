@@ -171,6 +171,26 @@ object SystemDataProvider {
         finalApps
     }
 
+    /** How much an app has been used lately: on how many of the last days, and when it was last in the foreground. */
+    data class AppUsage(val daysUsed: Int, val lastUsedMs: Long)
+
+    /**
+     * Usage per package over the last [days] from daily usage buckets, for ranking apps people actually open.
+     * Empty when usage access isn't granted.
+     */
+    fun getAppUsage(context: Context, days: Int = 14): Map<String, AppUsage> {
+        val usageStatsManager = context.getSystemService(UsageStatsManager::class.java) ?: return emptyMap()
+        val now = System.currentTimeMillis()
+        val buckets = try {
+            usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - days * 24L * 60 * 60 * 1000, now)
+        } catch (_: Exception) {
+            null
+        } ?: return emptyMap()
+        return buckets.filter { it.totalTimeInForeground > 0 }
+            .groupBy { it.packageName }
+            .mapValues { (_, stats) -> AppUsage(stats.size.coerceAtMost(days), stats.maxOf { it.lastTimeUsed }) }
+    }
+
     suspend fun getRecentApps(context: Context, hiddenApps: Set<String> = emptySet(), fallbackToAll: Boolean = true): List<AppItem> = withContext(Dispatchers.IO) {
         val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             ?: run {

@@ -8,12 +8,14 @@
 -repackageclasses ""
 -allowaccessmodification
 
-# Strip debug, verbose, and info logging in release builds while preserving errors and warnings
+# Strip verbose, debug, info and warning logs from release builds (several include package names or
+# queries); errors stay for diagnosing crashes over adb.
 -assumenosideeffects class android.util.Log {
     public static boolean isLoggable(java.lang.String, int);
     public static int v(...);
     public static int d(...);
     public static int i(...);
+    public static int w(...);
 }
 
 # Kotlin Serialization

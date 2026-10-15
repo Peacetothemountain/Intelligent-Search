@@ -216,7 +216,9 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
     }
 
     override fun onHide() {
-        recognitionManager?.stopListening()
+        // Cancel rather than stop: a stopped recognizer still delivers results (and their haptics) after
+        // the sheet is gone, and stays bound until the session is destroyed.
+        recognitionManager?.cancel()
         sessionLifecycleOwner.onPause()
         sessionLifecycleOwner.onStop()
         PixelHapticEngine.get(context).performHaptic(PixelHapticType.OVERLAY_DISMISS)
@@ -532,6 +534,9 @@ class VoiceRecognitionManager(private val context: Context) {
             speechRecognizer = null
         }
     }
+
+    /** Abandons any recognition in progress and releases the recognizer; startListening() creates a new one. */
+    fun cancel() = destroy()
 
     fun destroy() {
         mainHandler.post {

@@ -62,6 +62,10 @@ object MathematicalExpressionEngine {
             "|^\\d{4}-\\d{1,2}-\\d{1,2}$" +          // 2024-01-31
             "|^\\d{1,2}-\\d{1,2}-\\d{2,4}$"          // 01-31-2024
     )
+    // Thousands separators ("1,000") between digits, removed only from purely numeric expressions.
+    private val REGEX_THOUSANDS_SEPARATOR = Regex("(?<=\\d),(?=\\d{3}(?!\\d))")
+    private val REGEX_CURRENCY_PREFIX = Regex("([$€£¥₹])\\s*([0-9.]+)")
+    private val REGEX_WHITESPACE = Regex("\\s+")
     private val REGEX_FUNC_NO_PAREN = Regex("^(sqrt|cbrt|sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|ln|log|log10|log2|abs|round|floor|ceil|rad|deg)\\s+([+-]?[0-9.]+(?:[eE][-+]?[0-9]+)?)$", RegexOption.IGNORE_CASE)
 
     private fun evaluateScientific(input: String): MathEvaluationResult.Computation? {
@@ -81,7 +85,8 @@ object MathematicalExpressionEngine {
 
         if (REGEX_SPACE_SEPARATED_NUMBERS.containsMatchIn(withNormalizedOperators)) return null
 
-        val expr = withNormalizedOperators.replace(" ", "")
+        val compact = withNormalizedOperators.replace(" ", "")
+        val expr = if (compact.none { it.isLetter() }) compact.replace(REGEX_THOUSANDS_SEPARATOR, "") else compact
 
         if (!isLikelyMathExpression(expr)) return null
 
@@ -338,9 +343,10 @@ object MathematicalExpressionEngine {
             "AND", "&" -> left and right
             "OR", "|" -> left or right
             "XOR", "^" -> left xor right
-            "SHL", "<<" -> left shl right.toInt()
-            "SHR", ">>" -> left shr right.toInt()
-            "USHR", ">>>" -> left ushr right.toInt()
+            // Kotlin masks shift distances to 6 bits ("1 << 64" would give 1); out-of-range shifts aren't answered.
+            "SHL", "<<" -> if (right in 0..63) left shl right.toInt() else return null
+            "SHR", ">>" -> if (right in 0..63) left shr right.toInt() else return null
+            "USHR", ">>>" -> if (right in 0..63) left ushr right.toInt() else return null
             else -> return null
         }
 
@@ -413,7 +419,11 @@ object MathematicalExpressionEngine {
         "mb" to 1e6, "megabyte" to 1e6, "megabytes" to 1e6,
         "gb" to 1e9, "gigabyte" to 1e9, "gigabytes" to 1e9,
         "tb" to 1e12, "terabyte" to 1e12, "terabytes" to 1e12,
-        "kib" to 1024.0, "mib" to 1048576.0, "gib" to 1073741824.0, "tib" to 1099511627776.0
+        "kib" to 1024.0, "mib" to 1048576.0, "gib" to 1073741824.0, "tib" to 1099511627776.0,
+        "kbit" to 125.0, "kilobit" to 125.0, "kilobits" to 125.0,
+        "mbit" to 1.25e5, "megabit" to 1.25e5, "megabits" to 1.25e5,
+        "gbit" to 1.25e8, "gigabit" to 1.25e8, "gigabits" to 1.25e8,
+        "tbit" to 1.25e11, "terabit" to 1.25e11, "terabits" to 1.25e11
     )
 
     private val volumeUnits = mapOf(
@@ -455,10 +465,21 @@ object MathematicalExpressionEngine {
         "nok" to 10.6, "zar" to 18.1, "aed" to 3.67, "sar" to 3.75
     )
 
+    /**
+     * Lower-cases a unit, keeping the case distinctions that matter for data sizes: "B" is a byte, and an
+     * upper-case prefix with a lower-case b ("Mb", "Gb") is bits, while "MB" and the casual "mb" are bytes.
+     */
+    private fun canonicalUnit(raw: String): String = when {
+        raw == "B" -> "byte"
+        raw.length == 2 && raw[1] == 'b' && raw[0].isUpperCase() && raw[0].lowercaseChar() in "kmgt" ->
+            "${raw[0].lowercaseChar()}bit"
+        else -> raw.lowercase(Locale.ROOT).replace("°", "")
+    }
+
     private fun evaluateUnitConversion(query: String): MathEvaluationResult.UnitConversion? {
         // Shift prefix currency symbols (e.g. "$100 to eur" -> "100 $ to eur")
         val prefixShifted = query.trim()
-            .replace(Regex("([$€£¥₹])\\s*([0-9.]+)"), "$2 $1")
+            .replace(REGEX_CURRENCY_PREFIX, "$2 $1")
 
         val normalizedQuery = prefixShifted
             .replace("$", " usd ")
@@ -466,7 +487,7 @@ object MathematicalExpressionEngine {
             .replace("£", " gbp ")
             .replace("¥", " jpy ")
             .replace("₹", " inr ")
-            .replace("\\s+".toRegex(), " ")
+            .replace(REGEX_WHITESPACE, " ")
             .trim()
 
         val match = REGEX_UNIT_CONVERSION.find(normalizedQuery) ?: return null
@@ -475,8 +496,8 @@ object MathematicalExpressionEngine {
         if (!value.isFinite()) return null
         val fromRaw = match.groupValues[2]
         val toRaw = match.groupValues[3]
-        val fromUnit = if (fromRaw == "B") "byte" else fromRaw.lowercase(Locale.ROOT).replace("°", "")
-        val toUnit = if (toRaw == "B") "byte" else toRaw.lowercase(Locale.ROOT).replace("°", "")
+        val fromUnit = canonicalUnit(fromRaw)
+        val toUnit = canonicalUnit(toRaw)
 
         // 1. Temperature Check
         if (isTemperature(fromUnit) && isTemperature(toUnit)) {

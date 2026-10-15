@@ -17,7 +17,7 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): IntelligentSearchDatabase {
-        return IntelligentSearchDatabase.getDatabase(context)
+        return IntelligentSearchDatabase.create(context)
     }
 
     @Provides

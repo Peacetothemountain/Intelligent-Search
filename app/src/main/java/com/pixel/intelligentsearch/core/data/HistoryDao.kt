@@ -20,7 +20,8 @@ abstract class HistoryDao {
     @Upsert
     abstract suspend fun insertSearches(searches: List<HistoryEntity>)
 
-    @Query("DELETE FROM search_history WHERE query = :query")
+    /** Deletes [query] in any letter case, matching how the history list de-duplicates. */
+    @Query("DELETE FROM search_history WHERE query = :query COLLATE NOCASE")
     abstract suspend fun deleteByQuery(query: String)
 
     @Query("DELETE FROM search_history")
@@ -41,6 +42,8 @@ abstract class HistoryDao {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return
         val safeLimit = limit.coerceIn(1, 1000)
+        // "Cats" after "cats" replaces it instead of keeping both spellings.
+        deleteByQuery(trimmed)
         insertSearch(HistoryEntity(trimmed, timestamp))
         pruneHistory(safeLimit)
     }

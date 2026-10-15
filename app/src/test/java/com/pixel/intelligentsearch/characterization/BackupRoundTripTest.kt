@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.characterization
 
+import com.pixel.intelligentsearch.core.system.WidgetUpdater
 import android.content.Context
 import android.net.Uri
 import androidx.room.Room
@@ -38,7 +39,8 @@ class BackupRoundTripTest {
             context,
             settingsManager,
             dao,
-            StrongBoxSecurityManager(context)
+            StrongBoxSecurityManager(context),
+            WidgetUpdater { }
         )
 
         // State to back up, including two values the app can't read back safely.

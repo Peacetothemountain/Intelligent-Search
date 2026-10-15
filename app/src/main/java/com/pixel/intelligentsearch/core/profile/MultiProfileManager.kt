@@ -100,24 +100,13 @@ class MultiProfileManager @Inject constructor(
         refreshProfiles()
     }
 
-    fun registerCallbackSafely() {
+    private fun registerCallbackSafely() {
         if (!isCallbackRegistered) {
             try {
                 launcherApps?.registerCallback(launcherCallback, Handler(Looper.getMainLooper()))
                 isCallbackRegistered = true
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to register LauncherApps callback", e)
-            }
-        }
-    }
-
-    fun unregisterCallback() {
-        if (isCallbackRegistered) {
-            try {
-                launcherApps?.unregisterCallback(launcherCallback)
-                isCallbackRegistered = false
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to unregister LauncherApps callback", e)
             }
         }
     }
@@ -231,16 +220,24 @@ class MultiProfileManager @Inject constructor(
         appList.sortedWith(compareBy({ it.profileType.ordinal }, { it.name.lowercase() }))
     }
 
+    /**
+     * Asked of the system each time rather than read from the snapshot: if Private Space locked after the last
+     * refresh, a stale "unlocked" would let its apps appear in search results.
+     */
     fun isPrivateSpaceLocked(): Boolean {
         val privateProfile = _profilesState.value.firstOrNull { it.profileType == ProfileType.PRIVATE } ?: return false
-        return privateProfile.isLocked
+        return try {
+            userManager?.isQuietModeEnabled(privateProfile.userHandle) ?: privateProfile.isLocked
+        } catch (_: Exception) {
+            privateProfile.isLocked
+        }
     }
 
     fun hasPrivateSpace(): Boolean {
         return _profilesState.value.any { it.profileType == ProfileType.PRIVATE }
     }
 
-    fun requestUnlockProfile(userHandle: UserHandle, activity: Activity) {
+    fun requestUnlockProfile(userHandle: UserHandle) {
         val um = userManager ?: return
         try {
             um.requestQuietModeEnabled(false, userHandle)
@@ -291,9 +288,10 @@ class MultiProfileManager @Inject constructor(
             return false
         }
 
-        // Fallback to standard package manager for personal profile
+        // Personal profile: the indexed launcher activity when known (packages can have several), else the default.
         val pm = appContext.packageManager
-        val launchIntent = pm.getLaunchIntentForPackage(packageName)?.apply {
+        val launchIntent = (activityName?.let { Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setClassName(packageName, it) }
+            ?: pm.getLaunchIntentForPackage(packageName))?.apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             sourceBounds?.let { bounds -> this.sourceBounds = bounds }
         }

@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import android.os.SystemClock
@@ -43,8 +44,8 @@ fun rememberProtectedPageUnlock(
         val leaveOnce = {
             val leave = {
                 // A back tap during the prompt was debounced; clear it so this exit isn't swallowed.
-                SettingsDebouncer.recordClick(0L)
-                SettingsDebouncer.recordClick(0L, key = "settings_top_bar_back")
+                ClickDebouncer.recordClick(0L)
+                ClickDebouncer.recordClick(0L, key = "settings_top_bar_back")
                 currentOnBack()
             }
             val elapsed = SystemClock.uptimeMillis() - enteredAtMs

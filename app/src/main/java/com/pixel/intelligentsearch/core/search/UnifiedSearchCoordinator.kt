@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.search
 
+import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
@@ -34,29 +35,9 @@ import javax.inject.Singleton
 class UnifiedSearchCoordinator @Inject constructor(
     @param:ApplicationContext private val context: Context,
     val systemActionRouter: SystemActionRouter,
-    private val multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager
+    private val multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager,
+    settingsManager: SettingsManager
 ) {
-    constructor(
-        context: Context,
-        systemActionRouter: SystemActionRouter
-    ) : this(
-        context,
-        systemActionRouter,
-        com.pixel.intelligentsearch.core.profile.MultiProfileManager(context)
-    )
-
-    companion object {
-        private fun getSafeContext(ctx: Context): Context {
-            val userManager = ctx.getSystemService(Context.USER_SERVICE) as? android.os.UserManager
-            val isUnlocked = userManager?.isUserUnlocked ?: true
-            return if (!isUnlocked && !ctx.isDeviceProtectedStorage) {
-                ctx.createDeviceProtectedStorageContext()
-            } else {
-                ctx
-            }
-        }
-    }
-
     data class RankedSearchResult(
         val item: SearchItem,
         val scoreBreakdown: SearchScoringEngine.ScoreBreakdown
@@ -113,8 +94,9 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val fileRadixTree = RadixTreeIndex<SearchItem>()
     private val phoneticIndex = ConcurrentHashMap<String, MutableSet<SearchItem>>()
 
-    private val prefs = getSafeContext(context).getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs = settingsManager.prefs
     @Volatile private var cachedAppWeightMul: Float = 1.0f
+    @Volatile private var appUsage: Map<String, SystemDataProvider.AppUsage> = emptyMap()
     @Volatile private var cachedContactWeightMul: Float = 1.0f
     @Volatile private var cachedFileWeightMul: Float = 1.0f
     @Volatile private var cachedFuzzySearchEnabled: Boolean = true
@@ -250,6 +232,18 @@ class UnifiedSearchCoordinator @Inject constructor(
         appRadixTree.replaceAll(keys)
         appPackageRadixTree.replaceAll(packageKeys)
         removeFromPhoneticIndex { it.domain == SearchScoringEngine.EntityDomain.APPLICATION && it !in fresh }
+    }
+
+    /** Replaces the app usage that feeds frequency and recency into app ranking. */
+    fun updateAppUsage(usage: Map<String, SystemDataProvider.AppUsage>) {
+        appUsage = usage
+    }
+
+    /** [item]'s scoring metadata with current app usage applied; other domains are returned unchanged. */
+    private fun metadataFor(item: SearchItem): SearchScoringEngine.ScoringMetadata {
+        val app = item.payload as? AppItem ?: return item.metadata
+        val usage = appUsage[app.packageName] ?: return item.metadata
+        return item.metadata.copy(launchCount = usage.daysUsed, lastUsedTimestampMs = usage.lastUsedMs)
     }
 
     private fun newAppItem(app: AppItem, metadata: SearchScoringEngine.ScoringMetadata): SearchItem {
@@ -477,7 +471,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             val score = SearchScoringEngine.evaluateScore(
                 query = query,
                 targetTitle = item.title,
-                metadata = item.metadata,
+                metadata = metadataFor(item),
                 currentTimeMs = now,
                 domainWeightMultiplier = 1.0f,
                 precomputedQueryMetaphone = queryMetaphone,
@@ -534,7 +528,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             val score = SearchScoringEngine.evaluateScore(
                 query = q,
                 targetTitle = item.title,
-                metadata = item.metadata,
+                metadata = metadataFor(item),
                 currentTimeMs = now,
                 domainWeightMultiplier = cachedAppWeightMul,
                 precomputedQueryMetaphone = queryMetaphone,
@@ -579,7 +573,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             val score = SearchScoringEngine.evaluateScore(
                 query = q,
                 targetTitle = item.title,
-                metadata = item.metadata,
+                metadata = metadataFor(item),
                 currentTimeMs = now,
                 domainWeightMultiplier = cachedContactWeightMul,
                 precomputedQueryMetaphone = queryMetaphone,
@@ -627,7 +621,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             val score = SearchScoringEngine.evaluateScore(
                 query = q,
                 targetTitle = item.title,
-                metadata = item.metadata,
+                metadata = metadataFor(item),
                 currentTimeMs = now,
                 domainWeightMultiplier = 1.0f,
                 precomputedQueryMetaphone = queryMetaphone,
@@ -668,7 +662,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             val score = SearchScoringEngine.evaluateScore(
                 query = q,
                 targetTitle = item.title,
-                metadata = item.metadata,
+                metadata = metadataFor(item),
                 currentTimeMs = now,
                 domainWeightMultiplier = cachedFileWeightMul,
                 precomputedQueryMetaphone = queryMetaphone,
@@ -686,16 +680,6 @@ class UnifiedSearchCoordinator @Inject constructor(
             resultFiles.add(scoredFiles[i].item)
         }
         return resultFiles
-    }
-
-    fun removePackage(packageName: String) {
-        appRadixTree.removeIf { (it.payload as? AppItem)?.packageName == packageName }
-        appPackageRadixTree.removeIf { (it.payload as? AppItem)?.packageName == packageName }
-        shortcutRadixTree.removeIf { (it.payload as? AppShortcutItem)?.packageName == packageName }
-        removeFromPhoneticIndex {
-            (it.payload as? AppItem)?.packageName == packageName ||
-                (it.payload as? AppShortcutItem)?.packageName == packageName
-        }
     }
 
     /**
@@ -824,7 +808,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             val scoreBreakdown = SearchScoringEngine.evaluateScore(
                 query = query,
                 targetTitle = item.title,
-                metadata = item.metadata,
+                metadata = metadataFor(item),
                 currentTimeMs = now,
                 domainWeightMultiplier = domainMul,
                 precomputedQueryMetaphone = queryMetaphone,

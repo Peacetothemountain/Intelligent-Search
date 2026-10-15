@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.data
 
+import com.pixel.intelligentsearch.core.util.storageContext
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.UserManager
@@ -82,6 +83,7 @@ data class IntelligentSearchSettings(
     val neverShowIconPackWarning: Boolean = SettingsManager.NEVER_SHOW_ICON_PACK_WARNING.default,
     val searchPreviousSearches: Boolean = SettingsManager.SEARCH_PREVIOUS_SEARCHES.default,
     val customBangsJson: String = SettingsManager.CUSTOM_BANGS_JSON.default,
+    val webShortcutTriggerSymbol: String = SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL.default,
     val adaptiveIconShape: String = SettingsManager.ADAPTIVE_ICON_SHAPE.default,
     val dynamicIconMasking: Boolean = SettingsManager.DYNAMIC_ICON_MASKING.default,
     val diagnosticsOverlayEnabled: Boolean = SettingsManager.DIAGNOSTICS_OVERLAY_ENABLED.default,
@@ -156,7 +158,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val WEB_RESULTS_COUNT = IntSetting("web_results_count", 5, 0..20)
         val CONTACT_RESULTS_COUNT = IntSetting("contact_results_count", 5, 0..20)
         val FILE_RESULTS_COUNT = IntSetting("file_results_count", 5, 0..20)
-        val SHORTCUT_RESULTS_COUNT = IntSetting("shortcut_results_count", 6, 0..20)
+        val SHORTCUT_RESULTS_COUNT = IntSetting("shortcut_results_count", 6, 1..20)
         val SEARCH_WEIGHT_APPS = IntSetting("search_weight_apps", 50, 0..100)
         val SEARCH_WEIGHT_CONTACTS = IntSetting("search_weight_contacts", 50, 0..100)
         val SEARCH_WEIGHT_FILES = IntSetting("search_weight_files", 50, 0..100)
@@ -165,7 +167,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val SMART_CLIPBOARD_SUGGESTIONS = BooleanSetting("smart_clipboard_suggestions", false)
         val ACTIVE_ICON_PACK = StringSetting("active_icon_pack", "system_default")
         val SEARCH_OVERLAY_ENABLED = BooleanSetting("search_overlay_enabled", true)
-        val CUSTOM_ICON_PILLS = StringSetting("custom_icon_pills", "")
+        val CUSTOM_ICON_PILLS = StringSetting("custom_icon_pills", "", "custom_icon_packs_order")
         val NEVER_SHOW_ICON_PACK_WARNING = BooleanSetting("never_show_icon_pack_warning", false)
         val CUSTOM_BANGS_JSON = StringSetting("custom_bangs_json", "[]")
         val WEB_SHORTCUT_TRIGGER_SYMBOL = StringSetting("web_shortcut_trigger_symbol", "!")
@@ -220,15 +222,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
      * there see defaults (and widgets render defaults) until unlock.
      */
     val prefs: SharedPreferences
-        get() {
-            val unlocked = context.getSystemService(UserManager::class.java)?.isUserUnlocked ?: true
-            val storageContext = if (!unlocked && !context.isDeviceProtectedStorage) {
-                context.createDeviceProtectedStorageContext()
-            } else {
-                context
-            }
-            return storageContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        }
+        get() = context.storageContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     operator fun <T : Any> get(key: SettingKey<T>): T = prefs[key]
 
@@ -315,6 +309,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         neverShowIconPackWarning = sp[NEVER_SHOW_ICON_PACK_WARNING],
         searchPreviousSearches = sp[SEARCH_PREVIOUS_SEARCHES],
         customBangsJson = sp[CUSTOM_BANGS_JSON],
+        webShortcutTriggerSymbol = sp[WEB_SHORTCUT_TRIGGER_SYMBOL],
         adaptiveIconShape = sp[ADAPTIVE_ICON_SHAPE],
         dynamicIconMasking = sp[DYNAMIC_ICON_MASKING],
         diagnosticsOverlayEnabled = sp[DIAGNOSTICS_OVERLAY_ENABLED],

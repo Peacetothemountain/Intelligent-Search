@@ -1,4 +1,12 @@
 package com.pixel.intelligentsearch.feature.search
+import com.pixel.intelligentsearch.feature.widget.getLensSearchIntent
+import com.pixel.intelligentsearch.feature.widget.getVoiceActionIntent
+import com.pixel.intelligentsearch.feature.widget.getVoiceSearchIntent
+import com.pixel.intelligentsearch.core.ui.getAppName
+import com.pixel.intelligentsearch.core.ui.AppIconResult
+import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
+import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
+import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
@@ -9,7 +17,6 @@ import com.pixel.intelligentsearch.feature.settings.tutorialTarget
 import android.app.SearchManager
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
-import com.pixel.intelligentsearch.feature.settings.SettingsDebouncer
 import com.pixel.intelligentsearch.feature.settings.TutorialSpotlightOverlay
 import com.pixel.intelligentsearch.feature.settings.TutorialManager
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
@@ -20,11 +27,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.AppItem
-import com.pixel.intelligentsearch.App
 import com.pixel.intelligentsearch.feature.settings.TutorialStepInfo
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.PredictiveBackHandler
@@ -42,7 +47,6 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.lazy.LazyColumn
@@ -71,8 +75,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
@@ -83,8 +85,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
-import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -115,433 +115,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun AppGridItem(app: AppItem, onClick: () -> Unit) {
-    val context = LocalContext.current
-    val appIconState = remember(app.packageName) { mutableStateOf<AppIconResult?>(peekThemedAppIcon(app.packageName)) }
-    LaunchedEffect(app.packageName) {
-        if (appIconState.value == null) {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                val icon = getThemedAppIcon(context, app.packageName)
-                if (icon != null) {
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        appIconState.value = icon
-                    }
-                }
-            }
-        }
-    }
-    val appIcon = appIconState.value
-    val fallbackBitmap = remember(app.packageName) {
-        runCatching { app.icon.toBitmap().asImageBitmap() }.getOrNull()
-    }
-
-    Column(
-        modifier = Modifier
-            .width(80.dp)
-            .bouncyClickable(onClick = onClick)
-            .padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        if (appIcon != null) {
-            Image(
-                bitmap = appIcon.bitmap,
-                contentDescription = app.name,
-                modifier = Modifier.size(48.dp),
-                colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
-            )
-        } else if (fallbackBitmap != null) {
-            Image(
-                bitmap = fallbackBitmap,
-                contentDescription = app.name,
-                modifier = Modifier.size(48.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = app.name,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            fontFamily = GoogleSansFlex
-        )
-    }
-}
-
-@Composable
-fun SearchSettingsItem(onClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .width(80.dp)
-            .bouncyClickable(onClick = onClick)
-            .padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier.size(48.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = "Search Settings",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Search",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            fontFamily = GoogleSansFlex
-        )
-    }
-}
-
-@Composable
-fun ShortcutRow(iconRes: Int, title: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .bouncyClickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Image(painter = painterResource(id = iconRes), contentDescription = null, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = title,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            fontFamily = GoogleSansFlex
-        )
-    }
-}
-
-@Composable
-fun SearchOverlayLensIcon(
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    val scheme = MaterialTheme.colorScheme
-    val isLight = scheme.surface.luminance() >= 0.5f
-
-    val prefs = remember(context) { context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE) }
-    // Follow the icon theme of whichever widget design is active, as saved by Widget Customization.
-    val isMaterialWidget = prefs[SettingsManager.WIDGET_THEME_STYLE]?.startsWith("Material") == true
-    val effectiveTheme = (if (isMaterialWidget) {
-        prefs.getString("widget_material_material_g_icon", prefs.getString("widget_material_g_icon", null))
-    } else {
-        prefs.getString("widget_system_material_g_icon", null)
-    }) ?: "Material G Icon"
-    // Colours are saved per design; a design never saved falls back to the older shared keys.
-    val designPrefix = if (isMaterialWidget) "widget_material" else "widget_system"
-    fun designInt(element: String, fallback: Int): Int = when {
-        prefs.contains("${designPrefix}_custom_$element") -> prefs.getInt("${designPrefix}_custom_$element", fallback)
-        else -> prefs.getInt("widget_custom_$element", fallback)
-    }
-    val isCustomSync = if (prefs.contains("${designPrefix}_custom_sync_colors")) {
-        prefs.getBoolean("${designPrefix}_custom_sync_colors", false)
-    } else {
-        prefs.getBoolean("widget_custom_sync_colors", false)
-    }
-    val customColor = if (isCustomSync) {
-        designInt("g_icon_color", scheme.primary.toArgb())
-    } else {
-        designInt("action_icon_color", prefs.getInt("widget_custom_shortcuts_color", scheme.primary.toArgb()))
-    }
-
-    val resolvedColors = remember(context, isLight) {
-        DynamicThemeDetector.resolveWidgetColors(context, isDark = !isLight)
-    }
-
-    val pColor = if (resolvedColors.isDynamicActive) resolvedColors.primary else scheme.primary.toArgb()
-    val sColor = if (resolvedColors.isDynamicActive) resolvedColors.secondary else scheme.secondary.toArgb()
-    val tColor = if (resolvedColors.isDynamicActive) resolvedColors.tertiary else scheme.tertiary.toArgb()
-
-    val fourPalette = remember(pColor, sColor, tColor, isLight) {
-        MaterialYouPaletteHelper.getFourColorMaterialGPalette(pColor, sColor, tColor, isLight)
-    }
-
-    val path1 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10.5,4 A 6.5,6.5 0 0 0 4,10.5 A 6.5,6.5 0 0 0 10.5,17 A 6.5,6.5 0 0 0 15,15").toPath() }
-    val path2 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 14,5 A 6.5,6.5 0 0 0 10.5,4 A 6.5,6.5 0 0 0 5,7.5").toPath() }
-    val path3 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 15.5,15.5 L 20,20").toPath() }
-    val path4 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 18,0.5 C 18,4 21,6.5 24,6.5 C 21,6.5 18,9 18,12.5 C 18,9 15,6.5 12,6.5 C 15,6.5 18,4 18,0.5 Z").toPath() }
-
-    androidx.compose.foundation.Canvas(modifier = modifier) {
-        val scaleX = size.width / 24f
-        val scaleY = size.height / 24f
-        scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
-            when (effectiveTheme) {
-                "Custom G Icon" -> {
-                    val color = Color(customColor)
-                    drawPath(path = path1, color = color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                    drawPath(path = path2, color = color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                    drawPath(path = path3, color = color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                    drawPath(path = path4, color = color)
-                }
-                "Accented G Icon" -> {
-                    val color = Color(pColor)
-                    drawPath(path = path1, color = color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                    drawPath(path = path2, color = color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                    drawPath(path = path3, color = color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                    drawPath(path = path4, color = color)
-                }
-                "System G Icon" -> {
-                    // Google 4-color Search Lens: Blue rim, Yellow sparkle, Green handle, Red dot
-                    drawPath(path = path1, color = Color(0xFF4285F4), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                    drawPath(path = path2, color = Color(0xFFFBBC05), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                    drawPath(path = path3, color = Color(0xFF34A853), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                    drawPath(path = path4, color = Color(0xFFEA4335))
-                }
-                else -> { // "Material G Icon" or default dynamic
-                    val cRight = Color(fourPalette.rightArcAndBar)
-                    val cBottom = Color(fourPalette.bottomArc)
-                    val cLeft = Color(fourPalette.leftArc)
-                    val cTop = Color(fourPalette.topArc)
-
-                    // Lens rim: primary right color
-                    drawPath(path = path1, color = cRight, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                    // Top arc: top accent
-                    drawPath(path = path2, color = cTop, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                    // Handle: secondary bottom color
-                    drawPath(path = path3, color = cBottom, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                    // Sparkle: tertiary left color
-                    drawPath(path = path4, color = cLeft)
-                }
-            }
-        }
-    }
-}
-
-data class AppIconResult(val bitmap: androidx.compose.ui.graphics.ImageBitmap, val isMonochrome: Boolean)
-
-private val themedIconCache = android.util.LruCache<String, AppIconResult>(256)
-private val fileThumbnailCache = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(128)
-@Volatile
-private var cachedActivePack: String? = null
-
-fun clearThemedIconCache() {
-    cachedActivePack = null
-    themedIconCache.evictAll()
-    com.pixel.intelligentsearch.core.util.MaterialOutlineManager.clearCache()
-}
-
-fun clearAllUiMemoryCaches() {
-    clearThemedIconCache()
-    fileThumbnailCache.evictAll()
-}
-
-fun peekThemedAppIcon(packageName: String, activePackOverride: String? = null): AppIconResult? {
-    val activePack = activePackOverride ?: cachedActivePack ?: "system_default"
-    return themedIconCache.get("$activePack:$packageName")
-}
-
-fun getThemedAppIcon(context: Context, packageName: String, activePackOverride: String? = null): AppIconResult? {
-    try {
-        val activePack = activePackOverride ?: cachedActivePack ?: run {
-            context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)[SettingsManager.ACTIVE_ICON_PACK]
-                .also { cachedActivePack = it }
-        }
-        val cacheKey = "$activePack:$packageName"
-        val cached = themedIconCache.get(cacheKey)
-        if (cached != null) {
-            return cached
-        }
-
-        fun drawableToBitmap(d: android.graphics.drawable.Drawable): android.graphics.Bitmap {
-            if (d is android.graphics.drawable.BitmapDrawable && d.bitmap != null) {
-                return d.bitmap
-            }
-            val width = (if (d.intrinsicWidth > 0) d.intrinsicWidth else 100).coerceIn(1, 192)
-            val height = (if (d.intrinsicHeight > 0) d.intrinsicHeight else 100).coerceIn(1, 192)
-            val bmp = android.graphics.Bitmap.createBitmap(
-                width,
-                height,
-                android.graphics.Bitmap.Config.ARGB_8888
-            )
-            val canvas = android.graphics.Canvas(bmp)
-            val mutated = d.mutate()
-            mutated.setBounds(0, 0, canvas.width, canvas.height)
-            mutated.draw(canvas)
-            return bmp
-        }
-
-        if (activePack != "system_default") {
-            val packDrawable = com.pixel.intelligentsearch.core.util.IconPackManager.getIconForPackage(context, activePack, packageName)
-            if (packDrawable != null) {
-                val res = AppIconResult(drawableToBitmap(packDrawable).asImageBitmap(), isMonochrome = false)
-                themedIconCache.put(cacheKey, res)
-                return res
-            }
-        }
-
-        val pm = context.packageManager
-        val icon = pm.getApplicationIcon(packageName)
-        
-        if (icon is android.graphics.drawable.AdaptiveIconDrawable) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val monochrome = icon.monochrome
-                if (monochrome != null) {
-                    val res = AppIconResult(drawableToBitmap(monochrome).asImageBitmap(), isMonochrome = true)
-                    themedIconCache.put(cacheKey, res)
-                    return res
-                }
-            }
-        }
-
-        if (activePack == "system_default") {
-            val appLabel = try {
-                val info = pm.getApplicationInfo(packageName, 0)
-                pm.getApplicationLabel(info).toString()
-            } catch (e: Exception) { null }
-
-            val outlineBitmap = com.pixel.intelligentsearch.core.util.MaterialOutlineManager.getMaterialOutlineIcon(
-                context, packageName, appLabel, icon
-            )
-            if (outlineBitmap != null) {
-                val res = AppIconResult(outlineBitmap.asImageBitmap(), isMonochrome = true)
-                themedIconCache.put(cacheKey, res)
-                return res
-            }
-        }
-
-        val res = AppIconResult(drawableToBitmap(icon).asImageBitmap(), isMonochrome = false)
-        themedIconCache.put(cacheKey, res)
-        return res
-    } catch (e: Exception) {
-        return null
-    }
-}
-
-fun getAppName(context: Context, packageName: String): String {
-    return try {
-        val pm = context.packageManager
-        val info = pm.getApplicationInfo(packageName, 0)
-        pm.getApplicationLabel(info).toString()
-    } catch (e: Exception) {
-        "App"
-    }
-}
-
-@Composable
-fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: String, scale: Float = 1f, onClick: () -> Unit) {
-    val hPadding = (12 * scale).dp
-    val vPadding = (8 * scale).dp
-    val iconSize = (18 * scale).dp
-    val textSize = (14 * scale).sp
-
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-
-    val cornerRadius by animateDpAsState(
-        targetValue = if (isPressed) 12.dp else 24.dp,
-        animationSpec = ExpressiveMotionTokens.morphSpring(),
-        label = "pill_corner_morph"
-    )
-
-    val shape = remember(cornerRadius) { RoundedCornerShape(cornerRadius) }
-
-    Row(
-        modifier = Modifier
-            .padding(end = (8 * scale).dp)
-            .graphicsLayer {
-                this.shape = shape
-                clip = true
-            }
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isPressed) 0.65f else 0.4f), shape)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = if (isPressed) 0.35f else 0.15f), shape)
-            .bouncyClickable(interactionSource = interactionSource, onClick = onClick)
-            .padding(horizontal = hPadding, vertical = vPadding),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (iconBitmap != null) {
-            Image(
-                bitmap = iconBitmap.bitmap,
-                contentDescription = null,
-                modifier = Modifier.size(iconSize),
-                colorFilter = if (iconBitmap.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
-            )
-        } else if (iconRes != null) {
-            Image(painter = painterResource(id = iconRes), contentDescription = null, modifier = Modifier.size(iconSize))
-        }
-        Spacer(modifier = Modifier.width((8 * scale).dp))
-        Text(
-            text = title,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = textSize,
-            fontWeight = FontWeight.Medium,
-            fontFamily = GoogleSansFlex
-        )
-    }
-}
-
-@Suppress("DEPRECATION")
-private fun finishWithoutTransition(activity: android.app.Activity?) {
-    if (activity != null && !activity.isFinishing) {
-        activity.finishAndRemoveTask()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            activity.overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
-        } else {
-            @Suppress("DEPRECATION")
-            activity.overridePendingTransition(0, 0)
-        }
-    }
-}
-
-private fun isMediaStoreUri(uri: Uri): Boolean =
-    uri.authority == android.provider.MediaStore.AUTHORITY && uri.pathSegments.firstOrNull() == "external"
-
-/**
- * Opens a file result. MediaStore entries prefer Files by Google; documents from the user's chosen
- * folders or the photo picker go to whichever app handles their type, carrying the read grant along.
- */
-private fun buildOpenFileIntent(uri: String, mimeType: String): Intent {
-    val parsed = Uri.parse(uri)
-    return Intent(Intent.ACTION_VIEW).apply {
-        setDataAndType(parsed, mimeType)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        if (isMediaStoreUri(parsed)) setPackage("com.google.android.apps.nbu.files")
-    }
-}
-
-/** Where a file result lives, e.g. "Documents/Taxes", or the picker label for chosen photos. */
-private fun fileLocationLabel(file: FileItem): String {
-    val parent = file.path.substringBeforeLast('/', missingDelimiterValue = file.path)
-        .removePrefix("/storage/emulated/0/")
-        .removePrefix("/storage/emulated/0")
-    return parent.ifBlank { file.mimeType }
-}
-
-/** Starts [intent]; returns false when nothing could handle it so callers can fall back. */
-private fun launchSafeIntent(context: Context, intent: Intent, options: android.os.Bundle? = null): Boolean {
-    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    return try {
-        if (options != null) {
-            context.startActivity(intent, options)
-        } else {
-            context.startActivity(intent)
-        }
-        true
-    } catch (e: Exception) {
-        try {
-            val activity = context.findActivity() ?: return false
-            activity.startActivity(intent, options)
-            true
-        } catch (e2: Exception) {
-            android.util.Log.w("IntelligentSearch", "Unexpected error", e2)
-            false
-        }
-    }
-}
-
-@Composable
 fun SearchOverlayScreen(
     onOpenSettings: (String) -> Unit,
-    onLaunchApp: (String) -> Unit,
+    /** Launches an app in its own profile: package, profile (null = personal) and launcher activity if known. */
+    onLaunchApp: (packageName: String, user: android.os.UserHandle?, activityName: String?) -> Unit,
     viewModel: SearchViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel(),
     isKeyboardDisabled: Boolean = false
@@ -561,21 +138,7 @@ fun SearchOverlayScreen(
             "DuckDuckGo" -> "DuckDuckGo"
             "Bing" -> "Bing"
             "Google" -> "Google"
-            "Custom" -> {
-                if (settingsState.customSearchEngineUrl.isNotBlank()) {
-                    try {
-                        val host = Uri.parse(
-                            if (settingsState.customSearchEngineUrl.startsWith("http")) settingsState.customSearchEngineUrl 
-                            else "https://${settingsState.customSearchEngineUrl}"
-                        ).host?.removePrefix("www.")?.substringBefore(".")?.replaceFirstChar { it.uppercase() }
-                        if (!host.isNullOrBlank()) host else "Web"
-                    } catch (e: Exception) {
-                        "Web"
-                    }
-                } else {
-                    "Web"
-                }
-            }
+            "Custom" -> com.pixel.intelligentsearch.core.security.CustomSearchUrl.displayName(settingsState.customSearchEngineUrl) ?: "Web"
             else -> if (settingsState.searchEngine.isNotBlank()) settingsState.searchEngine else "Google"
         }
     }
@@ -632,14 +195,18 @@ fun SearchOverlayScreen(
         }
     }
 
-    val performAppLaunch: (String) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController, focusManager) {
-        { packageName ->
+    val performLaunch: (String, android.os.UserHandle?, String?) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController, focusManager) {
+        { packageName, user, activityName ->
             hasStartedTyping = false
             focusManager.clearFocus(force = true)
             keyboardController?.hide()
             sensoryEngine.appLaunch(view)
-            onLaunchApp(packageName)
+            onLaunchApp(packageName, user, activityName)
         }
+    }
+    // Work and Private Space copies of an app share its package name, so launches carry the profile too.
+    val performAppLaunch: (AppItem) -> Unit = remember(performLaunch) {
+        { app -> performLaunch(app.packageName, app.userHandle, app.activityName) }
     }
 
     LaunchedEffect(uiState.mathResult) {
@@ -760,18 +327,11 @@ fun SearchOverlayScreen(
         
         val intent = when (engine) {
             "Custom" -> {
-                if (customUrl.isNotBlank()) {
-                    val rawUrl = if (customUrl.contains("%s")) {
-                        customUrl.replace("%s", encodedQuery)
-                    } else {
-                        "$customUrl$encodedQuery"
-                    }
-                    val fullUrl = if (rawUrl.startsWith("http://", ignoreCase = true) || rawUrl.startsWith("https://", ignoreCase = true)) {
-                        rawUrl
-                    } else {
-                        "https://$rawUrl"
-                    }
-                    Intent(Intent.ACTION_VIEW, Uri.parse(fullUrl)).apply {
+                // Re-validated on every search: only an https address that passes the custom-URL checks is opened,
+                // and only by a browsable activity. Anything else falls back to the system web search.
+                val customUri = com.pixel.intelligentsearch.core.security.CustomSearchUrl.build(customUrl, searchQuery)
+                if (customUri != null) {
+                    com.pixel.intelligentsearch.core.security.CustomSearchUrl.browsableViewIntent(customUri).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     }
                 } else {
@@ -886,7 +446,7 @@ fun SearchOverlayScreen(
                     viewModel.refreshContacts()
                 }
                 if (settingsState.searchFiles) {
-                    viewModel.refreshFilesIfStale()
+                    viewModel.refreshStaleIndexes()
                 }
                 val forceTut = prefs[SettingsManager.DEBUG_UNLOCKED] && prefs[SettingsManager.FORCE_TUTORIAL]
                 if (forceTut) {
@@ -1293,7 +853,7 @@ fun SearchOverlayScreen(
                                             launchSafeIntent(context, intent)
                                         }
                                         is AppItem -> {
-                                            performAppLaunch(match.packageName)
+                                            performAppLaunch(match)
                                         }
                                         is FileItem -> {
                                             val intent = buildOpenFileIntent(match.uri, match.mimeType)
@@ -1314,7 +874,7 @@ fun SearchOverlayScreen(
                                         })
                                     }
                                 } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
-                                    performAppLaunch(visibleApps.first().packageName)
+                                    performAppLaunch(visibleApps.first())
                                 } else {
                                     launchWebSearch(submittedQuery)
                                 }
@@ -1357,7 +917,7 @@ fun SearchOverlayScreen(
                 }
 
                 AnimatedVisibility(
-                    visible = uiState.query.isNotEmpty() && !uiState.isLoading,
+                    visible = uiState.query.isNotEmpty(),
                     enter = fadeIn() + scaleIn(),
                     exit = fadeOut() + scaleOut()
                 ) {
@@ -1381,7 +941,7 @@ fun SearchOverlayScreen(
 
                 IconButton(
                     onClick = { 
-                        if (SettingsDebouncer.canClick()) {
+                        if (ClickDebouncer.canClick()) {
                             hasStartedTyping = false
                             focusManager.clearFocus(force = true)
                             keyboardController?.hide()
@@ -1455,12 +1015,12 @@ fun SearchOverlayScreen(
         if (settingsState.quickSearchHorizontal) {
             val pillPackages by remember {
                 derivedStateOf {
-                    val raw = if (settingsState.contextAwareQuickApps) {
-                        uiState.recentApps.map { it.packageName }
+                    // Chosen pills are shown as listed; recent apps are capped by the shortcut count.
+                    if (settingsState.contextAwareQuickApps) {
+                        uiState.recentApps.map { it.packageName }.distinct().take(settingsState.shortcutResultsCount)
                     } else {
-                        settingsState.searchPills.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                        settingsState.searchPills.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
                     }
-                    raw.distinct().take(settingsState.shortcutResultsCount)
                 }
             }
             val dynamicScale = if (pillPackages.size > 6) (6f / pillPackages.size.toFloat()).coerceIn(0.6f, 1f) else 1f
@@ -1494,7 +1054,7 @@ fun SearchOverlayScreen(
                                     
                                     val searchStr = uiState.query
                                     if (searchStr.isEmpty()) {
-                                        performAppLaunch(packageName)
+                                        performLaunch(packageName, null, null)
                                     } else {
                                         val intent = when (packageName) {
                                             "com.android.chrome" -> {
@@ -1624,7 +1184,7 @@ fun SearchOverlayScreen(
                             title = "Search with Google Lens",
                             onClick = {
                                 hasStartedTyping = false
-                                val intent = SearchWidgetProvider.getLensSearchIntent(context)
+                                val intent = getLensSearchIntent(context)
                                 launchSafeIntent(context, intent)
                             }
                         )
@@ -1635,7 +1195,7 @@ fun SearchOverlayScreen(
                             title = "Search with Voice",
                             onClick = {
                                 hasStartedTyping = false
-                                val intent = SearchWidgetProvider.getVoiceSearchIntent(context)
+                                val intent = getVoiceSearchIntent(context)
                                 launchSafeIntent(context, intent)
                             }
                         )
@@ -1646,7 +1206,7 @@ fun SearchOverlayScreen(
                             title = "Digital Assistant",
                             onClick = {
                                 hasStartedTyping = false
-                                val intent = SearchWidgetProvider.getVoiceActionIntent(context)
+                                val intent = getVoiceActionIntent(context)
                                 launchSafeIntent(context, intent)
                             }
                         )
@@ -1980,7 +1540,7 @@ fun SearchOverlayScreen(
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .bouncyClickable { performAppLaunch(match.packageName) }
+                                                .bouncyClickable { performAppLaunch(match) }
                                                 .padding(vertical = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
@@ -2565,14 +2125,14 @@ fun SearchOverlayScreen(
                                     if (uiState.query.isEmpty()) {
                                         item(key = "search_settings_shortcut", contentType = "settings_shortcut") {
                                             SearchSettingsItem {
-                                                if (SettingsDebouncer.canClick()) {
+                                                if (ClickDebouncer.canClick()) {
                                                     onOpenSettings("main")
                                                 }
                                             }
                                         }
                                     }
                                     items(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }, contentType = { "app_item" }) { app ->
-                                        AppGridItem(app) { performAppLaunch(app.packageName) }
+                                        AppGridItem(app) { performAppLaunch(app) }
                                     }
                                 }
                             }
@@ -3104,62 +2664,4 @@ fun SearchOverlayScreen(
         }
     }
 }
-
-@Composable
-fun FileIconThumbnail(uri: String, mimeType: String) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    var bitmap by androidx.compose.runtime.remember(uri) { 
-        androidx.compose.runtime.mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(fileThumbnailCache.get(uri)) 
-    }
-
-    androidx.compose.runtime.LaunchedEffect(uri) {
-        if (bitmap == null && (mimeType.startsWith("image/") || mimeType.startsWith("video/"))) {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                try {
-                    val parsedUri = android.net.Uri.parse(uri)
-                    // Only MediaStore file ids map onto the Images/Video tables. Folder documents and
-                    // photo-picker items serve thumbnails for their own URI (their trailing id would
-                    // otherwise point at an unrelated MediaStore row).
-                    val specificUri = if (!isMediaStoreUri(parsedUri)) {
-                        parsedUri
-                    } else {
-                        val id = android.content.ContentUris.parseId(parsedUri)
-                        if (mimeType.startsWith("image/")) {
-                            android.content.ContentUris.withAppendedId(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
-                        } else {
-                            android.content.ContentUris.withAppendedId(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
-                        }
-                    }
-                    val img = context.contentResolver.loadThumbnail(specificUri, android.util.Size(96, 96), null).asImageBitmap()
-                    fileThumbnailCache.put(uri, img)
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        bitmap = img
-                    }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    // Ignore, fallback to standard icon
-                }
-            }
-        }
-    }
-
-    if (bitmap != null) {
-        Image(
-            bitmap = bitmap!!,
-            contentDescription = null,
-            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)),
-            contentScale = androidx.compose.ui.layout.ContentScale.Crop
-        )
-    } else {
-        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-            Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-
-
-
-
 

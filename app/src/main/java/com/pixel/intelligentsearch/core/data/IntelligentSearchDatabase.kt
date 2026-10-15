@@ -27,9 +27,6 @@ abstract class IntelligentSearchDatabase : RoomDatabase() {
          */
         const val VERSION = 2
 
-        @Volatile
-        private var INSTANCE: IntelligentSearchDatabase? = null
-
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_search_history_timestamp` ON `search_history` (`timestamp`)")
@@ -45,7 +42,7 @@ abstract class IntelligentSearchDatabase : RoomDatabase() {
          * If a legacy database exists in Device Protected (DE) storage from a previous version,
          * it is migrated to CE storage upon user unlock and deleted from DE storage.
          */
-        fun getSafeContext(context: Context): Context {
+        private fun credentialStorageContext(context: Context): Context {
             // The Application context is credential-protected (the manifest doesn't set
             // defaultToDeviceProtectedStorage), even when the caller holds a DE context.
             val ceContext = context.applicationContext ?: context
@@ -74,12 +71,8 @@ abstract class IntelligentSearchDatabase : RoomDatabase() {
             return ceContext
         }
 
-        fun getDatabase(context: Context): IntelligentSearchDatabase {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: buildDatabase(getSafeContext(context))
-                    .also { INSTANCE = it }
-            }
-        }
+        /** Builds the database; Hilt keeps the single instance (see DatabaseModule). */
+        fun create(context: Context): IntelligentSearchDatabase = buildDatabase(credentialStorageContext(context))
 
         private fun buildDatabase(safeContext: Context): IntelligentSearchDatabase {
             return Room.databaseBuilder(

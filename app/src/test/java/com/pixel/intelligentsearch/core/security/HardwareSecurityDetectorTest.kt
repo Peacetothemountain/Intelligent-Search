@@ -1,4 +1,4 @@
-﻿package com.pixel.intelligentsearch.core.security
+package com.pixel.intelligentsearch.core.security
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

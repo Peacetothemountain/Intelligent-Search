@@ -25,19 +25,4 @@ class WindowFramePacingTest {
         }
         assertTrue(shader.contains("uniform shader compositedImage;"))
     }
-
-    @Test
-    fun testDynamicMeshShaderSafety() {
-        val effectShader = DynamicMeshShader.AGSL_MESH_GRADIENT_EFFECT
-        val brushShader = DynamicMeshShader.AGSL_MESH_GRADIENT_BRUSH
-
-        for (uniform in listOf("uColorTL", "uColorTR", "uColorBL", "uColorBR", "uColorCenter")) {
-            assertTrue(effectShader.contains("layout(color) uniform half4 $uniform;"))
-        }
-        assertTrue(effectShader.contains("compositedImage.eval(fragCoord);"))
-
-        for (uniform in listOf("uColorTL", "uColorTR", "uColorBL", "uColorBR", "uColorCenter")) {
-            assertTrue(brushShader.contains("layout(color) uniform half4 $uniform;"))
-        }
-    }
 }

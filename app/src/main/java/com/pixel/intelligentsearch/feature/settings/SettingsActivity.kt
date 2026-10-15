@@ -38,8 +38,6 @@ class SettingsActivity : AppCompatActivity() {
         // the predictive-back gesture boosts it only while it runs.
         super.onCreate(savedInstanceState)
 
-        // Refresh the user_setup allowlist without unconditionally launching the system RoleManager dialog
-        com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this)
         
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(

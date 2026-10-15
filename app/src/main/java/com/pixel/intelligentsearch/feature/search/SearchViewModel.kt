@@ -20,7 +20,20 @@ import com.pixel.intelligentsearch.core.data.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
-private val URL_PATTERN = Regex("""^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(/.*)?$""")
+/** Endings far more often meant as file names than web domains, even where they are also real TLDs (.zip, .mov). */
+private val FILE_EXTENSIONS = setOf(
+    "txt", "pdf", "jpg", "jpeg", "png", "gif", "webp", "heic", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "csv",
+    "zip", "rar", "7z", "apk", "mp3", "mp4", "mov", "mkv", "wav", "json", "xml", "kt", "java", "py", "js", "md", "log"
+)
+
+/** Whether [text] should be offered as "Go to website": a scheme, or a real domain that isn't a file name. */
+private fun looksLikeWebAddress(text: String): Boolean {
+    val trimmed = text.trim()
+    if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) return true
+    if (' ' in trimmed || !android.util.Patterns.WEB_URL.matcher(trimmed).matches()) return false
+    val host = trimmed.substringBefore('/').substringBefore('?').substringBefore(':')
+    return '.' in host && host.substringAfterLast('.').lowercase() !in FILE_EXTENSIONS
+}
 
 /** Common places whose time zone is not named after them in the tz database (e.g. Asia/Kolkata). */
 private val TIME_ZONE_ALIASES = mapOf(
@@ -74,8 +87,6 @@ data class SearchUiState(
     val directActions: List<DirectAction> = emptyList(),
     val calendarEvents: List<CalendarEvent> = emptyList(),
     val recentSearches: List<String> = emptyList(),
-    val isLoading: Boolean = false,
-    val isDirectBootLocked: Boolean = false,
     val hasLockedPrivateSpace: Boolean = false,
     val lastQueryLatency: Long = 0,
     val bangSuggestions: List<com.pixel.intelligentsearch.core.bangs.SearchBang> = emptyList(),
@@ -112,13 +123,10 @@ class SearchViewModel @Inject constructor(
     private var searchJob: Job? = null
     private var initialDataJob: Job? = null
 
-    private val adpfThermalManager = com.pixel.intelligentsearch.core.performance.ADPFThermalManager.getInstance(context)
-    private val nexusLauncherBridge = com.pixel.intelligentsearch.core.data.NexusLauncherBridge(context)
-    private val customPrefs by lazy { context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE) }
+    private val customPrefs get() = settingsManager.prefs
     private var initialClipboardActions: List<DirectAction> = emptyList()
 
     init {
-        adpfThermalManager.applyTopAppThreadPriority()
         // initialize() already indexes contacts (when permitted); loadInitialData() refreshes them if stale.
         corpusIndexManager.initialize()
 
@@ -138,7 +146,6 @@ class SearchViewModel @Inject constructor(
 
         viewModelScope.launch {
             directBootManager.isUserUnlocked.collectLatest { isUnlocked ->
-                _uiState.update { it.copy(isDirectBootLocked = !isUnlocked) }
                 if (isUnlocked) {
                     loadInitialData()
                     try {
@@ -292,9 +299,10 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    /** Picks up files added to the user's chosen folders; throttled inside the index manager. */
-    fun refreshFilesIfStale() {
+    /** On each overlay open: picks up new files in the chosen folders and fresh app usage; both are throttled. */
+    fun refreshStaleIndexes() {
         corpusIndexManager.reindexFilesIfStale()
+        corpusIndexManager.refreshAppUsageIfStale()
     }
 
     fun loadInitialData() {
@@ -303,21 +311,9 @@ class SearchViewModel @Inject constructor(
         initialDataJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 val appsDeferred = async { SystemDataProvider.getAllApps(context) }
-                val launcherPredictedDeferred = async {
-                    val nativePredicted = nativeAppPredictionProvider.getPredictedApps()
-                    if (nativePredicted.isNotEmpty()) {
-                        nativePredicted
-                    } else {
-                        nexusLauncherBridge.getPredictedApps().mapNotNull { pred ->
-                            try {
-                                val iconDrawable = context.packageManager.getApplicationIcon(pred.packageName)
-                                AppItem(name = pred.displayName, packageName = pred.packageName, icon = iconDrawable)
-                            } catch (e: Exception) {
-                                null
-                            }
-                        }
-                    }
-                }
+                // The provider already tries Pixel Launcher predictions first, then usage stats. (Re-querying the
+                // launcher here returned apps outside the indexed list, which skipped the hidden-app filtering.)
+                val launcherPredictedDeferred = async { nativeAppPredictionProvider.getPredictedApps() }
                 val eventsDeferred = async {
                     if (settingsState.value.searchCalendar) {
                         SystemDataProvider.getUpcomingEvents(context)
@@ -326,8 +322,9 @@ class SearchViewModel @Inject constructor(
                     }
                 }
 
+                // Indexing belongs to CorpusIndexManager (serialized there); indexing this list here too raced it
+                // and could re-add an app uninstalled in between.
                 val allApps = appsDeferred.await()
-                unifiedSearchCoordinator.bulkIndexApps(allApps)
                 val launcherPredictedApps = launcherPredictedDeferred.await()
 
                 val hiddenApps = settingsState.value.hiddenApps
@@ -399,8 +396,7 @@ class SearchViewModel @Inject constructor(
                 systemToggle = null,
                 volumeSlider = null,
                 bangSuggestions = emptyList(),
-                detectedBangQuery = null,
-                isLoading = false
+                detectedBangQuery = null
             ) }
             return
         }
@@ -464,8 +460,7 @@ class SearchViewModel @Inject constructor(
 
             if (forceSearchError) {
                 _uiState.update { it.copy(
-                    webSuggestions = listOf("Error: Unable to connect to search API"),
-                    isLoading = false
+                    webSuggestions = listOf("Error: Unable to connect to search API")
                 ) }
                 return@launch
             }
@@ -598,7 +593,7 @@ class SearchViewModel @Inject constructor(
                 val word = q.removePrefix("define ").removePrefix("meaning of ").removePrefix("definition of ").trim()
                 val providerName = when (engine) { "DuckDuckGo" -> "DuckDuckGo"; "Bing" -> "Bing"; else -> "Dictionary" }
                 InstantAnswer(word.replaceFirstChar { it.uppercase() }, "$providerName • Tap for full definition", "dictionary")
-            } else if (q.matches(URL_PATTERN) || q.startsWith("http://") || q.startsWith("https://")) {
+            } else if (looksLikeWebAddress(q)) {
                 InstantAnswer(newQuery.trim(), "Go to Website • Tap to open", "url")
             } else {
                 null
@@ -632,7 +627,6 @@ class SearchViewModel @Inject constructor(
                     systemToggle = systemToggle,
                     volumeSlider = unifiedResults.systemAction as? com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider,
                     directActions = directActions,
-                    isLoading = false,
                     lastQueryLatency = elapsed
                 )
             }
@@ -728,9 +722,15 @@ class SearchViewModel @Inject constructor(
     private var lastClearedHistory: List<HistoryEntity> = emptyList()
     private var historyClearJob: Job? = null
 
+    /**
+     * Records a search, unless the user turned Search History off or searches through Tor: a Tor user expects
+     * no local trace, so nothing is kept while Tor is the search engine.
+     */
     fun addSearchHistory(query: String) {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return
+        val settings = settingsState.value
+        if (!settings.searchPreviousSearches || isTorSearchEngine(settings.searchEngine)) return
         _uiState.update { state ->
             val updated = (listOf(trimmed) + state.recentSearches.filterNot { it.equals(trimmed, ignoreCase = true) }).take(25)
             state.copy(recentSearches = updated)
@@ -832,3 +832,7 @@ class SearchViewModel @Inject constructor(
 
 
 
+
+/** Whether [engine] (the stored search-engine choice) routes searches through Tor Browser. */
+internal fun isTorSearchEngine(engine: String): Boolean = engine.equals("Tor Project", ignoreCase = true) ||
+    engine.equals("Tor Browser", ignoreCase = true)

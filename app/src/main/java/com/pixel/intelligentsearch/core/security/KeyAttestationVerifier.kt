@@ -34,14 +34,12 @@ data class AttestationResult(
 )
 
 /**
- * Real-time Hardware Key Attestation & Chip Verification engine.
+ * Hardware key attestation for the settings "about" panel.
  *
- * Implements full cryptographic verification of X.509 certificate chains
- * up to Google Hardware Attestation Root CA and Samsung Knox Root CA, with a
- * pure-Kotlin zero-dependency ASN.1 DER parser for OID 1.3.6.1.4.1.11129.2.1.17.
- *
- * Includes hardware wear-out protection caching to preserve physical flash cycles
- * on discrete Titan M2/M3 and Knox Vault chips.
+ * Generates an attestation key (StrongBox when available, else the TEE), checks that each certificate in its
+ * chain is signed by the next and that the root is one of Google's published attestation roots, and parses the
+ * attestation extension (OID 1.3.6.1.4.1.11129.2.1.17) to confirm the challenge and security level. The result
+ * is cached in memory for up to a day because generating a StrongBox key takes about a second.
  *
  * Engineered by NG Designs.
  */
@@ -52,7 +50,7 @@ class KeyAttestationVerifier(private val context: Context) {
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         const val ATTESTATION_OID = "1.3.6.1.4.1.11129.2.1.17"
         private const val ATTESTATION_ALIAS = "is_hardware_attestation_key_v2"
-        private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24-hour flash protection TTL
+        private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // re-attest at most daily per process
         private const val GOOGLE_HW_ROOT_SHA256 = "2417A2069E66F42F995D7A942F2D9C55CDA3F29C280FB06DF7B09FEE13A28F58"
         private const val GOOGLE_SW_ROOT_SHA256 = "CE0EB739F57CF586E80EE7ED0E21D0D27F51D68ECDAFEFEE824E31671569B752"
         // The two roots Google currently publishes at https://android.googleapis.com/attestation/root
@@ -200,7 +198,9 @@ class KeyAttestationVerifier(private val context: Context) {
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed retrieving KeyInfo for attestation key: ${e.message}")
-                if (hasStrongBox) HardwareSecurityLevel.STRONGBOX else HardwareSecurityLevel.TEE
+                // Don't guess from the device having StrongBox: the key may have fallen back to the TEE. Use what
+                // the attestation certificate itself states, or nothing.
+                parsedExtension?.keymasterSecurityLevel ?: HardwareSecurityLevel.SOFTWARE
             }
 
             val challengeMatches = parsedExtension?.attestationChallenge?.contentEquals(actualChallenge) == true

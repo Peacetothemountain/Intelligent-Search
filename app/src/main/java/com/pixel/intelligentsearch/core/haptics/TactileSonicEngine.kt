@@ -1,5 +1,9 @@
 package com.pixel.intelligentsearch.core.haptics
 
+import com.pixel.intelligentsearch.di.appEntryPoint
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Singleton
+import javax.inject.Inject
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -17,20 +21,17 @@ import androidx.compose.ui.platform.LocalContext
  * with ultra-low-latency procedural acoustic micro-feedback for an authentic
  * mechanical physical sensation.
  */
-class TactileSonicEngine private constructor(private val context: Context) {
+@Singleton
+class TactileSonicEngine @Inject constructor(
+    @param:ApplicationContext private val context: Context,
+    val hapticEngine: PixelHapticEngine
+) {
 
     companion object {
-        @Volatile
-        private var instance: TactileSonicEngine? = null
-
-        fun get(context: Context): TactileSonicEngine {
-            return instance ?: synchronized(this) {
-                instance ?: TactileSonicEngine(context.applicationContext).also { instance = it }
-            }
-        }
+        /** The app-wide instance, for composables and other places without injection. */
+        fun get(context: Context): TactileSonicEngine = context.appEntryPoint.tactileSonicEngine()
     }
 
-    val hapticEngine = PixelHapticEngine.get(context)
 
     private val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
 

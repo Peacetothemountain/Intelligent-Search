@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
-import com.pixel.intelligentsearch.core.data.settings.put
 import android.Manifest
 import android.content.Intent
 import android.content.SharedPreferences
@@ -125,18 +124,12 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                         val lifecycleOwner = LocalLifecycleOwner.current
                         DisposableEffect(lifecycleOwner) {
                             val observer = LifecycleEventObserver { _, event ->
-                                if (event == Lifecycle.Event.ON_RESUME) {
-                                    val hasContacts = context.checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
-                                    if (searchContacts != hasContacts) {
-                                        searchContacts = hasContacts
-                                        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, hasContacts).apply()
-                                        viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, hasContacts)
-                                        if (hasContacts) {
-                                            viewModel?.reindexContacts()
-                                        }
-                                    } else if (hasContacts && searchContacts) {
-                                        viewModel?.reindexContacts()
-                                    }
+                                // Only follow a revoked permission downward: the user may have turned Contacts off
+                                // with the permission still granted, and that choice must survive leaving the screen.
+                                if (event == Lifecycle.Event.ON_RESUME && searchContacts &&
+                                    context.checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    searchContacts = false
                                 }
                             }
                             lifecycleOwner.lifecycle.addObserver(observer)
@@ -149,13 +142,9 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             val granted = results.values.isNotEmpty() && results.values.all { it }
                             if (granted) {
                                 searchContacts = true
-                                prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).apply()
-                                viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, true)
                                 viewModel?.reindexContacts()
                             } else {
                                 searchContacts = false
-                                prefs.edit().put(SettingsManager.SEARCH_CONTACTS, false).apply()
-                                viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, false)
                                 showContactsSettingsDialog = true
                             }
                         }
@@ -236,16 +225,12 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                                 if (isChecked) {
                                     if (context.checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
                                         searchContacts = true
-                                        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).apply()
-                                        viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, true)
                                         viewModel?.reindexContacts()
                                     } else {
                                         showContactsRationaleDialog = true
                                     }
                                 } else {
                                     searchContacts = false
-                                    prefs.edit().put(SettingsManager.SEARCH_CONTACTS, false).apply()
-                                    viewModel?.updateSetting(SettingsManager.SEARCH_CONTACTS, false)
                                 }
                             },
                             onClick = { 
@@ -265,8 +250,6 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             isChecked = searchFiles,
                             onCheckedChange = { isChecked -> 
                                 searchFiles = isChecked
-                                prefs.edit().put(SettingsManager.SEARCH_FILES, isChecked).apply()
-                                viewModel?.updateSetting(SettingsManager.SEARCH_FILES, isChecked)
                             },
                             onClick = { 
                                 if (searchFiles) {

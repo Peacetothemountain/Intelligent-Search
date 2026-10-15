@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.data
 
+import com.pixel.intelligentsearch.core.util.storageContext
 import com.pixel.intelligentsearch.core.data.settings.get
 import android.app.SearchManager
 import android.content.ContentProvider
@@ -28,20 +29,6 @@ class GlobalSearchProvider : ContentProvider() {
     }
 
     override fun onCreate(): Boolean = true
-
-    private fun getSafeContext(): Context? {
-        val ctx = context ?: return null
-        return if (!ctx.isDeviceProtectedStorage) {
-            val userManager = ctx.getSystemService(Context.USER_SERVICE) as? UserManager
-            if (userManager?.isUserUnlocked == false) {
-                ctx.createDeviceProtectedStorageContext()
-            } else {
-                ctx
-            }
-        } else {
-            ctx
-        }
-    }
 
     override fun query(
         uri: Uri,
@@ -83,7 +70,7 @@ class GlobalSearchProvider : ContentProvider() {
         val queryTerm = rawQuery.replace("\u0000", "").trim().take(128)
         if (queryTerm.isBlank()) return cursor
 
-        val safeCtx = getSafeContext()
+        val safeCtx = context?.storageContext()
         val entryPoint = try {
             val appCtx = safeCtx?.applicationContext ?: safeCtx
             appCtx?.appEntryPoint
@@ -129,20 +116,9 @@ class GlobalSearchProvider : ContentProvider() {
                 isTorEngine -> "https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q=$encoded"
                 engine == "DuckDuckGo" -> "https://duckduckgo.com/?q=$encoded"
                 engine == "Bing" -> "https://www.bing.com/search?q=$encoded"
-                isCustomEngine -> {
-                    if (customUrl.isNotBlank()) {
-                        val rawUrl = if (customUrl.contains("%s")) {
-                            customUrl.replace("%s", encoded)
-                        } else {
-                            "$customUrl$encoded"
-                        }
-                        if (rawUrl.startsWith("http://", ignoreCase = true) || rawUrl.startsWith("https://", ignoreCase = true)) {
-                            rawUrl
-                        } else {
-                            "https://$rawUrl"
-                        }
-                    } else "https://www.google.com/search?q=$encoded"
-                }
+                // An invalid or empty custom address falls back to Google rather than being opened.
+                isCustomEngine -> com.pixel.intelligentsearch.core.security.CustomSearchUrl.build(customUrl, q)?.toString()
+                    ?: "https://www.google.com/search?q=$encoded"
                 else -> "https://www.google.com/search?q=$encoded"
             }
         }

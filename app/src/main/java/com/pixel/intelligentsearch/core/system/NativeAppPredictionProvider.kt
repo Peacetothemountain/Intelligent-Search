@@ -12,19 +12,17 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Native App Prediction Provider.
- * Queries Pixel Launcher predictions (via NexusLauncherBridge) and dynamic UsageStatsManager
- * recency/frequency scoring with zero allocation overhead.
+ * Suggested apps for the empty overlay: Pixel Launcher predictions when readable, else apps used in the last
+ * day (Usage Access), else this app's own record of launches from search, else the first installed apps.
  */
 @Singleton
 class NativeAppPredictionProvider @Inject constructor(
-    @param:ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context,
+    private val nexusLauncherBridge: NexusLauncherBridge
 ) {
     companion object {
         private const val TAG = "NativeAppPredictionProvider"
     }
-
-    private val nexusLauncherBridge = NexusLauncherBridge(context)
 
     suspend fun getPredictedApps(): List<AppItem> = withContext(Dispatchers.IO) {
         val allApps = SystemDataProvider.getAllApps(context).filter { !it.isPrivateProfile }
@@ -84,7 +82,7 @@ class NativeAppPredictionProvider @Inject constructor(
         allApps.take(8)
     }
 
-    fun notifyAppLaunch(packageName: String, className: String? = null) {
+    fun notifyAppLaunch(packageName: String) {
         try {
             val prefs = context.getSharedPreferences("NATIVE_APP_LAUNCH_PREDICTIONS", Context.MODE_PRIVATE)
             val currentCount = prefs.getInt("count_$packageName", 0)
@@ -95,9 +93,5 @@ class NativeAppPredictionProvider @Inject constructor(
         } catch (e: Exception) {
             Log.w(TAG, "Failed to record local app launch prediction", e)
         }
-    }
-
-    fun destroy() {
-        // Cleanup if needed
     }
 }

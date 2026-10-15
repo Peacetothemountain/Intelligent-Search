@@ -18,10 +18,6 @@ android {
         targetSdk = 37
         versionCode = 122
         versionName = "9.2"
-        ndk {
-            // CRITICAL: Must support arm64-v8a, armeabi-v7a, x86_64, and x86 to retain Google Play compatibility for 2,159+ devices.
-            abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86"))
-        }
     }
 
     signingConfigs {
@@ -73,6 +69,15 @@ android {
             languageVersion.set(JavaLanguageVersion.of(17))
         }
     }
+    // CI fails on any lint warning not in the baseline; regenerate it with ./gradlew updateLintBaseline after
+    // fixing entries. Library-update notices are left to dependency review rather than breaking builds.
+    lint {
+      baseline = file("lint-baseline.xml")
+      warningsAsErrors = true
+      abortOnError = true
+      disable += setOf("GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion")
+    }
+
     buildFeatures {
       compose = true
       aidl = false
@@ -116,7 +121,6 @@ room {
 
 dependencies {
   implementation(libs.media3.exoplayer)
-  implementation(libs.media3.ui)
   implementation(libs.google.material)
   // Core
   implementation(libs.androidx.core.ktx)

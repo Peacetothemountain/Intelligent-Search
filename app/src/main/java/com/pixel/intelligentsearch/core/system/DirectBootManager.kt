@@ -51,10 +51,11 @@ class DirectBootManager @Inject constructor(
             }
         }
         try {
-            context.registerReceiver(
+            androidx.core.content.ContextCompat.registerReceiver(
+                context,
                 receiver,
                 android.content.IntentFilter(android.content.Intent.ACTION_USER_UNLOCKED),
-                Context.RECEIVER_NOT_EXPORTED
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
             )
             unlockReceiver = receiver
             // The user may have unlocked between the first check and registration.

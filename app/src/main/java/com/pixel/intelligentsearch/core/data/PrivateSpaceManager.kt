@@ -26,7 +26,7 @@ class PrivateSpaceManager @Inject constructor(
     fun requestUnlockPrivateSpace(activity: Activity) {
         val privateProfile = multiProfileManager.profilesState.value.firstOrNull { it.profileType == ProfileType.PRIVATE }
         if (privateProfile != null) {
-            multiProfileManager.requestUnlockProfile(privateProfile.userHandle, activity)
+            multiProfileManager.requestUnlockProfile(privateProfile.userHandle)
         }
     }
 

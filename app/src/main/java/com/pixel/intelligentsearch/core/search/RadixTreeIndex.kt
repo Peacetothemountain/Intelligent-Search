@@ -55,7 +55,8 @@ class RadixTreeIndex<T> {
         }
     }
 
-    private val root = RadixNode<T>("")
+    // Replaced wholesale by replaceAll; every access still happens under the lock.
+    private var root = RadixNode<T>("")
     private val lock = ReentrantReadWriteLock()
     private var totalEntries = 0
 
@@ -71,31 +72,32 @@ class RadixTreeIndex<T> {
         if (key.isEmpty()) return
 
         lock.write {
-            insertInternal(key, value)
+            if (insertInternal(root, key, value)) totalEntries++
         }
     }
 
     /**
-     * Atomically swaps the entire index contents for [items] under a single write lock, so concurrent
-     * readers observe either the complete old index or the complete new one, never an empty or
-     * half-built state.
+     * Replaces the entire index with [items]. The new tree is built without holding the lock and then swapped
+     * in, so searches keep running against the complete old index during the rebuild and never see an empty
+     * or half-built one.
      */
     fun replaceAll(items: List<Pair<String, T>>) {
+        val freshRoot = RadixNode<T>("")
+        var count = 0
+        for (item in items) {
+            val key = item.first.trim().lowercase(java.util.Locale.ROOT)
+            if (key.isNotEmpty() && insertInternal(freshRoot, key, item.second)) count++
+        }
         lock.write {
-            root.children.clear()
-            root.values.clear()
-            totalEntries = 0
-            for (item in items) {
-                val key = item.first.trim().lowercase(java.util.Locale.ROOT)
-                if (key.isNotEmpty()) {
-                    insertInternal(key, item.second)
-                }
-            }
+            root = freshRoot
+            totalEntries = count
         }
     }
 
-    private fun insertInternal(key: String, value: T) {
-        var currentNode = root
+    /** Inserts under [treeRoot]; returns true when [value] was new at that key. */
+    private fun insertInternal(treeRoot: RadixNode<T>, key: String, value: T): Boolean {
+        var added = false
+        var currentNode = treeRoot
         var remainingKey = key
 
         while (remainingKey.isNotEmpty()) {
@@ -106,10 +108,10 @@ class RadixTreeIndex<T> {
                 // No matching branch: create a new edge containing all remaining characters
                 val newNode = RadixNode<T>(edge = remainingKey)
                 if (newNode.values.add(value)) {
-                    totalEntries++
+                    added = true
                 }
                 currentNode.children.add(newNode)
-                return
+                return added
             }
 
             val commonPrefixLength = getCommonPrefixLength(remainingKey, child.edge)
@@ -121,9 +123,9 @@ class RadixTreeIndex<T> {
                 if (remainingKey.isEmpty()) {
                     // Reached terminal position
                     if (child.putValue(value)) {
-                        totalEntries++
+                        added = true
                     }
-                    return
+                    return added
                 }
             } else {
                 // Partial match: split child edge at commonPrefixLength
@@ -146,19 +148,20 @@ class RadixTreeIndex<T> {
                 if (newEdgeSuffix.isEmpty()) {
                     // The key ends at this split node
                     if (child.putValue(value)) {
-                        totalEntries++
+                        added = true
                     }
                 } else {
                     // Create a second child for the new suffix
                     val newLeaf = RadixNode<T>(edge = newEdgeSuffix)
                     if (newLeaf.values.add(value)) {
-                        totalEntries++
+                        added = true
                     }
                     child.children.add(newLeaf)
                 }
-                return
+                return added
             }
         }
+        return added
     }
 
     /**

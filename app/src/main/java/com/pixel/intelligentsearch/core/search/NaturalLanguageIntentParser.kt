@@ -14,9 +14,9 @@ import java.util.Locale
  * - Alarms ("set alarm for 7am", "wake me up tomorrow at 6:30")
  * - Timers ("set timer 15m", "timer 5 minutes 30 seconds")
  * - Reminders ("remind me to call John in 2 hours")
- * - Direct Messaging ("text Sarah I will be late", "message Dave on WhatsApp")
+ * - Direct Messaging ("text Sarah: I will be late", "message Dave on WhatsApp saying hi")
  * - Phone Calls ("call Mom", "dial 555-0199")
- * - Navigation ("directions to Central Park", "navigate home")
+ * - Navigation ("directions to Central Park", "navigate to work")
  */
 object NaturalLanguageIntentParser {
 
@@ -29,7 +29,7 @@ object NaturalLanguageIntentParser {
 
     // Recipient names are Unicode letters/digits so "text José hi" and "message Zoë saying ok" parse.
     private val MESSAGE_REGEX = Regex(
-        "^(?:message|text|send message to|send text to)\\s+([\\p{L}\\p{N}_\\s]+?)(?:\\s+(?:on|via)\\s+(whatsapp))?\\s+(?:that|saying|to|:|,)\\s+(.+)$",
+        "^(?:message|text|send message to|send text to)\\s+([\\p{L}\\p{N}_\\s]+?)(?:\\s+(?:on|via)\\s+(whatsapp))?(?:\\s*[:,]\\s*|\\s+(?:that|saying|to)\\s+)(.+)$",
         RegexOption.IGNORE_CASE
     )
 
@@ -104,7 +104,7 @@ object NaturalLanguageIntentParser {
         parseTimer(lower)?.let { return it }
 
         // 2. Alarm Intent ("alarm 7am", "set alarm for 6:30 am", "wake me up at 8")
-        parseAlarm(lower)?.let { return it }
+        parseAlarm(lower, currentTimeMs)?.let { return it }
 
         // 3. Reminder Intent ("remind me to ...")
         parseReminder(lower, query, currentTimeMs)?.let { return it }
@@ -222,12 +222,21 @@ object NaturalLanguageIntentParser {
     // ALARM PARSER
     // ---------------------------------------------------------------------------------------------
 
-    private fun parseAlarm(lower: String): ParsedIntent.Alarm? {
+    private fun parseAlarm(lower: String, currentTimeMs: Long): ParsedIntent.Alarm? {
         val prefixes = listOf("set alarm for ", "set alarm at ", "set alarm ", "alarm for ", "alarm at ", "alarm ", "wake me up at ", "wake me up ")
         val matchedPrefix = prefixes.firstOrNull { lower.startsWith(it) } ?: return null
         val remainder = lower.removePrefix(matchedPrefix).trim()
 
-        val time = extractTime(remainder) ?: return null
+        // "alarm in 10 minutes" is a time from now, not 10 o'clock.
+        val relative = RELATIVE_TIME_REGEX.find(remainder)
+        val time = if (relative != null) {
+            val amount = relative.groupValues[1].toIntOrNull() ?: return null
+            val cal = Calendar.getInstance().apply { timeInMillis = currentTimeMs }
+            cal.add(if (relative.groupValues[2].startsWith("h", ignoreCase = true)) Calendar.HOUR_OF_DAY else Calendar.MINUTE, amount)
+            Pair(cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
+        } else {
+            extractTime(remainder) ?: return null
+        }
 
         val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
             putExtra(AlarmClock.EXTRA_HOUR, time.first)
@@ -430,6 +439,7 @@ object NaturalLanguageIntentParser {
         val cal = Calendar.getInstance().apply { timeInMillis = baseTimeMs }
         var text = rawText
         var hasExplicitDay = false
+        val isTonight = text.contains("tonight", ignoreCase = true)
 
         // Check relative days
         val weekdayMatch = WEEKDAY_REGEX.find(text)
@@ -479,6 +489,17 @@ object NaturalLanguageIntentParser {
 
             if (amPm == "pm" && hour < 12) hour += 12
             if (amPm == "am" && hour == 12) hour = 0
+            // "tonight at 9" is 21:00; without am/pm or a named day, "at 3" is the next 3 o'clock still ahead.
+            if (amPm.isEmpty() && hour in 1..11) {
+                if (isTonight) {
+                    hour += 12
+                } else if (!hasExplicitDay && relativeMatch == null) {
+                    val morning = (cal.clone() as Calendar).apply {
+                        set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute.coerceIn(0, 59)); set(Calendar.SECOND, 0)
+                    }
+                    if (morning.timeInMillis < baseTimeMs && morning.timeInMillis + 12 * 3_600_000L > baseTimeMs) hour += 12
+                }
+            }
 
             // Calendar is lenient, so an out-of-range "at 27:90" would silently roll into another day.
             cal.set(Calendar.HOUR_OF_DAY, hour.coerceIn(0, 23))

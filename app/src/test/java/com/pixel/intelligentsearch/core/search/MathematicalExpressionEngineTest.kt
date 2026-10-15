@@ -158,4 +158,25 @@ class MathematicalExpressionEngineTest {
         val sum = MathematicalExpressionEngine.evaluate("0.1+0.2") as MathematicalExpressionEngine.MathEvaluationResult.Computation
         assertEquals("0.3", sum.formattedResult)
     }
+
+    @Test
+    fun thousandsSeparatorsInNumericExpressions() {
+        val res = MathematicalExpressionEngine.evaluate("1,000*2") as MathematicalExpressionEngine.MathEvaluationResult.Computation
+        assertEquals(2000.0, res.numericValue, 0.001)
+    }
+
+    @Test
+    fun shiftsOfSixtyFourOrMoreAreNotAnswered() {
+        val ok = MathematicalExpressionEngine.evaluate("1 << 10") as MathematicalExpressionEngine.MathEvaluationResult.Bitwise
+        assertEquals(1024L, ok.decimalValue)
+        assertNull(MathematicalExpressionEngine.evaluate("1 << 64"))
+    }
+
+    @Test
+    fun megabitsAndMegabytesAreDistinguished() {
+        val bits = MathematicalExpressionEngine.evaluate("100 Mb to MB") as MathematicalExpressionEngine.MathEvaluationResult.UnitConversion
+        assertEquals(12.5, bits.toValue, 0.0001)
+        val bytes = MathematicalExpressionEngine.evaluate("1 MB to kb") as MathematicalExpressionEngine.MathEvaluationResult.UnitConversion
+        assertEquals(1000.0, bytes.toValue, 0.0001)
+    }
 }

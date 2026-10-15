@@ -105,7 +105,8 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
 
     val isSevereThrottled = throttleLevel == ADPFThermalManager.ThermalThrottleLevel.SEVERE ||
             throttleLevel == ADPFThermalManager.ThermalThrottleLevel.CRITICAL
-    val shouldAnimate = !isPaused && !isSevereThrottled
+    val animationsEnabled by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
+    val shouldAnimate = !isPaused && !isSevereThrottled && animationsEnabled
 
     val background = MaterialTheme.colorScheme.background
     val isDark = background.luminance() < 0.5f

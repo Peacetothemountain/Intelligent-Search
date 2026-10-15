@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
@@ -123,6 +125,8 @@ fun SlideToRemoveAllBar(
 
     val dragFraction = if (maxDragPx > 0f) (dragOffsetX / maxDragPx).coerceIn(0f, 1f) else 0f
     val isThresholdReached = dragFraction >= 0.82f
+    // The gesture outlives recompositions; read the latest callback so it removes the list shown now.
+    val currentOnRemoveAll by androidx.compose.runtime.rememberUpdatedState(onRemoveAll)
 
     val animDragOffsetX by androidx.compose.animation.core.animateFloatAsState(
         targetValue = dragOffsetX,
@@ -197,7 +201,7 @@ fun SlideToRemoveAllBar(
                             onDragEnd = {
                                 if (dragOffsetX >= maxDragPx * 0.82f) {
                                     hapticEngine.performPredictiveBackHaptic(view)
-                                    onRemoveAll()
+                                    currentOnRemoveAll()
                                 }
                                 dragOffsetX = 0f
                             },
@@ -206,8 +210,10 @@ fun SlideToRemoveAllBar(
                             },
                             onHorizontalDrag = { change, dragAmount ->
                                 change.consume()
+                                val wasPastThreshold = dragOffsetX >= maxDragPx * 0.82f
                                 dragOffsetX = (dragOffsetX + dragAmount).coerceIn(0f, maxDragPx)
-                                if (dragOffsetX >= maxDragPx * 0.82f && !isThresholdReached) {
+                                // One tick when crossing the threshold, not on every drag event past it.
+                                if (!wasPastThreshold && dragOffsetX >= maxDragPx * 0.82f) {
                                     hapticEngine.performPredictiveBackHaptic(view)
                                 }
                             }
@@ -275,7 +281,6 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             // The URL field shows this default; persist it so searches use what is displayed
                             // instead of silently falling back to the generic web-search intent.
                             val defaultUrl = "https://duckduckgo.com/?q=%s"
-                            prefs.edit().put(SettingsManager.CUSTOM_SEARCH_ENGINE_URL, defaultUrl).apply()
                             settingsViewModel.updateSetting(SettingsManager.CUSTOM_SEARCH_ENGINE_URL, defaultUrl)
                         }
                         searchEngine = selected
@@ -300,16 +305,34 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         Spacer(modifier = Modifier.width(12.dp))
                         androidx.compose.material3.OutlinedTextField(
                             value = customEngineName,
-                            onValueChange = { customEngineName = it },
+                            onValueChange = { customEngineName = com.pixel.intelligentsearch.core.security.CustomSearchUrl.sanitizeEngineName(it) },
+                            singleLine = true,
                             label = { Text("Search App Name") },
                             shape = RoundedCornerShape(24.dp),
                             modifier = Modifier.weight(1f)
                         )
                     }
+                    // The field keeps whatever is typed, but only an address that passes validation is saved
+                    // (in its canonical https form). Searches re-check it anyway, so nothing unvalidated is opened.
+                    var urlText by remember { mutableStateOf(customUrl) }
+                    val urlCheck = remember(urlText) { com.pixel.intelligentsearch.core.security.CustomSearchUrl.validate(urlText) }
                     androidx.compose.material3.OutlinedTextField(
-                        value = customUrl,
-                        onValueChange = { customUrl = it },
+                        value = urlText,
+                        onValueChange = { typed ->
+                            urlText = typed.take(com.pixel.intelligentsearch.core.security.CustomSearchUrl.MAX_LENGTH)
+                            val check = com.pixel.intelligentsearch.core.security.CustomSearchUrl.validate(urlText)
+                            if (check is com.pixel.intelligentsearch.core.security.CustomSearchUrl.Validation.Valid) customUrl = check.template
+                        },
                         label = { Text("Custom Search URL (use %s for query)") },
+                        singleLine = true,
+                        isError = urlText.isNotBlank() && urlCheck is com.pixel.intelligentsearch.core.security.CustomSearchUrl.Validation.Invalid,
+                        supportingText = (urlCheck as? com.pixel.intelligentsearch.core.security.CustomSearchUrl.Validation.Invalid)
+                            ?.takeIf { urlText.isNotBlank() }
+                            ?.let { invalid -> { Text(invalid.reason) } },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri,
+                            autoCorrectEnabled = false
+                        ),
                         shape = RoundedCornerShape(24.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -651,13 +674,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             SlideToRemoveAllBar(
                                 onRemoveAll = {
                                     localDismissedPrefixes = localDismissedPrefixes + displayedActiveBangs.map { it.displayPrefix }
-                                    displayedActiveBangs.forEach { bang ->
-                                        if (bang.isBuiltIn) {
-                                            viewModel?.disableBuiltInBang(bang.displayPrefix)
-                                        } else {
-                                            viewModel?.deleteCustomBang(bang.displayPrefix)
-                                        }
-                                    }
+                                    viewModel?.removeBangs(displayedActiveBangs)
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -675,11 +692,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             ) {
                                                 hapticEngine.performPredictiveBackHaptic(view)
                                                 localDismissedPrefixes = localDismissedPrefixes + bang.displayPrefix
-                                                if (bang.isBuiltIn) {
-                                                    viewModel?.disableBuiltInBang(bang.displayPrefix)
-                                                } else {
-                                                    viewModel?.deleteCustomBang(bang.displayPrefix)
-                                                }
+                                                viewModel?.removeBangs(listOf(bang))
                                             }
                                         }
 
@@ -757,16 +770,18 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                             frame = badgeFrame
                                                         )
                                                         Spacer(modifier = Modifier.width(16.dp))
-                                                        val appLabel = remember(bang.targetPackage, bang.name) {
-                                                            if (!bang.targetPackage.isNullOrBlank()) {
-                                                                try {
-                                                                    val appInfo = context.packageManager.getApplicationInfo(bang.targetPackage, 0)
-                                                                    context.packageManager.getApplicationLabel(appInfo).toString()
-                                                                } catch (_: Exception) {
-                                                                    bang.name.ifBlank { bang.targetPackage }
+                                                        // The app's label is looked up off the main thread; the bang's own name shows until then.
+                                                        val appLabel by produceState(initialValue = bang.name, bang.targetPackage, bang.name) {
+                                                            val target = bang.targetPackage
+                                                            if (!target.isNullOrBlank()) {
+                                                                value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                                    try {
+                                                                        val pm = context.packageManager
+                                                                        pm.getApplicationLabel(pm.getApplicationInfo(target, 0)).toString()
+                                                                    } catch (_: Exception) {
+                                                                        bang.name.ifBlank { target }
+                                                                    }
                                                                 }
-                                                            } else {
-                                                                bang.name
                                                             }
                                                         }
                                                         Column {
@@ -868,7 +883,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                     onClick = {
                                                         hapticEngine.performPredictiveBackHaptic(view)
                                                         localDismissedPrefixes = localDismissedPrefixes - bang.displayPrefix
-                                                        viewModel?.enableBuiltInBang(bang.displayPrefix)
+                                                        viewModel?.restoreBuiltInBang(bang.displayPrefix)
                                                     },
                                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                                                     shape = RoundedCornerShape(16.dp)
@@ -896,20 +911,20 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         var errorMsg by remember { mutableStateOf<String?>(null) }
                         var showAppPicker by remember { mutableStateOf(false) }
 
-                        val installedApps = remember(context) {
-                            try {
-                                val pm = context.packageManager
-                                val intent = Intent(Intent.ACTION_MAIN, null).apply {
-                                    addCategory(Intent.CATEGORY_LAUNCHER)
+                        // Loading every launcher app's label is slow; do it off the main thread.
+                        val installedApps by produceState(initialValue = emptyList<Pair<String, String>>(), context) {
+                            value = withContext(Dispatchers.IO) {
+                                try {
+                                    val pm = context.packageManager
+                                    val intent = Intent(Intent.ACTION_MAIN, null).apply {
+                                        addCategory(Intent.CATEGORY_LAUNCHER)
+                                    }
+                                    pm.queryIntentActivities(intent, 0).map { resolveInfo ->
+                                        resolveInfo.loadLabel(pm).toString() to resolveInfo.activityInfo.packageName
+                                    }.distinctBy { it.second }.sortedBy { it.first.lowercase() }
+                                } catch (_: Exception) {
+                                    emptyList()
                                 }
-                                val resolveInfos = pm.queryIntentActivities(intent, 0)
-                                resolveInfos.map { resolveInfo ->
-                                    val label = resolveInfo.loadLabel(pm).toString()
-                                    val packageName = resolveInfo.activityInfo.packageName
-                                    label to packageName
-                                }.distinctBy { it.second }.sortedBy { it.first.lowercase() }
-                            } catch (_: Exception) {
-                                emptyList<Pair<String, String>>()
                             }
                         }
 
@@ -1036,15 +1051,18 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                                 .padding(horizontal = 10.dp, vertical = 8.dp),
                                                             verticalAlignment = Alignment.CenterVertically
                                                         ) {
-                                                            val appDrawable = remember(pkgName) {
-                                                                runCatching { context.packageManager.getApplicationIcon(pkgName) }.getOrNull()
+                                                            val appBitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, pkgName) {
+                                                                value = withContext(Dispatchers.IO) {
+                                                                    runCatching {
+                                                                        context.packageManager.getApplicationIcon(pkgName)
+                                                                            .toBitmap(width = 96, height = 96).asImageBitmap()
+                                                                    }.getOrNull()
+                                                                }
                                                             }
-                                                            val appBitmap = remember(appDrawable) {
-                                                                runCatching { appDrawable?.toBitmap(width = 96, height = 96)?.asImageBitmap() }.getOrNull()
-                                                            }
-                                                            if (appBitmap != null) {
+                                                            val loadedBitmap = appBitmap
+                                                            if (loadedBitmap != null) {
                                                                 Image(
-                                                                    bitmap = appBitmap,
+                                                                    bitmap = loadedBitmap,
                                                                     contentDescription = appName,
                                                                     modifier = Modifier
                                                                         .size(28.dp)
@@ -1172,8 +1190,16 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             errorMsg = "Trigger must be at least 2 characters (e.g. ${shortcutTriggerSymbol}wiki)"
                                             return@TextButton
                                         }
-                                        if (trimmedUrl.isBlank() || (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://"))) {
-                                            errorMsg = "URL must start with http:// or https://"
+                                        if (trimmedPrefix.length > 24 || trimmedPrefix.any { it.isWhitespace() || it.isISOControl() }) {
+                                            errorMsg = "Trigger must be one word of at most 24 characters"
+                                            return@TextButton
+                                        }
+                                        if (trimmedPackage.isNotBlank() && !Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$").matches(trimmedPackage)) {
+                                            errorMsg = "That isn't a valid app package name"
+                                            return@TextButton
+                                        }
+                                        if (trimmedUrl.isBlank()) {
+                                            errorMsg = "Enter a search address"
                                             return@TextButton
                                         }
                                         if (!trimmedUrl.contains("%s")) {
@@ -1183,6 +1209,15 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 "${trimmedUrl}&q=%s"
                                             } else {
                                                 "${trimmedUrl}/?q=%s"
+                                            }
+                                        }
+                                        // Same checks as the custom search engine: https only, no credentials, no script or
+                                        // other schemes. The canonical form is what gets stored.
+                                        when (val check = com.pixel.intelligentsearch.core.security.CustomSearchUrl.validate(trimmedUrl)) {
+                                            is com.pixel.intelligentsearch.core.security.CustomSearchUrl.Validation.Valid -> trimmedUrl = check.template
+                                            is com.pixel.intelligentsearch.core.security.CustomSearchUrl.Validation.Invalid -> {
+                                                errorMsg = check.reason
+                                                return@TextButton
                                             }
                                         }
 
@@ -1206,18 +1241,8 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             description = "Custom shortcut for $derivedName"
                                         )
 
-                                        val prevBang = editingBang
-                                        if (prevBang != null) {
-                                            if (prevBang.isBuiltIn) {
-                                                viewModel?.disableBuiltInBang(prevBang.displayPrefix)
-                                            } else if (!prevBang.displayPrefix.equals(newBang.displayPrefix, ignoreCase = true)) {
-                                                viewModel?.deleteCustomBang(prevBang.displayPrefix)
-                                            }
-                                        }
-
                                         localDismissedPrefixes = localDismissedPrefixes - newBang.displayPrefix
-                                        viewModel?.enableBuiltInBang(newBang.displayPrefix)
-                                        viewModel?.saveCustomBang(newBang)
+                                        viewModel?.saveBang(newBang, replacing = editingBang)
                                         editingBang = null
                                         showAddDialog = false
                                     }

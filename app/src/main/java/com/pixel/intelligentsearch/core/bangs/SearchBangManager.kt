@@ -28,9 +28,8 @@ class SearchBangManager @Inject constructor(
 ) {
 
     companion object {
-        private val BLOCKED_APP_URI_SCHEMES = setOf(
-            "file", "content", "javascript", "data", "intent", "vbscript"
-        )
+        /** The only app-link schemes dispatched, all from built-in bangs (YouTube, Maps, Play Store, Spotify). */
+        private val BUILT_IN_APP_URI_SCHEMES = setOf("vnd.youtube", "geo", "market", "spotify")
 
         val BUILT_IN_BANGS = listOf(
             SearchBang(
@@ -143,19 +142,7 @@ class SearchBangManager @Inject constructor(
         )
     }
 
-    private fun getSafeContext(): Context {
-        val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
-        val isUnlocked = userManager?.isUserUnlocked ?: true
-        return if (!isUnlocked && !context.isDeviceProtectedStorage) {
-            context.createDeviceProtectedStorageContext()
-        } else {
-            context
-        }
-    }
-
-    private fun getPrefs(): SharedPreferences {
-        return getSafeContext().getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
-    }
+    private fun getPrefs(): SharedPreferences = settingsManager.prefs
 
     private val prefChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == null || key == SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL.name ||
@@ -175,60 +162,35 @@ class SearchBangManager @Inject constructor(
     @Volatile
     private var cachedTriggerSymbol: String? = null
 
-    fun getTriggerSymbol(): String {
-        val cached = cachedTriggerSymbol
-        if (cached != null) return cached
-        val symbol = try {
-            getPrefs()[SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL]?.ifBlank { "!" } ?: "!"
-        } catch (_: Exception) {
-            "!"
-        }
-        cachedTriggerSymbol = symbol
-        return symbol
-    }
+    fun getTriggerSymbol(): String =
+        cachedTriggerSymbol ?: getPrefs()[SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL].ifBlank { "!" }
+            .also { cachedTriggerSymbol = it }
 
     val bangsFlow: Flow<List<SearchBang>> = settingsManager.settingsFlow.map { settings ->
-        cachedTriggerSymbol = null
-        val trigger = getTriggerSymbol()
-        val customBangs = parseCustomBangs(settings.customBangsJson)
-        val disabled = settings.disabledWebShortcuts
-        val builtIns = BUILT_IN_BANGS.map { bang ->
-            if (trigger != "!" && bang.prefix.startsWith("!")) {
-                bang.copy(prefix = "$trigger${bang.prefix.removePrefix("!")}")
-            } else {
-                bang
-            }
-        }
-        val res = (customBangs + builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase(Locale.ROOT) !in disabled }).distinctBy { it.displayPrefix }
-        cachedSyncBangs = res
-        res
+        val trigger = settings.webShortcutTriggerSymbol.ifBlank { "!" }
+        cachedTriggerSymbol = trigger
+        buildBangs(trigger, settings.customBangsJson, settings.disabledWebShortcuts).also { cachedSyncBangs = it }
     }
 
     @Volatile
     private var cachedSyncBangs: List<SearchBang>? = null
     private val mutex = Mutex()
 
-    fun getAllBangsSync(): List<SearchBang> {
-        val cached = cachedSyncBangs
-        if (cached != null) return cached
-        val prefs = getPrefs()
-        val trigger = prefs[SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL]?.ifBlank { "!" } ?: "!"
-        val customBangsJson = prefs[SettingsManager.CUSTOM_BANGS_JSON]
-            ?: settingsManager.getInitialSettings().customBangsJson
-        val customBangs = parseCustomBangs(customBangsJson)
-        val disabled = prefs[SettingsManager.DISABLED_WEB_SHORTCUTS]?.toSet()
-            ?: settingsManager.getInitialSettings().disabledWebShortcuts
+    fun getAllBangsSync(): List<SearchBang> = cachedSyncBangs ?: getPrefs().let { prefs ->
+        buildBangs(
+            getTriggerSymbol(),
+            prefs[SettingsManager.CUSTOM_BANGS_JSON],
+            prefs[SettingsManager.DISABLED_WEB_SHORTCUTS]
+        ).also { cachedSyncBangs = it }
+    }
 
+    /** Custom bangs first, then the built-ins that aren't disabled, re-prefixed when the trigger isn't "!". */
+    private fun buildBangs(trigger: String, customBangsJson: String, disabled: Set<String>): List<SearchBang> {
         val builtIns = BUILT_IN_BANGS.map { bang ->
-            if (trigger != "!" && bang.prefix.startsWith("!")) {
-                bang.copy(prefix = "$trigger${bang.prefix.removePrefix("!")}")
-            } else {
-                bang
-            }
+            if (trigger != "!" && bang.prefix.startsWith("!")) bang.copy(prefix = trigger + bang.prefix.removePrefix("!")) else bang
         }
-        val result = (customBangs + builtIns.filter { it.displayPrefix !in disabled && it.prefix.lowercase(Locale.ROOT) !in disabled }).distinctBy { it.displayPrefix }
-        cachedSyncBangs = result
-        return result
+        return (parseCustomBangs(customBangsJson) + builtIns.filter { it.displayPrefix !in disabled })
+            .distinctBy { it.displayPrefix }
     }
 
     fun parseBangQuery(query: String, availableBangs: List<SearchBang> = getAllBangsSync()): ParsedBangQuery? {
@@ -314,9 +276,9 @@ class SearchBangManager @Inject constructor(
         if (!bang.targetPackage.isNullOrBlank() && !bang.targetPackage.equals(context.packageName, ignoreCase = true)) {
             val isInstalled = isPackageInstalled(pm, bang.targetPackage)
             if (isInstalled) {
-                val appUri = bang.buildAppUri(query)
+                val appUri = if (bang.isBuiltIn) bang.buildAppUri(query) else null
                 val appScheme = appUri?.scheme?.lowercase(Locale.ROOT)
-                if (appUri != null && !appScheme.isNullOrBlank() && appScheme !in BLOCKED_APP_URI_SCHEMES) {
+                if (appUri != null && appScheme in BUILT_IN_APP_URI_SCHEMES) {
                     val nativeIntent = Intent(Intent.ACTION_VIEW, appUri).apply {
                         addCategory(Intent.CATEGORY_BROWSABLE)
                         setPackage(bang.targetPackage)
@@ -349,13 +311,11 @@ class SearchBangManager @Inject constructor(
             }
         }
 
-        // Priority 2: Universal Web URL Dispatch. Custom bangs can arrive from imported backups, so only
-        // web URLs are dispatched; any other scheme (intent:, file:, javascript:...) is forced onto https.
-        val webUrl = bang.buildWebUrl(query).let { url ->
-            val scheme = Uri.parse(url).scheme?.lowercase(Locale.ROOT)
-            if (scheme == "http" || scheme == "https") url else "https://${url.substringAfter("://")}"
-        }
-        return Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).apply {
+        // Priority 2: the web URL. Custom bangs can arrive from imported backups, so the template goes through the
+        // same validation as a typed custom engine; one that fails is never opened and the query goes to Google.
+        val webUri = com.pixel.intelligentsearch.core.security.CustomSearchUrl.build(bang.urlTemplate, query)
+            ?: Uri.parse("https://www.google.com/search?q=${Uri.encode(query)}")
+        return com.pixel.intelligentsearch.core.security.CustomSearchUrl.browsableViewIntent(webUri).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
     }
@@ -374,59 +334,42 @@ class SearchBangManager @Inject constructor(
         }
     }
 
-    suspend fun saveCustomBang(bang: SearchBang) {
-        mutex.withLock {
-            cachedSyncBangs = null
-            val prefs = getPrefs()
-            val currentJson = prefs[SettingsManager.CUSTOM_BANGS_JSON]
-                ?: settingsManager.getInitialSettings().customBangsJson
-            val currentCustom = parseCustomBangs(currentJson).toMutableList()
-            currentCustom.removeAll { it.displayPrefix == bang.displayPrefix || it.prefix.equals(bang.prefix, ignoreCase = true) }
-            currentCustom.add(bang.copy(isBuiltIn = false))
-            val jsonStr = serializeCustomBangs(currentCustom)
-            prefs.edit().put(SettingsManager.CUSTOM_BANGS_JSON, jsonStr).apply()
-            settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, jsonStr)
-        }
+    /**
+     * Adds or edits a custom bang in one atomic write. When editing, the bang it replaces is removed first: a
+     * built-in is disabled (so it can be restored), a custom bang under a different prefix is deleted.
+     */
+    suspend fun saveBang(bang: SearchBang, replacing: SearchBang? = null) = editBangs { custom, disabled ->
+        replacing?.let { removeFrom(custom, disabled, it) }
+        custom.removeAll { it.displayPrefix == bang.displayPrefix }
+        custom.add(bang.copy(isBuiltIn = false))
+        disabled.remove(bang.displayPrefix)
     }
 
-    suspend fun deleteCustomBang(prefix: String) {
-        mutex.withLock {
-            cachedSyncBangs = null
-            val normPrefix = prefix.lowercase().trim()
-            val prefs = getPrefs()
-            val currentJson = prefs[SettingsManager.CUSTOM_BANGS_JSON]
-                ?: settingsManager.getInitialSettings().customBangsJson
-            val currentCustom = parseCustomBangs(currentJson).toMutableList()
-            currentCustom.removeAll { it.displayPrefix == normPrefix || it.prefix.equals(normPrefix, ignoreCase = true) }
-            val jsonStr = serializeCustomBangs(currentCustom)
-            prefs.edit().put(SettingsManager.CUSTOM_BANGS_JSON, jsonStr).apply()
-            settingsManager.updateSetting(SettingsManager.CUSTOM_BANGS_JSON, jsonStr)
-        }
+    /** Removes bangs in one write: built-ins are disabled, custom bangs are deleted. */
+    suspend fun removeBangs(bangs: List<SearchBang>) = editBangs { custom, disabled ->
+        bangs.forEach { removeFrom(custom, disabled, it) }
     }
 
-    suspend fun disableBuiltInBang(prefix: String) {
-        mutex.withLock {
-            cachedSyncBangs = null
-            val normPrefix = prefix.lowercase().trim()
-            val prefs = getPrefs()
-            val currentDisabled = (prefs[SettingsManager.DISABLED_WEB_SHORTCUTS]?.toSet()
-                ?: settingsManager.getInitialSettings().disabledWebShortcuts).toMutableSet()
-            currentDisabled.add(normPrefix)
-            prefs.edit().put(SettingsManager.DISABLED_WEB_SHORTCUTS, HashSet(currentDisabled)).apply()
-            settingsManager.updateSetting(SettingsManager.DISABLED_WEB_SHORTCUTS, currentDisabled)
-        }
+    suspend fun restoreBuiltInBang(prefix: String) = editBangs { _, disabled ->
+        disabled.remove(prefix.lowercase(Locale.ROOT).trim())
     }
 
-    suspend fun enableBuiltInBang(prefix: String) {
+    private fun removeFrom(custom: MutableList<SearchBang>, disabled: MutableSet<String>, bang: SearchBang) {
+        if (bang.isBuiltIn) disabled.add(bang.displayPrefix) else custom.removeAll { it.displayPrefix == bang.displayPrefix }
+    }
+
+    /** Read-modify-write of both bang settings under one lock, committed together so edits can't interleave. */
+    private suspend fun editBangs(edit: (MutableList<SearchBang>, MutableSet<String>) -> Unit) {
         mutex.withLock {
-            cachedSyncBangs = null
-            val normPrefix = prefix.lowercase().trim()
             val prefs = getPrefs()
-            val currentDisabled = (prefs[SettingsManager.DISABLED_WEB_SHORTCUTS]?.toSet()
-                ?: settingsManager.getInitialSettings().disabledWebShortcuts).toMutableSet()
-            currentDisabled.remove(normPrefix)
-            prefs.edit().put(SettingsManager.DISABLED_WEB_SHORTCUTS, HashSet(currentDisabled)).apply()
-            settingsManager.updateSetting(SettingsManager.DISABLED_WEB_SHORTCUTS, currentDisabled)
+            val custom = parseCustomBangs(prefs[SettingsManager.CUSTOM_BANGS_JSON]).toMutableList()
+            val disabled = prefs[SettingsManager.DISABLED_WEB_SHORTCUTS].toMutableSet()
+            edit(custom, disabled)
+            cachedSyncBangs = null
+            prefs.edit()
+                .put(SettingsManager.CUSTOM_BANGS_JSON, serializeCustomBangs(custom))
+                .put(SettingsManager.DISABLED_WEB_SHORTCUTS, disabled.toSet())
+                .commit()
         }
     }
 
@@ -458,7 +401,9 @@ class SearchBangManager @Inject constructor(
                             name = obj.getString("name"),
                             urlTemplate = obj.getString("urlTemplate"),
                             targetPackage = obj.optString("targetPackage").ifBlank { null },
-                            appIntentUriTemplate = obj.optString("appIntentUriTemplate").ifBlank { null },
+                            // Custom bangs never carry an app link: one restored from a crafted backup could
+                            // otherwise open sms:, tel: or another app scheme. Only built-in bangs have them.
+                            appIntentUriTemplate = null,
                             isBuiltIn = false,
                             description = obj.optString("description")
                         )
@@ -479,7 +424,6 @@ class SearchBangManager @Inject constructor(
                 put("name", bang.name)
                 put("urlTemplate", bang.urlTemplate)
                 put("targetPackage", bang.targetPackage ?: "")
-                put("appIntentUriTemplate", bang.appIntentUriTemplate ?: "")
                 put("isBuiltIn", false)
                 put("description", bang.description)
             }

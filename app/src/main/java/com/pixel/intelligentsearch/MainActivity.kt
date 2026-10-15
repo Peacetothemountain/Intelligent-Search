@@ -74,8 +74,16 @@ open class MainActivity : AppCompatActivity() {
         super.onStop()
     }
 
+    // Settings snapshot taken on resume, so onPause only re-renders widgets when something actually changed.
+    private var settingsFingerprintAtResume = 0
+
+    private fun settingsFingerprint(): Int = runCatching {
+        com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.getSafeSharedPreferences(this).all.hashCode()
+    }.getOrDefault(0)
+
     override fun onResume() {
         super.onResume()
+        settingsFingerprintAtResume = settingsFingerprint()
         com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this)
         if (checkAndForwardIfSearchOverlayDisabled()) return
     }
@@ -380,9 +388,12 @@ open class MainActivity : AppCompatActivity() {
         super.onPause()
         searchViewModel.onQueryChanged("")
         
-        // Force widget update when leaving the search overlay
+        // Re-render widgets only if a setting changed while the overlay was open. Doing it on every dismissal
+        // rebuilt every widget and spent the rate-limited widget-preview quota for nothing.
         try {
-            com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(this)
+            if (settingsFingerprint() != settingsFingerprintAtResume) {
+                com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(this)
+            }
         } catch (e: Throwable) {
             android.util.Log.e("MainActivity", "Failed to update widget on pause", e)
         }

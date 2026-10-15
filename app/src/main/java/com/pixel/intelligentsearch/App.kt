@@ -100,6 +100,9 @@ class App : Application() {
                 com.pixel.intelligentsearch.core.system.SearchRoleManager.ensureUserSetupSearchEngineAllowlist(this@App)
                 if (!directBootManager.checkIsUserUnlocked()) {
                     directBootManager.isUserUnlocked.filter { it }.first()
+                    // Widgets drawn before unlock could only read device-protected (default) settings;
+                    // redraw them from the user's real settings now that they are readable.
+                    com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(this@App)
                 }
                 // DataStore is the source of truth for settings; carry over any values that only
                 // exist in the legacy SharedPreferences before the overlay first reads them.

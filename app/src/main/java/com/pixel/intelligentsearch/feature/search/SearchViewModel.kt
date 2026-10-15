@@ -120,10 +120,8 @@ class SearchViewModel @Inject constructor(
 
     init {
         adpfThermalManager.applyTopAppThreadPriority()
+        // initialize() already indexes contacts (when permitted); loadInitialData() refreshes them if stale.
         corpusIndexManager.initialize()
-        if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            corpusIndexManager.reindexContacts()
-        }
 
         // Tier 2: Debounced Remote Web Suggestions (80ms human-pause debounce)
         viewModelScope.launch {
@@ -158,7 +156,10 @@ class SearchViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            var previousLocked = false
+            // Seed from the current state: the StateFlow replays it immediately, and starting from false made
+            // every overlay open look like a fresh lock and force a full app + shortcut re-index.
+            var previousLocked = multiProfileManager.profilesState.value
+                .any { it.profileType == ProfileType.PRIVATE && it.isLocked }
             multiProfileManager.profilesState.collect { profiles ->
                 val hasLocked = profiles.any { it.profileType == ProfileType.PRIVATE && it.isLocked }
                 if (hasLocked) {
@@ -288,7 +289,7 @@ class SearchViewModel @Inject constructor(
 
     fun refreshContacts() {
         if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            corpusIndexManager.reindexContacts()
+            corpusIndexManager.reindexContactsIfStale()
         }
     }
 

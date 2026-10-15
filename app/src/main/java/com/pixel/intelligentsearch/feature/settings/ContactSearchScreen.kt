@@ -16,8 +16,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.Assistant
 import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.RestartAlt
+import com.pixel.intelligentsearch.feature.appfunctions.APP_FUNCTIONS_SHARE_CONTACTS_KEY
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -75,6 +77,17 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     icon = Icons.Outlined.Call,
                     isChecked = directCall,
                     onCheckedChange = { directCall = it },
+                    showDivider = true
+                )
+                // Android doesn't tell the app which assistant is asking, so it can't check that assistant's
+                // own contacts permission; sharing therefore needs this separate, off-by-default consent.
+                var shareWithAssistants by rememberBooleanPreference(prefs, APP_FUNCTIONS_SHARE_CONTACTS_KEY, false)
+                SettingsRowToggle(
+                    title = "Share with Assistants",
+                    subtitle = "Let on-device assistants search your contacts through Intelligent Search.",
+                    icon = Icons.Outlined.Assistant,
+                    isChecked = shareWithAssistants,
+                    onCheckedChange = { shareWithAssistants = it },
                     showDivider = true
                 )
                 

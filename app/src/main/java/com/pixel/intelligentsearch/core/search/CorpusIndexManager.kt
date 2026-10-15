@@ -53,6 +53,7 @@ class CorpusIndexManager @Inject constructor(
         private const val TAG = "CorpusIndexManager"
         private const val SETTINGS_PREFS = "PREFERENCES_CUSTOMISATIONS"
         private const val FILES_REFRESH_INTERVAL_MS = 2 * 60 * 1000L
+        private const val CONTACTS_REFRESH_INTERVAL_MS = 60 * 1000L
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -83,6 +84,8 @@ class CorpusIndexManager @Inject constructor(
     private var filesDebounceJob: Job? = null
     @Volatile
     private var lastFilesIndexAtMs = 0L
+    @Volatile
+    private var lastContactsIndexAtMs = 0L
 
     /**
      * Bootstraps eager background indexing of all corpuses.
@@ -131,6 +134,16 @@ class CorpusIndexManager @Inject constructor(
     fun reindexContacts() {
         scope.launch {
             reindexContactsInternal()
+        }
+    }
+
+    /**
+     * Re-reads contacts only if the last full read is older than [CONTACTS_REFRESH_INTERVAL_MS]. The
+     * ContentObserver already picks up edits, so overlay opens must not re-read the whole provider.
+     */
+    fun reindexContactsIfStale() {
+        scope.launch {
+            reindexContactsInternal(onlyIfOlderThanMs = CONTACTS_REFRESH_INTERVAL_MS)
         }
     }
 
@@ -184,12 +197,21 @@ class CorpusIndexManager @Inject constructor(
         }
     }
 
-    private suspend fun reindexContactsInternal() {
+    private suspend fun reindexContactsInternal(onlyIfOlderThanMs: Long? = null) {
         contactsMutex.withLock {
+            if (onlyIfOlderThanMs != null &&
+                android.os.SystemClock.elapsedRealtime() - lastContactsIndexAtMs < onlyIfOlderThanMs
+            ) return
             try {
                 val contacts = SystemDataProvider.getAllContacts(context)
                 // Atomic swap: searches never observe an empty or partially rebuilt contact index.
                 searchCoordinator.replaceContacts(contacts)
+                // Only a read made with the permission counts as fresh, so granting it later still re-reads.
+                if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) ==
+                    android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) {
+                    lastContactsIndexAtMs = android.os.SystemClock.elapsedRealtime()
+                }
                 Log.d(TAG, "Indexed ${contacts.size} contacts into memory")
             } catch (e: CancellationException) {
                 throw e

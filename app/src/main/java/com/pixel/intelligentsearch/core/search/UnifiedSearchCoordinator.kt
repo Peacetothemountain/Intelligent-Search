@@ -109,6 +109,9 @@ class UnifiedSearchCoordinator @Inject constructor(
     )
 
     private val appRadixTree = RadixTreeIndex<SearchItem>()
+    // Package names live in their own tree: nearly every app shares the "com." prefix, so in the name tree
+    // they used up the prefix-collection limit for "c"/"co" before names like "Camera" were reached.
+    private val appPackageRadixTree = RadixTreeIndex<SearchItem>()
     private val contactRadixTree = RadixTreeIndex<SearchItem>()
     private val shortcutRadixTree = RadixTreeIndex<SearchItem>()
     private val fileRadixTree = RadixTreeIndex<SearchItem>()
@@ -119,6 +122,7 @@ class UnifiedSearchCoordinator @Inject constructor(
     @Volatile private var cachedContactWeightMul: Float = 1.0f
     @Volatile private var cachedFileWeightMul: Float = 1.0f
     @Volatile private var cachedFuzzySearchEnabled: Boolean = true
+    @Volatile private var cachedContactSearchEnabled: Boolean = false
 
     private val prefChangeListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         when (key) {
@@ -126,6 +130,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             "search_weight_contacts" -> updateContactWeight()
             "search_weight_files" -> updateFileWeight()
             "app.fuzzy.search", "app_fuzzy_search" -> updateFuzzySearch()
+            "search.contacts", "search_contacts" -> updateContactSearch()
         }
     }
 
@@ -134,7 +139,16 @@ class UnifiedSearchCoordinator @Inject constructor(
         updateContactWeight()
         updateFileWeight()
         updateFuzzySearch()
+        updateContactSearch()
         prefs.registerOnSharedPreferenceChangeListener(prefChangeListener)
+    }
+
+    private fun updateContactSearch() {
+        cachedContactSearchEnabled = if (prefs.contains("search.contacts")) {
+            prefs.getBoolean("search.contacts", false)
+        } else {
+            prefs.getBoolean("search_contacts", false)
+        }
     }
 
     private fun updateFuzzySearch() {
@@ -273,6 +287,7 @@ class UnifiedSearchCoordinator @Inject constructor(
     fun bulkIndexApps(apps: List<AppItem>) {
         if (apps.isEmpty()) return
         val keys = ArrayList<Pair<String, SearchItem>>(apps.size * 5)
+        val packageKeys = ArrayList<Pair<String, SearchItem>>(apps.size)
         val fresh = HashSet<SearchItem>(apps.size * 2)
         for (app in apps) {
             val item = newAppItem(
@@ -280,9 +295,11 @@ class UnifiedSearchCoordinator @Inject constructor(
                 SearchScoringEngine.ScoringMetadata(domain = SearchScoringEngine.EntityDomain.APPLICATION)
             )
             collectAppKeys(app, item, keys)
+            packageKeys.add(app.packageName to item)
             fresh.add(item)
         }
         appRadixTree.replaceAll(keys)
+        appPackageRadixTree.replaceAll(packageKeys)
         removeFromPhoneticIndex { it.domain == SearchScoringEngine.EntityDomain.APPLICATION && it !in fresh }
     }
 
@@ -299,8 +316,9 @@ class UnifiedSearchCoordinator @Inject constructor(
     }
 
     /**
-     * Appends every radix key under which an app is reachable (title, normalized title, package name,
-     * acronym, individual words) to [out] and registers its phonetic codes.
+     * Appends every name key under which an app is reachable (title, normalized title, acronym,
+     * individual words) to [out] and registers its phonetic codes. The package name is indexed separately
+     * in [appPackageRadixTree].
      */
     private fun collectAppKeys(app: AppItem, item: SearchItem, out: MutableList<Pair<String, SearchItem>>) {
         out.add(app.name to item)
@@ -308,7 +326,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         if (normalizedTitle.isNotEmpty() && !normalizedTitle.equals(app.name, ignoreCase = true)) {
             out.add(normalizedTitle to item)
         }
-        out.add(app.packageName to item)
 
         // Acronym / initials (e.g. "yt" -> "YouTube", "gpm" -> "Google Play Music")
         val initials = QueryNormalizer.extractInitials(app.name)
@@ -352,7 +369,13 @@ class UnifiedSearchCoordinator @Inject constructor(
         if (normalizedContact.isNotEmpty() && !normalizedContact.equals(contact.name, ignoreCase = true)) {
             out.add(normalizedContact to item)
         }
-        out.add(contact.phoneNumber.filter { it.isDigit() } to item)
+        val digits = contact.phoneNumber.filter { it.isDigit() }
+        out.add(digits to item)
+        // Lookup is prefix-only, so also index the number without its country / trunk code: "415555"
+        // must find a contact saved as +1 415-555-1234.
+        for (localLength in intArrayOf(10, 7)) {
+            if (digits.length > localLength) out.add(digits.takeLast(localLength) to item)
+        }
 
         // Individual name tokens (first name, last name)
         for (token in QueryNormalizer.tokenize(contact.name)) {
@@ -409,6 +432,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             }
         }
         appRadixTree.removeIf(isPrivateItem)
+        appPackageRadixTree.removeIf(isPrivateItem)
         shortcutRadixTree.removeIf(isPrivateItem)
         removeFromPhoneticIndex(isPrivateItem)
     }
@@ -427,6 +451,7 @@ class UnifiedSearchCoordinator @Inject constructor(
      */
     fun clearIndex() {
         appRadixTree.clear()
+        appPackageRadixTree.clear()
         contactRadixTree.clear()
         shortcutRadixTree.clear()
         fileRadixTree.clear()
@@ -450,6 +475,16 @@ class UnifiedSearchCoordinator @Inject constructor(
      * Tier 0 Instant Search (< 2ms) executed synchronously on keystrokes.
      * Evaluates instant calculators, system toggles/actions, and Radix Tree app prefix lookups.
      */
+    /**
+     * App prefix matches by name, plus package-name matches once the query looks like one (4+ characters
+     * or containing a dot), so "com" alone never pulls in every installed app.
+     */
+    private fun appPrefixMatches(query: String, limit: Int): List<SearchItem> {
+        val byName = appRadixTree.searchPrefix(query, limit)
+        if (query.length < 4 && '.' !in query) return byName
+        return byName + appPackageRadixTree.searchPrefix(query, limit)
+    }
+
     fun executeTier0Search(rawQuery: String): Tier0SearchResults {
         val startTime = System.nanoTime()
         val query = rawQuery.trim()
@@ -465,12 +500,12 @@ class UnifiedSearchCoordinator @Inject constructor(
 
         // 3. Fast Radix prefix search for apps only
         val candidates = mutableSetOf<SearchItem>()
-        val directMatches = appRadixTree.searchPrefix(query, limit = 20)
+        val directMatches = appPrefixMatches(query, limit = 20)
         candidates.addAll(directMatches)
 
         val normalized = QueryNormalizer.normalize(query)
         if (normalized.isNotEmpty() && !normalized.equals(query, ignoreCase = true)) {
-            val normMatches = appRadixTree.searchPrefix(normalized, limit = 20)
+            val normMatches = appPrefixMatches(normalized, limit = 20)
             candidates.addAll(normMatches)
         }
 
@@ -538,11 +573,11 @@ class UnifiedSearchCoordinator @Inject constructor(
         val q = query.trim()
         if (q.isEmpty()) return emptyList()
         val candidates = mutableSetOf<SearchItem>()
-        appRadixTree.searchPrefix(q, limit = limit * 3).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.APPLICATION }
+        appPrefixMatches(q, limit = limit * 3).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.APPLICATION }
 
         val normalized = QueryNormalizer.normalize(q)
         if (normalized.isNotEmpty() && !normalized.equals(q, ignoreCase = true)) {
-            appRadixTree.searchPrefix(normalized, limit = limit * 3).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.APPLICATION }
+            appPrefixMatches(normalized, limit = limit * 3).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.APPLICATION }
         }
 
         val now = System.currentTimeMillis()
@@ -715,6 +750,7 @@ class UnifiedSearchCoordinator @Inject constructor(
 
     fun removePackage(packageName: String) {
         appRadixTree.removeIf { (it.payload as? AppItem)?.packageName == packageName }
+        appPackageRadixTree.removeIf { (it.payload as? AppItem)?.packageName == packageName }
         shortcutRadixTree.removeIf { (it.payload as? AppShortcutItem)?.packageName == packageName }
         removeFromPhoneticIndex {
             (it.payload as? AppItem)?.packageName == packageName ||
@@ -771,22 +807,24 @@ class UnifiedSearchCoordinator @Inject constructor(
         val mathResult = MathematicalExpressionEngine.evaluate(query)
 
         // 3. Natural Language Intent Parser
-        val parsedIntent = NaturalLanguageIntentParser.parse(query) { target ->
-            searchContacts(target, limit = 5).firstOrNull { it.phoneNumber.isNotBlank() }
-        }
+        // "Call X" / "Message X" only resolve names from contacts when contact search is turned on.
+        val contactLookup: ((String) -> ContactItem?)? = if (cachedContactSearchEnabled) {
+            { target -> searchContacts(target, limit = 5).firstOrNull { it.phoneNumber.isNotBlank() } }
+        } else null
+        val parsedIntent = NaturalLanguageIntentParser.parse(query, contactLookup = contactLookup)
 
         cancellationCheck?.invoke()
 
         // 4. Candidate Retrieval via Partitioned Radix Tree Prefix Search (< 0.5ms)
         val candidates = mutableSetOf<SearchItem>()
-        candidates.addAll(appRadixTree.searchPrefix(query, limit = 40))
+        candidates.addAll(appPrefixMatches(query, limit = 40))
         candidates.addAll(contactRadixTree.searchPrefix(query, limit = 20))
         candidates.addAll(shortcutRadixTree.searchPrefix(query, limit = 20))
         candidates.addAll(fileRadixTree.searchPrefix(query, limit = 20))
 
         val normalized = QueryNormalizer.normalize(query)
         if (normalized.isNotEmpty() && !normalized.equals(query, ignoreCase = true)) {
-            candidates.addAll(appRadixTree.searchPrefix(normalized, limit = 40))
+            candidates.addAll(appPrefixMatches(normalized, limit = 40))
             candidates.addAll(contactRadixTree.searchPrefix(normalized, limit = 20))
             candidates.addAll(shortcutRadixTree.searchPrefix(normalized, limit = 20))
             candidates.addAll(fileRadixTree.searchPrefix(normalized, limit = 20))

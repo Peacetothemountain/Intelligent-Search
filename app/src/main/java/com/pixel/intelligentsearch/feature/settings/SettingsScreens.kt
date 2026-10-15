@@ -3049,7 +3049,9 @@ fun Android17Slider(
     val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
     
     val infiniteTransition = rememberInfiniteTransition(label = "squiggle")
-    val phase by if (isSquiggly && showTrack) {
+    // Kept as State and read only inside the Canvas below: reading it here recomposed the slider (and its
+    // semantics and gesture setup) on every frame for as long as the screen was open.
+    val phase: State<Float> = if (isSquiggly && showTrack) {
         infiniteTransition.animateFloat(
             initialValue = 0f,
             targetValue = 2f * Math.PI.toFloat(),
@@ -3064,7 +3066,6 @@ fun Android17Slider(
     }
 
     val dragPhaseOffset = remember { mutableFloatStateOf(0f) }
-    val effectivePhase = phase + dragPhaseOffset.floatValue
 
     val activeColor = MaterialTheme.colorScheme.primary
     val inactiveColor = MaterialTheme.colorScheme.surfaceVariant
@@ -3166,6 +3167,7 @@ fun Android17Slider(
             val thumbX = (fraction * (size.width - thumbWidth) + thumbWidth / 2f).coerceIn(thumbWidth / 2f, size.width - thumbWidth / 2f)
             val centerY = size.height / 2f
             val yDots = centerY + 16.dp.toPx()
+            val effectivePhase = phase.value + dragPhaseOffset.floatValue
 
             // Draw active track
             if (showTrack) {

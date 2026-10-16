@@ -1,7 +1,5 @@
 package com.pixel.intelligentsearch.feature.search
 import com.pixel.intelligentsearch.core.data.settings.get
-import com.pixel.intelligentsearch.core.data.WebSearchProvider
-import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.CalendarEvent
@@ -97,6 +95,7 @@ data class SearchUiState(
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context,
+    private val sources: com.pixel.intelligentsearch.core.data.DeviceSearchSources,
     private val historyDao: HistoryDao,
     private val settingsManager: SettingsManager,
     private val bangManager: com.pixel.intelligentsearch.core.bangs.SearchBangManager,
@@ -310,13 +309,13 @@ class SearchViewModel @Inject constructor(
         initialDataJob?.cancel()
         initialDataJob = viewModelScope.launch(Dispatchers.IO) {
             try {
-                val appsDeferred = async { SystemDataProvider.getAllApps(context) }
+                val appsDeferred = async { sources.allApps() }
                 // The provider already tries Pixel Launcher predictions first, then usage stats. (Re-querying the
                 // launcher here returned apps outside the indexed list, which skipped the hidden-app filtering.)
                 val launcherPredictedDeferred = async { nativeAppPredictionProvider.getPredictedApps() }
                 val eventsDeferred = async {
                     if (settingsState.value.searchCalendar) {
-                        SystemDataProvider.getUpcomingEvents(context)
+                        sources.upcomingEvents()
                     } else {
                         emptyList()
                     }
@@ -329,10 +328,10 @@ class SearchViewModel @Inject constructor(
 
                 val hiddenApps = settingsState.value.hiddenApps
                 val recentApps = if (settingsState.value.contextAwareQuickApps) {
-                    val quickApps = SystemDataProvider.getContextAwareQuickApps(context, settingsState.value.hiddenApps).distinctBy { it.packageName }
+                    val quickApps = sources.contextAwareQuickApps(settingsState.value.hiddenApps).distinctBy { it.packageName }
                     if (launcherPredictedApps.isNotEmpty()) (launcherPredictedApps + quickApps).distinctBy { it.packageName } else quickApps
                 } else {
-                    val standardRecents = SystemDataProvider.getRecentApps(context, settingsState.value.hiddenApps).distinctBy { it.packageName }
+                    val standardRecents = sources.recentApps(settingsState.value.hiddenApps).distinctBy { it.packageName }
                     if (launcherPredictedApps.isNotEmpty()) (launcherPredictedApps + standardRecents).distinctBy { it.packageName } else standardRecents
                 }.filter { it.packageName !in hiddenApps } // launcher predictions know nothing about hidden apps
 
@@ -517,7 +516,7 @@ class SearchViewModel @Inject constructor(
                             !intent.contactNameOrNumber.all { it.isDigit() || it in "+- ()" }
                         ) {
                             try {
-                                val contacts = com.pixel.intelligentsearch.core.data.SystemDataProvider.getContacts(context, intent.contactNameOrNumber)
+                                val contacts = sources.contacts(intent.contactNameOrNumber)
                                 val matched = contacts.firstOrNull { it.phoneNumber.isNotBlank() }
                                 if (matched != null) {
                                     displayName = matched.name
@@ -570,7 +569,7 @@ class SearchViewModel @Inject constructor(
                 if (unifiedResults.contacts.isNotEmpty() || corpusIndexManager.isIndexReady.value) {
                     unifiedResults.contacts.take(settings.contactResultsCount)
                 } else if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    SystemDataProvider.getContacts(context, newQuery).take(settings.contactResultsCount)
+                    sources.contacts(newQuery).take(settings.contactResultsCount)
                 } else {
                     emptyList()
                 }
@@ -588,7 +587,7 @@ class SearchViewModel @Inject constructor(
             val suggestionsEnabled = settings.searchWeb && customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS] && !isAdvancedProtectionOn()
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
-                WebSearchProvider.getCachedSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(5))
+                sources.cachedWebSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(5))
             } else null
 
             val q = newQuery.lowercase().trim()
@@ -718,7 +717,7 @@ class SearchViewModel @Inject constructor(
 
         withContext(Dispatchers.IO) {
             try {
-                val suggestions = WebSearchProvider.getWebSuggestions(query, engine).take(maxResults)
+                val suggestions = sources.webSuggestions(query, engine).take(maxResults)
                 currentCoroutineContext().ensureActive()
                 _uiState.update { current ->
                     if (current.query == query) {

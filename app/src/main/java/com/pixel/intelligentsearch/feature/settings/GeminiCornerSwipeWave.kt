@@ -117,7 +117,8 @@ fun GeminiCornerSwipeWaveLayer(
                 }
             }
         }
-        androidx.compose.foundation.Canvas(modifier = modifier) {
+        // A decorative motion effect: with system animations off it isn't drawn rather than shown frozen.
+        if (animationsEnabled) androidx.compose.foundation.Canvas(modifier = modifier) {
             shader.setFloatUniform("resolution", size.width, size.height)
             shader.setFloatUniform("time", time)
             shader.setFloatUniform("colorPrimary", colorPrimary.red, colorPrimary.green, colorPrimary.blue, colorPrimary.alpha)

@@ -41,3 +41,13 @@ video, haptics and anything the renderer can't show (AGSL shaders, TextureView v
 
 Ground rules carried over: locked visual code is never edited; deletions only of proven-unused code; every
 phase ends green (tests, lint, release build) and is pushed to `dev`.
+
+## Progress
+
+- 2026-10-15, R0 done: 60 goldens (settings pages, overlay states, widget editor views, widget renders) verified
+  stable; the harness runs compose effects on a standard test dispatcher and waits out loading indicators.
+- 2026-10-15, widget slice of R1 and R4 done: the widget editor keeps its drafts in `WidgetSettingsStore`
+  (`WidgetDraftFields`, `WidgetEditorState`) and is split into tab, dialog and state files; the widget renderer
+  builds its per-width views through `buildResponsiveViews` and reads the same store, so an older build's
+  shortcuts, transparency and G icon now reach the widget and unset element colours follow the theme colour.
+- Next: R1 for the remaining settings pages (repository + ViewModel per page), then R2.

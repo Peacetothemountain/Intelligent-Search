@@ -77,7 +77,18 @@ data class WidgetDefaults(val primaryColor: Int, val isDynamicColorActive: Boole
  */
 class WidgetSettingsStore(private val prefs: SharedPreferences) {
 
-    fun isSaved(design: WidgetDesign): Boolean = prefs.getBoolean(design.savedFlagKey, false)
+    /**
+     * Whether the stored values for [design] are the user's choices: saved by this version's editor, or left
+     * behind by an older build, which wrote the design's own keys without the saved flag (and, for the System
+     * design, the shared custom hue). Until then the design shows its defaults.
+     */
+    fun isSaved(design: WidgetDesign): Boolean {
+        val p = design.prefix
+        return prefs.getBoolean(design.savedFlagKey, false) ||
+            prefs.contains("${p}_subtheme") ||
+            prefs.contains("${p}_custom_color_int") ||
+            prefs.contains(if (design == WidgetDesign.SYSTEM) "widget_custom_hue" else "${p}_lock_black")
+    }
 
     fun load(design: WidgetDesign, defaults: WidgetDefaults): WidgetDesignSettings {
         val p = design.prefix
@@ -90,12 +101,18 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
             prefs.getInt("${p}_$key", if (saved) prefs.getInt(legacy, default) else default)
         fun savedBoolean(key: String, legacy: String, default: Boolean): Boolean =
             if (saved) prefs.getBoolean("${p}_$key", prefs.getBoolean(legacy, default)) else default
-        // Element colours: per-design key, else the old shared key, else the theme colour. The old builds wrote
-        // Google blue as a placeholder; an unsaved placeholder means "use the theme colour".
-        fun color(key: String): Int {
+        // Element colours: per-design key, else the old shared key, else the fallback. The old builds wrote
+        // Google blue as a placeholder; an unsaved placeholder means "use the fallback". For the slots the
+        // fallback is the old single "all shortcuts" colour when one was stored, else the theme colour.
+        fun color(key: String, fallback: Int = defaults.primaryColor): Int {
             val perDesign = "${p}_custom_${key}_color"
-            val value = prefs.getInt(perDesign, prefs.getInt("widget_custom_${key}_color", defaults.primaryColor))
-            return if (value == GOOGLE_BLUE_PLACEHOLDER && !prefs.contains(perDesign)) defaults.primaryColor else value
+            val value = prefs.getInt(perDesign, prefs.getInt("widget_custom_${key}_color", fallback))
+            return if (value == GOOGLE_BLUE_PLACEHOLDER && !prefs.contains(perDesign)) fallback else value
+        }
+        val slotFallback = when {
+            prefs.contains("${p}_custom_shortcuts_color") -> prefs.getInt("${p}_custom_shortcuts_color", defaults.primaryColor)
+            prefs.contains("widget_custom_shortcuts_color") -> prefs.getInt("widget_custom_shortcuts_color", defaults.primaryColor)
+            else -> defaults.primaryColor
         }
         // Hue 277 / saturation 51 were the old hard-coded defaults; when not saved for this design, use the theme's.
         fun themed(key: String, legacy: String, oldDefault: Int, themeDefault: Int): Int {
@@ -114,10 +131,10 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
             gIconTheme = string("material_g_icon", "widget_material_g_icon", defaultGIcon),
             elementColors = WidgetElementColors(
                 gIcon = color("g_icon"),
-                mic = color("mic"),
-                shortcut1 = color("shortcut1"),
-                shortcut2 = color("shortcut2"),
-                shortcut3 = color("shortcut3"),
+                mic = color("mic", slotFallback),
+                shortcut1 = color("shortcut1", slotFallback),
+                shortcut2 = color("shortcut2", slotFallback),
+                shortcut3 = color("shortcut3", slotFallback),
                 action = color("action_icon")
             ),
             syncColors = prefs.getBoolean("${p}_custom_sync_colors", prefs.getBoolean("widget_custom_sync_colors", false)),

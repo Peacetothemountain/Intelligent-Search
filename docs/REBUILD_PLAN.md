@@ -56,7 +56,16 @@ phase ends green (tests, lint, release build) and is pushed to `dev`.
 - 2026-10-16, R2 under way (overlay 2,635 to 2,205 lines): best-match ranking (`BestMatch`), web search and
   quick-app launching (`webSearchLaunch`, `quickAppSearchIntent`) are tested functions outside composition;
   one `SwipeToDismiss` helper replaces three copied swipe rows and gives each a TalkBack Dismiss action.
-- Next: split the overlay's search bar, quick-app panel and results list into their own files, as was done for
-  the widget editor.
+- 2026-10-16, R2 done: the overlay is `SearchOverlayScreen` (849 lines) plus `OverlaySearchBar`,
+  `OverlayQuickAppPanel` and `OverlaySearchResults`, sharing state through `OverlayScope`; goldens unchanged.
+- 2026-10-16, R3 (search slice) done: `DeviceSearchSources` is the injected door to apps, usage, shortcuts,
+  calendar, contacts, files and web suggestions for both `SearchViewModel` and `CorpusIndexManager`, and
+  `SearchViewModelTest` runs the pipeline on a stand-in device (load, hidden apps, indexed app lookup, web
+  suggestions, arithmetic, history). The other `object` singletons are stateless utilities or system entry
+  points and stay as they are.
+- 2026-10-16, more settings pages split: Web Search (page, `WebQuickShortcutsCard`, `WebShortcutBadges`) and
+  the main page's `SearchRoleInfoDialog`.
+- Open: R4 voice session (1,125 lines, needs the device to validate), R5 Gradle modules (worth deciding whether
+  a single-app project needs them), R6 device validation of `dev`.
 - Verification: targeted tests per change, then lint, all tests and the release build once per batch of commits
   before pushing.

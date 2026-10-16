@@ -1223,7 +1223,7 @@ fun SearchOverlayScreen(
                                                 hasStartedTyping = false
                                                 focusManager.clearFocus(force = true)
                                                 keyboardController?.hide()
-                                                val isDirectCall = settingsState.contactDirectCall || prefs[SettingsManager.CONTACT_DIRECT_CALL] || prefs[SettingsManager.CONTACT_DIRECT_CALL]
+                                                val isDirectCall = settingsState.contactDirectCall
                                                 val intent = if (isDirectCall && match.phoneNumber.isNotBlank()) {
                                                     Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                                 } else if (match.lookupUri.isNotBlank()) {
@@ -1267,7 +1267,7 @@ fun SearchOverlayScreen(
                                                 fontFamily = GoogleSansFlex
                                             )
                                         }
-                                        val isDirectCall = settingsState.contactDirectCall || prefs[SettingsManager.CONTACT_DIRECT_CALL] || prefs[SettingsManager.CONTACT_DIRECT_CALL]
+                                        val isDirectCall = settingsState.contactDirectCall
                                         Icon(
                                             imageVector = if (isDirectCall) Icons.Default.Call else Icons.AutoMirrored.Filled.ArrowForward,
                                             contentDescription = if (isDirectCall) "Call" else "Open",
@@ -1835,7 +1835,7 @@ fun SearchOverlayScreen(
                         if (showPeople && isContactsEnabled && displayContacts.isNotEmpty()) {
                             item(key = "contacts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                             items(displayContacts, key = { contact -> "contact_${contact.lookupUri.ifBlank { "${contact.name}_${contact.phoneNumber}" }}" }, contentType = { "contact" }) { contact ->
-                                val isDirectCall = settingsState.contactDirectCall || prefs[SettingsManager.CONTACT_DIRECT_CALL] || prefs[SettingsManager.CONTACT_DIRECT_CALL]
+                                val isDirectCall = settingsState.contactDirectCall
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1995,10 +1995,8 @@ fun SearchOverlayScreen(
             },
         contentAlignment = Alignment.BottomCenter
     ) {
-        val isShowWallpaper = remember(settingsState.showWallpaper) {
-            settingsState.showWallpaper || prefs[SettingsManager.SHOW_WALLPAPER]
-        }
-        val isTransparency = if (settingsState.backgroundTransparency > 0) settingsState.backgroundTransparency else prefs[SettingsManager.BACKGROUND_TRANSPARENCY]
+        val isShowWallpaper = settingsState.showWallpaper
+        val isTransparency = settingsState.backgroundTransparency
         val scrimColor = if (isShowWallpaper) MaterialTheme.colorScheme.scrim else MaterialTheme.colorScheme.background
         val scrimAlphaFactor = if (isShowWallpaper) ((isTransparency / 100f) * 0.7f).coerceIn(0f, 1f) else 1.0f
         Box(

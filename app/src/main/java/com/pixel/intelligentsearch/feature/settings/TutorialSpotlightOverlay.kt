@@ -518,7 +518,9 @@ fun TutorialSpotlightOverlay(
             .background(Color.Transparent)
             .semantics {
                 isTraversalGroup = true
-                paneTitle = "Tutorial Spotlight: ${stepInfo.title}"
+                // The only pane title here: a second one nested inside (on the card) makes Compose throw when the
+                // accessibility tree is built, i.e. as soon as TalkBack is on.
+                paneTitle = "Tutorial step ${currentStep + 1} of ${TutorialManager.TOTAL_STEPS}: ${stepInfo.title}"
             }
             .onGloballyPositioned { coordinates ->
                 if (coordinates.isAttached) {
@@ -782,7 +784,6 @@ fun TutorialSpotlightOverlay(
                     }
                     .semantics {
                         isTraversalGroup = true
-                        paneTitle = "Tutorial step ${currentStep + 1} of ${TutorialManager.TOTAL_STEPS}: ${stepInfo.title}"
                         liveRegion = LiveRegionMode.Polite
                     }
                     .onGloballyPositioned { coordinates ->

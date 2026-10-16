@@ -36,7 +36,7 @@ import org.robolectric.annotation.GraphicsMode
 class WidgetScreenGoldenTest(private val case: String, private val taps: List<String>, private val dark: Boolean) {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule()
+    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
 
     @Before fun inject() {
         hilt.inject()

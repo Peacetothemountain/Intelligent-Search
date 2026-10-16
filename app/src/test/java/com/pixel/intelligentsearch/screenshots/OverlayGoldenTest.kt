@@ -33,7 +33,7 @@ import org.robolectric.annotation.GraphicsMode
 class OverlayGoldenTest(private val state: String, private val query: String, private val dark: Boolean) {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>()
+    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>(confinedEffects())
 
     @Before fun inject() {
         hilt.inject()

@@ -27,3 +27,6 @@ fun rememberAnimationsEnabled(): State<Boolean> {
         awaitDispose { resolver.unregisterContentObserver(observer) }
     }
 }
+
+/** Test tag on loading indicators, so screenshot tests can wait until a screen has finished loading. */
+const val LOADING_INDICATOR_TAG = "loading_indicator"

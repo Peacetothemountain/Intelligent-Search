@@ -87,6 +87,15 @@ android {
 
     testOptions {
       unitTests {
+        // Screenshot tests record goldens with -Proborazzi.record and compare against them otherwise.
+        all { test ->
+          test.systemProperty("roborazzi.test.record", project.findProperty("roborazzi.record")?.toString() ?: "false")
+          test.systemProperty("roborazzi.test.verify", if (project.hasProperty("roborazzi.record")) "false" else "true")
+          // Goldens are inputs: replacing an image must re-run the comparison instead of reusing a cached result.
+          test.inputs.files(project.fileTree("src/test/screenshots")).withPropertyName("screenshotGoldens")
+          // Goldens are recorded on Windows; until Linux rendering is confirmed identical, CI can skip them.
+          if (project.hasProperty("skipScreenshots")) test.exclude("**/screenshots/**")
+        }
         isReturnDefaultValues = true
         // Robolectric tests load the merged manifest and resources.
         isIncludeAndroidResources = true
@@ -151,6 +160,13 @@ dependencies {
   // Robolectric runs Android-dependent code (SharedPreferences, DataStore, Room, ContentResolver) on the JVM.
   testImplementation(libs.robolectric)
   testImplementation(libs.androidx.test.core)
+  // Screenshot tests (Robolectric native graphics) that pin the UI while it is rebuilt.
+  testImplementation(libs.roborazzi)
+  testImplementation(libs.roborazzi.compose)
+  testImplementation(platform(libs.androidx.compose.bom))
+  testImplementation(libs.androidx.compose.ui.test.junit4)
+  testImplementation(libs.hilt.android.testing)
+  kspTest(libs.hilt.android.compiler)
 
   // Instrumented tests: jUnit rules and runners
   androidTestImplementation(libs.androidx.test.core)

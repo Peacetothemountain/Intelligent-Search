@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.compose.ui.platform.testTag
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import android.content.Context
@@ -308,7 +309,7 @@ fun SearchPillsScreen(
 
                 if (isAppsLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(modifier = Modifier.testTag(com.pixel.intelligentsearch.core.ui.LOADING_INDICATOR_TAG))
                     }
                 } else {
                     androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.fillMaxSize()) {

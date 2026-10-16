@@ -39,7 +39,12 @@ class FakeDeviceSearchSources : DeviceSearchSources {
     val apps = listOf(app("Calendar", "com.example.calendar"), app("Camera", "com.example.camera"), app("Hidden Thing", "com.example.hidden"))
     var webSuggestions = listOf("weather today", "weather tomorrow")
 
-    override suspend fun allApps() = apps
+    override suspend fun allApps(forceRefresh: Boolean) = apps
+    override fun invalidateAppsCache() {}
+    override fun appUsage() = emptyMap<String, com.pixel.intelligentsearch.core.data.SystemDataProvider.AppUsage>()
+    override fun allShortcuts() = emptyList<com.pixel.intelligentsearch.core.data.AppShortcutItem>()
+    override suspend fun allContacts() = contacts("")
+    override suspend fun recentFiles(limit: Int, includeHidden: Boolean) = emptyList<com.pixel.intelligentsearch.core.data.FileItem>()
     override suspend fun recentApps(hiddenApps: Set<String>) = apps.filter { it.packageName !in hiddenApps }
     override suspend fun contextAwareQuickApps(hiddenApps: Set<String>) = recentApps(hiddenApps)
     override suspend fun upcomingEvents() = listOf(CalendarEvent("Dentist", "09:30", eventId = 7, beginMillis = 1_000))
@@ -125,6 +130,14 @@ class SearchViewModelTest {
         viewModel.onQueryChanged("")
         val cleared = await("cleared") { it.query.isEmpty() && it.webSuggestions.isEmpty() }
         assertEquals("", cleared.query)
+    }
+
+    @Test
+    fun typingFindsAnIndexedApp() {
+        start()
+        viewModel.onQueryChanged("cal")
+        val apps = await("app results") { it.filteredApps.isNotEmpty() }.filteredApps.map { it.name }
+        assertEquals(listOf("Calendar"), apps)
     }
 
     @Test

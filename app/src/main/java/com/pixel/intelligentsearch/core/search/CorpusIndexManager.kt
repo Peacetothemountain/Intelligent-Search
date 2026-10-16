@@ -13,18 +13,14 @@ import android.os.Looper
 import android.provider.ContactsContract
 import android.util.Log
 import androidx.core.content.ContextCompat
-import com.pixel.intelligentsearch.core.data.ShortcutProvider
-import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.data.UserGrantedFiles
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,6 +45,7 @@ import javax.inject.Singleton
 @Singleton
 class CorpusIndexManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
+    private val sources: com.pixel.intelligentsearch.core.data.DeviceSearchSources,
     private val searchCoordinator: UnifiedSearchCoordinator,
     @param:ApplicationScope private val scope: CoroutineScope
 ) {
@@ -175,7 +172,7 @@ class CorpusIndexManager @Inject constructor(
         if (lastAppUsageAtMs != 0L && now - lastAppUsageAtMs < APP_USAGE_REFRESH_INTERVAL_MS) return
         lastAppUsageAtMs = now
         scope.launch(Dispatchers.IO) {
-            searchCoordinator.updateAppUsage(SystemDataProvider.getAppUsage(context))
+            searchCoordinator.updateAppUsage(sources.appUsage())
         }
     }
 
@@ -183,9 +180,9 @@ class CorpusIndexManager @Inject constructor(
         appsMutex.withLock {
             try {
                 if (forceRefresh) {
-                    SystemDataProvider.invalidateAppsCache()
+                    sources.invalidateAppsCache()
                 }
-                searchCoordinator.bulkIndexApps(SystemDataProvider.getAllApps(context, forceRefresh = forceRefresh))
+                searchCoordinator.bulkIndexApps(sources.allApps(forceRefresh = forceRefresh))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -197,7 +194,7 @@ class CorpusIndexManager @Inject constructor(
     private suspend fun reindexShortcutsInternal() {
         shortcutsMutex.withLock {
             try {
-                val shortcuts = ShortcutProvider.getAllShortcuts(context)
+                val shortcuts = sources.allShortcuts()
                 searchCoordinator.replaceShortcuts(shortcuts)
             } catch (e: CancellationException) {
                 throw e
@@ -213,7 +210,7 @@ class CorpusIndexManager @Inject constructor(
                 android.os.SystemClock.elapsedRealtime() - lastContactsIndexAtMs < onlyIfOlderThanMs
             ) return
             try {
-                val contacts = SystemDataProvider.getAllContacts(context)
+                val contacts = sources.allContacts()
                 // Atomic swap: searches never observe an empty or partially rebuilt contact index.
                 searchCoordinator.replaceContacts(contacts)
                 // Only a read made with the permission counts as fresh, so granting it later still re-reads.
@@ -245,11 +242,7 @@ class CorpusIndexManager @Inject constructor(
                     // Without broad storage permissions (see UserGrantedFiles) MediaStore only returns
                     // this app's own files; the user's chosen folders and photos are the main source.
                     val granted = UserGrantedFiles.loadAll(context, prefs)
-                    val ownMedia = SystemDataProvider.getAllRecentFiles(
-                        context,
-                        limit = 300,
-                        includeHidden = UserGrantedFiles.includeHiddenFiles(prefs)
-                    )
+                    val ownMedia = sources.recentFiles(limit = 300, includeHidden = UserGrantedFiles.includeHiddenFiles(prefs))
                     val files = (granted + ownMedia).distinctBy { it.uri }
                     searchCoordinator.replaceFiles(files)
                     Log.d(TAG, "Indexed ${files.size} files (${granted.size} from chosen folders and photos)")

@@ -50,4 +50,13 @@ phase ends green (tests, lint, release build) and is pushed to `dev`.
   (`WidgetDraftFields`, `WidgetEditorState`) and is split into tab, dialog and state files; the widget renderer
   builds its per-width views through `buildResponsiveViews` and reads the same store, so an older build's
   shortcuts, transparency and G icon now reach the widget and unset element colours follow the theme colour.
-- Next: R1 for the remaining settings pages (repository + ViewModel per page), then R2.
+- 2026-10-16, R1 reassessed: the other settings pages already bind through the typed `rememberSetting`
+  registry, so a ViewModel per page would add code without removing any. The one page on raw keys, Application
+  Search, now uses the tested `SearchPillProfiles` store.
+- 2026-10-16, R2 under way (overlay 2,635 to 2,205 lines): best-match ranking (`BestMatch`), web search and
+  quick-app launching (`webSearchLaunch`, `quickAppSearchIntent`) are tested functions outside composition;
+  one `SwipeToDismiss` helper replaces three copied swipe rows and gives each a TalkBack Dismiss action.
+- Next: split the overlay's search bar, quick-app panel and results list into their own files, as was done for
+  the widget editor.
+- Verification: targeted tests per change, then lint, all tests and the release build once per batch of commits
+  before pushing.

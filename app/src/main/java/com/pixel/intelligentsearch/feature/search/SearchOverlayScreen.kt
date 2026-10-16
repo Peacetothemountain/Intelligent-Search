@@ -15,7 +15,6 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
 import com.pixel.intelligentsearch.feature.settings.tutorialTarget
-import android.app.SearchManager
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
 import com.pixel.intelligentsearch.feature.settings.TutorialSpotlightOverlay
@@ -95,7 +94,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pixel.intelligentsearch.R
-import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -323,82 +321,11 @@ fun SearchOverlayScreen(
         }
 
         val engine = settingsState.searchEngine
-        val customUrl = settingsState.customSearchEngineUrl
-        val encodedQuery = Uri.encode(searchQuery)
-        
-        val intent = when (engine) {
-            "Custom" -> {
-                // Re-validated on every search: only an https address that passes the custom-URL checks is opened,
-                // and only by a browsable activity. Anything else falls back to the system web search.
-                val customUri = com.pixel.intelligentsearch.core.security.CustomSearchUrl.build(customUrl, searchQuery)
-                if (customUri != null) {
-                    com.pixel.intelligentsearch.core.security.CustomSearchUrl.browsableViewIntent(customUri).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                    }
-                } else {
-                    Intent(Intent.ACTION_WEB_SEARCH).apply {
-                        putExtra(SearchManager.QUERY, searchQuery)
-                        putExtra("query", searchQuery)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                    }
-                }
-            }
-            "DuckDuckGo" -> {
-                val ddgIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://duckduckgo.com/?q=$encodedQuery")).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                }
-                val pm = context.packageManager
-                if (pm.resolveActivity(ddgIntent, 0) != null) {
-                    ddgIntent
-                } else {
-                    Intent(Intent.ACTION_WEB_SEARCH).apply {
-                        putExtra(SearchManager.QUERY, searchQuery)
-                        putExtra("query", searchQuery)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                    }
-                }
-            }
-            "Bing" -> {
-                val bingIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.bing.com/search?q=$encodedQuery")).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                }
-                val pm = context.packageManager
-                if (pm.resolveActivity(bingIntent, 0) != null) {
-                    bingIntent
-                } else {
-                    Intent(Intent.ACTION_WEB_SEARCH).apply {
-                        putExtra(SearchManager.QUERY, searchQuery)
-                        putExtra("query", searchQuery)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                    }
-                }
-            }
-            "Tor Project", "Tor Browser" -> {
-                when (val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.torSearch(context, searchQuery)) {
-                    is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open -> launch.intent
-                    else -> {
-                        showTorInstallPopup = true
-                        null
-                    }
-                }
-            }
+        val intent = when (val launch = webSearchLaunch(context, engine, settingsState.customSearchEngineUrl, searchQuery)) {
+            is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open -> launch.intent
             else -> {
-                val googleIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
-                    setPackage("com.google.android.googlequicksearchbox")
-                    putExtra(SearchManager.QUERY, searchQuery)
-                    putExtra("query", searchQuery)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                }
-                val pm = context.packageManager
-                if (pm.resolveActivity(googleIntent, 0) != null) {
-                    googleIntent
-                } else {
-                    Intent(Intent.ACTION_WEB_SEARCH).apply {
-                        putExtra(SearchManager.QUERY, searchQuery)
-                        putExtra("query", searchQuery)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                    }
-                }
+                showTorInstallPopup = true
+                null
             }
         }
         if (intent == null) return@launchWebSearch
@@ -410,12 +337,7 @@ fun SearchOverlayScreen(
                 showTorInstallPopup = true
                 return@launchWebSearch
             }
-            val fallbackIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
-                putExtra(SearchManager.QUERY, searchQuery)
-                putExtra("query", searchQuery)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            }
-            if (!launchSafeIntent(context, fallbackIntent)) {
+            if (!launchSafeIntent(context, systemWebSearchIntent(searchQuery))) {
                 Toast.makeText(context, "No app available to search the web", Toast.LENGTH_SHORT).show()
             }
         }
@@ -545,118 +467,19 @@ fun SearchOverlayScreen(
         }
     }
 
-    val isAppsEnabled by remember {
-        derivedStateOf {
-            settingsState.searchApps
-        }
-    }
-    val isContactsEnabled by remember {
-        derivedStateOf {
-            settingsState.searchContacts
-        }
-    }
-    val isFilesEnabled by remember {
-        derivedStateOf {
-            settingsState.searchFiles
-        }
-    }
-
-    val domainMatchPriorities by remember {
-        derivedStateOf {
-            listOf(
-                "apps" to appWeight,
-                "contacts" to contactWeight,
-                "files" to fileWeight
-            ).sortedByDescending { it.second }
-        }
-    }
-
     val bestMatch by remember {
         derivedStateOf {
-            val q = uiState.query.trim()
-            if (q.isEmpty()) return@derivedStateOf null
-
-            // Tier 1: Exact matches across domains in user-configured priority order
-            for ((domain, _) in domainMatchPriorities) {
-                when (domain) {
-                    "apps" -> {
-                        if (isAppsEnabled) {
-                            val exactApp = visibleApps.firstOrNull { it.name.equals(q, ignoreCase = true) }
-                            if (exactApp != null) return@derivedStateOf exactApp
-                        }
-                    }
-                    "contacts" -> {
-                        if (isContactsEnabled) {
-                            val exactContact = uiState.contacts.firstOrNull { it.name.equals(q, ignoreCase = true) }
-                            if (exactContact != null) return@derivedStateOf exactContact
-                        }
-                    }
-                    "files" -> {
-                        if (isFilesEnabled) {
-                            val exactFile = uiState.files.firstOrNull { it.name.equals(q, ignoreCase = true) }
-                            if (exactFile != null) return@derivedStateOf exactFile
-                        }
-                    }
-                }
-            }
-
-            // Tier 2: Prefix matches across domains in priority order
-            for ((domain, _) in domainMatchPriorities) {
-                when (domain) {
-                    "apps" -> {
-                        if (isAppsEnabled) {
-                            val appMatch = visibleApps.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
-                            if (appMatch != null) return@derivedStateOf appMatch
-                        }
-                    }
-                    "contacts" -> {
-                        if (isContactsEnabled) {
-                            val contactMatch = uiState.contacts.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
-                            if (contactMatch != null) return@derivedStateOf contactMatch
-                        }
-                    }
-                    "files" -> {
-                        if (isFilesEnabled) {
-                            val fileMatch = uiState.files.firstOrNull { it.name.startsWith(q, ignoreCase = true) }
-                            if (fileMatch != null) return@derivedStateOf fileMatch
-                        }
-                    }
-                }
-            }
-
-            // Tier 3: Word-boundary prefix matches (e.g. "notes" matching "Keep Notes")
-            for ((domain, _) in domainMatchPriorities) {
-                when (domain) {
-                    "apps" -> {
-                        if (isAppsEnabled) {
-                            val wordMatch = visibleApps.firstOrNull { app ->
-                                app.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
-                            }
-                            if (wordMatch != null) return@derivedStateOf wordMatch
-                        }
-                    }
-                    "contacts" -> {
-                        if (isContactsEnabled) {
-                            val wordMatch = uiState.contacts.firstOrNull { c ->
-                                c.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
-                            }
-                            if (wordMatch != null) return@derivedStateOf wordMatch
-                        }
-                    }
-                    "files" -> {
-                        if (isFilesEnabled) {
-                            val wordMatch = uiState.files.firstOrNull { f ->
-                                f.name.split("\\s+".toRegex()).any { it.startsWith(q, ignoreCase = true) }
-                            }
-                            if (wordMatch != null) return@derivedStateOf wordMatch
-                        }
-                    }
-                }
-            }
-            null
+            BestMatch.find(
+                uiState.query,
+                listOf(
+                    BestMatch.Domain(appWeight, settingsState.searchApps, visibleApps) { it.name },
+                    BestMatch.Domain(contactWeight, settingsState.searchContacts, uiState.contacts) { it.name },
+                    BestMatch.Domain(fileWeight, settingsState.searchFiles, uiState.files) { it.name }
+                )
+            )
         }
     }
-    
+
     val bestMatchText by remember {
         derivedStateOf {
             when (val match = bestMatch) {

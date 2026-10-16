@@ -5,6 +5,7 @@ import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.core.data.FileItem
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import android.os.Build
 import android.content.Context
 import androidx.compose.animation.*
@@ -75,4 +76,42 @@ internal fun launchSafeIntent(context: Context, intent: Intent, options: android
             false
         }
     }
+}
+
+/** The system's own web search for [query], answered by whichever app handles it. */
+internal fun systemWebSearchIntent(query: String): Intent = Intent(Intent.ACTION_WEB_SEARCH).apply {
+    putExtra(android.app.SearchManager.QUERY, query)
+    putExtra("query", query)
+    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+}
+
+/**
+ * How to search the web for [query] with the chosen engine. Named engines open in an app that can show them and
+ * fall back to the system web search; a custom address is re-validated on every search (https only, browsable
+ * activities only); Tor never falls back to a normal browser, it asks for Tor Browser instead.
+ */
+internal fun webSearchLaunch(context: Context, engine: String, customUrl: String, query: String): com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch {
+    val safe = com.pixel.intelligentsearch.core.security.SafeWebLaunch
+    if (safe.isTorEngine(engine)) return safe.torSearch(context, query)
+    fun viewOrFallback(url: String): Intent {
+        val view = Intent(Intent.ACTION_VIEW, url.toUri()).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        return if (context.packageManager.resolveActivity(view, 0) != null) view else systemWebSearchIntent(query)
+    }
+    val encoded = Uri.encode(query)
+    val intent = when (engine) {
+        "Custom" -> com.pixel.intelligentsearch.core.security.CustomSearchUrl.build(customUrl, query)?.let { uri ->
+            com.pixel.intelligentsearch.core.security.CustomSearchUrl.browsableViewIntent(uri).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+        } ?: systemWebSearchIntent(query)
+        "DuckDuckGo" -> viewOrFallback("https://duckduckgo.com/?q=$encoded")
+        "Bing" -> viewOrFallback("https://www.bing.com/search?q=$encoded")
+        else -> {
+            val google = systemWebSearchIntent(query).setPackage("com.google.android.googlequicksearchbox")
+            if (context.packageManager.resolveActivity(google, 0) != null) google else systemWebSearchIntent(query)
+        }
+    }
+    return com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open(intent)
 }

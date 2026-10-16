@@ -2425,11 +2425,20 @@ fun SearchOverlayScreen(
             }
             
             val surfaceAlpha = if (isShowWallpaper) ((100 - isTransparency) / 100f).coerceIn(0f, 1f) else 1f
+            // Unfolded foldables and tablets (shorter side 600dp or more) get two panes: search bar and quick apps on
+            // the left, results beside them, in a wider panel. A phone in landscape is wide but short, so it keeps one
+            // column and the 720dp panel.
+            // Measured from this window, so the app in half of a split screen counts as the half it has.
+            val windowSize = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize
+            val windowWidthDp = with(density) { windowSize.width.toDp() }
+            val windowHeightDp = with(density) { windowSize.height.toDp() }
+            val useTwoPane = minOf(windowWidthDp, windowHeightDp) >= 600.dp && windowWidthDp >= 700.dp
+            val searchPaneWidth = (windowWidthDp * 0.4f).coerceIn(300.dp, 420.dp)
 
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .widthIn(max = 720.dp)
+                    .widthIn(max = if (useTwoPane) 1200.dp else 720.dp)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 16.dp)
@@ -2487,7 +2496,52 @@ fun SearchOverlayScreen(
                     ) {}
             ) {
                 
-                Column(
+                if (useTwoPane) {
+                    val paneOffsetPx = with(density) { 20.dp.toPx() }
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier.width(searchPaneWidth).fillMaxHeight(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            if (settingsState.bottomSearch) Spacer(modifier = Modifier.weight(1f))
+                            else {
+                                Spacer(modifier = Modifier.statusBarsPadding())
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                            val searchBarPane = @Composable {
+                                Box(modifier = Modifier.graphicsLayer {
+                                    val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                                    alpha = p
+                                    translationY = (1f - p) * paneOffsetPx
+                                }) { searchBarContent() }
+                            }
+                            val quickAppsPane = @Composable {
+                                Box(modifier = Modifier.graphicsLayer {
+                                    val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                                    val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
+                                    alpha = a
+                                    translationY = (1f - a) * paneOffsetPx
+                                }) { quickAppPanelContent() }
+                            }
+                            // Same order as on a phone: the bar sits nearest the edge it is anchored to.
+                            if (settingsState.bottomSearch) { quickAppsPane(); searchBarPane() } else { searchBarPane(); quickAppsPane() }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .statusBarsPadding()
+                                .graphicsLayer {
+                                    val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                                    val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
+                                    alpha = a
+                                    translationY = (1f - a) * paneOffsetPx
+                                }
+                        ) {
+                            searchResultsContent()
+                        }
+                    }
+                } else Column(
                     modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {

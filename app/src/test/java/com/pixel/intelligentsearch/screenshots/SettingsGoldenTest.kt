@@ -81,6 +81,7 @@ class SettingsGoldenTest(private val page: String, private val dark: Boolean) {
             "widget" -> WidgetSettingsScreen(prefs, back)
             "hidden_apps" -> ManageHiddenAppsScreen(prefs, back)
             "backup" -> BackupRestoreScreen(prefs, back)
+            "setup" -> com.pixel.intelligentsearch.feature.settings.SetupChecklistScreen(prefs, {}, back)
             else -> error("unknown page $name")
         }
     }
@@ -106,7 +107,7 @@ class SettingsGoldenTest(private val page: String, private val dark: Boolean) {
     companion object {
         val PAGES = listOf(
             "main", "appearance", "custom_icons", "search_sources", "search_behavior", "launch_portal", "app_search",
-            "search_pills", "web_search", "contact_search", "file_search", "widget", "hidden_apps", "backup"
+            "search_pills", "web_search", "contact_search", "file_search", "widget", "hidden_apps", "backup", "setup"
         )
 
         /** Up to 0.1% of pixels may differ (anti-aliasing); a real layout or colour change exceeds that. */

@@ -65,7 +65,10 @@ phase ends green (tests, lint, release build) and is pushed to `dev`.
   points and stay as they are.
 - 2026-10-16, more settings pages split: Web Search (page, `WebQuickShortcutsCard`, `WebShortcutBadges`) and
   the main page's `SearchRoleInfoDialog`.
-- Open: R4 voice session (1,125 lines, needs the device to validate), R5 Gradle modules (worth deciding whether
-  a single-app project needs them), R6 device validation of `dev`.
+- 2026-10-16, R5 dropped by owner decision: for a single-app project, Gradle modules add build complexity for
+  little gain.
+- Open, waiting on the phone: R4 voice session (1,125 lines) and R6 device validation of `dev`.
+- Purpose (owner, 2026-10-16): `dev` is a comparison build, showing how the app would be built differently from
+  the owner's own `main`; it is not scheduled to replace `main`.
 - Verification: targeted tests per change, then lint, all tests and the release build once per batch of commits
   before pushing.

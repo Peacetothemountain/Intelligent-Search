@@ -201,7 +201,7 @@ fun MainSettingsScreen(
                                                 )
                                             }
                                             Text(
-                                                text = "Starting with Android 17 QPR2, you can choose Intelligent Search as your system-wide default search engine to natively power your home screen search bar.",
+                                                text = "On Android 17 QPR2 and newer, the Android \"Search engine app\" setting decides which app powers your home screen search bar. Its picker only lists apps on your device's search engine list, so Intelligent Search has to be added to that list once (see Manual ADB Activation below) before it can be selected.",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -250,6 +250,7 @@ fun MainSettingsScreen(
                                             }
                                         }
                                     } else {
+                                        val isListed = remember { com.pixel.intelligentsearch.core.system.SearchRoleManager.isListedAsSearchEngine(context) }
                                         Surface(
                                             shape = RoundedCornerShape(16.dp),
                                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -260,7 +261,11 @@ fun MainSettingsScreen(
                                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                                             ) {
                                                 Text(
-                                                    text = "Select Intelligent Search in Android settings to activate it on your home screen:",
+                                                    text = if (isListed) {
+                                                        "Intelligent Search is on this device's search engine list. Select it in Android settings to activate it on your home screen:"
+                                                    } else {
+                                                        "Intelligent Search isn't on this device's search engine list yet, so it won't appear in the Android picker. Run the Manual ADB Activation commands below once, then select it here:"
+                                                    },
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     color = MaterialTheme.colorScheme.onSurface
                                                 )
@@ -278,7 +283,7 @@ fun MainSettingsScreen(
                                                         modifier = Modifier.size(18.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(8.dp))
-                                                    Text("Set as Default Search Engine")
+                                                    Text(if (isListed) "Set as Default Search Engine" else "Open Search Engine Settings")
                                                 }
                                             }
                                         }
@@ -333,7 +338,7 @@ fun MainSettingsScreen(
                                                 }
                                             }
                                             Text(
-                                                text = "If you're running Android 17 QPR2 or an older version, bypass the system package allow list and set Intelligent Search as default manually via ADB:",
+                                                text = "Adds Intelligent Search to this device's search engine list and selects it, so it appears in the Android \"Search engine app\" picker and powers the home screen search bar. Needs Android 17 QPR2 or newer, USB debugging and a computer with ADB; run once:",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -390,7 +395,7 @@ fun MainSettingsScreen(
                                                 )
                                             }
                                             Text(
-                                                text = "• Package Allow List: Settings.Secure.user_setup_search_engine bypasses the QPR2 package allow list so Intelligent Search always qualifies as the system search engine.",
+                                                text = "• Search engine list: Android treats the app named in Settings.Secure.user_setup_search_engine as a listed search engine, so Intelligent Search stays selectable until that setting is cleared (for example by a factory reset), after which the ADB step is needed again.",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )

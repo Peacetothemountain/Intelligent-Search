@@ -29,6 +29,7 @@ interface AppEntryPoint {
     fun corpusIndexManager(): CorpusIndexManager
     fun biometricSearchGate(): BiometricSearchGate
     fun strongBoxSecurityManager(): StrongBoxSecurityManager
+    fun backupManager(): com.pixel.intelligentsearch.core.backup.BackupManager
 
     @ApplicationScope
     fun applicationScope(): CoroutineScope

@@ -239,25 +239,13 @@ class BackupManager @Inject constructor(
                 // Passphrase backups are encrypted in software from the passphrase so they restore on
                 // any phone; the device Keystore is not involved, so they are not hardware backed.
                 val salt = BackupCryptoEngine.generateRandomSalt()
-                val iv = BackupCryptoEngine.generateRandomIv()
                 val passChars = passphrase.toCharArray()
                 val key = try {
                     BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt)
                 } finally {
                     com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
                 }
-                val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
-                val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
-
-                EncryptedBackupEnvelope(
-                    isHardwareBacked = false,
-                    hardwareChip = hwInfo.chipName,
-                    deviceModel = hwInfo.deviceDisplayName,
-                    kdf = KdfMetadata(iterations = BackupCryptoEngine.PBKDF2_ITERATIONS, saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
-                    cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
-                    encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
-                    payloadSha256 = sha
-                )
+                passphraseEnvelope(plainJson, key, salt, hwInfo)
             } else {
                 // No passphrase: encrypt with a non-exportable AES-256 key generated inside this phone's
                 // Keystore (StrongBox when present, otherwise the TEE). The key never leaves the
@@ -290,41 +278,76 @@ class BackupManager @Inject constructor(
                 )
             }
 
-            val envelopeJson = serializeEnvelope(envelope)
-            val bytes = envelopeJson.toByteArray(Charsets.UTF_8)
-
-            var writeSuccess = false
-            // Method 1: Try openFileDescriptor with rwt / sync
-            try {
-                val pfd = context.contentResolver.openFileDescriptor(uri, "rwt")
-                    ?: context.contentResolver.openFileDescriptor(uri, "wt")
-                    ?: context.contentResolver.openFileDescriptor(uri, "w")
-                if (pfd != null) {
-                    pfd.use { fd ->
-                        java.io.FileOutputStream(fd.fileDescriptor).let { fos ->
-                            fos.write(bytes)
-                            fos.flush()
-                            try { fd.fileDescriptor.sync() } catch (_: Throwable) {}
-                        }
-                    }
-                    writeSuccess = true
-                }
-            } catch (e: Throwable) {
-                Log.w("BackupManager", "openFileDescriptor write failed, falling back to openOutputStream", e)
-            }
-
-            // Method 2: Fallback to openOutputStream if PFD failed
-            if (!writeSuccess) {
-                val os = context.contentResolver.openOutputStream(uri, "wt")
-                    ?: context.contentResolver.openOutputStream(uri, "w")
-                    ?: throw IllegalArgumentException("Could not open destination file for writing")
-                os.use { stream ->
-                    stream.write(bytes)
-                    stream.flush()
-                }
-            }
-
+            writeEnvelope(uri, envelope)
         }
+    }
+
+    /**
+     * Writes an automatic backup to [uri], encrypted with a key already derived from the user's passphrase with
+     * [salt]. The file is the same as a passphrase export, so it restores on any phone with that passphrase.
+     */
+    suspend fun exportWithDerivedKey(uri: Uri, key: javax.crypto.SecretKey, salt: ByteArray): Result<Unit> = withContext(Dispatchers.IO) {
+        backupResult("exportWithDerivedKey") {
+            val plainJson = serializePayload(createBackupPayload())
+            val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
+            writeEnvelope(uri, passphraseEnvelope(plainJson, key, salt, hwInfo))
+        }
+    }
+
+    private fun passphraseEnvelope(
+        plainJson: String,
+        key: javax.crypto.SecretKey,
+        salt: ByteArray,
+        hwInfo: com.pixel.intelligentsearch.core.security.SecurityHardwareInfo
+    ): EncryptedBackupEnvelope {
+        val iv = BackupCryptoEngine.generateRandomIv()
+        val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
+        return EncryptedBackupEnvelope(
+            isHardwareBacked = false,
+            hardwareChip = hwInfo.chipName,
+            deviceModel = hwInfo.deviceDisplayName,
+            kdf = KdfMetadata(iterations = BackupCryptoEngine.PBKDF2_ITERATIONS, saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
+            cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
+            encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
+            payloadSha256 = BackupCryptoEngine.calculateSha256(cipherBytes)
+        )
+    }
+
+    /** Serializes [envelope] and writes it to [uri], replacing anything already there. */
+    private fun writeEnvelope(uri: Uri, envelope: EncryptedBackupEnvelope) {
+        val bytes = serializeEnvelope(envelope).toByteArray(Charsets.UTF_8)
+
+        var writeSuccess = false
+        // Method 1: Try openFileDescriptor with rwt / sync
+        try {
+            val pfd = context.contentResolver.openFileDescriptor(uri, "rwt")
+                ?: context.contentResolver.openFileDescriptor(uri, "wt")
+                ?: context.contentResolver.openFileDescriptor(uri, "w")
+            if (pfd != null) {
+                pfd.use { fd ->
+                    java.io.FileOutputStream(fd.fileDescriptor).let { fos ->
+                        fos.write(bytes)
+                        fos.flush()
+                        try { fd.fileDescriptor.sync() } catch (_: Throwable) {}
+                    }
+                }
+                writeSuccess = true
+            }
+        } catch (e: Throwable) {
+            Log.w("BackupManager", "openFileDescriptor write failed, falling back to openOutputStream", e)
+        }
+
+        // Method 2: Fallback to openOutputStream if PFD failed
+        if (!writeSuccess) {
+            val os = context.contentResolver.openOutputStream(uri, "wt")
+                ?: context.contentResolver.openOutputStream(uri, "w")
+                ?: throw IllegalArgumentException("Could not open destination file for writing")
+            os.use { stream ->
+                stream.write(bytes)
+                stream.flush()
+            }
+        }
+
     }
 
     /** Runs [block], turning any failure other than cancellation into a logged [Result.failure]. */

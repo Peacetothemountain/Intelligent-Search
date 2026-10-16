@@ -690,6 +690,8 @@ fun BackupRestoreScreen(
                 }
             }
 
+            AutoBackupCard(passphrase = passphrase)
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Box(

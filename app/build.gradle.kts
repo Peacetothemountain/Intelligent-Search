@@ -139,6 +139,8 @@ dependencies {
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.profileinstaller)
+  // Weekly automatic encrypted backups.
+  implementation(libs.androidx.work.runtime)
   implementation(platform(libs.androidx.compose.bom))
 
   // Compose
@@ -160,6 +162,7 @@ dependencies {
   // Robolectric runs Android-dependent code (SharedPreferences, DataStore, Room, ContentResolver) on the JVM.
   testImplementation(libs.robolectric)
   testImplementation(libs.androidx.test.core)
+  testImplementation(libs.androidx.work.testing)
   // Screenshot tests (Robolectric native graphics) that pin the UI while it is rebuilt.
   testImplementation(libs.roborazzi)
   testImplementation(libs.roborazzi.compose)

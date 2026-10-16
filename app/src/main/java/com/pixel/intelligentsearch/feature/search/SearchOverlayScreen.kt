@@ -42,9 +42,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.semantics.CustomAccessibilityAction
-import androidx.compose.ui.semantics.customActions
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -55,7 +52,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -1064,31 +1060,7 @@ fun SearchOverlayScreen(
             // actions are only added to this list when smart clipboard suggestions are enabled.
             if (uiState.directActions.isNotEmpty()) {
                 items(uiState.directActions, key = { action -> "direct_action_${action.title}_${action.subtitle}" }, contentType = { "direct_action" }) { action ->
-                    var dismissed by remember { mutableStateOf(false) }
-                    var dismissDirection by remember { mutableFloatStateOf(1f) }
-                    val offsetX = remember { Animatable(0f) }
-                    val rowAlpha = remember { Animatable(1f) }
-                    val scope = rememberCoroutineScope()
-
-                    LaunchedEffect(dismissed) {
-                        if (dismissed) {
-                            sensoryEngine.deleteThud(view)
-                            launch {
-                                offsetX.animateTo(
-                                    targetValue = dismissDirection * 1500f,
-                                    animationSpec = ExpressiveMotionTokens.bouncySpring()
-                                )
-                            }
-                            launch {
-                                rowAlpha.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
-                                )
-                            }
-                            delay(160)
-                            viewModel.dismissDirectAction(action)
-                        }
-                    }
+                    val swipe = rememberSwipeToDismiss(sensoryEngine, view) { viewModel.dismissDirectAction(action) }
 
                     Box(
                         modifier = Modifier
@@ -1098,10 +1070,7 @@ fun SearchOverlayScreen(
                                 fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
                                 fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
                             )
-                            .graphicsLayer {
-                                translationX = offsetX.value
-                                alpha = rowAlpha.value
-                            }
+                            .swipeOffset(swipe)
                     ) {
                         val actionIcon = when (action.iconType) {
                             "link" -> Icons.Default.Link
@@ -1117,37 +1086,7 @@ fun SearchOverlayScreen(
                                 .padding(horizontal = 16.dp, vertical = 4.dp)
                                 .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f), RoundedCornerShape(32.dp))
                                 .clip(RoundedCornerShape(32.dp))
-                                .pointerInput(action) {
-                                    detectHorizontalDragGestures(
-                                        onHorizontalDrag = { change, dragAmount ->
-                                            change.consume()
-                                            scope.launch {
-                                                val newOffset = offsetX.value + dragAmount
-                                                offsetX.snapTo(newOffset)
-                                                val dragProgress = (kotlin.math.abs(newOffset) / 600f).coerceIn(0f, 0.6f)
-                                                rowAlpha.snapTo(1f - dragProgress)
-                                            }
-                                        },
-                                        onDragEnd = {
-                                            if (kotlin.math.abs(offsetX.value) > 130f) {
-                                                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
-                                                dismissDirection = if (offsetX.value >= 0f) 1f else -1f
-                                                dismissed = true
-                                            } else {
-                                                scope.launch {
-                                                    launch { offsetX.animateTo(0f, ExpressiveMotionTokens.bouncySpring()) }
-                                                    launch { rowAlpha.animateTo(1f, ExpressiveMotionTokens.gentleSpring()) }
-                                                }
-                                            }
-                                        },
-                                        onDragCancel = {
-                                            scope.launch {
-                                                launch { offsetX.animateTo(0f, ExpressiveMotionTokens.bouncySpring()) }
-                                                launch { rowAlpha.animateTo(1f, ExpressiveMotionTokens.gentleSpring()) }
-                                            }
-                                        }
-                                    )
-                                }
+                                .swipeToDismiss(swipe, action)
                                 .bouncyClickable {
                                     hasStartedTyping = false
                                     focusManager.clearFocus(force = true)
@@ -1546,31 +1485,7 @@ fun SearchOverlayScreen(
                     }
                 }
                 items(distinctRecents, key = { query -> "recent_$query" }, contentType = { "recent_query" }) { recentQuery ->
-                    var dismissed by remember { mutableStateOf(false) }
-                    var dismissDirection by remember { mutableFloatStateOf(1f) }
-                    val offsetX = remember { Animatable(0f) }
-                    val rowAlpha = remember { Animatable(1f) }
-                    val scope = rememberCoroutineScope()
-
-                    LaunchedEffect(dismissed) {
-                        if (dismissed) {
-                            sensoryEngine.deleteThud(view)
-                            launch {
-                                offsetX.animateTo(
-                                    targetValue = dismissDirection * 1500f,
-                                    animationSpec = ExpressiveMotionTokens.bouncySpring()
-                                )
-                            }
-                            launch {
-                                rowAlpha.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
-                                )
-                            }
-                            delay(160)
-                            viewModel.removeSearchHistory(recentQuery)
-                        }
-                    }
+                    val swipe = rememberSwipeToDismiss(sensoryEngine, view, threshold = 120f, fadeDistance = 500f, maxDragFade = 0.7f) { viewModel.removeSearchHistory(recentQuery) }
 
                     Box(
                         modifier = Modifier
@@ -1580,61 +1495,8 @@ fun SearchOverlayScreen(
                                 fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
                                 fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
                             )
-                            .graphicsLayer {
-                                translationX = offsetX.value
-                                alpha = rowAlpha.value
-                            }
-                            .pointerInput(recentQuery) {
-                                detectHorizontalDragGestures(
-                                    onHorizontalDrag = { change, dragAmount ->
-                                        change.consume()
-                                        scope.launch {
-                                            val newOffset = offsetX.value + dragAmount
-                                            offsetX.snapTo(newOffset)
-                                            val dragProgress = (kotlin.math.abs(newOffset) / 500f).coerceIn(0f, 0.7f)
-                                            rowAlpha.snapTo(1f - dragProgress)
-                                        }
-                                    },
-                                    onDragEnd = {
-                                        if (kotlin.math.abs(offsetX.value) > 120f) {
-                                            sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
-                                            dismissDirection = if (offsetX.value >= 0f) 1f else -1f
-                                            dismissed = true
-                                        } else {
-                                            scope.launch {
-                                                launch {
-                                                    offsetX.animateTo(
-                                                        0f,
-                                                        ExpressiveMotionTokens.bouncySpring()
-                                                    )
-                                                }
-                                                launch {
-                                                    rowAlpha.animateTo(
-                                                        1f,
-                                                        ExpressiveMotionTokens.gentleSpring()
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    },
-                                    onDragCancel = {
-                                        scope.launch {
-                                            launch {
-                                                offsetX.animateTo(
-                                                    0f,
-                                                    ExpressiveMotionTokens.bouncySpring()
-                                                )
-                                            }
-                                            launch {
-                                                rowAlpha.animateTo(
-                                                    1f,
-                                                    ExpressiveMotionTokens.gentleSpring()
-                                                )
-                                            }
-                                        }
-                                    }
-                                )
-                            }
+                            .swipeOffset(swipe)
+                            .swipeToDismiss(swipe, recentQuery)
                     ) {
                         val pillShape = RoundedCornerShape(28.dp)
                         Row(
@@ -1715,31 +1577,7 @@ fun SearchOverlayScreen(
             if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
                 // Title + time can repeat (same meeting on two calendars); the instance id and begin time cannot.
                 items(uiState.calendarEvents, key = { event -> "event_${event.eventId}_${event.beginMillis}_${event.title}" }, contentType = { "calendar_event" }) { event ->
-                    var dismissed by remember { mutableStateOf(false) }
-                    var dismissDirection by remember { mutableFloatStateOf(1f) }
-                    val offsetX = remember { Animatable(0f) }
-                    val rowAlpha = remember { Animatable(1f) }
-                    val scope = rememberCoroutineScope()
-
-                    LaunchedEffect(dismissed) {
-                        if (dismissed) {
-                            sensoryEngine.deleteThud(view)
-                            launch {
-                                offsetX.animateTo(
-                                    targetValue = dismissDirection * 1500f,
-                                    animationSpec = ExpressiveMotionTokens.bouncySpring()
-                                )
-                            }
-                            launch {
-                                rowAlpha.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
-                                )
-                            }
-                            delay(160)
-                            viewModel.dismissCalendarEvent(event)
-                        }
-                    }
+                    val swipe = rememberSwipeToDismiss(sensoryEngine, view) { viewModel.dismissCalendarEvent(event) }
 
                     Box(
                         modifier = Modifier
@@ -1749,10 +1587,7 @@ fun SearchOverlayScreen(
                                 fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
                                 fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
                             )
-                            .graphicsLayer {
-                                translationX = offsetX.value
-                                alpha = rowAlpha.value
-                            }
+                            .swipeOffset(swipe)
                     ) {
                         Row(
                             modifier = Modifier
@@ -1765,41 +1600,7 @@ fun SearchOverlayScreen(
                                     ).putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, event.beginMillis)
                                     launchSafeIntent(context, eventIntent)
                                 }
-                                .semantics {
-                                    // Swipe-to-dismiss has no TalkBack equivalent without this.
-                                    customActions = listOf(CustomAccessibilityAction("Dismiss") { dismissed = true; true })
-                                }
-                                .pointerInput(event) {
-                                    detectHorizontalDragGestures(
-                                        onHorizontalDrag = { change, dragAmount ->
-                                            change.consume()
-                                            scope.launch {
-                                                val newOffset = offsetX.value + dragAmount
-                                                offsetX.snapTo(newOffset)
-                                                val dragProgress = (kotlin.math.abs(newOffset) / 600f).coerceIn(0f, 0.6f)
-                                                rowAlpha.snapTo(1f - dragProgress)
-                                            }
-                                        },
-                                        onDragEnd = {
-                                            if (kotlin.math.abs(offsetX.value) > 130f) {
-                                                sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
-                                                dismissDirection = if (offsetX.value >= 0f) 1f else -1f
-                                                dismissed = true
-                                            } else {
-                                                scope.launch {
-                                                    launch { offsetX.animateTo(0f, ExpressiveMotionTokens.bouncySpring()) }
-                                                    launch { rowAlpha.animateTo(1f, ExpressiveMotionTokens.gentleSpring()) }
-                                                }
-                                            }
-                                        },
-                                        onDragCancel = {
-                                            scope.launch {
-                                                launch { offsetX.animateTo(0f, ExpressiveMotionTokens.bouncySpring()) }
-                                                launch { rowAlpha.animateTo(1f, ExpressiveMotionTokens.gentleSpring()) }
-                                            }
-                                        }
-                                    )
-                                }
+                                .swipeToDismiss(swipe, event)
                                 .padding(horizontal = 16.dp, vertical = verticalPad),
                             verticalAlignment = Alignment.CenterVertically
                         ) {

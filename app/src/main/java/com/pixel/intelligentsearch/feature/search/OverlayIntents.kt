@@ -115,3 +115,29 @@ internal fun webSearchLaunch(context: Context, engine: String, customUrl: String
     }
     return com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open(intent)
 }
+
+/**
+ * Searches [packageName] for [query] from its quick-app pill: Chrome, Maps, YouTube and the Play Store get their own
+ * search, Contacts and Files open (or pick) directly, and any other app gets its exported search activity if it has
+ * one, else just opens. Null when the app can't be opened at all.
+ */
+internal fun quickAppSearchIntent(context: Context, packageName: String, query: String): Intent? {
+    val pm = context.packageManager
+    val flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+    val encoded = Uri.encode(query)
+    return when (packageName) {
+        "com.android.chrome" -> Intent(Intent.ACTION_VIEW, "https://google.com/search?q=$encoded".toUri()).setPackage(packageName)
+        "com.google.android.apps.maps" -> Intent(Intent.ACTION_VIEW, "geo:0,0?q=$encoded".toUri()).setPackage(packageName)
+        "com.google.android.youtube" -> Intent(Intent.ACTION_SEARCH).setPackage(packageName).putExtra("query", query)
+        "com.android.vending" -> Intent(Intent.ACTION_VIEW, "market://search?q=$encoded".toUri())
+        "com.google.android.contacts" -> pm.getLaunchIntentForPackage(packageName)
+            ?: Intent(Intent.ACTION_PICK).apply { type = android.provider.ContactsContract.Contacts.CONTENT_TYPE }
+        "com.google.android.apps.nbu.files" -> pm.getLaunchIntentForPackage(packageName)
+            ?: Intent(Intent.ACTION_GET_CONTENT).apply { type = "*/*" }
+        else -> {
+            val search = Intent(Intent.ACTION_SEARCH).setPackage(packageName).putExtra("query", query)
+            if (pm.queryIntentActivities(search, 0).any { it.activityInfo.exported }) search
+            else pm.getLaunchIntentForPackage(packageName)
+        }
+    }?.addFlags(flags)
+}

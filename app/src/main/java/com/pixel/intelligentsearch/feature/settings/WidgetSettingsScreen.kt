@@ -1,5 +1,11 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.widget.WidgetDefaults
+import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
+import com.pixel.intelligentsearch.core.data.widget.WidgetDesignSettings
+import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
+import kotlin.properties.ReadWriteProperty
+import kotlin.reflect.KProperty
 import com.pixel.intelligentsearch.feature.widget.getShortcutIconRes
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
@@ -52,68 +58,18 @@ import kotlinx.coroutines.launch
 // -----------------------------------------------------------------------------------------
 
 private data class SlotPreviewItem(val slotKey: String, val label: String, val resId: Int, val isMic: Boolean)
-private data class WidgetCustomizationSnapshot(
-    val themeStyle: String,
-    val sysSubtheme: String,
-    val sysMaterialGIconTheme: String,
-    val sysCustomGIconColor: Int,
-    val sysCustomMicColor: Int,
-    val sysCustomShortcut1Color: Int,
-    val sysCustomShortcut2Color: Int,
-    val sysCustomShortcut3Color: Int,
-    val sysCustomActionColor: Int,
-    val sysCustomSyncColors: Boolean,
-    val sysKeepSystemG: Boolean,
-    val sysHue: Float,
-    val sysSaturation: Float,
-    val sysLightness: Float,
-    val sysColorOpacity: Float,
-    val sysTransparency: Float,
-    val sysShowGIcon: Boolean,
-    val sysShowVoice: Boolean,
-    val sysShortcut1: String,
-    val sysShortcut2: String,
-    val sysShortcut3: String,
-    val sysSlotOrderStr: String,
-    val matSubtheme: String,
-    val matMaterialGIconTheme: String,
-    val matCustomGIconColor: Int,
-    val matCustomMicColor: Int,
-    val matCustomShortcut1Color: Int,
-    val matCustomShortcut2Color: Int,
-    val matCustomShortcut3Color: Int,
-    val matCustomActionColor: Int,
-    val matCustomSyncColors: Boolean,
-    val matKeepSystemG: Boolean,
-    val matLockBlack: Boolean,
-    val matActionIcon: String,
-    val matHue: Float,
-    val matSaturation: Float,
-    val matLightness: Float,
-    val matColorOpacity: Float,
-    val matTransparency: Float,
-    val matShowGIcon: Boolean,
-    val matShowVoice: Boolean,
-    val matShortcut1: String,
-    val matShortcut2: String,
-    val matShortcut3: String,
-    val matSlotOrderStr: String
-) {
-    fun systemDesign(): List<Any> = listOf(
-        sysSubtheme, sysMaterialGIconTheme, sysCustomGIconColor, sysCustomMicColor,
-        sysCustomShortcut1Color, sysCustomShortcut2Color, sysCustomShortcut3Color, sysCustomActionColor,
-        sysCustomSyncColors, sysKeepSystemG, sysHue, sysSaturation, sysLightness, sysColorOpacity,
-        sysTransparency, sysShowGIcon, sysShowVoice, sysShortcut1, sysShortcut2, sysShortcut3, sysSlotOrderStr
-    )
-
-    fun materialDesign(): List<Any> = listOf(
-        matSubtheme, matMaterialGIconTheme, matCustomGIconColor, matCustomMicColor,
-        matCustomShortcut1Color, matCustomShortcut2Color, matCustomShortcut3Color, matCustomActionColor,
-        matCustomSyncColors, matKeepSystemG, matLockBlack, matActionIcon, matHue, matSaturation,
-        matLightness, matColorOpacity, matTransparency, matShowGIcon, matShowVoice,
-        matShortcut1, matShortcut2, matShortcut3, matSlotOrderStr
-    )
+/** A read-write view of one field of a design draft held in [state], so the UI keeps binding to plain vars. */
+private fun <T> draftField(
+    state: MutableState<WidgetDesignSettings>,
+    get: (WidgetDesignSettings) -> T,
+    set: (WidgetDesignSettings, T) -> WidgetDesignSettings
+) = object : ReadWriteProperty<Any?, T> {
+    override fun getValue(thisRef: Any?, property: KProperty<*>): T = get(state.value)
+    override fun setValue(thisRef: Any?, property: KProperty<*>, value: T) {
+        state.value = set(state.value, value)
+    }
 }
+
 private data class CustomElementTarget(val key: String, val label: String, val color: Int)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -150,376 +106,51 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localThemeStyle by remember { mutableStateOf(prefs[SettingsManager.WIDGET_THEME_STYLE]) }
     val isSystem = localThemeStyle == "System Default"
 
-    // System Design state
+    // Each design is edited as one value. WidgetSettingsStore owns the stored keys and the fallbacks to the keys
+    // older versions shared between designs; the widget renderer reads the same store.
     val isDynamicActive = remember(context) { DynamicThemeDetector.isDynamicColorActive(context) }
-    val defaultSysIcon = if (isDynamicActive) "Material G Icon" else "System G Icon"
-    val sysSaved = prefs.getBoolean("widget_system_design_saved", false)
-    var sysSubtheme by remember {
-        mutableStateOf(prefs.getString("widget_system_subtheme", if (sysSaved) prefs.getString("widget_subtheme", "System") else "System") ?: "System")
-    }
-    var sysMaterialGIconTheme by remember {
-        mutableStateOf(prefs.getString("widget_system_material_g_icon", if (sysSaved) prefs.getString("widget_material_g_icon", defaultSysIcon) else defaultSysIcon) ?: defaultSysIcon)
-    }
     val defaultUserMaterialColor = MaterialTheme.colorScheme.primary.toArgb()
-    val defaultHsv = remember(defaultUserMaterialColor) {
-        val h = FloatArray(3)
-        android.graphics.Color.colorToHSV(defaultUserMaterialColor, h)
-        h
+    val widgetStore = remember(prefs) { WidgetSettingsStore(prefs) }
+    val systemDraft = remember {
+        mutableStateOf(widgetStore.load(WidgetDesign.SYSTEM, WidgetDefaults(defaultUserMaterialColor, isDynamicActive)))
     }
-    val defaultHue = defaultHsv[0]
-    val defaultSat = defaultHsv[1] * 100f
-
-    val resolveCustomColor = { key: String, fallbackKey: String? ->
-        val saved = prefs.getInt(key, if (fallbackKey != null) prefs.getInt(fallbackKey, defaultUserMaterialColor) else defaultUserMaterialColor)
-        if (saved == 0xFF4285F4.toInt() && !prefs.contains(key)) defaultUserMaterialColor else saved
+    val materialDraft = remember {
+        mutableStateOf(widgetStore.load(WidgetDesign.MATERIAL, WidgetDefaults(defaultUserMaterialColor, isDynamicActive)))
     }
 
-    var sysCustomGIconColor by remember {
-        mutableIntStateOf(resolveCustomColor("widget_system_custom_g_icon_color", "widget_custom_g_icon_color"))
-    }
-    var sysCustomMicColor by remember {
-        mutableIntStateOf(resolveCustomColor("widget_system_custom_mic_color", "widget_custom_mic_color"))
-    }
-    var sysCustomShortcut1Color by remember {
-        mutableIntStateOf(resolveCustomColor("widget_system_custom_shortcut1_color", "widget_custom_shortcut1_color"))
-    }
-    var sysCustomShortcut2Color by remember {
-        mutableIntStateOf(resolveCustomColor("widget_system_custom_shortcut2_color", "widget_custom_shortcut2_color"))
-    }
-    var sysCustomShortcut3Color by remember {
-        mutableIntStateOf(resolveCustomColor("widget_system_custom_shortcut3_color", "widget_custom_shortcut3_color"))
-    }
-    var sysCustomActionColor by remember {
-        mutableIntStateOf(resolveCustomColor("widget_system_custom_action_icon_color", "widget_custom_action_icon_color"))
-    }
-    var sysCustomSyncColors by remember {
-        mutableStateOf(prefs.getBoolean("widget_system_custom_sync_colors", prefs.getBoolean("widget_custom_sync_colors", false)))
-    }
-    var sysHue by remember {
-        val hVal = prefs.getInt("widget_system_custom_hue", if (sysSaved) prefs.getInt("widget_custom_hue", defaultHue.toInt()) else defaultHue.toInt())
-        mutableFloatStateOf((if (hVal == 277 && !prefs.contains("widget_system_custom_hue")) defaultHue.toInt() else hVal).toFloat())
-    }
-    var sysSaturation by remember {
-        val sVal = prefs.getInt("widget_system_custom_saturation", if (sysSaved) prefs.getInt("widget_custom_saturation", defaultSat.toInt()) else defaultSat.toInt())
-        mutableFloatStateOf((if (sVal == 51 && !prefs.contains("widget_system_custom_saturation")) defaultSat.toInt() else sVal).toFloat())
-    }
-    var sysLightness by remember {
-        mutableFloatStateOf(prefs.getInt("widget_system_custom_lightness", if (sysSaved) prefs.getInt("widget_custom_lightness", 100) else 100).toFloat())
-    }
-    var sysColorOpacity by remember {
-        mutableFloatStateOf(prefs.getInt("widget_system_custom_color_opacity", if (sysSaved) prefs.getInt("widget_custom_color_opacity", 100) else 100).toFloat())
-    }
-    var sysTransparency by remember {
-        mutableFloatStateOf(prefs.getInt("widget_system_background_transparency", if (sysSaved) prefs.getInt("widget.background.transparency", 0) else 0).toFloat())
-    }
-    var sysShowGIcon by remember {
-        mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
-    }
-    var sysShowVoice by remember {
-        mutableStateOf(if (sysSaved) prefs.getBoolean("widget_system_show_voice", prefs[SettingsManager.WIDGET_SHOW_VOICE]) else true)
-    }
-    val defaultSlotOrder = "shortcut1,mic,shortcut2,shortcut3"
-    val rawSysSc1 = prefs.getString("widget_system_shortcut_1", if (sysSaved) prefs.getString("widget_shortcut_1", "Google Lens") else "Google Lens") ?: "Google Lens"
-    val rawSysSc2 = prefs.getString("widget_system_shortcut_2", if (sysSaved) prefs.getString("widget_shortcut_2", "None") else "None") ?: "None"
-    val rawSysSc3 = prefs.getString("widget_system_shortcut_3", if (sysSaved) prefs.getString("widget_shortcut_3", "None") else "None") ?: "None"
-    var sysShortcut1 by remember { mutableStateOf(if (rawSysSc1 == "Voice Search") "None" else rawSysSc1) }
-    var sysShortcut2 by remember { mutableStateOf(if (rawSysSc2 == "Voice Search") "None" else rawSysSc2) }
-    var sysShortcut3 by remember { mutableStateOf(if (rawSysSc3 == "Voice Search") "None" else rawSysSc3) }
-    var sysSlotOrderStr by remember {
-        mutableStateOf(prefs.getString("widget_system_shortcut_order", if (sysSaved) prefs.getString("widget_shortcut_order", defaultSlotOrder) else defaultSlotOrder) ?: defaultSlotOrder)
-    }
-    var sysKeepSystemG by remember {
-        mutableStateOf(prefs.getBoolean("widget_system_custom_keep_system_g", prefs.getBoolean("widget_custom_keep_system_g", false)))
-    }
-
-    // Material Design state
-    val matSaved = prefs.getBoolean("widget_material_design_saved", false)
-    var matSubtheme by remember {
-        mutableStateOf(prefs.getString("widget_material_subtheme", if (matSaved) prefs.getString("widget_subtheme", "Material") else "Material") ?: "Material")
-    }
-    var matMaterialGIconTheme by remember {
-        mutableStateOf(prefs.getString("widget_material_material_g_icon", if (matSaved) prefs.getString("widget_material_g_icon", "Material G Icon") else "Material G Icon") ?: "Material G Icon")
-    }
-    var matCustomGIconColor by remember {
-        mutableIntStateOf(resolveCustomColor("widget_material_custom_g_icon_color", "widget_custom_g_icon_color"))
-    }
-    var matCustomMicColor by remember {
-        mutableIntStateOf(resolveCustomColor("widget_material_custom_mic_color", "widget_custom_mic_color"))
-    }
-    var matCustomShortcut1Color by remember {
-        mutableIntStateOf(resolveCustomColor("widget_material_custom_shortcut1_color", "widget_custom_shortcut1_color"))
-    }
-    var matCustomShortcut2Color by remember {
-        mutableIntStateOf(resolveCustomColor("widget_material_custom_shortcut2_color", "widget_custom_shortcut2_color"))
-    }
-    var matCustomShortcut3Color by remember {
-        mutableIntStateOf(resolveCustomColor("widget_material_custom_shortcut3_color", "widget_custom_shortcut3_color"))
-    }
-    var matCustomActionColor by remember {
-        mutableIntStateOf(resolveCustomColor("widget_material_custom_action_icon_color", "widget_custom_action_icon_color"))
-    }
-    var matCustomSyncColors by remember {
-        mutableStateOf(prefs.getBoolean("widget_material_custom_sync_colors", prefs.getBoolean("widget_custom_sync_colors", false)))
-    }
-    var matHue by remember {
-        val hVal = prefs.getInt("widget_material_custom_hue", if (matSaved) prefs.getInt("widget_custom_hue", defaultHue.toInt()) else defaultHue.toInt())
-        mutableFloatStateOf((if (hVal == 277 && !prefs.contains("widget_material_custom_hue")) defaultHue.toInt() else hVal).toFloat())
-    }
-    var matSaturation by remember {
-        val sVal = prefs.getInt("widget_material_custom_saturation", if (matSaved) prefs.getInt("widget_custom_saturation", defaultSat.toInt()) else defaultSat.toInt())
-        mutableFloatStateOf((if (sVal == 51 && !prefs.contains("widget_material_custom_saturation")) defaultSat.toInt() else sVal).toFloat())
-    }
-    var matLightness by remember {
-        mutableFloatStateOf(prefs.getInt("widget_material_custom_lightness", if (matSaved) prefs.getInt("widget_custom_lightness", 100) else 100).toFloat())
-    }
-    var matColorOpacity by remember {
-        mutableFloatStateOf(prefs.getInt("widget_material_custom_color_opacity", if (matSaved) prefs.getInt("widget_custom_color_opacity", 100) else 100).toFloat())
-    }
-    var matTransparency by remember {
-        mutableFloatStateOf(prefs.getInt("widget_material_background_transparency", if (matSaved) prefs.getInt("widget.background.transparency", 28) else 28).toFloat())
-    }
-    var matLockBlack by remember {
-        mutableStateOf(prefs.getBoolean("widget_material_lock_black", true))
-    }
-    var matKeepSystemG by remember {
-        mutableStateOf(prefs.getBoolean("widget_material_custom_keep_system_g", prefs.getBoolean("widget_custom_keep_system_g", false)))
-    }
-    var matActionIcon by remember {
-        mutableStateOf(prefs.getString("widget_material_action_icon", if (matSaved) prefs.getString("widget_action_icon", "Search") else "Search") ?: "Search")
-    }
-    var matShowGIcon by remember {
-        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true)
-    }
-    var matShowVoice by remember {
-        mutableStateOf(if (matSaved) prefs.getBoolean("widget_material_show_voice", prefs[SettingsManager.WIDGET_SHOW_VOICE]) else true)
-    }
-    val rawMatSc1 = prefs.getString("widget_material_shortcut_1", if (matSaved) prefs.getString("widget_shortcut_1", "Google Lens") else "Google Lens") ?: "Google Lens"
-    val rawMatSc2 = prefs.getString("widget_material_shortcut_2", if (matSaved) prefs.getString("widget_shortcut_2", "None") else "None") ?: "None"
-    val rawMatSc3 = prefs.getString("widget_material_shortcut_3", if (matSaved) prefs.getString("widget_shortcut_3", "None") else "None") ?: "None"
-    var matShortcut1 by remember { mutableStateOf(if (rawMatSc1 == "Voice Search") "None" else rawMatSc1) }
-    var matShortcut2 by remember { mutableStateOf(if (rawMatSc2 == "Voice Search") "None" else rawMatSc2) }
-    var matShortcut3 by remember { mutableStateOf(if (rawMatSc3 == "Voice Search") "None" else rawMatSc3) }
-    var matSlotOrderStr by remember {
-        mutableStateOf(prefs.getString("widget_material_shortcut_order", if (matSaved) prefs.getString("widget_shortcut_order", defaultSlotOrder) else defaultSlotOrder) ?: defaultSlotOrder)
-    }
-
-    // Synced properties delegating to active bar
-    var localSubtheme by remember(isSystem) {
-        object : MutableState<String> {
-            override var value: String
-                get() = if (isSystem) sysSubtheme else matSubtheme
-                set(v) { if (isSystem) sysSubtheme = v else matSubtheme = v }
-            override fun component1(): String = value
-            override fun component2(): (String) -> Unit = { value = it }
-        }
-    }
-    var localMaterialGIconTheme by remember(isSystem) {
-        object : MutableState<String> {
-            override var value: String
-                get() = if (isSystem) sysMaterialGIconTheme else matMaterialGIconTheme
-                set(v) { if (isSystem) sysMaterialGIconTheme = v else matMaterialGIconTheme = v }
-            override fun component1(): String = value
-            override fun component2(): (String) -> Unit = { value = it }
-        }
-    }
-    var localCustomGIconColor by remember(isSystem) {
-        object : MutableState<Int> {
-            override var value: Int
-                get() = if (isSystem) sysCustomGIconColor else matCustomGIconColor
-                set(v) { if (isSystem) sysCustomGIconColor = v else matCustomGIconColor = v }
-            override fun component1(): Int = value
-            override fun component2(): (Int) -> Unit = { value = it }
-        }
-    }
-    var localCustomMicColor by remember(isSystem) {
-        object : MutableState<Int> {
-            override var value: Int
-                get() = if (isSystem) sysCustomMicColor else matCustomMicColor
-                set(v) { if (isSystem) sysCustomMicColor = v else matCustomMicColor = v }
-            override fun component1(): Int = value
-            override fun component2(): (Int) -> Unit = { value = it }
-        }
-    }
-    var localCustomShortcut1Color by remember(isSystem) {
-        object : MutableState<Int> {
-            override var value: Int
-                get() = if (isSystem) sysCustomShortcut1Color else matCustomShortcut1Color
-                set(v) { if (isSystem) sysCustomShortcut1Color = v else matCustomShortcut1Color = v }
-            override fun component1(): Int = value
-            override fun component2(): (Int) -> Unit = { value = it }
-        }
-    }
-    var localCustomShortcut2Color by remember(isSystem) {
-        object : MutableState<Int> {
-            override var value: Int
-                get() = if (isSystem) sysCustomShortcut2Color else matCustomShortcut2Color
-                set(v) { if (isSystem) sysCustomShortcut2Color = v else matCustomShortcut2Color = v }
-            override fun component1(): Int = value
-            override fun component2(): (Int) -> Unit = { value = it }
-        }
-    }
-    var localCustomShortcut3Color by remember(isSystem) {
-        object : MutableState<Int> {
-            override var value: Int
-                get() = if (isSystem) sysCustomShortcut3Color else matCustomShortcut3Color
-                set(v) { if (isSystem) sysCustomShortcut3Color = v else matCustomShortcut3Color = v }
-            override fun component1(): Int = value
-            override fun component2(): (Int) -> Unit = { value = it }
-        }
-    }
-    var localCustomActionColor by remember(isSystem) {
-        object : MutableState<Int> {
-            override var value: Int
-                get() = if (isSystem) sysCustomActionColor else matCustomActionColor
-                set(v) { if (isSystem) sysCustomActionColor = v else matCustomActionColor = v }
-            override fun component1(): Int = value
-            override fun component2(): (Int) -> Unit = { value = it }
-        }
-    }
-    var localCustomSyncColors by remember(isSystem) {
-        object : MutableState<Boolean> {
-            override var value: Boolean
-                get() = if (isSystem) sysCustomSyncColors else matCustomSyncColors
-                set(v) { if (isSystem) sysCustomSyncColors = v else matCustomSyncColors = v }
-            override fun component1(): Boolean = value
-            override fun component2(): (Boolean) -> Unit = { value = it }
-        }
-    }
+    // The design being edited; every "local" value below reads and writes its draft.
+    val activeDraft = if (isSystem) systemDraft else materialDraft
+    var localSubtheme by draftField(activeDraft, { it.subtheme }) { d, v -> d.copy(subtheme = v) }
+    var localMaterialGIconTheme by draftField(activeDraft, { it.gIconTheme }) { d, v -> d.copy(gIconTheme = v) }
+    var localCustomGIconColor by draftField(activeDraft, { it.elementColors.gIcon }) { d, v -> d.copy(elementColors = d.elementColors.copy(gIcon = v)) }
+    var localCustomMicColor by draftField(activeDraft, { it.elementColors.mic }) { d, v -> d.copy(elementColors = d.elementColors.copy(mic = v)) }
+    var localCustomShortcut1Color by draftField(activeDraft, { it.elementColors.shortcut1 }) { d, v -> d.copy(elementColors = d.elementColors.copy(shortcut1 = v)) }
+    var localCustomShortcut2Color by draftField(activeDraft, { it.elementColors.shortcut2 }) { d, v -> d.copy(elementColors = d.elementColors.copy(shortcut2 = v)) }
+    var localCustomShortcut3Color by draftField(activeDraft, { it.elementColors.shortcut3 }) { d, v -> d.copy(elementColors = d.elementColors.copy(shortcut3 = v)) }
+    var localCustomActionColor by draftField(activeDraft, { it.elementColors.action }) { d, v -> d.copy(elementColors = d.elementColors.copy(action = v)) }
+    var localCustomSyncColors by draftField(activeDraft, { it.syncColors }) { d, v -> d.copy(syncColors = v) }
     var activeCustomColorTarget by remember(isSystem) { mutableStateOf("g_icon") }
     var showCustomHexDialog by remember { mutableStateOf(false) }
     var tempCustomHexInput by remember { mutableStateOf("") }
     var customIconHue by remember(isSystem) { mutableFloatStateOf(0f) }
     var customIconSat by remember(isSystem) { mutableFloatStateOf(100f) }
     var customIconVal by remember(isSystem) { mutableFloatStateOf(100f) }
-    var localHue by remember(isSystem) {
-        object : MutableState<Float> {
-            override var value: Float
-                get() = if (isSystem) sysHue else matHue
-                set(v) { if (isSystem) sysHue = v else matHue = v }
-            override fun component1(): Float = value
-            override fun component2(): (Float) -> Unit = { value = it }
-        }
-    }
-    var localSaturation by remember(isSystem) {
-        object : MutableState<Float> {
-            override var value: Float
-                get() = if (isSystem) sysSaturation else matSaturation
-                set(v) { if (isSystem) sysSaturation = v else matSaturation = v }
-            override fun component1(): Float = value
-            override fun component2(): (Float) -> Unit = { value = it }
-        }
-    }
-    var localLightness by remember(isSystem) {
-        object : MutableState<Float> {
-            override var value: Float
-                get() = if (isSystem) sysLightness else matLightness
-                set(v) { if (isSystem) sysLightness = v else matLightness = v }
-            override fun component1(): Float = value
-            override fun component2(): (Float) -> Unit = { value = it }
-        }
-    }
-    var localColorOpacity by remember(isSystem) {
-        object : MutableState<Float> {
-            override var value: Float
-                get() = if (isSystem) sysColorOpacity else matColorOpacity
-                set(v) { if (isSystem) sysColorOpacity = v else matColorOpacity = v }
-            override fun component1(): Float = value
-            override fun component2(): (Float) -> Unit = { value = it }
-        }
-    }
-    var localTransparency by remember(isSystem) {
-        object : MutableState<Float> {
-            override var value: Float
-                get() = if (isSystem) sysTransparency else matTransparency
-                set(v) { if (isSystem) sysTransparency = v else matTransparency = v }
-            override fun component1(): Float = value
-            override fun component2(): (Float) -> Unit = { value = it }
-        }
-    }
-    var localShowGIcon by remember(isSystem) {
-        object : MutableState<Boolean> {
-            override var value: Boolean
-                get() = if (isSystem) sysShowGIcon else matShowGIcon
-                set(v) { if (isSystem) sysShowGIcon = v else matShowGIcon = v }
-            override fun component1(): Boolean = value
-            override fun component2(): (Boolean) -> Unit = { value = it }
-        }
-    }
-    var localShowVoice by remember(isSystem) {
-        object : MutableState<Boolean> {
-            override var value: Boolean
-                get() = if (isSystem) sysShowVoice else matShowVoice
-                set(v) { if (isSystem) sysShowVoice = v else matShowVoice = v }
-            override fun component1(): Boolean = value
-            override fun component2(): (Boolean) -> Unit = { value = it }
-        }
-    }
-    var localShortcut1 by remember(isSystem) {
-        object : MutableState<String> {
-            override var value: String
-                get() = if (isSystem) sysShortcut1 else matShortcut1
-                set(v) { if (isSystem) sysShortcut1 = v else matShortcut1 = v }
-            override fun component1(): String = value
-            override fun component2(): (String) -> Unit = { value = it }
-        }
-    }
-    var localShortcut2 by remember(isSystem) {
-        object : MutableState<String> {
-            override var value: String
-                get() = if (isSystem) sysShortcut2 else matShortcut2
-                set(v) { if (isSystem) sysShortcut2 = v else matShortcut2 = v }
-            override fun component1(): String = value
-            override fun component2(): (String) -> Unit = { value = it }
-        }
-    }
-    var localShortcut3 by remember(isSystem) {
-        object : MutableState<String> {
-            override var value: String
-                get() = if (isSystem) sysShortcut3 else matShortcut3
-                set(v) { if (isSystem) sysShortcut3 = v else matShortcut3 = v }
-            override fun component1(): String = value
-            override fun component2(): (String) -> Unit = { value = it }
-        }
-    }
-    var localSlotOrderStr by remember(isSystem) {
-        object : MutableState<String> {
-            override var value: String
-                get() = if (isSystem) sysSlotOrderStr else matSlotOrderStr
-                set(v) { if (isSystem) sysSlotOrderStr = v else matSlotOrderStr = v }
-            override fun component1(): String = value
-            override fun component2(): (String) -> Unit = { value = it }
-        }
-    }
-
-    var localLockBlack by remember {
-        object : MutableState<Boolean> {
-            override var value: Boolean
-                get() = matLockBlack
-                set(v) { matLockBlack = v }
-            override fun component1(): Boolean = value
-            override fun component2(): (Boolean) -> Unit = { value = it }
-        }
-    }
-    var localKeepSystemG by remember(isSystem) {
-        object : MutableState<Boolean> {
-            override var value: Boolean
-                get() = if (isSystem) sysKeepSystemG else matKeepSystemG
-                set(v) {
-                    if (isSystem) sysKeepSystemG = v else matKeepSystemG = v
-                }
-            override fun component1(): Boolean = value
-            override fun component2(): (Boolean) -> Unit = { value = it }
-        }
-    }
-    var localActionIcon by remember {
-        object : MutableState<String> {
-            override var value: String
-                get() = matActionIcon
-                set(v) { matActionIcon = v }
-            override fun component1(): String = value
-            override fun component2(): (String) -> Unit = { value = it }
-        }
-    }
+    var localHue by draftField(activeDraft, { it.hue }) { d, v -> d.copy(hue = v) }
+    var localSaturation by draftField(activeDraft, { it.saturation }) { d, v -> d.copy(saturation = v) }
+    var localLightness by draftField(activeDraft, { it.lightness }) { d, v -> d.copy(lightness = v) }
+    var localColorOpacity by draftField(activeDraft, { it.colorOpacity }) { d, v -> d.copy(colorOpacity = v) }
+    var localTransparency by draftField(activeDraft, { it.transparency }) { d, v -> d.copy(transparency = v) }
+    var localShowGIcon by draftField(activeDraft, { it.showGIcon }) { d, v -> d.copy(showGIcon = v) }
+    var localShowVoice by draftField(activeDraft, { it.showVoice }) { d, v -> d.copy(showVoice = v) }
+    var localShortcut1 by draftField(activeDraft, { it.shortcut1 }) { d, v -> d.copy(shortcut1 = v) }
+    var localShortcut2 by draftField(activeDraft, { it.shortcut2 }) { d, v -> d.copy(shortcut2 = v) }
+    var localShortcut3 by draftField(activeDraft, { it.shortcut3 }) { d, v -> d.copy(shortcut3 = v) }
+    var localSlotOrderStr by draftField(activeDraft, { it.slotOrder }) { d, v -> d.copy(slotOrder = v) }
+    var localKeepSystemG by draftField(activeDraft, { it.keepSystemG }) { d, v -> d.copy(keepSystemG = v) }
+    // Material-only settings.
+    var localLockBlack by draftField(materialDraft, { it.lockBlack }) { d, v -> d.copy(lockBlack = v) }
+    var matLockBlack by draftField(materialDraft, { it.lockBlack }) { d, v -> d.copy(lockBlack = v) }
+    var localActionIcon by draftField(materialDraft, { it.actionIcon }) { d, v -> d.copy(actionIcon = v) }
 
     val computedCustomColorInt = remember(localHue, localSaturation, localLightness, localColorOpacity) {
         android.graphics.Color.HSVToColor(
@@ -537,62 +168,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var itemDragOffset by remember { mutableFloatStateOf(0f) }
     var selectedTab by remember { mutableIntStateOf(0) }
 
-        val captureCurrentSnapshot = {
-        WidgetCustomizationSnapshot(
-            themeStyle = localThemeStyle,
-            sysSubtheme = sysSubtheme,
-            sysMaterialGIconTheme = sysMaterialGIconTheme,
-            sysCustomGIconColor = sysCustomGIconColor,
-            sysCustomMicColor = sysCustomMicColor,
-            sysCustomShortcut1Color = sysCustomShortcut1Color,
-            sysCustomShortcut2Color = sysCustomShortcut2Color,
-            sysCustomShortcut3Color = sysCustomShortcut3Color,
-            sysCustomActionColor = sysCustomActionColor,
-            sysCustomSyncColors = sysCustomSyncColors,
-            sysKeepSystemG = sysKeepSystemG,
-            sysHue = sysHue,
-            sysSaturation = sysSaturation,
-            sysLightness = sysLightness,
-            sysColorOpacity = sysColorOpacity,
-            sysTransparency = sysTransparency,
-            sysShowGIcon = sysShowGIcon,
-            sysShowVoice = sysShowVoice,
-            sysShortcut1 = sysShortcut1,
-            sysShortcut2 = sysShortcut2,
-            sysShortcut3 = sysShortcut3,
-            sysSlotOrderStr = sysSlotOrderStr,
-            matSubtheme = matSubtheme,
-            matMaterialGIconTheme = matMaterialGIconTheme,
-            matCustomGIconColor = matCustomGIconColor,
-            matCustomMicColor = matCustomMicColor,
-            matCustomShortcut1Color = matCustomShortcut1Color,
-            matCustomShortcut2Color = matCustomShortcut2Color,
-            matCustomShortcut3Color = matCustomShortcut3Color,
-            matCustomActionColor = matCustomActionColor,
-            matCustomSyncColors = matCustomSyncColors,
-            matKeepSystemG = matKeepSystemG,
-            matLockBlack = matLockBlack,
-            matActionIcon = matActionIcon,
-            matHue = matHue,
-            matSaturation = matSaturation,
-            matLightness = matLightness,
-            matColorOpacity = matColorOpacity,
-            matTransparency = matTransparency,
-            matShowGIcon = matShowGIcon,
-            matShowVoice = matShowVoice,
-            matShortcut1 = matShortcut1,
-            matShortcut2 = matShortcut2,
-            matShortcut3 = matShortcut3,
-            matSlotOrderStr = matSlotOrderStr
-        )
-    }
-
-    var savedSnapshot by remember { mutableStateOf(captureCurrentSnapshot()) }
+    // What was last loaded or saved, to tell whether there are unsaved changes.
+    var savedThemeStyle by remember { mutableStateOf(localThemeStyle) }
+    var savedSystem by remember { mutableStateOf(systemDraft.value) }
+    var savedMaterial by remember { mutableStateOf(materialDraft.value) }
     val hasUnsavedChanges by remember {
         derivedStateOf {
-            captureCurrentSnapshot() != savedSnapshot ||
-            pendingCustomShortcutTypes.isNotEmpty() ||
-            pendingCustomShortcutValues.isNotEmpty()
+            localThemeStyle != savedThemeStyle ||
+                systemDraft.value != savedSystem ||
+                materialDraft.value != savedMaterial ||
+                pendingCustomShortcutTypes.isNotEmpty() ||
+                pendingCustomShortcutValues.isNotEmpty()
         }
     }
     var showUnsavedChangesDialog by remember { mutableStateOf(false) }
@@ -609,80 +195,15 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         pendingCustomShortcutTypes.clear()
         pendingCustomShortcutValues.clear()
 
-        // Both designs are persisted so edits made on the other tab before switching aren't lost.
-        // A design only counts as saved once it differs from what was loaded, which keeps the
-        // legacy-key fallbacks intact for a design the user never touched.
-        val current = captureCurrentSnapshot()
-        val sysEdited = isSystem || current.systemDesign() != savedSnapshot.systemDesign()
-        val matEdited = !isSystem || current.materialDesign() != savedSnapshot.materialDesign()
+        // Both designs are persisted so edits made on the other tab before switching aren't lost. A design only
+        // counts as saved once it differs from what was loaded, which keeps the legacy-key fallbacks intact for a
+        // design the user never touched. Element colours are stored per design only; the old shared
+        // "widget_custom_*" keys stay as the fallback for a design that has never been saved.
+        val system = systemDraft.value
+        val material = materialDraft.value
+        if (isSystem || system != savedSystem) widgetStore.save(WidgetDesign.SYSTEM, system, editor)
+        if (!isSystem || material != savedMaterial) widgetStore.save(WidgetDesign.MATERIAL, material, editor)
 
-        if (sysEdited) {
-            val sysColorInt = android.graphics.Color.HSVToColor(
-                (sysColorOpacity / 100f * 255).toInt().coerceIn(0, 255),
-                floatArrayOf(sysHue, (sysSaturation / 100f).coerceIn(0f, 1f), (sysLightness / 100f).coerceIn(0f, 1f))
-            )
-            editor
-                .putBoolean("widget_system_design_saved", true)
-                .putString("widget_system_subtheme", sysSubtheme)
-                .putString("widget_system_material_g_icon", sysMaterialGIconTheme)
-                .putInt("widget_system_custom_g_icon_color", sysCustomGIconColor)
-                .putInt("widget_system_custom_mic_color", sysCustomMicColor)
-                .putInt("widget_system_custom_shortcut1_color", sysCustomShortcut1Color)
-                .putInt("widget_system_custom_shortcut2_color", sysCustomShortcut2Color)
-                .putInt("widget_system_custom_shortcut3_color", sysCustomShortcut3Color)
-                .putInt("widget_system_custom_action_icon_color", sysCustomActionColor)
-                .putBoolean("widget_system_custom_sync_colors", sysCustomSyncColors)
-                .putBoolean("widget_system_custom_keep_system_g", sysKeepSystemG)
-                .putInt("widget_system_custom_hue", sysHue.toInt())
-                .putInt("widget_system_custom_saturation", sysSaturation.toInt())
-                .putInt("widget_system_custom_lightness", sysLightness.toInt())
-                .putInt("widget_system_custom_color_opacity", sysColorOpacity.toInt())
-                .putInt("widget_system_custom_color_int", sysColorInt)
-                .putInt("widget_system_background_transparency", sysTransparency.toInt())
-                .putBoolean("widget_system_show_g_icon", sysShowGIcon)
-                .putBoolean("widget_system_show_voice", sysShowVoice)
-                .putString("widget_system_shortcut_1", sysShortcut1)
-                .putString("widget_system_shortcut_2", sysShortcut2)
-                .putString("widget_system_shortcut_3", sysShortcut3)
-                .putString("widget_system_shortcut_order", sysSlotOrderStr)
-        }
-        if (matEdited) {
-            val matColorInt = android.graphics.Color.HSVToColor(
-                (matColorOpacity / 100f * 255).toInt().coerceIn(0, 255),
-                floatArrayOf(matHue, (matSaturation / 100f).coerceIn(0f, 1f), (matLightness / 100f).coerceIn(0f, 1f))
-            )
-            editor
-                .putBoolean("widget_material_design_saved", true)
-                .putString("widget_material_subtheme", matSubtheme)
-                .putString("widget_material_material_g_icon", matMaterialGIconTheme)
-                .putInt("widget_material_custom_g_icon_color", matCustomGIconColor)
-                .putInt("widget_material_custom_mic_color", matCustomMicColor)
-                .putInt("widget_material_custom_shortcut1_color", matCustomShortcut1Color)
-                .putInt("widget_material_custom_shortcut2_color", matCustomShortcut2Color)
-                .putInt("widget_material_custom_shortcut3_color", matCustomShortcut3Color)
-                .putInt("widget_material_custom_action_icon_color", matCustomActionColor)
-                .putBoolean("widget_material_custom_sync_colors", matCustomSyncColors)
-                .putBoolean("widget_material_custom_keep_system_g", matKeepSystemG)
-                .putInt("widget_material_custom_hue", matHue.toInt())
-                .putInt("widget_material_custom_saturation", matSaturation.toInt())
-                .putInt("widget_material_custom_lightness", matLightness.toInt())
-                .putInt("widget_material_custom_color_opacity", matColorOpacity.toInt())
-                .putInt("widget_material_custom_color_int", matColorInt)
-                .putInt("widget_material_background_transparency", matTransparency.toInt())
-                .putBoolean("widget_material_lock_black", matLockBlack)
-                .putString("widget_material_action_icon", matActionIcon)
-                .putBoolean("widget_material_show_g_icon", matShowGIcon)
-                .putBoolean("widget_material_show_voice", matShowVoice)
-                .putString("widget_material_shortcut_1", matShortcut1)
-                .putString("widget_material_shortcut_2", matShortcut2)
-                .putString("widget_material_shortcut_3", matShortcut3)
-                .putString("widget_material_shortcut_order", matSlotOrderStr)
-        }
-
-        // Element colours are only written per design above: the widget renderer and the search overlay
-        // read each design's own keys, so a System and a Material widget each follow their own saved
-        // customization. The old shared "widget_custom_*" keys are no longer overwritten; they remain
-        // only as the fallback for a design that has never been saved.
         val activeStyle = if (isSystem) "System Default" else "Material You (Minimal)"
         editor
             .put(SettingsManager.WIDGET_THEME_STYLE, activeStyle)
@@ -694,7 +215,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             if (isSystem) "System Design Saved" else "Material Design Saved",
             android.widget.Toast.LENGTH_SHORT
         ).show()
-        savedSnapshot = current
+        savedThemeStyle = localThemeStyle
+        savedSystem = system
+        savedMaterial = material
     }
 
     val handleBack = {

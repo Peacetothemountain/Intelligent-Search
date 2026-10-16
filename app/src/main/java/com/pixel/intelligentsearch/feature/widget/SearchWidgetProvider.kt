@@ -365,51 +365,79 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         options = options
                     )
 
-                    val config = resolveWidgetConfig(
-                        context = context,
-                        prefs = prefs,
-                        isMaterialYou = isMaterialYou,
-                        isDark = isDark,
-                        widgetColors = widgetColors
-                    )
-
-                    // Android 12+ (API 31) through Android 17 (Canary ZP11 / API 37)
-                    // Multi-tier responsive RemoteViews definitions mapped to launcher grid constraints:
-                    // 1. Ultra-compact (130dp / 2 cells & glanceable hubs): G logo + companion circle (or 1 shortcut)
-                    // 2. Compact (180dp / 3 cells): G logo + 1 shortcut + circle (or 2 shortcuts)
-                    // 3. Standard (260dp / 4 cells - default phone width): G logo + 2 shortcuts + circle (or 3 shortcuts)
-                    // 4. Expanded (340dp / 5 cells, foldables & tablets): G logo + all shortcuts
-                    val buildViews = { maxShortcuts: Int ->
-                        buildRemoteViews(
-                            context = context,
-                            appWidgetId = appWidgetId,
-                            prefs = prefs,
-                            maxShortcuts = maxShortcuts,
-                            config = config
-                        )
-                    }
-
-                    val hasCircle = isMaterialYou && (config.actionIconStr != "None")
-                    val ultraCompactViews = buildViews(if (hasCircle) 0 else 1)
-                    val compactViews = buildViews(if (hasCircle) 1 else 2)
-                    val standardViews = buildViews(if (hasCircle) 2 else 3)
-                    val expandedViews = buildViews(4)
-
-                    // Strictly positive SizeF keys compliant with Android 12+ RemoteViews validation:
-                    // SizeF(0f, 0f) is forbidden by AOSP RemoteViews constructor.
                     val responsiveViews = RemoteViews(
-                        mapOf(
-                            SizeF(110f, 48f) to ultraCompactViews,
-                            SizeF(180f, 48f) to compactViews,
-                            SizeF(260f, 48f) to standardViews,
-                            SizeF(340f, 48f) to expandedViews
-                        )
+                        buildResponsiveViews(context, prefs, appWidgetId, isMaterialYou, isDark, widgetColors)
                     )
                     appWidgetManager.updateAppWidget(appWidgetId, responsiveViews)
                 } catch (e: Throwable) {
                     Log.e(TAG, "Failed to update widget $appWidgetId", e)
                 }
             }
+        }
+
+        /** The widths the launcher can give the widget, in dp; [STANDARD_WIDTH] is a phone's default 4 cells. */
+        val ULTRA_COMPACT_WIDTH = SizeF(110f, 48f)
+        val COMPACT_WIDTH = SizeF(180f, 48f)
+        val STANDARD_WIDTH = SizeF(260f, 48f)
+        val EXPANDED_WIDTH = SizeF(340f, 48f)
+
+        /**
+         * The views one widget shows at each supported width, built from the current settings and theme, keyed
+         * the way [RemoteViews] expects for a responsive widget. The render goldens draw these directly.
+         */
+        internal fun buildResponsiveViews(
+            context: Context,
+            appWidgetId: Int,
+            isMaterialYou: Boolean,
+            prefs: SharedPreferences = getSafeSharedPreferences(context)
+        ): Map<SizeF, RemoteViews> {
+            val isDark = ThemeMode.from(prefs[SettingsManager.THEME])
+                .isDark(ThemeMode.systemIsDark(context.resources.configuration))
+            val widgetColors = DynamicThemeDetector.resolveWidgetColors(context, isDark)
+            return buildResponsiveViews(context, prefs, appWidgetId, isMaterialYou, isDark, widgetColors)
+        }
+
+        private fun buildResponsiveViews(
+            context: Context,
+            prefs: SharedPreferences,
+            appWidgetId: Int,
+            isMaterialYou: Boolean,
+            isDark: Boolean,
+            widgetColors: DynamicThemeDetector.ResolvedWidgetColors
+        ): Map<SizeF, RemoteViews> {
+            val config = resolveWidgetConfig(
+                context = context,
+                prefs = prefs,
+                isMaterialYou = isMaterialYou,
+                isDark = isDark,
+                widgetColors = widgetColors
+            )
+
+            // Android 12+ (API 31) through Android 17 (Canary ZP11 / API 37)
+            // Multi-tier responsive RemoteViews definitions mapped to launcher grid constraints:
+            // 1. Ultra-compact (130dp / 2 cells & glanceable hubs): G logo + companion circle (or 1 shortcut)
+            // 2. Compact (180dp / 3 cells): G logo + 1 shortcut + circle (or 2 shortcuts)
+            // 3. Standard (260dp / 4 cells - default phone width): G logo + 2 shortcuts + circle (or 3 shortcuts)
+            // 4. Expanded (340dp / 5 cells, foldables & tablets): G logo + all shortcuts
+            val buildViews = { maxShortcuts: Int ->
+                buildRemoteViews(
+                    context = context,
+                    appWidgetId = appWidgetId,
+                    prefs = prefs,
+                    maxShortcuts = maxShortcuts,
+                    config = config
+                )
+            }
+
+            val hasCircle = isMaterialYou && (config.actionIconStr != "None")
+            // Strictly positive SizeF keys compliant with Android 12+ RemoteViews validation:
+            // SizeF(0f, 0f) is forbidden by AOSP RemoteViews constructor.
+            return mapOf(
+                ULTRA_COMPACT_WIDTH to buildViews(if (hasCircle) 0 else 1),
+                COMPACT_WIDTH to buildViews(if (hasCircle) 1 else 2),
+                STANDARD_WIDTH to buildViews(if (hasCircle) 2 else 3),
+                EXPANDED_WIDTH to buildViews(4)
+            )
         }
 
         private fun resolveWidgetConfig(

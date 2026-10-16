@@ -91,10 +91,12 @@ fun BugdroidPlayer(
     modifier: Modifier = Modifier,
     scaleFactor: Float = 1.0f
 ) {
+    // A shader that fails to compile on some GPU driver leaves the video unkeyed rather than crashing the page.
     val keyEffect = remember {
-        if (isBugdroidVideoSupported) {
+        if (!isBugdroidVideoSupported) return@remember null
+        runCatching {
             RenderEffect.createRuntimeShaderEffect(RuntimeShader(LUMA_KEY_SHADER), "content").asComposeRenderEffect()
-        } else null
+        }.getOrNull()
     }
     AndroidView(
         factory = { ctx ->

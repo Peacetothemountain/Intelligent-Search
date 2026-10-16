@@ -5,6 +5,14 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 
+/**
+ * Android 17 QPR2's search engine role ("Search engine app" under Default apps) decides which app powers the
+ * home screen search bar. The system picker lists the apps on the device's search engine list plus the app
+ * named in Settings.Secure.user_setup_search_engine, and each must have a home-screen widget that can be added
+ * without a required setup step (ours are configuration-optional). The system removes a holder that stops
+ * qualifying, so the setting is what keeps this app listed; it can only be written with WRITE_SECURE_SETTINGS,
+ * which users grant once over ADB.
+ */
 object SearchRoleManager {
     const val ROLE_SEARCH_ENGINE = "android.app.role.SEARCH_ENGINE"
     const val ROLE_SEARCH = "android.app.role.SEARCH"
@@ -75,11 +83,23 @@ object SearchRoleManager {
     const val ACTION_UPDATE_DSE = "com.google.android.finsky.intent.action.UPDATE_DSE"
 
     /**
-     * Ensures Settings.Secure.user_setup_search_engine is set to this package.
-     * On Android 17 QPR2, SearchEngineRoleBehavior.getQualifyingPackagesInternal() checks
-     * SearchManager.getUserSetupSearchEngineRoleHolder() which reads "user_setup_search_engine".
-     * Setting this key bypasses the hardcoded allow list of search engine packages,
-     * ensuring Intelligent Search is always marked as a qualifying package.
+     * Whether this app is on the device's search engine list as far as the picker is concerned: the
+     * user_setup_search_engine setting names it, or it already holds the role. Only then will the system's
+     * "Search engine app" picker show it.
+     */
+    fun isListedAsSearchEngine(context: Context): Boolean {
+        if (isSearchRoleHeld(context)) return true
+        return try {
+            Settings.Secure.getString(context.contentResolver, SECURE_USER_SETUP_SEARCH_ENGINE) == context.packageName
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Keeps Settings.Secure.user_setup_search_engine pointed at this package. The role treats the package
+     * named there as qualifying alongside the device's search engine list, and revokes a holder that no longer
+     * qualifies, so a holder must keep the setting in place. Writing it needs WRITE_SECURE_SETTINGS.
      */
     fun ensureUserSetupSearchEngineAllowlist(context: Context): Boolean {
         // Without the adb-granted permission the write can only throw.
@@ -107,8 +127,9 @@ object SearchRoleManager {
     }
 
     /**
-     * Synchronizes both user_setup_search_engine (for QPR2 allowlist bypass)
-     * and selected_search_engine (for Pixel Launcher widget sync), then broadcasts UPDATE_DSE.
+     * Writes both user_setup_search_engine (keeps this app on the search engine list) and
+     * selected_search_engine (the setting Pixel Launcher reads directly), then broadcasts UPDATE_DSE.
+     * Both writes need WRITE_SECURE_SETTINGS; without it this does nothing.
      */
     fun syncAllSearchEngineSettings(context: Context): Boolean {
         var success = true

@@ -19,6 +19,7 @@ sealed class Route {
     @Serializable @SerialName("custom_icons") data object CustomIcons : Route()
     @Serializable @SerialName("debug") data object Debug : Route()
     @Serializable @SerialName("backup_restore") data object BackupRestore : Route()
+    @Serializable @SerialName("setup") data object Setup : Route()
 
     companion object {
         fun fromKey(key: String?): Route = when (key?.lowercase()?.trim()) {
@@ -36,6 +37,7 @@ sealed class Route {
             "manage_hidden_apps" -> ManageHiddenApps
             "custom_icons" -> CustomIcons
             "backup_restore" -> BackupRestore
+            "setup" -> Setup
             "debug" -> Debug
             else -> Main
         }

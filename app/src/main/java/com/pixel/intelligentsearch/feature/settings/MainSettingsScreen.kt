@@ -577,6 +577,21 @@ fun MainSettingsScreen(
                 .graphicsLayer { alpha = if (showTutorial) 0f else 1f },
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+            // Offered until everything is set up or the user says they're done; read again on every visit.
+            val offerSetup = remember { SetupChecklist.shouldOffer(context, prefs) }
+            if (offerSetup) {
+                val setupDone = remember { SetupChecklist.doneCount(context, prefs) }
+                val setupTotal = remember { SetupChecklist.steps(context).size }
+                SettingsCard {
+                    SettingsRow(
+                        title = "Finish Setting Up",
+                        subtitle = "$setupDone of $setupTotal done. Let search find your contacts, calendar and files.",
+                        icon = Icons.Outlined.Checklist,
+                        onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.Setup) },
+                        showDivider = false
+                    )
+                }
+            }
             SettingsCard {
                 SettingsRow(
                     title = "Appearance",

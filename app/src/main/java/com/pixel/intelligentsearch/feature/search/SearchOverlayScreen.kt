@@ -871,59 +871,7 @@ fun SearchOverlayScreen(
                                     if (searchStr.isEmpty()) {
                                         performLaunch(packageName, null, null)
                                     } else {
-                                        val intent = when (packageName) {
-                                            "com.android.chrome" -> {
-                                                val url = "https://google.com/search?q=${Uri.encode(searchStr)}"
-                                                Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply { 
-                                                    setPackage(packageName)
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                                }
-                                            }
-                                            "com.google.android.apps.maps" -> {
-                                                Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(searchStr.ifEmpty { "Restaurants" })}")).apply { 
-                                                    setPackage(packageName)
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                                }
-                                            }
-                                            "com.google.android.youtube" -> {
-                                                Intent(Intent.ACTION_SEARCH).apply { 
-                                                    setPackage(packageName)
-                                                    putExtra("query", searchStr.ifEmpty { "Music" })
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                                }
-                                            }
-                                            "com.android.vending" -> {
-                                                Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=${Uri.encode(searchStr)}")).apply {
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                                }
-                                            }
-                                            "com.google.android.contacts" -> {
-                                                (context.packageManager.getLaunchIntentForPackage(packageName) 
-                                                    ?: Intent(Intent.ACTION_PICK).apply { type = android.provider.ContactsContract.Contacts.CONTENT_TYPE })
-                                                    .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) }
-                                            }
-                                            "com.google.android.apps.nbu.files" -> {
-                                                (context.packageManager.getLaunchIntentForPackage(packageName) 
-                                                    ?: Intent(Intent.ACTION_GET_CONTENT).apply { type = "*/*" })
-                                                    .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) }
-                                            }
-                                            else -> {
-                                                 val searchIntent = Intent(Intent.ACTION_SEARCH).apply {
-                                                     setPackage(packageName)
-                                                     putExtra("query", searchStr)
-                                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                                 }
-                                                 val resolved = context.packageManager.queryIntentActivities(searchIntent, 0)
-                                                 val hasExportedSearch = resolved.any { it.activityInfo.exported }
-                                                 if (hasExportedSearch) {
-                                                     searchIntent
-                                                 } else {
-                                                     context.packageManager.getLaunchIntentForPackage(packageName)?.apply {
-                                                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                                     }
-                                                 }
-                                             }
-                                        }
+                                        val intent = quickAppSearchIntent(context, packageName, searchStr)
                                         if (intent != null) {
                                             hasStartedTyping = false
                                             launchSafeIntent(context, intent)

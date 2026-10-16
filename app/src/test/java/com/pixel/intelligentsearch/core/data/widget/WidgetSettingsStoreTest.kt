@@ -59,22 +59,51 @@ class WidgetSettingsStoreTest {
     fun legacySharedKeysCountOnlyOnceTheDesignWasSaved() {
         prefs.edit()
             .putString("widget_subtheme", "Dark")
-            .putInt("widget_custom_hue", 120)
             .putString("widget_shortcut_1", "Weather")
             .putInt("widget_custom_mic_color", 0xFF00FF00.toInt())
             .commit()
         val unsaved = store.load(WidgetDesign.SYSTEM, defaults)
         assertEquals("System", unsaved.subtheme)
-        assertEquals(defaults.hue.toFloat(), unsaved.hue)
         assertEquals("Google Lens", unsaved.shortcut1)
+        assertFalse(store.isSaved(WidgetDesign.SYSTEM))
         // Element colours always fell back to the shared key.
         assertEquals(0xFF00FF00.toInt(), unsaved.elementColors.mic)
 
         prefs.edit().putBoolean("widget_system_design_saved", true).commit()
         val saved = store.load(WidgetDesign.SYSTEM, defaults)
         assertEquals("Dark", saved.subtheme)
-        assertEquals(120f, saved.hue)
         assertEquals("Weather", saved.shortcut1)
+    }
+
+    @Test
+    fun anOlderBuildsDesignKeysCountAsSaved() {
+        // Older builds never wrote the saved flag; the widget honoured their values all the same.
+        prefs.edit().putString("widget_subtheme", "Dark").putInt("widget_custom_hue", 120).putString("widget_shortcut_1", "Weather").commit()
+        assertTrue(store.isSaved(WidgetDesign.SYSTEM))
+        val system = store.load(WidgetDesign.SYSTEM, defaults)
+        assertEquals("Dark", system.subtheme)
+        assertEquals(120f, system.hue)
+        assertEquals("Weather", system.shortcut1)
+        // The shared hue says nothing about the Material design; its own keys do.
+        assertFalse(store.isSaved(WidgetDesign.MATERIAL))
+        prefs.edit().putBoolean("widget_material_lock_black", false).commit()
+        assertTrue(store.isSaved(WidgetDesign.MATERIAL))
+        assertEquals("Dark", store.load(WidgetDesign.MATERIAL, defaults).subtheme)
+    }
+
+    @Test
+    fun theOldAllShortcutsColourIsTheFallbackForSlots() {
+        prefs.edit()
+            .putInt("widget_custom_shortcuts_color", 0xFF123456.toInt())
+            .putInt("widget_custom_shortcut2_color", 0xFF654321.toInt())
+            .putInt("widget_custom_shortcut3_color", 0xFF4285F4.toInt()) // placeholder
+            .commit()
+        val loaded = store.load(WidgetDesign.SYSTEM, defaults)
+        assertEquals(0xFF123456.toInt(), loaded.elementColors.mic)
+        assertEquals(0xFF123456.toInt(), loaded.elementColors.shortcut1)
+        assertEquals(0xFF654321.toInt(), loaded.elementColors.shortcut2)
+        assertEquals(0xFF123456.toInt(), loaded.elementColors.shortcut3)
+        assertEquals(primary, loaded.elementColors.gIcon)
     }
 
     @Test

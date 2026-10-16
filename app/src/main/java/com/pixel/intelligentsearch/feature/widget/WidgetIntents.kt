@@ -257,9 +257,6 @@ fun getCustomIntentOrDefault(context: Context, shortcut: String, defaultIntent: 
     return defaultIntent()
 }
 
-internal const val SYSTEM_DESIGN_PREFIX = "widget_system"
-internal const val MATERIAL_DESIGN_PREFIX = "widget_material"
-
 fun getNowPlayingIntent(context: Context): Intent {
     val pm = context.packageManager
 

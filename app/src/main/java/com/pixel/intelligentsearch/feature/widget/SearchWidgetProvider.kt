@@ -5,6 +5,12 @@ import com.pixel.intelligentsearch.core.util.storageContext
 import com.pixel.intelligentsearch.core.theme.ThemeMode
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.widget.WidgetDefaults
+import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
+import com.pixel.intelligentsearch.core.data.widget.WidgetDesignSettings
+import com.pixel.intelligentsearch.core.data.widget.WidgetElementColors
+import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
+import androidx.core.graphics.toColorInt
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -96,20 +102,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
     companion object {
         private const val TAG = "SearchWidgetProvider"
-
-        fun hasSavedSystemDesign(prefs: SharedPreferences): Boolean {
-            return prefs.getBoolean("widget_system_design_saved", false) ||
-                    prefs.contains("widget_system_subtheme") ||
-                    prefs.contains("widget_system_custom_color_int") ||
-                    prefs.contains("widget_custom_hue")
-        }
-
-        fun hasSavedMaterialDesign(prefs: SharedPreferences): Boolean {
-            return prefs.getBoolean("widget_material_design_saved", false) ||
-                    prefs.contains("widget_material_subtheme") ||
-                    prefs.contains("widget_material_custom_color_int") ||
-                    prefs.contains("widget_material_lock_black")
-        }
 
         fun resolveIsMaterialYou(
             appWidgetManager: AppWidgetManager?,
@@ -337,8 +329,10 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val allActiveItems: List<ActiveShortcutItem>,
             val isPillLight: Boolean,
             val customSubtheme: Boolean,
-            /** "widget_system" or "widget_material": prefix of this design's saved custom element colours. */
-            val designPrefix: String
+            /** The design's custom element colours and whether they all follow the G icon's. */
+            val elementColors: WidgetElementColors,
+            val syncColors: Boolean,
+            val keepSystemG: Boolean
         )
 
         fun updateWidgetsSync(
@@ -447,50 +441,29 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             isDark: Boolean,
             widgetColors: DynamicThemeDetector.ResolvedWidgetColors
         ): WidgetDesignConfig {
+            // The same reader as Widget Customization, so the widget shows what the editor showed.
+            val design = if (isMaterialYou) WidgetDesign.MATERIAL else WidgetDesign.SYSTEM
+            val settings = WidgetSettingsStore(prefs).load(design, WidgetDefaults(widgetColors.primary, widgetColors.isDynamicActive))
+            val isCustom = settings.subtheme == "Custom"
+            val customSat = settings.saturation / 100f
+            val customColorOpacity = (settings.colorOpacity / 100f).coerceIn(0f, 1f)
+            val containerAlpha = ((100 - settings.transparency.toInt()) / 100f).coerceIn(0f, 1f)
+            val containerAlphaInt = (containerAlpha * 255).toInt().coerceIn(0, 255)
+            val effectiveColorAlphaInt = (customColorOpacity * containerAlpha * 255).toInt().coerceIn(0, 255)
+            val actualCustomColor = settings.customColorInt
+            val customColorLuminance = (0.299 * Color.red(actualCustomColor) + 0.587 * Color.green(actualCustomColor) + 0.114 * Color.blue(actualCustomColor)) / 255.0
+            val effectiveIconTheme = settings.gIconTheme
+
             return if (!isMaterialYou) {
                 // SYSTEM DESIGN BAR: Colorful Google branding, no outer accent rim
-                val hasSaved = hasSavedSystemDesign(prefs)
-                val subthemeStr = if (hasSaved) {
-                    prefs.getString("widget_system_subtheme", prefs.getString("widget_subtheme", "System")) ?: "System"
-                } else "System"
-
-                val customHue = if (hasSaved) prefs.getInt("widget_system_custom_hue", prefs.getInt("widget_custom_hue", 277)).toFloat() else 277f
-                val customSat = if (hasSaved) prefs.getInt("widget_system_custom_saturation", prefs.getInt("widget_custom_saturation", 51)) / 100f else 0.51f
-                val customLightness = if (hasSaved) prefs.getInt("widget_system_custom_lightness", prefs.getInt("widget_custom_lightness", 100)) / 100f else 1.0f
-                val customColorOpacity = if (hasSaved) prefs.getInt("widget_system_custom_color_opacity", prefs.getInt("widget_custom_color_opacity", 100)) / 100f else 1.0f
-                val transparency = if (hasSaved) prefs.getInt("widget_system_background_transparency", 0) else 0
-
-                val containerAlpha = ((100 - transparency) / 100f).coerceIn(0f, 1f)
-                val containerAlphaInt = (containerAlpha * 255).toInt().coerceIn(0, 255)
-                val effectiveColorAlphaInt = (customColorOpacity.coerceIn(0f, 1f) * containerAlpha * 255).toInt().coerceIn(0, 255)
-
-                val actualCustomColor = if (hasSaved && prefs.contains("widget_system_custom_color_int")) {
-                    prefs.getInt("widget_system_custom_color_int", Color.HSVToColor(
-                        (customColorOpacity.coerceIn(0f, 1f) * 255).toInt().coerceIn(0, 255),
-                        floatArrayOf(customHue, customSat, customLightness)
-                    ))
-                } else {
-                    Color.HSVToColor(
-                        (customColorOpacity.coerceIn(0f, 1f) * 255).toInt().coerceIn(0, 255),
-                        floatArrayOf(customHue, customSat, customLightness)
-                    )
-                }
-                val customColorLuminance = (0.299 * Color.red(actualCustomColor) + 0.587 * Color.green(actualCustomColor) + 0.114 * Color.blue(actualCustomColor)) / 255
-
-                val pillColor = when (subthemeStr) {
+                val pillColor = when (settings.subtheme) {
                     "Light" -> 0xFFF1F3F4.toInt()
                     "Dark" -> 0xFF303134.toInt()
                     "Custom" -> actualCustomColor
                     else -> widgetColors.surfaceContainer
                 }
-                val pillAlphaInt = if (subthemeStr == "Custom") effectiveColorAlphaInt else containerAlphaInt
-                val isPillLight = subthemeStr == "Light" || (subthemeStr == "System" && !isDark) || (subthemeStr == "Custom" && customColorLuminance > 0.5)
-
-                val effectiveIconTheme = if (hasSaved) {
-                    prefs.getString("widget_system_material_g_icon", if (subthemeStr == "Custom") "Material G Icon" else "System G Icon") ?: "System G Icon"
-                } else {
-                    if (widgetColors.isDynamicActive) "Material G Icon" else "System G Icon"
-                }
+                val pillAlphaInt = if (isCustom) effectiveColorAlphaInt else containerAlphaInt
+                val isPillLight = settings.subtheme == "Light" || (settings.subtheme == "System" && !isDark) || (isCustom && customColorLuminance > 0.5)
 
                 val gIconRes = when (effectiveIconTheme) {
                     "System G Icon" -> R.drawable.ic_g_logo_colored
@@ -498,53 +471,19 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     else -> R.drawable.ic_g_logo_colored
                 }
 
-                val (themePColor, themeSColor, themeTColor) = if (subthemeStr == "Custom") {
-                    val isDarkSurface = !isPillLight
+                val (themePColor, themeSColor, themeTColor) = if (isCustom) {
                     val m3Colors = MaterialYouPaletteHelper.getMaterialYouTonalColors(
-                        hue = customHue,
+                        hue = settings.hue,
                         saturation = customSat * 100f,
-                        isDarkSurface = isDarkSurface
+                        isDarkSurface = !isPillLight
                     )
                     Triple(m3Colors.primary, m3Colors.secondary, m3Colors.tertiary)
                 } else {
                     Triple(widgetColors.primary, widgetColors.secondary, widgetColors.tertiary)
                 }
 
-                val useMaterialYouIcons = (effectiveIconTheme != "System G Icon") || isPillLight || (subthemeStr == "Custom")
-                val showVoice = if (hasSaved) prefs.getBoolean("widget_system_show_voice", true) else true
-                val showGIcon = if (hasSaved) prefs.getBoolean("widget_system_show_g_icon", true) else true
-
-                val rawShortcut1 = if (hasSaved) prefs.getString("widget_system_shortcut_1", "Google Lens") ?: "Google Lens" else "Google Lens"
-                val rawShortcut2 = if (hasSaved) prefs.getString("widget_system_shortcut_2", "None") ?: "None" else "None"
-                val rawShortcut3 = if (hasSaved) prefs.getString("widget_system_shortcut_3", "None") ?: "None" else "None"
-                val shortcut1Str = if (rawShortcut1 == "Voice Search") "None" else rawShortcut1
-                val shortcut2Str = if (rawShortcut2 == "Voice Search") "None" else rawShortcut2
-                val shortcut3Str = if (rawShortcut3 == "Voice Search") "None" else rawShortcut3
-
-                val slotOrderStr = if (hasSaved) {
-                    prefs.getString("widget_system_shortcut_order", "shortcut1,mic,shortcut2,shortcut3") ?: "shortcut1,mic,shortcut2,shortcut3"
-                } else "shortcut1,mic,shortcut2,shortcut3"
-                val slotOrder = slotOrderStr.split(",").filter { it.isNotBlank() }
-
-                val allActiveItems = mutableListOf<ActiveShortcutItem>()
-                for (key in slotOrder) {
-                    when (key) {
-                        "mic" -> if (showVoice) {
-                            val micIcon = if (useMaterialYouIcons) R.drawable.ic_mic else R.drawable.ic_mic_original
-                            allActiveItems.add(ActiveShortcutItem("mic", "mic", micIcon, getVoiceSearchIntent(context)))
-                        }
-                        "shortcut1" -> if (shortcut1Str != "None") {
-                            allActiveItems.add(ActiveShortcutItem("shortcut1", shortcut1Str, getShortcutIconRes(shortcut1Str, useMaterialYouIcons), getShortcutIntent(context, shortcut1Str)))
-                        }
-                        "shortcut2" -> if (shortcut2Str != "None") {
-                            allActiveItems.add(ActiveShortcutItem("shortcut2", shortcut2Str, getShortcutIconRes(shortcut2Str, useMaterialYouIcons), getShortcutIntent(context, shortcut2Str)))
-                        }
-                        "shortcut3" -> if (shortcut3Str != "None") {
-                            allActiveItems.add(ActiveShortcutItem("shortcut3", shortcut3Str, getShortcutIconRes(shortcut3Str, useMaterialYouIcons), getShortcutIntent(context, shortcut3Str)))
-                        }
-                    }
-                }
-
+                val useMaterialYouIcons = (effectiveIconTheme != "System G Icon") || isPillLight || isCustom
+                val micIcon = if (useMaterialYouIcons) R.drawable.ic_mic else R.drawable.ic_mic_original
                 val pillColorOpaque = Color.rgb(Color.red(pillColor), Color.green(pillColor), Color.blue(pillColor))
 
                 WidgetDesignConfig(
@@ -555,47 +494,23 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     pillAlphaInt = pillAlphaInt,
                     circleColorOpaque = pillColorOpaque,
                     circleAlphaInt = pillAlphaInt,
-                    showGIcon = showGIcon,
+                    showGIcon = settings.showGIcon,
                     gIconRes = gIconRes,
                     themePColor = themePColor,
                     themeSColor = themeSColor,
                     themeTColor = themeTColor,
                     effectiveIconTheme = effectiveIconTheme,
                     actionIconStr = "None",
-                    allActiveItems = allActiveItems,
+                    allActiveItems = activeItems(context, settings, micIcon, useMaterialYouIcons),
                     isPillLight = isPillLight,
-                    customSubtheme = (subthemeStr == "Custom"),
-                    designPrefix = SYSTEM_DESIGN_PREFIX
+                    customSubtheme = isCustom,
+                    elementColors = settings.elementColors,
+                    syncColors = settings.syncColors,
+                    keepSystemG = settings.keepSystemG
                 )
             } else {
                 // MATERIAL DESIGN BAR: Dual-layer accent rim, companion circle button
-                val hasSaved = hasSavedMaterialDesign(prefs)
-                val subthemeStr = if (hasSaved) {
-                    prefs.getString("widget_material_subtheme", prefs.getString("widget_subtheme", "Material")) ?: "Material"
-                } else "Material"
-
-                val customHue = if (hasSaved) prefs.getInt("widget_material_custom_hue", prefs.getInt("widget_custom_hue", 277)).toFloat() else 277f
-                val customSat = if (hasSaved) prefs.getInt("widget_material_custom_saturation", prefs.getInt("widget_custom_saturation", 51)) / 100f else 0.51f
-                val customLightness = if (hasSaved) prefs.getInt("widget_material_custom_lightness", prefs.getInt("widget_custom_lightness", 100)) / 100f else 1.0f
-                val customColorOpacity = if (hasSaved) prefs.getInt("widget_material_custom_color_opacity", prefs.getInt("widget_custom_color_opacity", 100)) / 100f else 1.0f
-                val lockBlack = prefs.getBoolean("widget_material_lock_black", true)
-                val transparency = if (hasSaved) prefs.getInt("widget_material_background_transparency", prefs.getInt("widget.background.transparency", 28)) else 28
-
-                val containerAlpha = ((100 - transparency) / 100f).coerceIn(0f, 1f)
-                val containerAlphaInt = (containerAlpha * 255).toInt().coerceIn(0, 255)
-                val effectiveColorAlphaInt = (customColorOpacity.coerceIn(0f, 1f) * containerAlpha * 255).toInt().coerceIn(0, 255)
-
-                val actualCustomColor = if (hasSaved && prefs.contains("widget_material_custom_color_int")) {
-                    prefs.getInt("widget_material_custom_color_int", Color.HSVToColor(
-                        (customColorOpacity.coerceIn(0f, 1f) * 255).toInt().coerceIn(0, 255),
-                        floatArrayOf(customHue, customSat, customLightness)
-                    ))
-                } else {
-                    Color.HSVToColor(
-                        (customColorOpacity.coerceIn(0f, 1f) * 255).toInt().coerceIn(0, 255),
-                        floatArrayOf(customHue, customSat, customLightness)
-                    )
-                }
+                val lockBlack = settings.lockBlack
                 val isDarkForWidget = if (lockBlack) true else isDark
                 val effectiveWidgetColors = if (isDarkForWidget != isDark) {
                     DynamicThemeDetector.resolveWidgetColors(context, isDarkForWidget)
@@ -603,47 +518,39 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     widgetColors
                 }
 
-                val rimColor = when (subthemeStr) {
+                val rimColor = when (settings.subtheme) {
                     "Custom" -> actualCustomColor
                     "Material" -> effectiveWidgetColors.primaryContainer
                     else -> effectiveWidgetColors.primary
                 }
 
                 val pillColor = if (lockBlack) {
-                    Color.parseColor("#121212")
+                    "#121212".toColorInt()
                 } else {
-                    if (subthemeStr == "Custom") actualCustomColor else effectiveWidgetColors.surfaceContainer
+                    if (isCustom) actualCustomColor else effectiveWidgetColors.surfaceContainer
                 }
 
                 val circleColor = pillColor
                 val rimAlphaInt = effectiveColorAlphaInt
-                val pillAlphaInt = if (lockBlack) 255 else (if (subthemeStr == "Custom") effectiveColorAlphaInt else containerAlphaInt)
+                val pillAlphaInt = if (lockBlack) 255 else (if (isCustom) effectiveColorAlphaInt else containerAlphaInt)
                 val circleAlphaInt = pillAlphaInt
 
                 val rimColorOpaque = Color.rgb(Color.red(rimColor), Color.green(rimColor), Color.blue(rimColor))
                 val pillColorOpaque = Color.rgb(Color.red(pillColor), Color.green(pillColor), Color.blue(pillColor))
                 val circleColorOpaque = Color.rgb(Color.red(circleColor), Color.green(circleColor), Color.blue(circleColor))
 
-                val customColorLuminance = (0.299 * Color.red(actualCustomColor) + 0.587 * Color.green(actualCustomColor) + 0.114 * Color.blue(actualCustomColor)) / 255.0
-                val isPillLight = if (subthemeStr == "Custom") (!lockBlack && (customColorLuminance > 0.5)) else (!isDark && !lockBlack)
-
-                val effectiveIconTheme = if (hasSaved) {
-                    prefs.getString("widget_material_material_g_icon", prefs.getString("widget_material_g_icon", "Material G Icon")) ?: "Material G Icon"
-                } else "Material G Icon"
-
-                val keepSystemG = designFlag(prefs, MATERIAL_DESIGN_PREFIX, "keep_system_g", false)
+                val isPillLight = if (isCustom) (!lockBlack && (customColorLuminance > 0.5)) else (!isDark && !lockBlack)
 
                 val gIconRes = when {
-                    effectiveIconTheme == "System G Icon" || (effectiveIconTheme == "Custom G Icon" && keepSystemG) -> R.drawable.ic_g_logo_colored
+                    effectiveIconTheme == "System G Icon" || (effectiveIconTheme == "Custom G Icon" && settings.keepSystemG) -> R.drawable.ic_g_logo_colored
                     else -> R.drawable.ic_g_logo
                 }
 
-                val (rawPColor, rawSColor, rawTColor) = if (subthemeStr == "Custom") {
-                    val isDarkSurface = !isPillLight
+                val (rawPColor, rawSColor, rawTColor) = if (isCustom) {
                     val m3Colors = MaterialYouPaletteHelper.getMaterialYouTonalColors(
-                        hue = customHue,
+                        hue = settings.hue,
                         saturation = customSat * 100f,
-                        isDarkSurface = isDarkSurface
+                        isDarkSurface = !isPillLight
                     )
                     Triple(m3Colors.primary, m3Colors.secondary, m3Colors.tertiary)
                 } else {
@@ -660,40 +567,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     Triple(rawPColor, rawSColor, rawTColor)
                 }
 
-                val showVoice = if (hasSaved) prefs.getBoolean("widget_material_show_voice", true) else true
-                val showGIcon = if (hasSaved) prefs.getBoolean("widget_material_show_g_icon", true) else true
-                val actionIconStr = if (hasSaved) prefs.getString("widget_material_action_icon", "Search") ?: "Search" else "Search"
-
-                val rawShortcut1 = if (hasSaved) prefs.getString("widget_material_shortcut_1", "Google Lens") ?: "Google Lens" else "Google Lens"
-                val rawShortcut2 = if (hasSaved) prefs.getString("widget_material_shortcut_2", "None") ?: "None" else "None"
-                val rawShortcut3 = if (hasSaved) prefs.getString("widget_material_shortcut_3", "None") ?: "None" else "None"
-                val shortcut1Str = if (rawShortcut1 == "Voice Search") "None" else rawShortcut1
-                val shortcut2Str = if (rawShortcut2 == "Voice Search") "None" else rawShortcut2
-                val shortcut3Str = if (rawShortcut3 == "Voice Search") "None" else rawShortcut3
-
-                val slotOrderStr = if (hasSaved) {
-                    prefs.getString("widget_material_shortcut_order", "shortcut1,mic,shortcut2,shortcut3") ?: "shortcut1,mic,shortcut2,shortcut3"
-                } else "shortcut1,mic,shortcut2,shortcut3"
-                val slotOrder = slotOrderStr.split(",").filter { it.isNotBlank() }
-
-                val allActiveItems = mutableListOf<ActiveShortcutItem>()
-                for (key in slotOrder) {
-                    when (key) {
-                        "mic" -> if (showVoice) {
-                            allActiveItems.add(ActiveShortcutItem("mic", "mic", R.drawable.ic_mic, getVoiceSearchIntent(context)))
-                        }
-                        "shortcut1" -> if (shortcut1Str != "None") {
-                            allActiveItems.add(ActiveShortcutItem("shortcut1", shortcut1Str, getShortcutIconRes(shortcut1Str, true), getShortcutIntent(context, shortcut1Str)))
-                        }
-                        "shortcut2" -> if (shortcut2Str != "None") {
-                            allActiveItems.add(ActiveShortcutItem("shortcut2", shortcut2Str, getShortcutIconRes(shortcut2Str, true), getShortcutIntent(context, shortcut2Str)))
-                        }
-                        "shortcut3" -> if (shortcut3Str != "None") {
-                            allActiveItems.add(ActiveShortcutItem("shortcut3", shortcut3Str, getShortcutIconRes(shortcut3Str, true), getShortcutIntent(context, shortcut3Str)))
-                        }
-                    }
-                }
-
                 WidgetDesignConfig(
                     isMaterialYou = true,
                     rimColorOpaque = rimColorOpaque,
@@ -702,19 +575,43 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     pillAlphaInt = pillAlphaInt,
                     circleColorOpaque = circleColorOpaque,
                     circleAlphaInt = circleAlphaInt,
-                    showGIcon = showGIcon,
+                    showGIcon = settings.showGIcon,
                     gIconRes = gIconRes,
                     themePColor = themePColor,
                     themeSColor = themeSColor,
                     themeTColor = themeTColor,
                     effectiveIconTheme = effectiveIconTheme,
-                    actionIconStr = actionIconStr,
-                    allActiveItems = allActiveItems,
+                    actionIconStr = settings.actionIcon,
+                    allActiveItems = activeItems(context, settings, R.drawable.ic_mic, useMaterialYouIcons = true),
                     isPillLight = isPillLight,
-                    customSubtheme = (subthemeStr == "Custom"),
-                    designPrefix = MATERIAL_DESIGN_PREFIX
+                    customSubtheme = isCustom,
+                    elementColors = settings.elementColors,
+                    syncColors = settings.syncColors,
+                    keepSystemG = settings.keepSystemG
                 )
             }
+        }
+
+        /** The slots the widget shows, in the user's order: the mic when voice is on, and each shortcut that is set. */
+        private fun activeItems(
+            context: Context,
+            settings: WidgetDesignSettings,
+            micIcon: Int,
+            useMaterialYouIcons: Boolean
+        ): List<ActiveShortcutItem> {
+            val shortcuts = mapOf("shortcut1" to settings.shortcut1, "shortcut2" to settings.shortcut2, "shortcut3" to settings.shortcut3)
+            val items = mutableListOf<ActiveShortcutItem>()
+            for (key in settings.slotOrder.split(",").filter { it.isNotBlank() }) {
+                if (key == "mic") {
+                    if (settings.showVoice) items.add(ActiveShortcutItem("mic", "mic", micIcon, getVoiceSearchIntent(context)))
+                } else {
+                    val name = shortcuts[key] ?: continue
+                    if (name != "None") {
+                        items.add(ActiveShortcutItem(key, name, getShortcutIconRes(name, useMaterialYouIcons), getShortcutIntent(context, name)))
+                    }
+                }
+            }
+            return items
         }
 
         private fun buildRemoteViews(
@@ -745,7 +642,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             views.setColorStateList(R.id.widget_sound_background, "setImageTintList", ColorStateList.valueOf(config.circleColorOpaque))
             views.setInt(R.id.widget_sound_background, "setImageAlpha", config.circleAlphaInt)
 
-            bindGIcon(views, config.showGIcon, config.gIconRes, config.themePColor, config.themeSColor, config.themeTColor, config.effectiveIconTheme, context, prefs, config.isPillLight, config.designPrefix)
+            bindGIcon(views, config, context)
 
             val activeItems = config.allActiveItems.take(maxShortcuts)
             val viewIdTargets = listOf(
@@ -770,18 +667,16 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     if (hasCustomShortcuts) {
                         // Each design keeps its own saved colours, so a System and a Material widget on the
                         // same home screen each follow their own customization.
-                        val design = config.designPrefix
-                        val isSync = designFlag(prefs, design, "sync_colors", false)
-                        val shortcutsColor = designColor(prefs, design, "shortcuts_color", config.themePColor)
-                        val customScColor = if (isSync) {
-                            designColor(prefs, design, "g_icon_color", config.themePColor)
+                        val colors = config.elementColors
+                        val customScColor = if (config.syncColors) {
+                            colors.gIcon
                         } else {
                             when (item.slotKey) {
-                                "mic" -> designColor(prefs, design, "mic_color", shortcutsColor)
-                                "shortcut1" -> designColor(prefs, design, "shortcut1_color", shortcutsColor)
-                                "shortcut2" -> designColor(prefs, design, "shortcut2_color", shortcutsColor)
-                                "shortcut3" -> designColor(prefs, design, "shortcut3_color", shortcutsColor)
-                                else -> shortcutsColor
+                                "mic" -> colors.mic
+                                "shortcut1" -> colors.shortcut1
+                                "shortcut2" -> colors.shortcut2
+                                "shortcut3" -> colors.shortcut3
+                                else -> config.themePColor
                             }
                         }
                         views.setImageViewResource(targetViewId, item.iconRes)
@@ -922,12 +817,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 val hasCustomAction = config.effectiveIconTheme == "Custom G Icon"
 
                 if (hasCustomAction) {
-                    val isSync = designFlag(prefs, config.designPrefix, "sync_colors", false)
-                    val customActColor = if (isSync) {
-                        designColor(prefs, config.designPrefix, "g_icon_color", config.themePColor)
-                    } else {
-                        designColor(prefs, config.designPrefix, "action_icon_color", config.themePColor)
-                    }
+                    val customActColor = if (config.syncColors) config.elementColors.gIcon else config.elementColors.action
                     views.setImageViewResource(R.id.widget_sound_icon, circleActionIconRes)
                     views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", ColorStateList.valueOf(customActColor))
                     views.setInt(R.id.widget_sound_icon, "setImageAlpha", 255)
@@ -1007,55 +897,24 @@ open class SearchWidgetProvider : AppWidgetProvider() {
          * A design that has never been saved falls back to the shared "widget_custom_*" key written
          * before colours were stored per design.
          */
-        private fun designColor(prefs: SharedPreferences, designPrefix: String, element: String, fallback: Int): Int {
-            val designKey = "${designPrefix}_custom_$element"
-            val legacyKey = "widget_custom_$element"
-            return when {
-                prefs.contains(designKey) -> prefs.getInt(designKey, fallback)
-                prefs.contains(legacyKey) -> prefs.getInt(legacyKey, fallback)
-                else -> fallback
-            }
-        }
-
-        /** Boolean counterpart of [designColor], e.g. "sync_colors" and "keep_system_g". */
-        private fun designFlag(prefs: SharedPreferences, designPrefix: String, element: String, fallback: Boolean): Boolean {
-            val designKey = "${designPrefix}_custom_$element"
-            val legacyKey = "widget_custom_$element"
-            return when {
-                prefs.contains(designKey) -> prefs.getBoolean(designKey, fallback)
-                prefs.contains(legacyKey) -> prefs.getBoolean(legacyKey, fallback)
-                else -> fallback
-            }
-        }
-
-        private fun bindGIcon(
-            views: RemoteViews,
-            showGIcon: Boolean,
-            gIconRes: Int,
-            pColor: Int,
-            sColor: Int,
-            tColor: Int,
-            materialGIconTheme: String,
-            context: Context,
-            prefs: SharedPreferences? = null,
-            isPillLight: Boolean = false,
-            designPrefix: String = SYSTEM_DESIGN_PREFIX
-        ) {
+        private fun bindGIcon(views: RemoteViews, config: WidgetDesignConfig, context: Context) {
+            val showGIcon = config.showGIcon
+            val materialGIconTheme = config.effectiveIconTheme
+            val pColor = config.themePColor
+            val isPillLight = config.isPillLight
             views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
             views.setInt(R.id.widget_g_logo, "setImageAlpha", 255)
             views.setContentDescription(R.id.widget_g_logo, context.getString(R.string.widget_talkback_google_logo))
 
-            val keepSystemG = prefs?.let { designFlag(it, designPrefix, "keep_system_g", false) } ?: false
-
-            if (keepSystemG || materialGIconTheme == "System G Icon") {
+            if (config.keepSystemG || materialGIconTheme == "System G Icon") {
                 views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo_colored)
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
             } else if (materialGIconTheme == "Material G Icon") {
-                val gBitmap = createCustomMaterialGBitmap(pColor, sColor, tColor, isPillLight, context)
+                val gBitmap = createCustomMaterialGBitmap(pColor, config.themeSColor, config.themeTColor, isPillLight, context)
                 views.setImageViewBitmap(R.id.widget_g_logo, gBitmap)
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
             } else if (materialGIconTheme == "Custom G Icon") {
-                val customGColor = prefs?.let { designColor(it, designPrefix, "g_icon_color", pColor) } ?: pColor
+                val customGColor = config.elementColors.gIcon
                 views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo)
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", ColorStateList.valueOf(customGColor))
             } else if (materialGIconTheme == "Accented G Icon") {

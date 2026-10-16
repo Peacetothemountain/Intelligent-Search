@@ -31,3 +31,4 @@ plugins {
 
 rootProject.name = "Intelligent Search"
 include(":app")
+include(":baselineprofile")

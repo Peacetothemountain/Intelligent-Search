@@ -7,6 +7,7 @@ plugins {
   alias(libs.plugins.ksp)
   alias(libs.plugins.hilt)
   alias(libs.plugins.room)
+  alias(libs.plugins.baselineprofile)
 }
 
 android {
@@ -139,6 +140,8 @@ dependencies {
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.profileinstaller)
+  // The overlay start-up profile, generated on a phone by :baselineprofile.
+  baselineProfile(project(":baselineprofile"))
   // Weekly automatic encrypted backups.
   implementation(libs.androidx.work.runtime)
   implementation(platform(libs.androidx.compose.bom))

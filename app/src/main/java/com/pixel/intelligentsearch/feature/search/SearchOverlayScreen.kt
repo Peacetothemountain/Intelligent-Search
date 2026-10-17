@@ -3,6 +3,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import com.pixel.intelligentsearch.feature.widget.getLensSearchIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceActionIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceSearchIntent
+import com.pixel.intelligentsearch.core.ui.uniqueItems
 import com.pixel.intelligentsearch.core.ui.getAppName
 import com.pixel.intelligentsearch.core.ui.AppIconResult
 import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
@@ -969,7 +970,7 @@ fun SearchOverlayScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(uiState.bangSuggestions, key = { bang -> "bang_${bang.prefix}" }, contentType = { "bang" }) { bang ->
+                    uniqueItems(uiState.bangSuggestions, key = { bang -> "bang_${bang.prefix}" }, contentType = { "bang" }) { bang ->
                         AssistChip(
                             onClick = {
                                 val currentQ = uiState.query
@@ -1027,7 +1028,7 @@ fun SearchOverlayScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(pillPackages, key = { pkg -> "pill_$pkg" }, contentType = { "pill" }) { packageName ->
+                uniqueItems(pillPackages, key = { pkg -> "pill_$pkg" }, contentType = { "pill" }) { packageName ->
                             val appIconState = remember(packageName, settingsState.activeIconPack) {
                                 mutableStateOf<AppIconResult?>(peekThemedAppIcon(packageName, settingsState.activeIconPack))
                             }
@@ -1240,7 +1241,7 @@ fun SearchOverlayScreen(
             // Parsed intents (timers, alarms, events, messages, calls, navigation) always show; clipboard
             // actions are only added to this list when smart clipboard suggestions are enabled.
             if (uiState.directActions.isNotEmpty()) {
-                items(uiState.directActions, key = { action -> "direct_action_${action.title}_${action.subtitle}" }, contentType = { "direct_action" }) { action ->
+                uniqueItems(uiState.directActions, key = { action -> "direct_action_${action.title}_${action.subtitle}" }, contentType = { "direct_action" }) { action ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableFloatStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1664,7 +1665,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchPreviousSearches && uiState.query.isEmpty() && distinctRecents.isNotEmpty()) {
-                item(key = "recent_label", contentType = "recent_label") {
+                item(key = "header_recent_searches", contentType = "recent_label") {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1722,7 +1723,7 @@ fun SearchOverlayScreen(
                         }
                     }
                 }
-                items(distinctRecents, key = { query -> "recent_$query" }, contentType = { "recent_query" }) { recentQuery ->
+                uniqueItems(distinctRecents, key = { query -> "recent_$query" }, contentType = { "recent_query" }) { recentQuery ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableFloatStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1891,7 +1892,7 @@ fun SearchOverlayScreen(
 
             if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
                 // Title + time can repeat (same meeting on two calendars); the instance id and begin time cannot.
-                items(uiState.calendarEvents, key = { event -> "event_${event.eventId}_${event.beginMillis}_${event.title}" }, contentType = { "calendar_event" }) { event ->
+                uniqueItems(uiState.calendarEvents, key = { event -> "event_${event.eventId}_${event.beginMillis}_${event.title}" }, contentType = { "calendar_event" }) { event ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableFloatStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1995,7 +1996,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchShortcuts && uiState.shortcuts.isNotEmpty()) {
-                items(uiState.shortcuts, key = { shortcut -> "shortcut_${shortcut.packageName}_${shortcut.id}_${shortcut.userHandle.hashCode()}" }, contentType = { "app_shortcut" }) { shortcut ->
+                uniqueItems(uiState.shortcuts, key = { shortcut -> "shortcut_${shortcut.packageName}_${shortcut.id}_${shortcut.userHandle.hashCode()}" }, contentType = { "app_shortcut" }) { shortcut ->
                     Row(
                         modifier = Modifier.fillMaxWidth().expressiveRowClickable {
                             hasStartedTyping = false
@@ -2101,7 +2102,7 @@ fun SearchOverlayScreen(
                                             }
                                         }
                                     }
-                                    items(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }, contentType = { "app_item" }) { app ->
+                                    uniqueItems(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }, contentType = { "app_item" }) { app ->
                                         AppGridItem(app) { performAppLaunch(app) }
                                     }
                                 }
@@ -2111,7 +2112,7 @@ fun SearchOverlayScreen(
                     "web" -> {
                         if (showWeb && (settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
                             if (allDisplaySuggestions.isNotEmpty()) {
-                                items(allDisplaySuggestions, key = { suggestion -> "sugg_$suggestion" }, contentType = { "web_suggestion" }) { suggestion ->
+                                uniqueItems(allDisplaySuggestions, key = { suggestion -> "sugg_$suggestion" }, contentType = { "web_suggestion" }) { suggestion ->
                                     val isRecent = uiState.recentSearches.any { it.equals(suggestion, ignoreCase = true) }
                                     val trimmed = uiState.query.trim()
                                     val annotatedSuggestion = remember(suggestion, trimmed) {
@@ -2210,7 +2211,7 @@ fun SearchOverlayScreen(
                         val displayContacts = if (filteredContacts.isNotEmpty()) filteredContacts else uiState.contacts
                         if (showPeople && isContactsEnabled && displayContacts.isNotEmpty()) {
                             item(key = "contacts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                            items(displayContacts, key = { contact -> "contact_${contact.lookupUri.ifBlank { "${contact.name}_${contact.phoneNumber}" }}" }, contentType = { "contact" }) { contact ->
+                            uniqueItems(displayContacts, key = { contact -> "contact_${contact.lookupUri.ifBlank { "${contact.name}_${contact.phoneNumber}" }}" }, contentType = { "contact" }) { contact ->
                                 val isDirectCall = settingsState.contactDirectCall || prefs[SettingsManager.CONTACT_DIRECT_CALL] || prefs[SettingsManager.CONTACT_DIRECT_CALL]
                                 Row(
                                     modifier = Modifier
@@ -2258,7 +2259,7 @@ fun SearchOverlayScreen(
                         val displayFiles = if (filteredFiles.isNotEmpty()) filteredFiles else uiState.files
                         if (showFiles && isFilesEnabled && displayFiles.isNotEmpty()) {
                             item(key = "files_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                            items(displayFiles, key = { file -> "file_${file.uri}" }, contentType = { "file" }) { file ->
+                            uniqueItems(displayFiles, key = { file -> "file_${file.uri}" }, contentType = { "file" }) { file ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()

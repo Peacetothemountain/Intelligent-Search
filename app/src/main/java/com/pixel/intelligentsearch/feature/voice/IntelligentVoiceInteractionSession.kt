@@ -72,6 +72,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -864,9 +866,12 @@ fun VoiceAssistantBottomSheet(
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
             )
         ) {
+            // Scrolls when the sheet is taller than the screen (a small phone at large text), so the controls and
+            // quick prompts are never cut off at the bottom; at normal sizes it fits and nothing moves.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 24.dp)
                     .padding(top = 12.dp, bottom = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally

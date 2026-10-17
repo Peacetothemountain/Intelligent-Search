@@ -174,10 +174,11 @@ data class Privacy(
     val shareContactsWithAssistants: Boolean = false,
 )
 
-/** Folder grants are tied to this phone, so [folders] is left out of backups (see [forBackup]). */
+/** Folder and photo picker grants are tied to this phone, so [folders] and [media] stay out of backups. */
 @Serializable
 data class Files(
     val folders: List<String> = emptyList(),
+    val media: List<String> = emptyList(),
     val showHidden: Boolean = false,
     val thumbnails: Boolean = true,
 )
@@ -227,8 +228,8 @@ data class Debug(
 )
 
 /** The settings as backed up: the device-bound folder grants and the debug switches stay on this phone. */
-fun Settings.forBackup(): Settings = copy(files = files.copy(folders = emptyList()), debug = Debug())
+fun Settings.forBackup(): Settings = copy(files = files.copy(folders = emptyList(), media = emptyList()), debug = Debug())
 
 /** A restored backup applied over this phone's settings, keeping what never travels in a backup. */
 fun Settings.restoredFrom(backup: Settings): Settings =
-    backup.sanitized().copy(files = backup.files.copy(folders = files.folders), debug = debug)
+    backup.sanitized().copy(files = backup.files.copy(folders = files.folders, media = files.media), debug = debug)

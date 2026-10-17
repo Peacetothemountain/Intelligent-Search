@@ -1,8 +1,8 @@
-# Intelligent Search rebuild (branch `dev`)
+# Intelligent Search rebuild
 
 Goal: rebuild the app's internals from the ground up, keeping every feature and the exact design language
 (colours, shapes, motion, layouts, the locked Gemini plate shader and morph/bouncer animations).
-`main` is untouched until the owner merges `dev`.
+Built on the `dev` branch and adopted as `main` on 2026-10-17; the previous `main` is tagged `main-before-dev`.
 
 ## How "looks the same" is proven
 
@@ -79,9 +79,8 @@ phase ends green (tests, lint, release build) and is pushed to `dev`.
   states and the voice sheet on phones from 320 dp to 527 dp at 85% to 200% text, a phone in landscape, an
   unfolded foldable, tablets both ways and an XR-sized window, and reports clipped, split, overlapping or
   off-screen content.
-- Open, waiting on the owner: R6 device validation of `dev`. Installing `dev` would replace the owner's app, so it
-  waits for their go-ahead (or a side-by-side install under another package name).
-- Purpose (owner, 2026-10-16): `dev` is a comparison build, showing how the app would be built differently from
-  the owner's own `main`; it is not scheduled to replace `main`.
+- 2026-10-17, R6 done: the owner checked `dev` on their Pixel 10 Pro XL and adopted it as `main`. The previous
+  `main` is tagged `main-before-dev` and 9.3 (123), as submitted to Play, is tagged `v9.3-123`. `dev` restarts
+  from the new `main`.
 - Verification: targeted tests per change, then lint, all tests and the release build once per batch of commits
   before pushing.

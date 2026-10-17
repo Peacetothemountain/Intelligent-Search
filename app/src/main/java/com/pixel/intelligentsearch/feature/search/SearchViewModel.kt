@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch.feature.search
+import com.pixel.intelligentsearch.core.search.SpellingSuggester
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.ContactItem
@@ -88,8 +89,16 @@ data class SearchUiState(
     val hasLockedPrivateSpace: Boolean = false,
     val lastQueryLatency: Long = 0,
     val bangSuggestions: List<com.pixel.intelligentsearch.core.bangs.SearchBang> = emptyList(),
-    val detectedBangQuery: com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = null
+    val detectedBangQuery: com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = null,
+    /** The query with an obvious typo fixed, offered as "Did you mean"; null when nothing is misspelled. */
+    val spellingSuggestion: String? = null
 )
+
+/** How long typing must pause before a query is spell checked for "Did you mean". */
+private const val SPELLING_PAUSE_MS = 450L
+
+/** The debug menu's Simulate Web Latency delay before web suggestions are fetched. */
+private const val SIMULATED_LATENCY_MS = 2_000L
 
 @OptIn(kotlinx.coroutines.FlowPreview::class)
 @HiltViewModel
@@ -434,6 +443,7 @@ class SearchViewModel @Inject constructor(
 
         _uiState.update { current ->
             current.copy(
+                spellingSuggestion = null,
                 bangSuggestions = bangSuggestions,
                 detectedBangQuery = parsedBang,
                 filteredApps = if (tier0.apps.isNotEmpty() && settingsState.value.searchApps) {
@@ -459,15 +469,13 @@ class SearchViewModel @Inject constructor(
 
     private fun executeLocalSearch(newQuery: String, previousQuery: String = "") {
         val prefs = customPrefs
-        val verboseLogging = prefs[SettingsManager.DEBUG_VERBOSE_LOGGING]
-        val forceSearchError = prefs[SettingsManager.DEBUG_FORCE_SEARCH_ERROR]
+        val verboseLogging = debugSwitch(SettingsManager.DEBUG_VERBOSE_LOGGING)
+        val forceSearchError = debugSwitch(SettingsManager.DEBUG_FORCE_SEARCH_ERROR)
+        val mockLargeDataset = debugSwitch(SettingsManager.DEBUG_MOCK_LARGE_DATASET)
 
         searchJob?.cancel()
         searchJob = viewModelScope.launch(Dispatchers.Default) {
-            val isDebuggable = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-            if (isDebuggable && verboseLogging) {
-                android.util.Log.d("SearchDebug", "Local query started (len: ${newQuery.length})")
-            }
+            if (verboseLogging) debugLog("Local query started (length ${newQuery.length})")
             val startTime = System.currentTimeMillis()
 
             if (forceSearchError) {
@@ -579,6 +587,9 @@ class SearchViewModel @Inject constructor(
             val localFiles = if (settings.searchFiles) {
                 unifiedResults.files.take(settings.fileResultsCount)
             } else emptyList()
+            // Debug menu: pad the lists past their usual caps to exercise long results.
+            val shownContacts = if (mockLargeDataset) localContacts + DebugMocks.contacts else localContacts
+            val shownFiles = if (mockLargeDataset) localFiles + DebugMocks.files else localFiles
 
             val localShortcuts = if (settings.searchShortcuts) {
                 unifiedResults.shortcuts.filter { it.packageName !in settings.hiddenApps }.take(settings.shortcutResultsCount)
@@ -630,8 +641,8 @@ class SearchViewModel @Inject constructor(
                 }
                 current.copy(
                     filteredApps = resolvedApps,
-                    contacts = localContacts,
-                    files = localFiles,
+                    contacts = shownContacts,
+                    files = shownFiles,
                     shortcuts = localShortcuts,
                     webSuggestions = resolvedSuggestions,
                     mathResult = mathStr,
@@ -644,10 +655,31 @@ class SearchViewModel @Inject constructor(
             }
 
             if (verboseLogging) {
-                android.util.Log.d("SearchDebug", "Local query finished in ${elapsed}ms")
+                debugLog("Local query finished in ${elapsed} ms: ${resolvedApps.size} apps, ${shownContacts.size} contacts, " +
+                    "${shownFiles.size} files, ${localShortcuts.size} shortcuts, ${directActions.size} actions")
+            }
+
+            // "Did you mean": once typing pauses (the next keystroke cancels this job, so it never runs mid-word),
+            // unless the query is plainly the start of an app or contact name, where a dictionary would "fix" it.
+            val typed = newQuery.trim()
+            val namingSomething = resolvedApps.any { it.name.startsWith(typed, ignoreCase = true) } ||
+                shownContacts.any { it.name.startsWith(typed, ignoreCase = true) }
+            val checkSpelling = !namingSomething &&
+                SpellingSuggester.shouldCheck(newQuery, bangManager.getTriggerSymbol(), looksLikeWebAddress(typed))
+            if (checkSpelling) {
+                delay(SPELLING_PAUSE_MS)
+                withContext(Dispatchers.Main) {
+                    val suggester = spellingSuggester ?: SpellingSuggester(context).also { spellingSuggester = it }
+                    suggester.suggest(newQuery) { corrected ->
+                        _uiState.update { if (it.query == newQuery) it.copy(spellingSuggestion = corrected) else it }
+                    }
+                }
             }
         }
     }
+
+    /** Opened on first use, on the main thread (the spell checker answers on the thread that opened it). */
+    private var spellingSuggester: SpellingSuggester? = null
 
     /**
      * Text for the calculator card. Unit conversions return null because they render in the dedicated
@@ -714,7 +746,12 @@ class SearchViewModel @Inject constructor(
 
         withContext(Dispatchers.IO) {
             try {
+                val started = System.currentTimeMillis()
+                if (debugSwitch(SettingsManager.DEBUG_SIMULATE_LATENCY)) delay(SIMULATED_LATENCY_MS)
                 val suggestions = sources.webSuggestions(query, engine).take(maxResults)
+                if (debugSwitch(SettingsManager.DEBUG_VERBOSE_LOGGING)) {
+                    debugLog("Web suggestions: ${suggestions.size} in ${System.currentTimeMillis() - started} ms")
+                }
                 currentCoroutineContext().ensureActive()
                 _uiState.update { current ->
                     if (current.query == query) {
@@ -725,6 +762,18 @@ class SearchViewModel @Inject constructor(
                 if (e is CancellationException) throw e
             }
         }
+    }
+
+    /** A debug menu switch, which applies only while debug mode is on. */
+    private fun debugSwitch(key: com.pixel.intelligentsearch.core.data.settings.BooleanSetting): Boolean =
+        customPrefs[SettingsManager.DEBUG_UNLOCKED] && customPrefs[key]
+
+    /**
+     * Verbose debug logging. Log.println, unlike Log.d, survives release builds (R8 strips v, d, i and w), and
+     * it records lengths, counts and timings only, never what the user typed.
+     */
+    private fun debugLog(message: String) {
+        android.util.Log.println(android.util.Log.INFO, "SearchDebug", message)
     }
 
     @Volatile
@@ -831,6 +880,8 @@ class SearchViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        spellingSuggester?.close()
+        spellingSuggester = null
         searchJob?.cancel()
         searchJob = null
         initialDataJob?.cancel()

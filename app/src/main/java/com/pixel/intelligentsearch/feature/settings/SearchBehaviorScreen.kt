@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.AlignVerticalBottom
 import androidx.compose.material.icons.outlined.ContentPaste
@@ -49,7 +50,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
-                    title = { Text("Search Behavior", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+                    title = { Text("Search Behavior", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
                     navigationIcon = {
                         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                     }
@@ -141,6 +142,15 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     smartClipboard = false
                                 }
                             },
+                            showDivider = true
+                        )
+                        var assistantVoice by rememberSetting(SettingsManager.ASSISTANT_STARTS_WITH_VOICE)
+                        SettingsRowToggle(
+                            title = "Start Assistant with Voice",
+                            subtitle = "The Assistant Gesture Starts Listening Right Away. Off, It Opens Search with the Keyboard Ready.",
+                            icon = Icons.Outlined.Mic,
+                            isChecked = assistantVoice,
+                            onCheckedChange = { assistantVoice = it },
                             showDivider = false
                         )
                     }

@@ -144,11 +144,27 @@ fun getLensTranslateIntent(context: Context): Intent {
 }
 
 /**
- * Opens Google's assistant for the widget's assistant button. Only public intents are used (no
- * hidden-API reflection); ACTION_ASSIST itself is avoided because this app registers for it and
- * would loop back into its own overlay.
+ * Opens the Gemini corner-swipe overlay for the widget's Search and Assistant buttons, exactly as the
+ * corner swipe gesture does: SearchManager.launchAssist with the gesture invocation type. That method
+ * is hidden, so if a future Android blocks it the assistant is opened directly instead of the tap doing
+ * nothing. ACTION_ASSIST itself is avoided because this app registers for it and would loop back into
+ * its own overlay.
  */
 fun launchGeminiCornerOverlay(context: Context): Boolean {
+    try {
+        val searchManager = context.getSystemService(Context.SEARCH_SERVICE) as? android.app.SearchManager
+        val launchAssist = searchManager?.javaClass?.methods?.find { it.name == "launchAssist" && it.parameterTypes.size == 1 }
+        if (launchAssist != null) {
+            val args = android.os.Bundle().apply {
+                putInt("invocation_type", 1) // INVOCATION_TYPE_GESTURE: the corner swipe
+                putBoolean("launch_gemini_overlay", true)
+            }
+            launchAssist.invoke(searchManager, args)
+            return true
+        }
+    } catch (e: Throwable) {
+        android.util.Log.w("SearchWidgetProvider", "SearchManager.launchAssist failed", e)
+    }
     val fallbacks = listOfNotNull(
         Intent(Intent.ACTION_VOICE_COMMAND).setPackage("com.google.android.googlequicksearchbox"),
         context.packageManager.getLaunchIntentForPackage("com.google.android.apps.bard"),

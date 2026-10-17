@@ -773,7 +773,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         val appCandidateCount = candidates.count { it.domain == SearchScoringEngine.EntityDomain.APPLICATION }
         if (cachedFuzzySearchEnabled && appCandidateCount < 8 && query.length >= 3) {
             cancellationCheck?.invoke()
-            val fuzzyResults = appRadixTree.searchFuzzy(query, maxDistance = 2, limit = 20)
+            val fuzzyResults = appRadixTree.searchFuzzy(query, maxDistance = SearchScoringEngine.fuzzyEditsFor(query.length), limit = 20)
             for (f in fuzzyResults) {
                 candidates.add(f.value)
             }

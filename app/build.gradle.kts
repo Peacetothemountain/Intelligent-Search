@@ -17,8 +17,8 @@ android {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
         targetSdk = 37
-        versionCode = 122
-        versionName = "9.2"
+        versionCode = 123
+        versionName = "9.3"
     }
 
     signingConfigs {

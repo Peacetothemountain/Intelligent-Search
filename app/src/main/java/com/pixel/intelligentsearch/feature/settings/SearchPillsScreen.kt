@@ -112,10 +112,11 @@ fun SearchPillsScreen(
         return getSavedProfilePills(id)
     }
 
+    // Read as the overlay reads them (trimmed, each app once): the list is keyed and reordered by package name.
     // The active profile's pills are the backed-up SEARCH_PILLS setting (so a restored backup shows here); the
     // per-profile keys only hold the profiles not in use. One state object, so drag handlers never write a stale copy.
     var searchPills by remember { mutableStateOf(prefs[SettingsManager.SEARCH_PILLS]) }
-    var localPillList by remember { mutableStateOf(searchPills.split(",").filter { it.isNotBlank() }) }
+    var localPillList by remember { mutableStateOf(searchPills.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()) }
     var resetCounter by remember { mutableIntStateOf(0) }
 
     fun persistPills(newPills: List<String>) {
@@ -135,7 +136,7 @@ fun SearchPillsScreen(
         prefs.edit().putInt("active_app_search_profile", id).apply()
         val pills = getProfilePills(id)
         searchPills = pills
-        val list = pills.split(",").filter { it.isNotBlank() }
+        val list = pills.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
         localPillList = list
         resetCounter++
         prefs.edit().put(SettingsManager.SEARCH_PILLS, pills).apply()
@@ -233,7 +234,7 @@ fun SearchPillsScreen(
                         IconButton(onClick = {
                             val savedState = getSavedProfilePills(activeProfile)
                             val restoredPills = if (savedState.isNotBlank()) savedState else if (activeProfile == 1) defaultPills else ""
-                            val list = restoredPills.split(",").filter { it.isNotBlank() }
+                            val list = restoredPills.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
                             resetCounter++
                             persistPills(list)
                             Toast.makeText(context, "Profile $activeProfile Reset to Saved State", Toast.LENGTH_SHORT).show()

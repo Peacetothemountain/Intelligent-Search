@@ -9,10 +9,10 @@ import android.view.textservice.TextServicesManager
 import java.util.Locale
 
 /**
- * "Did you mean" for search queries, from Android's spell checker (the one chosen in system settings, usually
- * Gboard's; it works offline). A correction is offered only for words the checker calls a typo *and* has a
- * recommended fix for, so ordinary words, names it knows and half-typed words are left alone. Create and call it
- * on the main thread: the checker answers on the thread that opened the session.
+ * "Did you mean" for search queries, from Android's spell checker (the one chosen in system settings, usually the
+ * keyboard's own, such as Gboard's; it works offline). Any word the checker flags as a typo is replaced by its top
+ * suggestion ("Chec the timee" -> "Check the time"); words it knows are left alone. Create and call it on the main
+ * thread: the checker answers on the thread that opened the session.
  */
 class SpellingSuggester(private val context: Context) : SpellCheckerSession.SpellCheckerSessionListener {
 
@@ -45,7 +45,7 @@ class SpellingSuggester(private val context: Context) : SpellCheckerSession.Spel
             val suggestion = info.getSuggestionsInfoAt(i) ?: return@mapNotNull null
             // Answers for an older query arrive after newer typing; only the latest counts.
             if (suggestion.sequence != sequence) return@mapNotNull null
-            if (!isObviousTypo(suggestion.suggestionsAttributes) || suggestion.suggestionsCount == 0) return@mapNotNull null
+            if (!isTypo(suggestion.suggestionsAttributes) || suggestion.suggestionsCount == 0) return@mapNotNull null
             Correction(info.getOffsetAt(i), info.getLengthAt(i), suggestion.getSuggestionAt(0))
         }
         callback(applyCorrections(query, corrections))
@@ -74,10 +74,10 @@ class SpellingSuggester(private val context: Context) : SpellCheckerSession.Spel
     companion object {
         private const val MAX_SUGGESTIONS = 3
 
-        /** A typo with a fix the checker recommends: the bar for correcting someone's search. */
-        fun isObviousTypo(attributes: Int): Boolean =
+        /** A word the checker flags as a typo, not one it merely doesn't know. */
+        fun isTypo(attributes: Int): Boolean =
             attributes and SuggestionsInfo.RESULT_ATTR_LOOKS_LIKE_TYPO != 0 &&
-                attributes and SuggestionsInfo.RESULT_ATTR_HAS_RECOMMENDED_SUGGESTIONS != 0
+                attributes and SuggestionsInfo.RESULT_ATTR_IN_THE_DICTIONARY == 0
 
         /**
          * Whether [query] is worth spell checking: it has a real word of 3 or more letters, and it is not a

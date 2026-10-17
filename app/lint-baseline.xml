@@ -8,7 +8,7 @@
         errorLine2="                       ~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/backup/BackupManager.kt"
-            line="509"
+            line="559"
             column="24"/>
     </issue>
 
@@ -19,7 +19,7 @@
         errorLine2="               ~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/data/SettingsManager.kt"
-            line="392"
+            line="398"
             column="16"/>
     </issue>
 
@@ -30,7 +30,7 @@
         errorLine2="                 ~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/security/StrongBoxSecurityManager.kt"
-            line="286"
+            line="318"
             column="18"/>
     </issue>
 
@@ -41,30 +41,8 @@
         errorLine2="                                                                                      ~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/security/StrongBoxSecurityManager.kt"
-            line="334"
+            line="373"
             column="87"/>
-    </issue>
-
-    <issue
-        id="ConfigurationScreenWidthHeight"
-        message="Using Configuration.screenWidthDp instead of LocalWindowInfo.current.containerSize"
-        errorLine1="    val deviceWidth = configuration.screenWidthDp * density.density"
-        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsScreens.kt"
-            line="263"
-            column="23"/>
-    </issue>
-
-    <issue
-        id="ConfigurationScreenWidthHeight"
-        message="Using Configuration.screenHeightDp instead of LocalWindowInfo.current.containerSize"
-        errorLine1="    val deviceHeight = configuration.screenHeightDp * density.density"
-        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsScreens.kt"
-            line="264"
-            column="24"/>
     </issue>
 
     <issue
@@ -96,7 +74,7 @@
         errorLine2="    ~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsComponents.kt"
-            line="63"
+            line="65"
             column="5"/>
     </issue>
 
@@ -107,7 +85,7 @@
         errorLine2="    ~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsComponents.kt"
-            line="91"
+            line="93"
             column="5"/>
     </issue>
 
@@ -118,18 +96,18 @@
         errorLine2="    ~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsComponents.kt"
-            line="341"
+            line="343"
             column="5"/>
     </issue>
 
     <issue
         id="ModifierParameter"
         message="Optional Modifier parameter should have a default value of `Modifier`"
-        errorLine1="    modifier: Modifier = Modifier.size(width = 40.dp, height = 56.dp),"
+        errorLine1="    modifier: Modifier = Modifier.size(width = 40.dp, height = 56.dp)"
         errorLine2="    ~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/TutorialSpotlightOverlay.kt"
-            line="134"
+            line="135"
             column="5"/>
     </issue>
 
@@ -140,7 +118,7 @@
         errorLine2="                                                         ~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/DebugDiagnosticsPage.kt"
-            line="285"
+            line="286"
             column="58"/>
     </issue>
 
@@ -246,75 +224,6 @@
     </issue>
 
     <issue
-        id="IconXmlAndPng"
-        message="The following images appear both as density independent `.xml` files and as bitmap files: src\main\res\mipmap-anydpi\ic_launcher.xml, src\main\res\mipmap-hdpi\ic_launcher.png">
-        <location
-            file="src/main/res/mipmap-xxxhdpi/ic_launcher.png"/>
-        <location
-            file="src/main/res/mipmap-xxhdpi/ic_launcher.png"/>
-        <location
-            file="src/main/res/mipmap-xhdpi/ic_launcher.png"/>
-        <location
-            file="src/main/res/mipmap-mdpi/ic_launcher.png"/>
-        <location
-            file="src/main/res/mipmap-hdpi/ic_launcher.png"/>
-        <location
-            file="src/main/res/mipmap-anydpi/ic_launcher.xml"/>
-    </issue>
-
-    <issue
-        id="IconXmlAndPng"
-        message="The following images appear both as density independent `.xml` files and as bitmap files: src\main\res\mipmap-anydpi\ic_launcher_round.xml, src\main\res\mipmap-hdpi\ic_launcher_round.png">
-        <location
-            file="src/main/res/mipmap-xxxhdpi/ic_launcher_round.png"/>
-        <location
-            file="src/main/res/mipmap-xxhdpi/ic_launcher_round.png"/>
-        <location
-            file="src/main/res/mipmap-xhdpi/ic_launcher_round.png"/>
-        <location
-            file="src/main/res/mipmap-mdpi/ic_launcher_round.png"/>
-        <location
-            file="src/main/res/mipmap-hdpi/ic_launcher_round.png"/>
-        <location
-            file="src/main/res/mipmap-anydpi/ic_launcher_round.xml"/>
-    </issue>
-
-    <issue
-        id="IconLauncherShape"
-        message="Launcher icons should not fill every pixel of their square region; see the design guide for details">
-        <location
-            file="src/main/res/mipmap-hdpi/ic_launcher.png"/>
-    </issue>
-
-    <issue
-        id="IconLauncherShape"
-        message="Launcher icons should not fill every pixel of their square region; see the design guide for details">
-        <location
-            file="src/main/res/mipmap-mdpi/ic_launcher.png"/>
-    </issue>
-
-    <issue
-        id="IconLauncherShape"
-        message="Launcher icons should not fill every pixel of their square region; see the design guide for details">
-        <location
-            file="src/main/res/mipmap-xhdpi/ic_launcher.png"/>
-    </issue>
-
-    <issue
-        id="IconLauncherShape"
-        message="Launcher icons should not fill every pixel of their square region; see the design guide for details">
-        <location
-            file="src/main/res/mipmap-xxhdpi/ic_launcher.png"/>
-    </issue>
-
-    <issue
-        id="IconLauncherShape"
-        message="Launcher icons should not fill every pixel of their square region; see the design guide for details">
-        <location
-            file="src/main/res/mipmap-xxxhdpi/ic_launcher.png"/>
-    </issue>
-
-    <issue
         id="IconDuplicatesConfig"
         message="The `ic_bugdroid_balloon.png` icon has identical contents in the following configuration folders: drawable-nodpi, drawable-xxxhdpi, drawable">
         <location
@@ -387,34 +296,13 @@
     </issue>
 
     <issue
-        id="IconDensities"
-        message="Missing the following drawables in `drawable-xhdpi`: ic_bugdroid_balloon.png, ic_bugdroid_body.png, ic_bugdroid_body_blink.png, ic_bugdroid_body_half.png">
-        <location
-            file="src/main/res/drawable-xhdpi"/>
-    </issue>
-
-    <issue
-        id="IconDensities"
-        message="Missing the following drawables in `drawable-xxhdpi`: ic_bugdroid_balloon.png, ic_bugdroid_body.png, ic_bugdroid_body_blink.png, ic_bugdroid_body_half.png">
-        <location
-            file="src/main/res/drawable-xxhdpi"/>
-    </issue>
-
-    <issue
-        id="IconMissingDensityFolder"
-        message="Missing density variation folders in `src\main\res`: drawable-hdpi, drawable-mdpi">
-        <location
-            file="src/main/res"/>
-    </issue>
-
-    <issue
         id="UseKtx"
         message="Use the KTX function `createBitmap` instead?"
         errorLine1="            val spriteBitmap = Bitmap.createBitmap(spriteDimension, spriteDimension, Bitmap.Config.ARGB_8888)"
         errorLine2="                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/AnimatedMatrixBackground.kt"
-            line="244"
+            line="247"
             column="32"/>
     </issue>
 
@@ -425,7 +313,7 @@
         errorLine2="        ~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/App.kt"
-            line="112"
+            line="101"
             column="9"/>
     </issue>
 
@@ -447,19 +335,8 @@
         errorLine2="                             ~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/backup/BackupManager.kt"
-            line="450"
+            line="496"
             column="30"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="            val uri = android.net.Uri.parse(&quot;android.resource://&quot; + context.packageName + &quot;/&quot; + com.pixel.intelligentsearch.R.raw.gemini_generated_video_2209818f)"
-        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/BackupRestoreScreen.kt"
-            line="102"
-            column="23"/>
     </issue>
 
     <issue
@@ -502,7 +379,7 @@
         errorLine2="                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/MainActivity.kt"
-            line="118"
+            line="140"
             column="38"/>
     </issue>
 
@@ -513,7 +390,7 @@
         errorLine2="                                                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/MainSettingsScreen.kt"
-            line="656"
+            line="181"
             column="69"/>
     </issue>
 
@@ -590,7 +467,7 @@
         errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
-            line="341"
+            line="345"
             column="24"/>
     </issue>
 
@@ -601,7 +478,7 @@
         errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
-            line="341"
+            line="345"
             column="24"/>
     </issue>
 
@@ -612,7 +489,7 @@
         errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
-            line="346"
+            line="350"
             column="24"/>
     </issue>
 
@@ -623,7 +500,7 @@
         errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
-            line="346"
+            line="350"
             column="24"/>
     </issue>
 
@@ -634,7 +511,7 @@
         errorLine2="                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
-            line="402"
+            line="406"
             column="19"/>
     </issue>
 
@@ -645,7 +522,7 @@
         errorLine2="                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
-            line="421"
+            line="430"
             column="19"/>
     </issue>
 
@@ -667,7 +544,7 @@
         errorLine2="                 ~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/OverlayIntents.kt"
-            line="42"
+            line="43"
             column="18"/>
     </issue>
 
@@ -706,310 +583,13 @@
 
     <issue
         id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                val ddgIntent = Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://duckduckgo.com/?q=$encodedQuery&quot;)).apply {"
-        errorLine2="                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="346"
-            column="60"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                val bingIntent = Intent(Intent.ACTION_VIEW, Uri.parse(&quot;https://www.bing.com/search?q=$encodedQuery&quot;)).apply {"
-        errorLine2="                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="361"
-            column="61"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                    Intent(Intent.ACTION_VIEW, Uri.parse(torUrl)).apply {"
-        errorLine2="                                               ~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="384"
-            column="48"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                                prefs.edit().put(SettingsManager.DEBUG_UNLOCKED, true).apply()"
-        errorLine2="                                ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="802"
-            column="33"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:${match.phoneNumber}&quot;))"
-        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="843"
-            column="76"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {"
-        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="845"
-            column="76"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:${match.phoneNumber}&quot;))"
-        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="849"
-            column="76"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                        launchSafeIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {"
-        errorLine2="                                                                                             ~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="872"
-            column="94"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply { "
-        errorLine2="                                                                           ~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1062"
-            column="76"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                Intent(Intent.ACTION_VIEW, Uri.parse(&quot;geo:0,0?q=${Uri.encode(searchStr.ifEmpty { &quot;Restaurants&quot; })}&quot;)).apply { "
-        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1068"
-            column="76"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                Intent(Intent.ACTION_VIEW, Uri.parse(&quot;market://search?q=${Uri.encode(searchStr)}&quot;)).apply {"
-        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1081"
-            column="76"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                    Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:${match.phoneNumber}&quot;))"
-        errorLine2="                                                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1470"
-            column="80"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                    Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {"
-        errorLine2="                                                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1472"
-            column="80"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                    Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:${match.phoneNumber}&quot;))"
-        errorLine2="                                                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1476"
-            column="80"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                            if (action.dataUri != null) intent.data = android.net.Uri.parse(action.dataUri)"
-        errorLine2="                                                                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1592"
-            column="103"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                            if (action.dataUri != null) intent.data = android.net.Uri.parse(action.dataUri)"
-        errorLine2="                                                                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="1592"
-            column="103"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                            val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {"
-        errorLine2="                                                                                       ~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="2072"
-            column="88"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                        val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {"
-        errorLine2="                                                                                   ~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="2081"
-            column="84"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:${contact.phoneNumber}&quot;))"
-        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="2251"
-            column="76"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri)).apply {"
-        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="2253"
-            column="76"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:${contact.phoneNumber}&quot;))"
-        errorLine2="                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="2257"
-            column="76"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                                launchSafeIntent(context, Intent(Intent.ACTION_DIAL, Uri.parse(&quot;tel:${contact.phoneNumber}&quot;)))"
-        errorLine2="                                                                                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchOverlayScreen.kt"
-            line="2278"
-            column="102"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
         message="Use the KTX function `createBitmap` instead?"
         errorLine1="            val bmp = android.graphics.Bitmap.createBitmap("
         errorLine2="                      ^">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
-            line="67"
+            line="66"
             column="23"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs.edit()"
-        errorLine2="        ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
-            line="124"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs.edit().put(SettingsManager.SEARCH_PILLS, pills).apply()"
-        errorLine2="        ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
-            line="140"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="            prefs.edit().putString(&quot;app_search_profile_1_saved&quot;, defaultPills).apply()"
-        errorLine2="            ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
-            line="182"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                            prefs.edit().putString(&quot;app_search_profile_${activeProfile}_saved&quot;, pillString).apply()"
-        errorLine2="                            ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SearchPillsScreen.kt"
-            line="244"
-            column="29"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))"
-        errorLine2="                                                                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchViewModel.kt"
-            line="352"
-            column="109"/>
     </issue>
 
     <issue
@@ -1019,7 +599,7 @@
         errorLine2="                                                                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchViewModel.kt"
-            line="355"
+            line="370"
             column="109"/>
     </issue>
 
@@ -1030,19 +610,8 @@
         errorLine2="                                                                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/search/SearchViewModel.kt"
-            line="513"
+            line="533"
             column="109"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toColorInt` instead?"
-        errorLine1="                    Color.parseColor(&quot;#121212&quot;)"
-        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/widget/SearchWidgetProvider.kt"
-            line="585"
-            column="21"/>
     </issue>
 
     <issue
@@ -1052,7 +621,7 @@
         errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/widget/SearchWidgetProvider.kt"
-            line="950"
+            line="868"
             column="25"/>
     </issue>
 
@@ -1063,7 +632,7 @@
         errorLine2="        ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/data/SettingsManager.kt"
-            line="230"
+            line="236"
             column="9"/>
     </issue>
 
@@ -1074,7 +643,7 @@
         errorLine2="                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/data/SettingsManager.kt"
-            line="336"
+            line="342"
             column="22"/>
     </issue>
 
@@ -1085,7 +654,7 @@
         errorLine2="                     ~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/data/SettingsManager.kt"
-            line="354"
+            line="360"
             column="22"/>
     </issue>
 
@@ -1096,19 +665,8 @@
         errorLine2="                     ~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/data/SettingsManager.kt"
-            line="379"
+            line="385"
             column="22"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="                val uri = android.net.Uri.parse(&quot;android.resource://&quot; + context.packageName + &quot;/&quot; + com.pixel.intelligentsearch.R.raw.bugdroid_video)"
-        errorLine2="                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsNavHost.kt"
-            line="106"
-            column="27"/>
     </issue>
 
     <issue
@@ -1118,7 +676,7 @@
         errorLine2="                                    ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsNavHost.kt"
-            line="320"
+            line="296"
             column="37"/>
     </issue>
 
@@ -1129,7 +687,7 @@
         errorLine2="            ~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/security/StrongBoxSecurityManager.kt"
-            line="283"
+            line="315"
             column="13"/>
     </issue>
 
@@ -1140,7 +698,7 @@
         errorLine2="            ~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/security/StrongBoxSecurityManager.kt"
-            line="334"
+            line="373"
             column="13"/>
     </issue>
 
@@ -1230,17 +788,6 @@
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/TutorialManager.kt"
             line="45"
             column="9"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="            val uri = android.net.Uri.parse(&quot;android.resource://&quot; + context.packageName + &quot;/&quot; + com.pixel.intelligentsearch.R.raw.bugdroid_welcome_video)"
-        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/TutorialSpotlightOverlay.kt"
-            line="439"
-            column="23"/>
     </issue>
 
     <issue
@@ -1514,7 +1061,7 @@
         errorLine2="                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetIntents.kt"
-            line="352"
+            line="349"
             column="39"/>
     </issue>
 
@@ -1536,30 +1083,8 @@
         errorLine2="                                ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/WidgetSettingsScreen.kt"
-            line="753"
+            line="240"
             column="33"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toColorInt` instead?"
-        errorLine1="                                val color = android.graphics.Color.parseColor(if (tempHexInput.startsWith(&quot;#&quot;)) tempHexInput else &quot;#$tempHexInput&quot;)"
-        errorLine2="                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/WidgetSettingsScreen.kt"
-            line="2602"
-            column="45"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toColorInt` instead?"
-        errorLine1="                                val color = android.graphics.Color.parseColor(if (tempCustomHexInput.startsWith(&quot;#&quot;)) tempCustomHexInput else &quot;#$tempCustomHexInput&quot;)"
-        errorLine2="                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/WidgetSettingsScreen.kt"
-            line="2634"
-            column="45"/>
     </issue>
 
 </issues>

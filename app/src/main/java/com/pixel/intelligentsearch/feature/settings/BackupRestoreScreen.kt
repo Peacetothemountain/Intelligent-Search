@@ -690,8 +690,6 @@ fun BackupRestoreScreen(
                 }
             }
 
-            AutoBackupCard(passphrase = passphrase)
-
             Spacer(modifier = Modifier.height(16.dp))
 
             Box(
@@ -793,6 +791,9 @@ fun BackupRestoreScreen(
                     scaleFactor = 1.0f
                 )
             }
+
+            // Below the bugdroid, so the bugdroid keeps its place at the bottom of the first screen.
+            AutoBackupCard(passphrase = passphrase)
             Spacer(modifier = Modifier.height(32.dp))
         }
     }

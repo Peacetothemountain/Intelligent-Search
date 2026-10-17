@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.util.clampSafely
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.ln
@@ -233,7 +234,7 @@ internal class MorphBouncePhysics(
         } else {
             0.12f + random.nextFloat() * 0.76f
         }
-        body.x = (width * fraction).coerceIn(radius, width - radius)
+        body.x = (width * fraction).clampSafely(radius, width - radius)
         body.y = -radius
         body.vy = 0.4f + random.nextFloat() * 0.8f
         body.shapeIndex = body.id * 7

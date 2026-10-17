@@ -33,6 +33,14 @@ abstract class IntelligentSearchDatabase : RoomDatabase() {
             }
         }
 
+        /** Connection settings applied every time the database opens. */
+        internal val OPEN_PRAGMAS = listOf(
+            "PRAGMA synchronous = NORMAL",
+            "PRAGMA temp_store = MEMORY",
+            "PRAGMA busy_timeout = 3000",
+            "PRAGMA foreign_keys = ON"
+        )
+
         /** Every upgrade step from version 1 to [VERSION], in order. */
         internal val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2)
 
@@ -89,13 +97,16 @@ abstract class IntelligentSearchDatabase : RoomDatabase() {
                 .addCallback(object : Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
-                        try {
-                            db.execSQL("PRAGMA synchronous = NORMAL")
-                            db.execSQL("PRAGMA temp_store = MEMORY")
-                            db.execSQL("PRAGMA busy_timeout = 3000")
-                            db.execSQL("PRAGMA foreign_keys = ON")
-                        } catch (t: Throwable) {
-                            Log.w(TAG, "Database pragma initialization warning", t)
+                        // busy_timeout answers with a row, and execSQL throws on statements that return rows
+                        // (9.1.1 crashed on open this way), so every pragma is stepped as a query. A cursor is
+                        // lazy: closing it unread never runs the statement. Each runs on its own, so one
+                        // refusal can't skip the rest.
+                        for (pragma in OPEN_PRAGMAS) {
+                            try {
+                                db.query(pragma).use { it.moveToFirst() }
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Database pragma refused: $pragma", e)
+                            }
                         }
                     }
                 })

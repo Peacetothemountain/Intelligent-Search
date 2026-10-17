@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.util.clampSafely
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.drawscope.scale
@@ -999,7 +1000,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                     }
                                     val normY = (proc.ramMb / floatCeiling).coerceIn(0.15f, 0.88f)
                                     val breathe = kotlin.math.sin(wavePhase + i * 1.4f) * 2.5.dp.toPx()
-                                    val py = (h - (h * normY) + breathe).coerceIn(4.dp.toPx(), h - 8.dp.toPx())
+                                    val py = (h - (h * normY) + breathe).clampSafely(4.dp.toPx(), h - 8.dp.toPx())
                                     androidx.compose.ui.geometry.Offset(px, py)
                                 }
 

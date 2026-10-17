@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.ui.uniqueItems
 import androidx.core.net.toUri
 import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
@@ -357,7 +358,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(uiState.bangSuggestions, key = { bang -> "bang_${bang.prefix}" }, contentType = { "bang" }) { bang ->
+                uniqueItems(uiState.bangSuggestions, key = { bang -> "bang_${bang.prefix}" }, contentType = { "bang" }) { bang ->
                     AssistChip(
                         onClick = {
                             val currentQ = uiState.query

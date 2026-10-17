@@ -16,7 +16,12 @@ object SafeUrl {
 
     data class Template(val template: String, val host: String)
 
-    fun template(input: String): Template? {
+    fun template(input: String): Template? = check(input, placeholder = true)
+
+    /** A plain https address to open (a widget or shortcut link), under the same rules as [template] minus the %s. */
+    fun address(input: String): String? = check(input, placeholder = false)?.template
+
+    private fun check(input: String, placeholder: Boolean): Template? {
         val trimmed = input.trim()
         if (trimmed.isEmpty() || trimmed.length > MAX_LENGTH) return null
         if (trimmed.any { it.isWhitespace() || it.isISOControl() || it in "\"'<>`\\{}|^" }) return null
@@ -28,7 +33,7 @@ object SafeUrl {
             trimmed.substring(0, schemeEnd).equals("https", ignoreCase = true) -> "https://" + trimmed.substring(schemeEnd + 3)
             else -> return null
         }
-        if (!withScheme.contains("%s")) return null
+        if (placeholder != withScheme.contains("%s")) return null
         val authority = withScheme.removePrefix("https://").substringBefore('/').substringBefore('?').substringBefore('#')
         if (authority.isEmpty() || authority.contains('@') || authority.contains("%")) return null
         val hostPart = authority.substringBefore(':')
@@ -39,7 +44,7 @@ object SafeUrl {
         if (Regex("^[0-9.]+$").matches(ascii) || ascii.startsWith("[")) return null
         val rest = withScheme.removePrefix("https://").substring(authority.length)
         val normalized = "https://" + ascii + (if (port.isNotEmpty()) ":$port" else "") + rest
-        // The query must parse once filled in, and stay on the same host.
+        // The address must parse (once filled in, for a template) and stay on the same host.
         val probe = build(normalized, "probe", checked = false) ?: return null
         if (probe.host != ascii) return null
         return Template(normalized, ascii)

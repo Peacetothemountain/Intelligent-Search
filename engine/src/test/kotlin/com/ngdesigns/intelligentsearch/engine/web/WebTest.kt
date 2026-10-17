@@ -31,6 +31,13 @@ class WebTest {
         )) assertNull(s, SafeUrl.template(s))
     }
 
+    @Test fun plainAddressesFollowTheSameRules() {
+        assertEquals("https://example.com/news", SafeUrl.address("example.com/news"))
+        assertNull(SafeUrl.address("javascript:alert(1)"))
+        assertNull(SafeUrl.address("https://example.com/?q=%s"))
+        assertNull(SafeUrl.address("http://example.com"))
+    }
+
     @Test fun buildingEncodesTheQueryAndKeepsTheHost() {
         val uri = SafeUrl.build("https://search.example.org/?q=%s", "a&b=c/../#frag")!!
         assertEquals("search.example.org", uri.host)

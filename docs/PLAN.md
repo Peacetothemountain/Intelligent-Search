@@ -48,3 +48,8 @@ Every phase ends green (lint with warnings as errors, all tests, release build) 
   alarms, reminders, events, messages, calls, directions), toggles and volumes, the safe-address gate, engines and
   quick web shortcuts, and the `Search` pipeline (instant answers, weighted sections, best match, ghost text). About
   1.3 ms per query over 5,000 candidates on a desktop JVM. Every case from `main`'s engine tests is ported.
+- 2026-10-17, D2 done: `Settings` is one immutable, versioned, serializable value covering every option in
+  FEATURES, sanitized on every read and restore (ranges, safe addresses, package names, widget slots); the
+  DataStore store updates it atomically. Backups (`BackupCodec`) are AES-256-GCM: with a passphrase via PBKDF2 (any
+  phone), or with a device key (this phone only); wrong passphrases, tampering and foreign files fail with clear
+  errors. Folder grants and debug switches never travel in a backup.

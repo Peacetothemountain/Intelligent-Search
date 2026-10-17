@@ -13,6 +13,11 @@ class MorphBouncePhysicsTest {
         resize(4.11f, 1.6f, listOf(0.085f, 0.10f, 0.115f, 0.13f))
     }
 
+    /** The same area with nothing dropping in by itself, for tests that study one shape. */
+    private fun quietWorld(seed: Int = 7) = MorphBouncePhysics(Random(seed), autoSpawn = false).apply {
+        resize(4.11f, 1.6f, listOf(0.085f, 0.10f, 0.115f, 0.13f))
+    }
+
     private fun run(physics: MorphBouncePhysics, seconds: Float, onFrame: () -> Unit = {}, listener: MorphBouncePhysics.BounceListener? = null) {
         var t = 0f
         while (t < seconds) {
@@ -32,7 +37,7 @@ class MorphBouncePhysicsTest {
 
     @Test
     fun shapesNeverRiseAboveTheBottomCard() {
-        for (seed in 1..20) {
+        for (seed in 1..40) {
             val physics = world(seed)
             val entered = mutableSetOf<Int>()
             run(physics, 30f, onFrame = {
@@ -46,12 +51,26 @@ class MorphBouncePhysicsTest {
     }
 
     @Test
-    fun everyShapeLeavesAfterItsPlannedBounces() {
-        for (seed in 1..20) {
+    fun withoutKnocksEveryShapeLeavesAfterExactlyItsPlannedBounces() {
+        for (seed in 1..40) {
+            val physics = quietWorld(seed)
+            repeat(6) { i ->
+                val body = physics.spawn(bounces = 2 + (seed + i) % 3, slot = i % 5, slots = 5)!!
+                var t = 0f
+                while (body in physics.bodies && t < 20f) { physics.advance(1f / 120f); t += 1f / 120f }
+                assertEquals("seed $seed shape $i", body.plannedBounces, body.bounces)
+            }
+        }
+    }
+
+    @Test
+    fun knocksNeverCostAShapeItsPlannedBouncesAndEveryShapeLeaves() {
+        for (seed in 1..40) {
             val physics = world(seed)
             val planned = mutableMapOf<Int, Int>()
             val counted = mutableMapOf<Int, Int>()
             run(physics, 25f, onFrame = {
+                for (b in physics.bodies) assertTrue("seed $seed: shape ${b.id} still on screen after ${b.age}s", b.age < 24f)
                 val alive = physics.bodies.map { it.id }.toSet()
                 for (b in physics.bodies) {
                     planned[b.id] = b.plannedBounces
@@ -61,15 +80,59 @@ class MorphBouncePhysicsTest {
                 for (id in planned.keys - alive) {
                     val p = planned.remove(id)!!
                     val c = counted.remove(id)!!
-                    assertEquals("seed $seed: shape $id planned $p bounces, made $c", p, c)
+                    // Knocks can add bounces, never take them away.
+                    assertTrue("seed $seed: shape $id planned $p bounces, made $c", c >= p)
                 }
             })
         }
     }
 
     @Test
+    fun shapesKnockIntoEachOtherInsteadOfPassingThrough() {
+        val physics = MorphBouncePhysics(Random(1)).apply { resize(4f, 1.6f, listOf(0.1f)) }
+        val a = physics.spawn(bounces = 3, slot = 0, slots = 2)!!
+        val b = physics.spawn(bounces = 3, slot = 1, slots = 2)!!
+        // Head-on, same height, same size: they meet in the middle.
+        a.x = 1.5f; a.y = 0.8f; a.vx = 2f; a.vy = 0f
+        b.x = 2.5f; b.y = 0.8f; b.vx = -2f; b.vy = 0f
+        val momentumBefore = a.mass * a.vx + b.mass * b.vx
+        var minGap = Float.MAX_VALUE
+        var collided = false
+        var momentumAfter = 0f
+        var t = 0f
+        while (t < 0.6f && a in physics.bodies && b in physics.bodies) {
+            physics.advance(1f / 120f)
+            val gap = kotlin.math.hypot(b.x - a.x, b.y - a.y) - a.radius - b.radius
+            minGap = minOf(minGap, gap)
+            if (!collided && a.vx < 0f && b.vx > 0f) { collided = true; momentumAfter = a.mass * a.vx + b.mass * b.vx }
+            t += 1f / 120f
+        }
+        assertTrue("they bounced apart", collided)
+        assertTrue("overlap $minGap", minGap > -0.01f)
+        // The impulse itself keeps momentum; both re-plan their exits afterwards, so compare at the moment of impact.
+        assertTrue("momentum before $momentumBefore after $momentumAfter", kotlin.math.abs(momentumAfter - momentumBefore) < 0.2f)
+    }
+
+    @Test
+    fun aBounceMakesTheShapeGlowBriefly() {
+        val physics = quietWorld(4)
+        val body = physics.spawn(bounces = 2, slot = 0, slots = 1)!!
+        var peak = 0f
+        var afterHalfSecond = 1f
+        var sinceBounce = -1f
+        run(physics, 4f, onFrame = {
+            if (body !in physics.bodies) return@run
+            if (body.glow > 0.95f) sinceBounce = 0f
+            if (sinceBounce >= 0f) { sinceBounce += 1f / 120f; if (sinceBounce in 0.5f..0.52f) afterHalfSecond = body.glow }
+            peak = maxOf(peak, body.glow)
+        })
+        assertTrue("peak glow $peak", peak > 0.95f)
+        assertTrue("glow half a second later $afterHalfSecond", afterHalfSecond < 0.05f)
+    }
+
+    @Test
     fun eachBounceIsLowerThanTheLastLikeARealBall() {
-        val physics = world(3)
+        val physics = quietWorld(3)
         val body = physics.spawn(bounces = 4, slot = 0, slots = 1)!!
         val apexes = mutableListOf<Float>()
         var rising = false
@@ -86,7 +149,7 @@ class MorphBouncePhysicsTest {
 
     @Test
     fun theShapeStartsChangingAtTheMomentOfEachBounce() {
-        val physics = world(5)
+        val physics = quietWorld(5)
         val body = physics.spawn(bounces = 3, slot = 0, slots = 1)!!
         var lastShape = body.shapeIndex
         var bounceSeen = 0
@@ -105,7 +168,7 @@ class MorphBouncePhysicsTest {
 
     @Test
     fun theNewShapeHasFormedBeforeTheShapeLeavesTheTrampoline() {
-        val physics = world(9)
+        val physics = quietWorld(9)
         val body = physics.spawn(bounces = 3, slot = 0, slots = 1)!!
         var wasInContact = false
         run(physics, 6f, onFrame = {
@@ -133,7 +196,7 @@ class MorphBouncePhysicsTest {
 
     @Test
     fun shapesSpinFromHittingTheTrampolineWhileMovingSideways() {
-        val physics = world(13)
+        val physics = quietWorld(13)
         val body = physics.spawn(bounces = 3, slot = 0, slots = 1)!!
         val spinBefore = body.spin
         run(physics, 3f)

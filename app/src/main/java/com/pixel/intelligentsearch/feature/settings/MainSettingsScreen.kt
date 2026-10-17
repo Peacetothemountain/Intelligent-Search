@@ -668,7 +668,7 @@ fun MainSettingsScreen(
                     showDivider = true,
                 )
                 val rawDebugUnlocked by rememberSetting(SettingsManager.DEBUG_UNLOCKED)
-                val isDebugUnlocked = com.pixel.intelligentsearch.BuildConfig.DEBUG && rawDebugUnlocked
+                val isDebugUnlocked = rawDebugUnlocked
                 val searchEngine = prefs[SettingsManager.SEARCH_ENGINE]
                 var showTorBrowserSettingsDialog by remember { mutableStateOf(false) }
                 val customEngineUrl = prefs[SettingsManager.CUSTOM_SEARCH_ENGINE_URL]

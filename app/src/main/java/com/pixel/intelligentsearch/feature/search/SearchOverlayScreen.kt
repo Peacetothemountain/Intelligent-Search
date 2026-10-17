@@ -131,6 +131,9 @@ fun SearchOverlayScreen(
     
     val prefs = remember(context) { context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE) }
     val appWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_APPS)
+    val mockTrendingUnlocked by rememberSetting(SettingsManager.DEBUG_UNLOCKED)
+    val mockTrendingSwitch by rememberSetting(SettingsManager.DEBUG_MOCK_TRENDING)
+    val mockTrendingOn = mockTrendingUnlocked && mockTrendingSwitch
     val webWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_WEB)
     val contactWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_CONTACTS)
     val fileWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_FILES)
@@ -714,7 +717,9 @@ fun SearchOverlayScreen(
                     )
                 }
             }
-            val showPerfStats = prefs[SettingsManager.DEBUG_SHOW_PERF_STATS]
+            val debugUnlocked by rememberSetting(SettingsManager.DEBUG_UNLOCKED)
+            val perfStatsOn by rememberSetting(SettingsManager.DEBUG_SHOW_PERF_STATS)
+            val showPerfStats = debugUnlocked && perfStatsOn
             AnimatedVisibility(
                 visible = showPerfStats,
                 enter = fadeIn(animationSpec = ExpressiveMotionTokens.morphSpring()) + expandVertically(animationSpec = ExpressiveMotionTokens.morphSpring()),
@@ -805,7 +810,7 @@ fun SearchOverlayScreen(
                             if (newQuery.isNotEmpty()) {
                                 hasStartedTyping = true
                             }
-                            if (com.pixel.intelligentsearch.BuildConfig.DEBUG && newQuery == "*xy88x*") {
+                            if (newQuery == "*xy88x*") {
                                 prefs.edit().put(SettingsManager.DEBUG_UNLOCKED, true).apply()
                                 viewModel.onQueryChanged("")
                                 textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
@@ -1660,6 +1665,51 @@ fun SearchOverlayScreen(
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // Debug menu: Mock Trending Queries fills the empty search state with stand-in topics.
+            if (mockTrendingOn && uiState.query.isEmpty()) {
+                item(key = "header_trending", contentType = "recent_label") {
+                    Text(
+                        text = "Trending",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        fontFamily = GoogleSansFlex,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp)
+                    )
+                }
+                uniqueItems(DebugMocks.trendingQueries, key = { topic -> "trending_$topic" }, contentType = { "recent_query" }) { topic ->
+                    val pillShape = RoundedCornerShape(28.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 5.dp)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f), pillShape)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f), pillShape)
+                            .clip(pillShape)
+                            .bouncyClickable { launchWebSearch(topic) }
+                            .padding(horizontal = 16.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Text(
+                            text = topic,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 15.sp,
+                            fontFamily = GoogleSansFlex,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }

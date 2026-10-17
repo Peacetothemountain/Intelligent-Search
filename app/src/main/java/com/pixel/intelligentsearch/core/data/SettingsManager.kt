@@ -184,6 +184,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val DEBUG_VERBOSE_LOGGING = BooleanSetting("debug.verbose_logging", false)
         val DEBUG_SHOW_PERF_STATS = BooleanSetting("debug.show_perf_stats", false)
         val DEBUG_FORCE_SEARCH_ERROR = BooleanSetting("debug.force_search_error", false)
+        val DEBUG_SIMULATE_LATENCY = BooleanSetting("debug.simulate_latency", false)
+        val DEBUG_MOCK_LARGE_DATASET = BooleanSetting("debug.mock_large_dataset", false)
+        val DEBUG_MOCK_TRENDING = BooleanSetting("debug.mock_zero_state", false)
         /** The user's consent to let on-device assistants search contacts (AppFunctions); off by default. */
         val APP_FUNCTIONS_SHARE_CONTACTS = BooleanSetting("appfunctions_share_contacts", false)
 
@@ -204,7 +207,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             WEB_SHORTCUT_TRIGGER_SYMBOL, SEARCH_QUICK_SHORTCUTS, SHOW_AVAILABLE_DIRECT_SHORTCUTS,
             ADAPTIVE_ICON_SHAPE, DYNAMIC_ICON_MASKING, DIAGNOSTICS_OVERLAY_ENABLED, MATRIX_ANIMATION_ENABLED,
             BACK_TO_SEARCH_OVERLAY, DISABLED_WEB_SHORTCUTS, VIBRATION, DEBUG_UNLOCKED, DEBUG_VERBOSE_LOGGING,
-            DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, APP_FUNCTIONS_SHARE_CONTACTS
+            DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,
+            DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS
         )
 
         private val BY_STORED_NAME: Map<String, SettingKey<*>> =

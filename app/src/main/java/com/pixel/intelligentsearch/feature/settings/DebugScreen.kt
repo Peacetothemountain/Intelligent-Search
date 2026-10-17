@@ -101,6 +101,26 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             
             
             
+            var simulateLatency by rememberSetting(SettingsManager.DEBUG_SIMULATE_LATENCY)
+            SettingsRowToggle(
+                title = "Simulate Web Latency",
+                subtitle = "Adds a 2-Second Artificial Delay to Search Suggestions.",
+                icon = Icons.Outlined.HourglassEmpty,
+                isChecked = simulateLatency,
+                onCheckedChange = { simulateLatency = it },
+                showDivider = true
+            )
+
+            var mockLargeDataset by rememberSetting(SettingsManager.DEBUG_MOCK_LARGE_DATASET)
+            SettingsRowToggle(
+                title = "Mock Large Dataset",
+                subtitle = "Injects 50 Mock Contacts and Files into Search Lists.",
+                icon = Icons.Outlined.Layers,
+                isChecked = mockLargeDataset,
+                onCheckedChange = { mockLargeDataset = it },
+                showDivider = true
+            )
+
             var verboseLogging by rememberSetting(SettingsManager.DEBUG_VERBOSE_LOGGING)
             SettingsRowToggle(
                 title = "Enable Verbose Logging",
@@ -123,6 +143,16 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             )
             
             
+            var mockTrending by rememberSetting(SettingsManager.DEBUG_MOCK_TRENDING)
+            SettingsRowToggle(
+                title = "Mock Trending Queries",
+                subtitle = "Force Mock Trending Query Topics When Search Bar Is Empty.",
+                icon = Icons.AutoMirrored.Outlined.TrendingUp,
+                isChecked = mockTrending,
+                onCheckedChange = { mockTrending = it },
+                showDivider = true
+            )
+
             var forceSearchError by rememberSetting(SettingsManager.DEBUG_FORCE_SEARCH_ERROR)
             SettingsRowToggle(
                 title = "Force Search API Error",

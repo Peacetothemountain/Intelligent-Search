@@ -40,7 +40,7 @@ import kotlin.math.sin
  */
 @Composable
 fun AnimatedBugdroidEmoji(
-    modifier: Modifier = Modifier.size(width = 40.dp, height = 56.dp)
+    modifier: Modifier = Modifier
 ) {
     val resources = androidx.compose.ui.platform.LocalResources.current
 
@@ -149,7 +149,8 @@ fun AnimatedBugdroidEmoji(
 
 
     Box(
-        modifier = modifier,
+        // The default size comes after the caller's modifier, so a size the caller passes wins.
+        modifier = modifier.size(width = 40.dp, height = 56.dp),
         contentAlignment = Alignment.Center
     ) {
         // Layer 1: Balloon & String (drawn behind hand, anchored at hand pivot 0.2033f, 0.4455f)

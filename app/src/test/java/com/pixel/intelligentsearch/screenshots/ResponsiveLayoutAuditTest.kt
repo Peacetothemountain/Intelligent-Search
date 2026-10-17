@@ -77,7 +77,8 @@ class ResponsiveLayoutAuditTest(private val screen: String, private val device: 
     @Test
     fun audit() {
         assumeTrue("run with -PlayoutAudit", System.getProperty("layoutAudit") == "true")
-        val isOverlay = screen.startsWith("overlay_")
+        // The overlay and the voice sheet fill the real screen; settings pages scroll.
+        val isOverlay = screen.startsWith("overlay_") || screen.startsWith("voice_")
         // Settings pages scroll, so they get a tall window to lay out every row; the overlay fills the real screen.
         val heightDp = if (isOverlay) device.heightDp else maxOf(device.heightDp, 3000)
         RuntimeEnvironment.setQualifiers("w${device.widthDp}dp-h${heightDp}dp-xhdpi")
@@ -127,6 +128,19 @@ class ResponsiveLayoutAuditTest(private val screen: String, private val device: 
             "hidden_apps" -> ManageHiddenAppsScreen(prefs, back)
             "backup" -> BackupRestoreScreen(prefs, back)
             "setup" -> SetupChecklistScreen(prefs, {}, back)
+            "voice_listening", "voice_error" -> {
+                val error = name == "voice_error"
+                com.pixel.intelligentsearch.feature.voice.VoiceAssistantBottomSheet(
+                    state = if (error) com.pixel.intelligentsearch.feature.voice.VoiceRecognitionState.ERROR else com.pixel.intelligentsearch.feature.voice.VoiceRecognitionState.LISTENING,
+                    audioAmplitude = { if (error) 0f else 0.6f },
+                    spokenText = if (error) "" else "what's the weather tomorrow in Johnson City",
+                    errorMessage = if (error) "Microphone permission required for voice search." else null,
+                    onMicClick = {},
+                    onDismiss = {},
+                    onOpenFullSearch = {},
+                    onQuickPromptClick = {}
+                )
+            }
             else -> {
                 val query = OVERLAY_QUERIES.getValue(name)
                 val viewModel: SearchViewModel = hiltViewModel()
@@ -186,6 +200,8 @@ class ResponsiveLayoutAuditTest(private val screen: String, private val device: 
 
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0} {1}")
-        fun parameters(): List<Array<Any>> = (PAGES + OVERLAY_QUERIES.keys).flatMap { s -> DEVICES.map { arrayOf<Any>(s, it) } }
+        fun parameters(): List<Array<Any>> = (PAGES + OVERLAY_QUERIES.keys + VOICE_STATES).flatMap { s -> DEVICES.map { arrayOf<Any>(s, it) } }
+
+        private val VOICE_STATES = listOf("voice_listening", "voice_error")
     }
 }

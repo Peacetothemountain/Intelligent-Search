@@ -62,7 +62,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,7 +84,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BackupRestoreScreen(
@@ -97,37 +95,6 @@ fun BackupRestoreScreen(
     val viewModel = LocalSettingsViewModel.current
     val hapticEngine = remember { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
 
-    val backupExoPlayer = remember(context) {
-        runCatching {
-            val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.gemini_generated_video_2209818f)
-            val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
-            val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
-            androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
-                setMediaSource(mediaSource)
-                repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
-                volume = 0f
-                prepare()
-                playWhenReady = true
-            }
-        }.getOrNull()
-    }
-
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, backupExoPlayer) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                backupExoPlayer?.play()
-            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                backupExoPlayer?.pause()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            backupExoPlayer?.release()
-        }
-    }
-
     var passphrase by remember { mutableStateOf("") }
     var passphraseVisible by remember { mutableStateOf(false) }
     var isPassphraseSavedOnChip by remember { mutableStateOf(false) }
@@ -135,6 +102,7 @@ fun BackupRestoreScreen(
     var showNoPassphraseWarningDialog by remember { mutableStateOf(false) }
     var showRestorePassphraseDialog by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingLegacyUri by remember { mutableStateOf<Uri?>(null) }
     var pendingEnvelope by remember { mutableStateOf<com.pixel.intelligentsearch.core.backup.EncryptedBackupEnvelope?>(null) }
     var dialogPassphrase by remember { mutableStateOf("") }
     var dialogPassphraseVisible by remember { mutableStateOf(false) }
@@ -152,6 +120,7 @@ fun BackupRestoreScreen(
             }
         }
     )
+    val backupExoPlayer = rememberBugdroidPlayer(BugdroidClip.BACKUP, enabled = isScreenUnlocked)
     LaunchedEffect(isScreenUnlocked) {
         if (!isScreenUnlocked) return@LaunchedEffect
         // Keystore (StrongBox) decryption can take hundreds of milliseconds; keep it off the main thread.
@@ -170,11 +139,13 @@ fun BackupRestoreScreen(
         }
     }
 
-    val performRestore: (Uri, String?) -> Unit = { targetUri, targetPass ->
+    val performRestore: (Uri, String?, Boolean) -> Unit = { targetUri, targetPass, allowLegacy ->
         if (activity != null) {
             viewModel?.importBackup(
                 uri = targetUri,
                 passphrase = targetPass,
+                allowLegacy = allowLegacy,
+                onUntrustedLegacy = { pendingLegacyUri = targetUri },
                 onSuccess = { count ->
                     showRestorePassphraseDialog = false
                     dialogErrorMessage = null
@@ -220,7 +191,6 @@ fun BackupRestoreScreen(
                     )
                 },
                 onError = { err ->
-                    android.util.Log.e("BackupRestoreScreen", "exportBackup onError: $err")
                     safeShowToast("Export error: $err")
                 }
             )
@@ -254,7 +224,7 @@ fun BackupRestoreScreen(
                         withContext(Dispatchers.IO) { viewModel?.getSavedPassphraseFromSecurityChip() } ?: ""
                     }
                     if (effectivePass.isNotBlank()) {
-                        performRestore(uri, effectivePass)
+                        performRestore(uri, effectivePass, false)
                     } else {
                         pendingRestoreUri = uri
                         dialogPassphrase = ""
@@ -262,10 +232,33 @@ fun BackupRestoreScreen(
                         showRestorePassphraseDialog = true
                     }
                 } else {
-                    performRestore(uri, null)
+                    performRestore(uri, null, false)
                 }
             }
         }
+    }
+
+    pendingLegacyUri?.let { legacyUri ->
+        AlertDialog(
+            onDismissRequest = { pendingLegacyUri = null },
+            title = { Text("Restore Old Backup?") },
+            text = {
+                Text(
+                    "This file uses an old backup format with no passphrase, so anyone could have made it. " +
+                        "Restore it only if you created it yourself. It can change your search engine, shortcuts " +
+                        "and hidden apps; sharing settings stay as they are."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingLegacyUri = null
+                    performRestore(legacyUri, null, true)
+                }) { Text("Restore") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingLegacyUri = null }) { Text("Cancel") }
+            }
+        )
     }
 
     if (showRestorePassphraseDialog && pendingRestoreUri != null) {
@@ -297,9 +290,15 @@ fun BackupRestoreScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(8.dp)) {
+                                    // These come from the file's unencrypted header, so they're shown as claims only.
+                                    Text(
+                                        "As stated in the file (not verified):",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                     if (!env.hardwareChip.isNullOrBlank()) {
                                         Text(
-                                            "Security Chip: ${env.hardwareChip}",
+                                            "Security Chip: ${env.hardwareChip.take(60)}",
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.SemiBold,
                                             color = MaterialTheme.colorScheme.primary
@@ -307,7 +306,7 @@ fun BackupRestoreScreen(
                                     }
                                     if (!env.deviceModel.isNullOrBlank()) {
                                         Text(
-                                            "Device: ${env.deviceModel}",
+                                            "Device: ${env.deviceModel.take(60)}",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -370,7 +369,7 @@ fun BackupRestoreScreen(
                 Button(
                     onClick = {
                         val uri = pendingRestoreUri ?: return@Button
-                        performRestore(uri, dialogPassphrase)
+                        performRestore(uri, dialogPassphrase, false)
                     },
                     shape = RoundedCornerShape(16.dp)
                 ) {
@@ -447,7 +446,7 @@ fun BackupRestoreScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Encrypted Backup", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+                title = { Text("Encrypted Backup", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
@@ -646,6 +645,9 @@ fun BackupRestoreScreen(
                             hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
                             if (passphrase.isBlank()) {
                                 showNoPassphraseWarningDialog = true
+                            } else if (passphrase.length < 10) {
+                                // A portable backup can be attacked offline, so its passphrase needs some length.
+                                safeShowToast("Use a passphrase of at least 10 characters")
                             } else {
                                 exportLauncher.launch("intelligent_search_backup_${System.currentTimeMillis()}.json")
                             }
@@ -688,7 +690,10 @@ fun BackupRestoreScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            AutoBackupCard(passphrase = passphrase)
+
+            // Extra room above the bugdroid so its whole video shows below the cards.
+            Spacer(modifier = Modifier.height(40.dp))
 
             Box(
                 modifier = Modifier
@@ -735,14 +740,16 @@ fun BackupRestoreScreen(
                 ) {
                     val alpha = pulseAlpha.value
                     val scale = pulseScale.value
+                    // On narrow screens the bugdroid shrinks to fit; its shadows shrink with it about the same centre.
+                    val fit = BugdroidClip.BACKUP.fittedScale(size.width, size.height, 1f)
                     val contactShadowColor = Color.Black.copy(alpha = (if (isDark) 0.70f else 0.38f) * alpha)
                     val ambientShadowColor = Color.Black.copy(alpha = (if (isDark) 0.32f else 0.16f) * alpha)
-                    val centerX = size.width / 2f + swayOffset.value.dp.toPx()
-                    val groundY = 292.dp.toPx()
+                    val centerX = size.width / 2f + swayOffset.value.dp.toPx() * fit
+                    val groundY = size.height / 2f + (292.dp.toPx() - size.height / 2f) * fit
 
                     // Ambient ground diffusion shadow
-                    val ambientWidth = 110.dp.toPx() * scale
-                    val ambientHeight = 22.dp.toPx() * scale
+                    val ambientWidth = 110.dp.toPx() * scale * fit
+                    val ambientHeight = 22.dp.toPx() * scale * fit
                     drawOval(
                         brush = Brush.radialGradient(
                             colors = listOf(ambientShadowColor, Color.Transparent),
@@ -754,9 +761,9 @@ fun BackupRestoreScreen(
                     )
 
                     // Left foot contact shadow (grounded directly beneath left foot)
-                    val leftFootCenterX = centerX - 28.dp.toPx()
-                    val footWidth = 36.dp.toPx() * scale
-                    val footHeight = 12.dp.toPx() * scale
+                    val leftFootCenterX = centerX - 28.dp.toPx() * fit
+                    val footWidth = 36.dp.toPx() * scale * fit
+                    val footHeight = 12.dp.toPx() * scale * fit
                     drawOval(
                         brush = Brush.radialGradient(
                             colors = listOf(contactShadowColor, Color.Transparent),
@@ -768,7 +775,7 @@ fun BackupRestoreScreen(
                     )
 
                     // Right foot contact shadow (grounded directly beneath right foot)
-                    val rightFootCenterX = centerX + 24.dp.toPx()
+                    val rightFootCenterX = centerX + 24.dp.toPx() * fit
                     drawOval(
                         brush = Brush.radialGradient(
                             colors = listOf(contactShadowColor, Color.Transparent),
@@ -782,12 +789,14 @@ fun BackupRestoreScreen(
 
                 BugdroidPlayer(
                     player = backupExoPlayer,
+                    clip = BugdroidClip.BACKUP,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(340.dp),
                     scaleFactor = 1.0f
                 )
             }
+
             Spacer(modifier = Modifier.height(32.dp))
         }
     }

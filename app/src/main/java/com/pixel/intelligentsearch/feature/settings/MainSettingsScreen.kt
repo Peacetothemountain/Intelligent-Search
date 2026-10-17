@@ -10,7 +10,6 @@ import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
 import com.pixel.intelligentsearch.App
 import android.app.Activity
 import android.content.Context
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import kotlinx.coroutines.launch
@@ -67,28 +66,16 @@ fun MainSettingsScreen(
     var showInfoDialog by remember { mutableStateOf(false) }
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, exoPlayer) {
-        val player = exoPlayer
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                player?.play()
-            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                player?.pause()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        player?.play()
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            player?.pause()
-        }
+    androidx.lifecycle.compose.LifecycleResumeEffect(exoPlayer) {
+        exoPlayer?.play()
+        onPauseOrDispose { exoPlayer?.pause() }
     }
 
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+                title = { Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 },
@@ -214,7 +201,7 @@ fun MainSettingsScreen(
                                                 )
                                             }
                                             Text(
-                                                text = "Starting with Android 17 QPR2, you can choose Intelligent Search as your system-wide default search engine to natively power your home screen search bar.",
+                                                text = "On Android 17 QPR2 and newer, the Android \"Search engine app\" setting decides which app powers your home screen search bar. Its picker only lists apps on your device's search engine list, so Intelligent Search has to be added to that list once (see Manual ADB Activation below) before it can be selected.",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -263,6 +250,7 @@ fun MainSettingsScreen(
                                             }
                                         }
                                     } else {
+                                        val isListed = remember { com.pixel.intelligentsearch.core.system.SearchRoleManager.isListedAsSearchEngine(context) }
                                         Surface(
                                             shape = RoundedCornerShape(16.dp),
                                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -273,7 +261,11 @@ fun MainSettingsScreen(
                                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                                             ) {
                                                 Text(
-                                                    text = "Select Intelligent Search in Android settings to activate it on your home screen:",
+                                                    text = if (isListed) {
+                                                        "Intelligent Search is on this device's search engine list. Select it in Android settings to activate it on your home screen:"
+                                                    } else {
+                                                        "Intelligent Search isn't on this device's search engine list yet, so it won't appear in the Android picker. Run the Manual ADB Activation commands below once, then select it here:"
+                                                    },
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     color = MaterialTheme.colorScheme.onSurface
                                                 )
@@ -291,7 +283,7 @@ fun MainSettingsScreen(
                                                         modifier = Modifier.size(18.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(8.dp))
-                                                    Text("Set as Default Search Engine")
+                                                    Text(if (isListed) "Set as Default Search Engine" else "Open Search Engine Settings")
                                                 }
                                             }
                                         }
@@ -346,7 +338,7 @@ fun MainSettingsScreen(
                                                 }
                                             }
                                             Text(
-                                                text = "If you're running Android 17 QPR2 or an older version, bypass the system package allow list and set Intelligent Search as default manually via ADB:",
+                                                text = "Adds Intelligent Search to this device's search engine list and selects it, so it appears in the Android \"Search engine app\" picker and powers the home screen search bar. Needs Android 17 QPR2 or newer, USB debugging and a computer with ADB; run once:",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -403,7 +395,7 @@ fun MainSettingsScreen(
                                                 )
                                             }
                                             Text(
-                                                text = "• Package Allow List: Settings.Secure.user_setup_search_engine bypasses the QPR2 package allow list so Intelligent Search always qualifies as the system search engine.",
+                                                text = "• Search engine list: Android treats the app named in Settings.Secure.user_setup_search_engine as a listed search engine, so Intelligent Search stays selectable until that setting is cleared (for example by a factory reset), after which the ADB step is needed again.",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -585,6 +577,21 @@ fun MainSettingsScreen(
                 .graphicsLayer { alpha = if (showTutorial) 0f else 1f },
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+            // Offered until everything is set up or the user says they're done; read again on every visit.
+            val offerSetup = remember { SetupChecklist.shouldOffer(context, prefs) }
+            if (offerSetup) {
+                val setupDone = remember { SetupChecklist.doneCount(context, prefs) }
+                val setupTotal = remember { SetupChecklist.steps(context).size }
+                SettingsCard {
+                    SettingsRow(
+                        title = "Finish Setting Up",
+                        subtitle = "$setupDone of $setupTotal done. Let search find your contacts, calendar and files.",
+                        icon = Icons.Outlined.Checklist,
+                        onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.Setup) },
+                        showDivider = false
+                    )
+                }
+            }
             SettingsCard {
                 SettingsRow(
                     title = "Appearance",
@@ -661,7 +668,7 @@ fun MainSettingsScreen(
                     showDivider = true,
                 )
                 val rawDebugUnlocked by rememberSetting(SettingsManager.DEBUG_UNLOCKED)
-                val isDebugUnlocked = com.pixel.intelligentsearch.BuildConfig.DEBUG && rawDebugUnlocked
+                val isDebugUnlocked = rawDebugUnlocked
                 val searchEngine = prefs[SettingsManager.SEARCH_ENGINE]
                 var showTorBrowserSettingsDialog by remember { mutableStateOf(false) }
                 val customEngineUrl = prefs[SettingsManager.CUSTOM_SEARCH_ENGINE_URL]
@@ -751,6 +758,7 @@ fun MainSettingsScreen(
                 ) {
                     BugdroidPlayer(
                         player = exoPlayer,
+                        clip = BugdroidClip.SETTINGS,
                         modifier = Modifier
                             .width(playerWidth)
                             .height(playerHeight),
@@ -768,19 +776,17 @@ fun MainSettingsScreen(
                             fontSize = titleFontSize,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
-                            lineHeight = titleLineHeight,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            maxLines = 2
+                            lineHeight = titleLineHeight
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                        // No line limit: large text wraps instead of hiding the address. Zero-width spaces let the
+                        // address break after "support." and "@" on narrow screens rather than mid-word.
                         Text(
-                            text = "If you need support please email me at:\nsupport.ngdesigns@gmail.com",
+                            text = "If you need support please email me at:\nsupport.\u200Bngdesigns@\u200Bgmail.com",
                             fontSize = subtextFontSize,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = subtextLineHeight,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            maxLines = 2,
                             modifier = Modifier.bouncyClickable {
                                 try {
                                     uriHandler.openUri("mailto:support.ngdesigns@gmail.com")

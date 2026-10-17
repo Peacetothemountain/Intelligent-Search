@@ -86,4 +86,42 @@ object LevenshteinDistance {
         return if (result <= maxDistance) result else maxDistance + 1
     }
 
+    /**
+     * The fewest edits (insert, delete, substitute, swap adjacent letters) turning [query] into the start of
+     * [target], bounded by [maxDistance]: how close a partly typed word is to a name, so "yuotu" is 1 from
+     * "YouTube". Returns maxDistance + 1 when no prefix is that close.
+     */
+    fun prefixDistance(query: CharSequence, target: CharSequence, maxDistance: Int = 2): Int {
+        val m = query.length
+        if (m == 0) return 0
+        if (target.isEmpty()) return if (m <= maxDistance) m else maxDistance + 1
+        // Rows walk the target one letter at a time; column m is the cost of the whole query against that prefix.
+        var prevPrevRow = IntArray(m + 1)
+        var prevRow = IntArray(m + 1) { it }
+        var currRow = IntArray(m + 1)
+        var best = prevRow[m]
+        for (i in 1..target.length) {
+            val t = target[i - 1]
+            currRow[0] = i
+            var minInRow = currRow[0]
+            for (j in 1..m) {
+                val q = query[j - 1]
+                val cost = if (t.equals(q, ignoreCase = true)) 0 else 1
+                var d = min(min(currRow[j - 1] + 1, prevRow[j] + 1), prevRow[j - 1] + cost)
+                if (i > 1 && j > 1 && t.equals(query[j - 2], ignoreCase = true) && target[i - 2].equals(q, ignoreCase = true)) {
+                    d = min(d, prevPrevRow[j - 2] + 1)
+                }
+                currRow[j] = d
+                if (d < minInRow) minInRow = d
+            }
+            if (currRow[m] < best) best = currRow[m]
+            // Once every cell exceeds the bound, longer prefixes can only cost more.
+            if (minInRow > maxDistance) break
+            val temp = prevPrevRow
+            prevPrevRow = prevRow
+            prevRow = currRow
+            currRow = temp
+        }
+        return if (best <= maxDistance) best else maxDistance + 1
+    }
 }

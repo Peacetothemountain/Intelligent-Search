@@ -11,7 +11,6 @@ import androidx.appfunctions.AppFunctionServiceEntryPoint
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine
-import com.pixel.intelligentsearch.core.security.AdvancedProtectionMonitor
 import com.pixel.intelligentsearch.di.appEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -46,8 +45,7 @@ data class CalculationResult(
 /**
  * Lets on-device assistants use Intelligent Search's local index. Everything runs on the device
  * and nothing is sent over the network. Hidden apps are never returned, and contact search only
- * works when the user has granted contacts access, opted in to sharing contacts with assistants, and
- * Advanced Protection is off.
+ * works when the user has granted contacts access and opted in to sharing contacts with assistants.
  */
 @RequiresApi(36)
 @AppFunctionServiceEntryPoint(
@@ -102,7 +100,7 @@ abstract class IntelligentSearchAppFunctions : AppFunctionService() {
      * Searches the user's contacts by name or number.
      *
      * Returns an empty list if contact search or sharing contacts with assistants is turned off in
-     * Intelligent Search, contacts access hasn't been granted, or Android Advanced Protection is on.
+     * Intelligent Search, or contacts access hasn't been granted.
      *
      * @param query Part of a name or phone number, for example "alex" or "555".
      * @param limit The maximum number of contacts to return, between 1 and 10.
@@ -113,7 +111,6 @@ abstract class IntelligentSearchAppFunctions : AppFunctionService() {
         if (!androidx.core.os.UserManagerCompat.isUserUnlocked(applicationContext)) return emptyList()
         val needle = query.trim().take(128)
         if (needle.isEmpty()) return emptyList()
-        if (AdvancedProtectionMonitor.isEnabled(applicationContext)) return emptyList()
         // Respect the in-app contact search switch; fail closed if settings can't be read.
         if (currentSettings()?.searchContacts != true) return emptyList()
         // The library doesn't expose the calling agent, so its own READ_CONTACTS can't be checked; require

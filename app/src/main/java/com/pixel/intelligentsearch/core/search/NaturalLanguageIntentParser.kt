@@ -12,17 +12,21 @@ import java.util.Locale
  * Parses conversational commands into direct executable Android system intents:
  * - Calendar Events ("meeting tomorrow at 3pm", "lunch with Sarah on Friday at 12:30")
  * - Alarms ("set alarm for 7am", "wake me up tomorrow at 6:30")
- * - Timers ("set timer 15m", "timer 5 minutes 30 seconds")
+ * - Timers ("set a timer for 10 minutes", "set timer 15m", "timer 5 minutes 30 seconds")
  * - Reminders ("remind me to call John in 2 hours")
  * - Direct Messaging ("text Sarah: I will be late", "message Dave on WhatsApp saying hi")
  * - Phone Calls ("call Mom", "dial 555-0199")
- * - Navigation ("directions to Central Park", "navigate to work")
+ * - Navigation ("directions to Central Park", "navigate to work", "directions home")
  */
 object NaturalLanguageIntentParser {
 
     // Compiled once: parse() runs on every keystroke, so no pattern may be built per call.
-    private val TIMER_PREFIXES = listOf("timer for ", "set timer for ", "set timer ", "timer ")
-    private val TIMER_HOURS_REGEX = Regex("(\\d+)\\s*(?:h|hr|hours?)")
+    private val TIMER_PREFIXES = listOf(
+        "set a timer for ", "set a timer ", "start a timer for ", "start a timer ",
+        "set timer for ", "set timer ", "start timer for ", "start timer ", "timer for ", "timer "
+    )
+    private val HOME_NAVIGATION_PHRASES = setOf("directions home", "navigate home", "take me home", "route home")
+    private val TIMER_HOURS_REGEX =Regex("(\\d+)\\s*(?:h|hr|hours?)")
     private val TIMER_MINUTES_REGEX = Regex("(\\d+)\\s*(?:m|min|mins|minutes?)")
     private val TIMER_SECONDS_REGEX = Regex("(\\d+)\\s*(?:s|sec|secs|seconds?)")
     private val TIMER_CLOCK_REGEX = Regex("(\\d{1,2}):(\\d{2})(?::(\\d{2}))?")
@@ -413,9 +417,14 @@ object NaturalLanguageIntentParser {
     // ---------------------------------------------------------------------------------------------
 
     private fun parseNavigation(lower: String, original: String): ParsedIntent.Navigation? {
-        val navTriggers = listOf("directions to ", "navigate to ", "route to ")
-        val matchedTrigger = navTriggers.firstOrNull { lower.startsWith(it) } ?: return null
-        val dest = original.substring(matchedTrigger.length).trim()
+        // "directions home" has no "to"; Maps resolves "Home" to the user's saved home address.
+        val dest = if (lower.trim() in HOME_NAVIGATION_PHRASES) {
+            "Home"
+        } else {
+            val navTriggers = listOf("directions to ", "navigate to ", "route to ", "take me to ")
+            val matchedTrigger = navTriggers.firstOrNull { lower.startsWith(it) } ?: return null
+            original.substring(matchedTrigger.length).trim()
+        }
         if (dest.isEmpty()) return null
 
         val uri = Uri.parse("google.navigation:q=${java.net.URLEncoder.encode(dest, "UTF-8")}")

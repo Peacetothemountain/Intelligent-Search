@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.compose.ui.platform.testTag
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import android.content.Context
@@ -111,10 +112,11 @@ fun SearchPillsScreen(
         return getSavedProfilePills(id)
     }
 
+    // Read as the overlay reads them (trimmed, each app once): the list is keyed and reordered by package name.
     // The active profile's pills are the backed-up SEARCH_PILLS setting (so a restored backup shows here); the
     // per-profile keys only hold the profiles not in use. One state object, so drag handlers never write a stale copy.
     var searchPills by remember { mutableStateOf(prefs[SettingsManager.SEARCH_PILLS]) }
-    var localPillList by remember { mutableStateOf(searchPills.split(",").filter { it.isNotBlank() }) }
+    var localPillList by remember { mutableStateOf(searchPills.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()) }
     var resetCounter by remember { mutableIntStateOf(0) }
 
     fun persistPills(newPills: List<String>) {
@@ -134,7 +136,7 @@ fun SearchPillsScreen(
         prefs.edit().putInt("active_app_search_profile", id).apply()
         val pills = getProfilePills(id)
         searchPills = pills
-        val list = pills.split(",").filter { it.isNotBlank() }
+        val list = pills.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
         localPillList = list
         resetCounter++
         prefs.edit().put(SettingsManager.SEARCH_PILLS, pills).apply()
@@ -189,11 +191,11 @@ fun SearchPillsScreen(
             TopAppBar(
                 title = {
                     if (showAppPicker && multiSelectMode) {
-                        Text("${selectedApps.size} Selected", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("${selectedApps.size} Selected", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
                     } else if (showAppPicker) {
-                        Text("Add Applications", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("Add Applications", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
                     } else {
-                        Text("Application Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("Application Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
                     }
                 },
                 navigationIcon = {
@@ -232,7 +234,7 @@ fun SearchPillsScreen(
                         IconButton(onClick = {
                             val savedState = getSavedProfilePills(activeProfile)
                             val restoredPills = if (savedState.isNotBlank()) savedState else if (activeProfile == 1) defaultPills else ""
-                            val list = restoredPills.split(",").filter { it.isNotBlank() }
+                            val list = restoredPills.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
                             resetCounter++
                             persistPills(list)
                             Toast.makeText(context, "Profile $activeProfile Reset to Saved State", Toast.LENGTH_SHORT).show()
@@ -308,7 +310,7 @@ fun SearchPillsScreen(
 
                 if (isAppsLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(modifier = Modifier.testTag(com.pixel.intelligentsearch.core.ui.LOADING_INDICATOR_TAG))
                     }
                 } else {
                     androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -324,7 +326,7 @@ fun SearchPillsScreen(
                             ) {
                                 SettingsRow(
                                     title = appItem.label,
-                                    subtitle = if (isAlreadyAdded) "Already in Quick Launch" else packageName,
+                                    subtitle = if (isAlreadyAdded) "Already in Quick Launch" else packageName.breakableAtDots(),
                                     icon = appItem.iconBitmap ?: Icons.Outlined.Apps,
                                     onClick = {
                                         if (multiSelectMode) {
@@ -548,7 +550,6 @@ fun SearchPillsScreen(
                                 }
                             }
 
-                            val displayShiftY = if (isReordering) itemShiftAnim.value else 0f
 
                             val itemModifier = if (isDragging) {
                                 Modifier
@@ -574,7 +575,8 @@ fun SearchPillsScreen(
                                     )
                                     .zIndex(0f)
                                     .graphicsLayer {
-                                        translationY = displayShiftY
+                                        // Read here, in the draw phase, so the shift animation doesn't recompose the row.
+                                        translationY = if (isReordering) itemShiftAnim.value else 0f
                                     }
                             }
 
@@ -641,14 +643,14 @@ fun SearchPillsScreen(
                                                     }
                                                     Column {
                                                         Text(
-                                                            text = appName,
+                                                            text = appName.breakableAtDots(),
                                                             style = MaterialTheme.typography.titleMedium,
                                                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                                                             fontWeight = FontWeight.Medium,
                                                             color = MaterialTheme.colorScheme.onSurface
                                                         )
                                                         Text(
-                                                            text = packageName,
+                                                            text = packageName.breakableAtDots(),
                                                             style = MaterialTheme.typography.bodySmall,
                                                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -831,5 +833,5 @@ fun SearchPillsScreen(
     }
 }
 
-
-
+/** A package name that may wrap after any dot (zero-width spaces), so narrow screens never split it mid-word. */
+private fun String.breakableAtDots(): String = replace(".", ".\u200B")

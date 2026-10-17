@@ -72,6 +72,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -91,6 +93,8 @@ import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
 import androidx.core.content.ContextCompat
+import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -211,8 +215,21 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
         // Haptic feedback on assistant invocation
         PixelHapticEngine.get(context).performHaptic(PixelHapticType.OVERLAY_OPEN)
 
-        // Start active voice recognition
-        recognitionManager?.startListening()
+        // Listen right away only when the user wants voice and has allowed the microphone. Otherwise open the
+        // search with the keyboard ready: nobody should meet a permission error before they can type.
+        if (startsWithVoice()) recognitionManager?.startListening() else launchFullSearch("")
+    }
+
+    private fun startsWithVoice(): Boolean {
+        val micAllowed = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!micAllowed) return false
+        // Settings live in credential-protected storage; before the first unlock keep the voice default.
+        return try {
+            context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)[SettingsManager.ASSISTANT_STARTS_WITH_VOICE]
+        } catch (e: IllegalStateException) {
+            true
+        }
     }
 
     override fun onHide() {
@@ -849,9 +866,12 @@ fun VoiceAssistantBottomSheet(
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
             )
         ) {
+            // Scrolls when the sheet is taller than the screen (a small phone at large text), so the controls and
+            // quick prompts are never cut off at the bottom; at normal sizes it fits and nothing moves.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 24.dp)
                     .padding(top = 12.dp, bottom = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally

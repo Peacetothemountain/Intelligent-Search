@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.util.clampSafely
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.SharedPreferences
@@ -131,17 +132,8 @@ data class TutorialStepInfo(
  */
 @Composable
 fun AnimatedBugdroidEmoji(
-    modifier: Modifier = Modifier.size(width = 40.dp, height = 56.dp),
-    player: androidx.media3.exoplayer.ExoPlayer? = null
+    modifier: Modifier = Modifier.size(width = 40.dp, height = 56.dp)
 ) {
-    if (player != null) {
-        BugdroidPlayer(
-            player = player,
-            modifier = modifier,
-            scaleFactor = 1.0f
-        )
-        return
-    }
     val resources = androidx.compose.ui.platform.LocalResources.current
 
     val balloonBitmap = remember(resources) {
@@ -400,7 +392,9 @@ private fun FluidSpotlightPulseRing(
     }
 }
 
-@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+/** Room a centred tutorial card leaves for the overlay's search bar. */
+private val SEARCH_BAR_RESERVE = 88.dp
+
 @Composable
 fun TutorialSpotlightOverlay(
     prefs: SharedPreferences,
@@ -433,37 +427,7 @@ fun TutorialSpotlightOverlay(
     // Only decode the keyed video on the step that shows it, and only where the AGSL key is supported (API 33+).
     val showsBugdroidVideo = android.os.Build.VERSION.SDK_INT >= 33 &&
         (stepInfo.text.contains("[bugdroid]") || stepInfo.text.contains(":)"))
-    val welcomeExoPlayer = remember(context, showsBugdroidVideo) {
-        if (!showsBugdroidVideo) return@remember null
-        runCatching {
-            val uri = android.net.Uri.parse("android.resource://" + context.packageName + "/" + com.pixel.intelligentsearch.R.raw.bugdroid_welcome_video)
-            val mediaItem = androidx.media3.common.MediaItem.fromUri(uri)
-            val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
-            androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
-                setMediaSource(mediaSource)
-                repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
-                volume = 0f
-                prepare()
-                playWhenReady = true
-            }
-        }.getOrNull()
-    }
-
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    androidx.compose.runtime.DisposableEffect(lifecycleOwner, welcomeExoPlayer) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                welcomeExoPlayer?.play()
-            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                welcomeExoPlayer?.pause()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            welcomeExoPlayer?.release()
-        }
-    }
+    val welcomeExoPlayer = rememberBugdroidPlayer(BugdroidClip.WELCOME, enabled = showsBugdroidVideo)
 
     val stepForward: () -> Unit = {
         if (currentStep < TutorialManager.TOTAL_STEPS - 1) {
@@ -558,7 +522,9 @@ fun TutorialSpotlightOverlay(
             .background(Color.Transparent)
             .semantics {
                 isTraversalGroup = true
-                paneTitle = "Tutorial Spotlight: ${stepInfo.title}"
+                // The only pane title here: a second one nested inside (on the card) makes Compose throw when the
+                // accessibility tree is built, i.e. as soon as TalkBack is on.
+                paneTitle = "Tutorial step ${currentStep + 1} of ${TutorialManager.TOTAL_STEPS}: ${stepInfo.title}"
             }
             .onGloballyPositioned { coordinates ->
                 if (coordinates.isAttached) {
@@ -651,21 +617,21 @@ fun TutorialSpotlightOverlay(
                 val (startPoint, endPoint) = run {
                     if (cardBounds.bottom <= localTargetRect.top) {
                         // Card is above target: arrow flows downwards from card bottom to target top
-                        val startX = targetCenter.x.coerceIn(cardBounds.left + 24f, cardBounds.right - 24f)
+                        val startX = targetCenter.x.clampSafely(cardBounds.left + 24f, cardBounds.right - 24f)
                         val startY = cardBounds.bottom + 2f
                         val endX = targetCenter.x
                         val endY = (localTargetRect.top - 12f).coerceAtLeast(startY + 8f)
                         Offset(startX, startY) to Offset(endX, endY)
                     } else if (cardBounds.top >= localTargetRect.bottom) {
                         // Card is below target: arrow flows upwards from card top to target bottom
-                        val startX = targetCenter.x.coerceIn(cardBounds.left + 24f, cardBounds.right - 24f)
+                        val startX = targetCenter.x.clampSafely(cardBounds.left + 24f, cardBounds.right - 24f)
                         val startY = cardBounds.top - 2f
                         val endX = targetCenter.x
                         val endY = (localTargetRect.bottom + 12f).coerceAtMost(startY - 8f)
                         Offset(startX, startY) to Offset(endX, endY)
                     } else {
                         // Horizontally adjacent
-                        val startY = targetCenter.y.coerceIn(cardBounds.top + 16f, cardBounds.bottom - 16f)
+                        val startY = targetCenter.y.clampSafely(cardBounds.top + 16f, cardBounds.bottom - 16f)
                         if (cardBounds.right <= localTargetRect.left) {
                             Offset(cardBounds.right + 2f, startY) to Offset((localTargetRect.left - 12f).coerceAtLeast(cardBounds.right + 8f), targetCenter.y)
                         } else {
@@ -792,8 +758,11 @@ fun TutorialSpotlightOverlay(
                     topPad to botPad
                 }
             } else {
-                val topPad = (statusBarTopPadding + 16.dp).coerceAtLeast(16.dp)
-                val botPad = (navBarBottomPadding + 24.dp).coerceAtLeast(24.dp)
+                // A centred card keeps clear of the search bar, so on a small screen with large text it never sits
+                // over the bar (the card is slightly translucent). The room is kept on both sides so the card stays
+                // centred where it always was; on normal screens it never grows tall enough to reach it.
+                val topPad = (statusBarTopPadding + 16.dp).coerceAtLeast(16.dp) + SEARCH_BAR_RESERVE
+                val botPad = (navBarBottomPadding + 24.dp).coerceAtLeast(24.dp) + SEARCH_BAR_RESERVE
                 topPad to botPad
             }
         }
@@ -822,7 +791,6 @@ fun TutorialSpotlightOverlay(
                     }
                     .semantics {
                         isTraversalGroup = true
-                        paneTitle = "Tutorial step ${currentStep + 1} of ${TutorialManager.TOTAL_STEPS}: ${stepInfo.title}"
                         liveRegion = LiveRegionMode.Polite
                     }
                     .onGloballyPositioned { coordinates ->
@@ -837,176 +805,190 @@ fun TutorialSpotlightOverlay(
             ) {
                 Column(
                     modifier = Modifier
-                        .verticalScroll(rememberScrollState())
                         .padding(horizontal = 20.dp, vertical = 20.dp)
                         .semantics {
                             isTraversalGroup = true
                         },
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // TalkBack Traversal 1: Step Indicator
-                    Row(
+                    // The step text scrolls within whatever height is left (small screens, large text), so Skip
+                    // and Next below it always stay in view.
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .semantics {
-                                traversalIndex = 1f
-                            },
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // TalkBack Traversal 1: Step Indicator
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics {
+                                    traversalIndex = 1f
+                                },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "STEP ${currentStep + 1} OF ${TutorialManager.TOTAL_STEPS}",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                letterSpacing = 1.2.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // TalkBack Traversal 2: Title with Heading Semantics
                         Text(
-                            text = "STEP ${currentStep + 1} OF ${TutorialManager.TOTAL_STEPS}",
-                            style = MaterialTheme.typography.labelMedium,
+                            text = stepInfo.title,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            letterSpacing = 1.2.sp
+                            color = cardTextColor,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics {
+                                    heading()
+                                    traversalIndex = 2f
+                                }
                         )
-                    }
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
-                    // TalkBack Traversal 2: Title with Heading Semantics
-                    Text(
-                        text = stepInfo.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = cardTextColor,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .semantics {
-                                heading()
-                                traversalIndex = 2f
+                        // TalkBack Traversal 3: Description Body Text
+                        val bugdroidTag = "[bugdroid]"
+                        val rawText = stepInfo.text
+                        if (rawText.contains(bugdroidTag) || rawText.contains(":)")) {
+                            // 275 dp on a phone, but never more than 30% of the window, so short screens keep room for text.
+                            val windowHeightPx = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.height
+                            val welcomeVideoHeight = with(androidx.compose.ui.platform.LocalDensity.current) {
+                                minOf(275.dp, (windowHeightPx * 0.3f).toDp())
                             }
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // TalkBack Traversal 3: Description Body Text
-                    val bugdroidTag = "[bugdroid]"
-                    val rawText = stepInfo.text
-                    if (rawText.contains(bugdroidTag) || rawText.contains(":)")) {
-                        val cleanText = rawText.replace(bugdroidTag, "").replace(":)", "").trim()
-                        if (welcomeExoPlayer != null) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .semantics {
-                                        traversalIndex = 3f
-                                    },
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                BugdroidPlayer(
-                                    player = welcomeExoPlayer,
+                            val cleanText = rawText.replace(bugdroidTag, "").replace(":)", "").trim()
+                            if (welcomeExoPlayer != null) {
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(275.dp)
-                                        .offset(y = (-10).dp)
                                         .semantics {
-                                            contentDescription = "Animated 3D Bugdroid holding Google star balloon"
+                                            traversalIndex = 3f
                                         },
-                                    scaleFactor = 0.95f,
-                                    videoAspect = 16f / 9f
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    BugdroidPlayer(
+                                        player = welcomeExoPlayer,
+                                        clip = BugdroidClip.WELCOME,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(welcomeVideoHeight)
+                                            .offset(y = (-10).dp)
+                                            .semantics {
+                                                contentDescription = "Animated 3D Bugdroid holding Google star balloon"
+                                            },
+                                        scaleFactor = 0.95f
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = cleanText,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontSize = 15.sp,
+                                        lineHeight = 22.sp,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                        color = cardTextColor.copy(alpha = 0.92f),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 8.dp)
+                                    )
+                                }
+                            } else {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .semantics {
+                                            traversalIndex = 3f
+                                        },
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = cleanText,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontSize = 15.sp,
+                                        lineHeight = 22.sp,
+                                        color = cardTextColor.copy(alpha = 0.92f),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    AnimatedBugdroidEmoji(
+                                        modifier = Modifier.size(width = 44.dp, height = 58.dp)
+                                    )
+                                }
+                            }
+                        } else {
+                            val iconTag = "[three_bars]"
+                            val normalizedText = if (stepInfo.text.contains(iconTag)) {
+                                stepInfo.text
+                            } else if (stepInfo.text.contains("( the three bar )")) {
+                                stepInfo.text.replace("( the three bar )", "( [three_bars] )")
+                            } else {
+                                stepInfo.text
+                            }
+
+                            if (normalizedText.contains(iconTag)) {
+                                val parts = normalizedText.split(iconTag)
+                                val inlineContent = mapOf(
+                                    "three_bars" to InlineTextContent(
+                                        Placeholder(
+                                            width = 18.sp,
+                                            height = 18.sp,
+                                            placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+                                        )
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(id = R.drawable.ic_three_bars),
+                                            contentDescription = "Settings icon",
+                                            tint = cardTextColor.copy(alpha = 0.95f),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
+                                val annotatedString = buildAnnotatedString {
+                                    parts.forEachIndexed { index, part ->
+                                        append(part)
+                                        if (index < parts.size - 1) {
+                                            appendInlineContent("three_bars", "[icon]")
+                                        }
+                                    }
+                                }
                                 Text(
-                                    text = cleanText,
+                                    text = annotatedString,
+                                    inlineContent = inlineContent,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontSize = 15.sp,
                                     lineHeight = 22.sp,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                     color = cardTextColor.copy(alpha = 0.92f),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 8.dp)
+                                        .semantics {
+                                            traversalIndex = 3f
+                                        }
                                 )
-                            }
-                        } else {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .semantics {
-                                        traversalIndex = 3f
-                                    },
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                            } else {
                                 Text(
-                                    text = cleanText,
+                                    text = stepInfo.text,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontSize = 15.sp,
                                     lineHeight = 22.sp,
                                     color = cardTextColor.copy(alpha = 0.92f),
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                AnimatedBugdroidEmoji(
-                                    modifier = Modifier.size(width = 44.dp, height = 58.dp)
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .semantics {
+                                            traversalIndex = 3f
+                                        }
                                 )
                             }
-                        }
-                    } else {
-                        val iconTag = "[three_bars]"
-                        val normalizedText = if (stepInfo.text.contains(iconTag)) {
-                            stepInfo.text
-                        } else if (stepInfo.text.contains("( the three bar )")) {
-                            stepInfo.text.replace("( the three bar )", "( [three_bars] )")
-                        } else {
-                            stepInfo.text
                         }
 
-                        if (normalizedText.contains(iconTag)) {
-                            val parts = normalizedText.split(iconTag)
-                            val inlineContent = mapOf(
-                                "three_bars" to InlineTextContent(
-                                    Placeholder(
-                                        width = 18.sp,
-                                        height = 18.sp,
-                                        placeholderVerticalAlign = PlaceholderVerticalAlign.Center
-                                    )
-                                ) {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_three_bars),
-                                        contentDescription = "Settings icon",
-                                        tint = cardTextColor.copy(alpha = 0.95f),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            )
-                            val annotatedString = buildAnnotatedString {
-                                parts.forEachIndexed { index, part ->
-                                    append(part)
-                                    if (index < parts.size - 1) {
-                                        appendInlineContent("three_bars", "[icon]")
-                                    }
-                                }
-                            }
-                            Text(
-                                text = annotatedString,
-                                inlineContent = inlineContent,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontSize = 15.sp,
-                                lineHeight = 22.sp,
-                                color = cardTextColor.copy(alpha = 0.92f),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .semantics {
-                                        traversalIndex = 3f
-                                    }
-                            )
-                        } else {
-                            Text(
-                                text = stepInfo.text,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontSize = 15.sp,
-                                lineHeight = 22.sp,
-                                color = cardTextColor.copy(alpha = 0.92f),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .semantics {
-                                        traversalIndex = 3f
-                                    }
-                            )
-                        }
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))

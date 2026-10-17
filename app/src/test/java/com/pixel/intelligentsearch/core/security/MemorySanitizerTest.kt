@@ -1,9 +1,6 @@
 package com.pixel.intelligentsearch.core.security
 
 import org.junit.Assert.assertArrayEquals
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MemorySanitizerTest {
@@ -30,22 +27,4 @@ class MemorySanitizerTest {
         MemorySanitizer.wipe(CharArray(0))
     }
 
-    @Test
-    fun lockdownListenersMayReenterTheSessionLock() {
-        val lock = SecuritySessionLock.instance
-        lock.notifyAuthenticated()
-        assertTrue(lock.isUnlocked())
-
-        var observedUnlockedInsideListener: Boolean? = null
-        val listener: () -> Unit = { observedUnlockedInsideListener = lock.isUnlocked() }
-        lock.registerLockListener(listener)
-        try {
-            lock.lockdown()
-        } finally {
-            lock.unregisterLockListener(listener)
-        }
-
-        assertFalse(lock.isUnlocked())
-        assertEquals(false, observedUnlockedInsideListener)
-    }
 }

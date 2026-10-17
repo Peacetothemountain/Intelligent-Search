@@ -72,13 +72,12 @@ class SettingsActivity : AppCompatActivity() {
             setResult(RESULT_OK, resultValue)
         }
 
-        val fromSearchOverlay = intent.getBooleanExtra("FROM_SEARCH_OVERLAY", false)
-        val rawScreenKey = intent.getStringExtra("extra_screen")
-        val sanitizedScreenKey = when {
-            rawScreenKey == "debug" && (!fromSearchOverlay || !com.pixel.intelligentsearch.BuildConfig.DEBUG) -> null
-            rawScreenKey == "manage_hidden_apps" && !fromSearchOverlay -> null
-            else -> rawScreenKey
-        }
+        // This activity is exported (launcher, widget setup), so page and overlay extras are honoured only when
+        // they carry this app's own launch token. Other apps always land on the main settings page.
+        val isInternalLaunch = com.pixel.intelligentsearch.core.security.InternalLaunchToken.isInternal(intent)
+        val fromSearchOverlay = isInternalLaunch && intent.getBooleanExtra("FROM_SEARCH_OVERLAY", false)
+        // The debug page opens only from the overlay's debug code, which carries the launch token like every page.
+        val sanitizedScreenKey = if (isInternalLaunch) intent.getStringExtra("extra_screen") else null
         val initialRoute = if (isWidgetConfigure && sanitizedScreenKey == null) {
             Route.WidgetCustomization
         } else {

@@ -89,4 +89,35 @@ class BackupRoundTripTest {
 
         db.close()
     }
+
+    @Test
+    fun aBackupCanSwitchSharingOptInsOffButNeverOn() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = Room.inMemoryDatabaseBuilder(context, IntelligentSearchDatabase::class.java).allowMainThreadQueries().build()
+        val settingsManager = SettingsManager(context)
+        val backupManager = BackupManager(context, settingsManager, db.historyDao(), StrongBoxSecurityManager(context), WidgetUpdater { })
+        val file = File(context.cacheDir, "optins.json")
+        val uri = Uri.fromFile(file)
+
+        // A file with every sharing opt-in switched on doesn't switch them on here.
+        settingsManager.updateSetting(SettingsManager.APP_FUNCTIONS_SHARE_CONTACTS, true)
+        settingsManager.updateSetting(SettingsManager.SMART_CLIPBOARD_SUGGESTIONS, true)
+        settingsManager.updateSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS, true)
+        backupManager.exportToFile(uri, "correct horse battery").getOrThrow()
+        settingsManager.updateSetting(SettingsManager.APP_FUNCTIONS_SHARE_CONTACTS, false)
+        settingsManager.updateSetting(SettingsManager.SMART_CLIPBOARD_SUGGESTIONS, false)
+        settingsManager.updateSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS, false)
+        backupManager.importFromFile(uri, "correct horse battery").getOrThrow()
+        assertEquals(false, settingsManager[SettingsManager.APP_FUNCTIONS_SHARE_CONTACTS])
+        assertEquals(false, settingsManager[SettingsManager.SMART_CLIPBOARD_SUGGESTIONS])
+        assertEquals(false, settingsManager[SettingsManager.SEARCH_WEB_SUGGESTIONS])
+
+        // A file with them off does switch them off.
+        backupManager.exportToFile(uri, "correct horse battery").getOrThrow()
+        settingsManager.updateSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS, true)
+        backupManager.importFromFile(uri, "correct horse battery").getOrThrow()
+        assertEquals(false, settingsManager[SettingsManager.SEARCH_WEB_SUGGESTIONS])
+
+        db.close()
+    }
 }

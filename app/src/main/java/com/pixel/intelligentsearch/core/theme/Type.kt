@@ -8,6 +8,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.R
@@ -223,3 +224,23 @@ val Typography = Typography(
         lineHeightStyle = ExpressiveLineHeightStyle
     )
 )
+
+/** Text scale from which [withHyphenation] applies: large accessibility sizes, where one long word can fill a row. */
+const val LARGE_TEXT_SCALE = 1.3f
+
+/**
+ * [this] with automatic hyphenation on every style. At large text sizes a single long word ("Customization")
+ * can be wider than its column, and without hyphenation Android splits it at any letter; with it, the word
+ * breaks at a hyphenation point and shows a hyphen. Only used from [LARGE_TEXT_SCALE], so normal sizes keep
+ * their line breaks exactly.
+ */
+fun Typography.withHyphenation(): Typography {
+    fun TextStyle.h() = copy(hyphens = Hyphens.Auto)
+    return copy(
+        displayLarge = displayLarge.h(), displayMedium = displayMedium.h(), displaySmall = displaySmall.h(),
+        headlineLarge = headlineLarge.h(), headlineMedium = headlineMedium.h(), headlineSmall = headlineSmall.h(),
+        titleLarge = titleLarge.h(), titleMedium = titleMedium.h(), titleSmall = titleSmall.h(),
+        bodyLarge = bodyLarge.h(), bodyMedium = bodyMedium.h(), bodySmall = bodySmall.h(),
+        labelLarge = labelLarge.h(), labelMedium = labelMedium.h(), labelSmall = labelSmall.h()
+    )
+}

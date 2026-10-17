@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch.feature.search
+import com.pixel.intelligentsearch.core.search.SpellingSuggester
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.WebSearchProvider
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
@@ -90,8 +91,16 @@ data class SearchUiState(
     val hasLockedPrivateSpace: Boolean = false,
     val lastQueryLatency: Long = 0,
     val bangSuggestions: List<com.pixel.intelligentsearch.core.bangs.SearchBang> = emptyList(),
-    val detectedBangQuery: com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = null
+    val detectedBangQuery: com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = null,
+    /** The query with an obvious typo fixed, offered as "Did you mean"; null when nothing is misspelled. */
+    val spellingSuggestion: String? = null
 )
+
+/** How long typing must pause before a query is spell checked for "Did you mean". */
+private const val SPELLING_PAUSE_MS = 450L
+
+/** The debug menu's Simulate Web Latency delay before web suggestions are fetched. */
+private const val SIMULATED_LATENCY_MS = 2_000L
 
 @OptIn(kotlinx.coroutines.FlowPreview::class)
 @HiltViewModel
@@ -339,21 +348,34 @@ class SearchViewModel @Inject constructor(
                 val events = eventsDeferred.await()
 
                 val clipboardActions = mutableListOf<DirectAction>()
-                if (settingsState.value.smartClipboardSuggestions && !isAdvancedProtectionOn()) {
+                if (settingsState.value.smartClipboardSuggestions) {
                     try {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                        if (clipboard?.hasPrimaryClip() == true && clipboard.primaryClipDescription != null) {
+                        // Password managers mark copied secrets sensitive; never show or search those.
+                        val isSensitive = clipboard?.primaryClipDescription?.extras
+                            ?.getBoolean("android.content.extra.IS_SENSITIVE", false) == true
+                        val engine = settingsState.value.searchEngine
+                        val isTor = com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(engine)
+                        if (!isSensitive && clipboard?.hasPrimaryClip() == true && clipboard.primaryClipDescription != null) {
                             val item = clipboard.primaryClip?.getItemAt(0)
                             val text = item?.text?.toString() ?: item?.coerceToText(context)?.toString()
                             if (!text.isNullOrBlank()) {
                                 val trimmed = text.trim()
                                 if (android.util.Patterns.WEB_URL.matcher(trimmed).matches()) {
-                                    val url = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed else "https://$trimmed"
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                                    clipboardActions.add(DirectAction("Open Link", trimmed, "link", intent))
+                                    // Same rules as a typed address: http(s) only, browsable apps only, Tor Browser under Tor.
+                                    val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.forAddress(context, trimmed, engine)
+                                    if (launch is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open) {
+                                        clipboardActions.add(DirectAction("Open Link", trimmed, "link", launch.intent))
+                                    }
                                 } else if (android.util.Patterns.PHONE.matcher(trimmed).matches() && trimmed.length >= 7) {
                                     val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$trimmed"))
                                     clipboardActions.add(DirectAction("Call Number", trimmed, "phone", intent))
+                                } else if (isTor) {
+                                    // The generic web-search intent would reach a normal browser; search through Tor instead.
+                                    val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.torSearch(context, trimmed)
+                                    if (launch is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open) {
+                                        clipboardActions.add(DirectAction("Search Copied Text", trimmed, "search", launch.intent))
+                                    }
                                 } else {
                                     val intent = android.content.Intent(android.content.Intent.ACTION_WEB_SEARCH)
                                     intent.putExtra(android.app.SearchManager.QUERY, trimmed)
@@ -422,6 +444,7 @@ class SearchViewModel @Inject constructor(
 
         _uiState.update { current ->
             current.copy(
+                spellingSuggestion = null,
                 bangSuggestions = bangSuggestions,
                 detectedBangQuery = parsedBang,
                 filteredApps = if (tier0.apps.isNotEmpty() && settingsState.value.searchApps) {
@@ -447,15 +470,13 @@ class SearchViewModel @Inject constructor(
 
     private fun executeLocalSearch(newQuery: String, previousQuery: String = "") {
         val prefs = customPrefs
-        val verboseLogging = prefs[SettingsManager.DEBUG_VERBOSE_LOGGING]
-        val forceSearchError = prefs[SettingsManager.DEBUG_FORCE_SEARCH_ERROR]
+        val verboseLogging = debugSwitch(SettingsManager.DEBUG_VERBOSE_LOGGING)
+        val forceSearchError = debugSwitch(SettingsManager.DEBUG_FORCE_SEARCH_ERROR)
+        val mockLargeDataset = debugSwitch(SettingsManager.DEBUG_MOCK_LARGE_DATASET)
 
         searchJob?.cancel()
         searchJob = viewModelScope.launch(Dispatchers.Default) {
-            val isDebuggable = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-            if (isDebuggable && verboseLogging) {
-                android.util.Log.d("SearchDebug", "Local query started (len: ${newQuery.length})")
-            }
+            if (verboseLogging) debugLog("Local query started (length ${newQuery.length})")
             val startTime = System.currentTimeMillis()
 
             if (forceSearchError) {
@@ -567,12 +588,15 @@ class SearchViewModel @Inject constructor(
             val localFiles = if (settings.searchFiles) {
                 unifiedResults.files.take(settings.fileResultsCount)
             } else emptyList()
+            // Debug menu: pad the lists past their usual caps to exercise long results.
+            val shownContacts = if (mockLargeDataset) localContacts + DebugMocks.contacts else localContacts
+            val shownFiles = if (mockLargeDataset) localFiles + DebugMocks.files else localFiles
 
             val localShortcuts = if (settings.searchShortcuts) {
                 unifiedResults.shortcuts.filter { it.packageName !in settings.hiddenApps }.take(settings.shortcutResultsCount)
             } else emptyList()
 
-            val suggestionsEnabled = settings.searchWeb && customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS] && !isAdvancedProtectionOn()
+            val suggestionsEnabled = settings.searchWeb && customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
                 WebSearchProvider.getCachedSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(5))
@@ -618,8 +642,8 @@ class SearchViewModel @Inject constructor(
                 }
                 current.copy(
                     filteredApps = resolvedApps,
-                    contacts = localContacts,
-                    files = localFiles,
+                    contacts = shownContacts,
+                    files = shownFiles,
                     shortcuts = localShortcuts,
                     webSuggestions = resolvedSuggestions,
                     mathResult = mathStr,
@@ -632,13 +656,31 @@ class SearchViewModel @Inject constructor(
             }
 
             if (verboseLogging) {
-                android.util.Log.d("SearchDebug", "Local query finished in ${elapsed}ms")
+                debugLog("Local query finished in ${elapsed} ms: ${resolvedApps.size} apps, ${shownContacts.size} contacts, " +
+                    "${shownFiles.size} files, ${localShortcuts.size} shortcuts, ${directActions.size} actions")
+            }
+
+            // "Did you mean": once typing pauses (the next keystroke cancels this job, so it never runs mid-word),
+            // unless the query is plainly the start of an app or contact name, where a dictionary would "fix" it.
+            val typed = newQuery.trim()
+            val namingSomething = resolvedApps.any { it.name.startsWith(typed, ignoreCase = true) } ||
+                shownContacts.any { it.name.startsWith(typed, ignoreCase = true) }
+            val checkSpelling = !namingSomething &&
+                SpellingSuggester.shouldCheck(newQuery, bangManager.getTriggerSymbol(), looksLikeWebAddress(typed))
+            if (checkSpelling) {
+                delay(SPELLING_PAUSE_MS)
+                withContext(Dispatchers.Main) {
+                    val suggester = spellingSuggester ?: SpellingSuggester(context).also { spellingSuggester = it }
+                    suggester.suggest(newQuery) { corrected ->
+                        _uiState.update { if (it.query == newQuery) it.copy(spellingSuggestion = corrected) else it }
+                    }
+                }
             }
         }
     }
 
-    private fun isAdvancedProtectionOn(): Boolean =
-        com.pixel.intelligentsearch.core.security.AdvancedProtectionMonitor.isEnabled(context)
+    /** Opened on first use, on the main thread (the spell checker answers on the thread that opened it). */
+    private var spellingSuggester: SpellingSuggester? = null
 
     /**
      * Text for the calculator card. Unit conversions return null because they render in the dedicated
@@ -696,7 +738,7 @@ class SearchViewModel @Inject constructor(
         }
 
         val suggestionsEnabled = customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]
-        if (!suggestionsEnabled || isAdvancedProtectionOn()) {
+        if (!suggestionsEnabled) {
             _uiState.update { it.copy(webSuggestions = emptyList()) }
             return
         }
@@ -705,7 +747,12 @@ class SearchViewModel @Inject constructor(
 
         withContext(Dispatchers.IO) {
             try {
+                val started = System.currentTimeMillis()
+                if (debugSwitch(SettingsManager.DEBUG_SIMULATE_LATENCY)) delay(SIMULATED_LATENCY_MS)
                 val suggestions = WebSearchProvider.getWebSuggestions(query, engine).take(maxResults)
+                if (debugSwitch(SettingsManager.DEBUG_VERBOSE_LOGGING)) {
+                    debugLog("Web suggestions: ${suggestions.size} in ${System.currentTimeMillis() - started} ms")
+                }
                 currentCoroutineContext().ensureActive()
                 _uiState.update { current ->
                     if (current.query == query) {
@@ -716,6 +763,18 @@ class SearchViewModel @Inject constructor(
                 if (e is CancellationException) throw e
             }
         }
+    }
+
+    /** A debug menu switch, which applies only while debug mode is on. */
+    private fun debugSwitch(key: com.pixel.intelligentsearch.core.data.settings.BooleanSetting): Boolean =
+        customPrefs[SettingsManager.DEBUG_UNLOCKED] && customPrefs[key]
+
+    /**
+     * Verbose debug logging. Log.println, unlike Log.d, survives release builds (R8 strips v, d, i and w), and
+     * it records lengths, counts and timings only, never what the user typed.
+     */
+    private fun debugLog(message: String) {
+        android.util.Log.println(android.util.Log.INFO, "SearchDebug", message)
     }
 
     @Volatile
@@ -822,6 +881,8 @@ class SearchViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        spellingSuggester?.close()
+        spellingSuggester = null
         searchJob?.cancel()
         searchJob = null
         initialDataJob?.cancel()
@@ -834,5 +895,4 @@ class SearchViewModel @Inject constructor(
 
 
 /** Whether [engine] (the stored search-engine choice) routes searches through Tor Browser. */
-internal fun isTorSearchEngine(engine: String): Boolean = engine.equals("Tor Project", ignoreCase = true) ||
-    engine.equals("Tor Browser", ignoreCase = true)
+internal fun isTorSearchEngine(engine: String): Boolean = com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(engine)

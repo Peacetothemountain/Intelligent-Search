@@ -7,6 +7,7 @@ plugins {
   alias(libs.plugins.ksp)
   alias(libs.plugins.hilt)
   alias(libs.plugins.room)
+  alias(libs.plugins.baselineprofile)
 }
 
 android {
@@ -16,8 +17,8 @@ android {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
         targetSdk = 37
-        versionCode = 122
-        versionName = "9.2"
+        versionCode = 123
+        versionName = "9.3"
     }
 
     signingConfigs {
@@ -87,6 +88,19 @@ android {
 
     testOptions {
       unitTests {
+        // Screenshot tests record goldens with -Proborazzi.record and compare against them otherwise.
+        all { test ->
+          test.systemProperty("roborazzi.test.record", project.findProperty("roborazzi.record")?.toString() ?: "false")
+          test.systemProperty("roborazzi.test.verify", if (project.hasProperty("roborazzi.record")) "false" else "true")
+          // Goldens are inputs: replacing an image must re-run the comparison instead of reusing a cached result.
+          test.inputs.files(project.fileTree("src/test/screenshots")).withPropertyName("screenshotGoldens")
+          // Goldens are recorded on Windows; until Linux rendering is confirmed identical, CI can skip them.
+          if (project.hasProperty("skipScreenshots")) test.exclude("**/screenshots/**")
+          // The layout audit renders every screen at many device sizes and text sizes; it runs only on request
+          // (-PlayoutAudit) and writes its report and captures to build/layout-audit.
+          test.systemProperty("layoutAudit", if (project.hasProperty("layoutAudit")) "true" else "false")
+          test.systemProperty("layoutAuditDir", layout.buildDirectory.dir("layout-audit").get().asFile.path)
+        }
         isReturnDefaultValues = true
         // Robolectric tests load the merged manifest and resources.
         isIncludeAndroidResources = true
@@ -130,6 +144,10 @@ dependencies {
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.profileinstaller)
+  // The overlay start-up profile, generated on a phone by :baselineprofile.
+  baselineProfile(project(":baselineprofile"))
+  // Weekly automatic encrypted backups.
+  implementation(libs.androidx.work.runtime)
   implementation(platform(libs.androidx.compose.bom))
 
   // Compose
@@ -151,6 +169,14 @@ dependencies {
   // Robolectric runs Android-dependent code (SharedPreferences, DataStore, Room, ContentResolver) on the JVM.
   testImplementation(libs.robolectric)
   testImplementation(libs.androidx.test.core)
+  testImplementation(libs.androidx.work.testing)
+  // Screenshot tests (Robolectric native graphics) that pin the UI while it is rebuilt.
+  testImplementation(libs.roborazzi)
+  testImplementation(libs.roborazzi.compose)
+  testImplementation(platform(libs.androidx.compose.bom))
+  testImplementation(libs.androidx.compose.ui.test.junit4)
+  testImplementation(libs.hilt.android.testing)
+  kspTest(libs.hilt.android.compiler)
 
   // Instrumented tests: jUnit rules and runners
   androidTestImplementation(libs.androidx.test.core)

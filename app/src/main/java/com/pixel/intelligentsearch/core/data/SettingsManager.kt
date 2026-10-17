@@ -165,6 +165,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val SEARCH_WEIGHT_WEB = IntSetting("search_weight_web", 50, 0..100)
         val CONTEXT_AWARE_QUICK_APPS = BooleanSetting("context_aware_quick_apps", false)
         val SMART_CLIPBOARD_SUGGESTIONS = BooleanSetting("smart_clipboard_suggestions", false)
+        /** The assistant gesture starts listening; off, it opens search with the keyboard ready instead. */
+        val ASSISTANT_STARTS_WITH_VOICE = BooleanSetting("assistant_starts_with_voice", true)
         val ACTIVE_ICON_PACK = StringSetting("active_icon_pack", "system_default")
         val SEARCH_OVERLAY_ENABLED = BooleanSetting("search_overlay_enabled", true)
         val CUSTOM_ICON_PILLS = StringSetting("custom_icon_pills", "", "custom_icon_packs_order")
@@ -184,6 +186,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val DEBUG_VERBOSE_LOGGING = BooleanSetting("debug.verbose_logging", false)
         val DEBUG_SHOW_PERF_STATS = BooleanSetting("debug.show_perf_stats", false)
         val DEBUG_FORCE_SEARCH_ERROR = BooleanSetting("debug.force_search_error", false)
+        val DEBUG_SIMULATE_LATENCY = BooleanSetting("debug.simulate_latency", false)
+        val DEBUG_MOCK_LARGE_DATASET = BooleanSetting("debug.mock_large_dataset", false)
+        val DEBUG_MOCK_TRENDING = BooleanSetting("debug.mock_zero_state", false)
         /** The user's consent to let on-device assistants search contacts (AppFunctions); off by default. */
         val APP_FUNCTIONS_SHARE_CONTACTS = BooleanSetting("appfunctions_share_contacts", false)
 
@@ -199,12 +204,13 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             APP_QUICK_LAUNCH, CONTACT_DIRECT_CALL, SHORTCUT_INLINE, SHORTCUT_RECENT, APP_FUZZY_SEARCH,
             QUICK_SEARCH_HORIZONTAL, WEB_RESULTS_COUNT, CONTACT_RESULTS_COUNT, FILE_RESULTS_COUNT,
             SHORTCUT_RESULTS_COUNT, SEARCH_WEIGHT_APPS, SEARCH_WEIGHT_CONTACTS, SEARCH_WEIGHT_FILES,
-            SEARCH_WEIGHT_WEB, CONTEXT_AWARE_QUICK_APPS, SMART_CLIPBOARD_SUGGESTIONS, ACTIVE_ICON_PACK,
+            SEARCH_WEIGHT_WEB, CONTEXT_AWARE_QUICK_APPS, SMART_CLIPBOARD_SUGGESTIONS, ASSISTANT_STARTS_WITH_VOICE, ACTIVE_ICON_PACK,
             SEARCH_OVERLAY_ENABLED, CUSTOM_ICON_PILLS, NEVER_SHOW_ICON_PACK_WARNING, CUSTOM_BANGS_JSON,
             WEB_SHORTCUT_TRIGGER_SYMBOL, SEARCH_QUICK_SHORTCUTS, SHOW_AVAILABLE_DIRECT_SHORTCUTS,
             ADAPTIVE_ICON_SHAPE, DYNAMIC_ICON_MASKING, DIAGNOSTICS_OVERLAY_ENABLED, MATRIX_ANIMATION_ENABLED,
             BACK_TO_SEARCH_OVERLAY, DISABLED_WEB_SHORTCUTS, VIBRATION, DEBUG_UNLOCKED, DEBUG_VERBOSE_LOGGING,
-            DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, APP_FUNCTIONS_SHARE_CONTACTS
+            DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,
+            DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS
         )
 
         private val BY_STORED_NAME: Map<String, SettingKey<*>> =

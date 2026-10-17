@@ -1,7 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import com.pixel.intelligentsearch.core.data.settings.get
-import com.pixel.intelligentsearch.core.data.settings.put
+import androidx.compose.ui.platform.testTag
+import com.pixel.intelligentsearch.core.data.settings.SearchPillProfiles
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -42,7 +42,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.navigation.Route
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 
@@ -97,47 +96,21 @@ fun SearchPillsScreen(
 ) {
     val context = LocalContext.current
     val viewModel = LocalSettingsViewModel.current
-    val defaultPills = "com.android.chrome,com.google.android.apps.maps,com.google.android.youtube,com.android.vending,com.google.android.contacts,com.google.android.apps.nbu.files"
-
-    var activeProfile by remember { mutableIntStateOf(prefs.getInt("active_app_search_profile", 1)) }
-
-    fun getSavedProfilePills(id: Int): String {
-        return prefs.getString("app_search_profile_${id}_saved", if (id == 1) defaultPills else "") ?: ""
-    }
-
-    fun getProfilePills(id: Int): String {
-        val current = prefs.getString("app_search_profile_$id", null)
-        if (current != null) return current
-        return getSavedProfilePills(id)
-    }
-
-    // The active profile's pills are the backed-up SEARCH_PILLS setting (so a restored backup shows here); the
-    // per-profile keys only hold the profiles not in use. One state object, so drag handlers never write a stale copy.
-    var searchPills by remember { mutableStateOf(prefs[SettingsManager.SEARCH_PILLS]) }
-    var localPillList by remember { mutableStateOf(searchPills.split(",").filter { it.isNotBlank() }) }
+    val profiles = remember(prefs) { SearchPillProfiles(prefs) }
+    var activeProfile by remember { mutableIntStateOf(profiles.activeProfile) }
+    // One state object, so drag handlers never write a stale copy.
+    var localPillList by remember { mutableStateOf(profiles.pills()) }
     var resetCounter by remember { mutableIntStateOf(0) }
 
     fun persistPills(newPills: List<String>) {
-        val pillString = newPills.joinToString(",")
         localPillList = newPills
-        searchPills = pillString
-        prefs.edit()
-            .putString("app_search_profile_$activeProfile", pillString)
-            .put(SettingsManager.SEARCH_PILLS, pillString)
-            .apply()
+        profiles.setPills(newPills)
     }
 
     fun switchProfile(id: Int) {
-        // Keep the profile being left, so switching back restores it.
-        prefs.edit().putString("app_search_profile_$activeProfile", searchPills).apply()
+        localPillList = profiles.switchTo(id)
         activeProfile = id
-        prefs.edit().putInt("active_app_search_profile", id).apply()
-        val pills = getProfilePills(id)
-        searchPills = pills
-        val list = pills.split(",").filter { it.isNotBlank() }
-        localPillList = list
         resetCounter++
-        prefs.edit().put(SettingsManager.SEARCH_PILLS, pills).apply()
     }
 
     var showAppPicker by remember { mutableStateOf(false) }
@@ -177,11 +150,7 @@ fun SearchPillsScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        if (!prefs.contains("app_search_profile_1_saved")) {
-            prefs.edit().putString("app_search_profile_1_saved", defaultPills).apply()
-        }
-    }
+    LaunchedEffect(Unit) { profiles.ensureDefaultSaved() }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -189,11 +158,11 @@ fun SearchPillsScreen(
             TopAppBar(
                 title = {
                     if (showAppPicker && multiSelectMode) {
-                        Text("${selectedApps.size} Selected", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("${selectedApps.size} Selected", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
                     } else if (showAppPicker) {
-                        Text("Add Applications", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("Add Applications", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
                     } else {
-                        Text("Application Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("Application Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
                     }
                 },
                 navigationIcon = {
@@ -215,7 +184,7 @@ fun SearchPillsScreen(
                         IconButton(onClick = {
                             val currentList = localPillList.toMutableList()
                             val newApps = selectedApps.filter { !currentList.contains(it) }
-                            if (currentList.size + newApps.size > 20) {
+                            if (currentList.size + newApps.size > SearchPillProfiles.MAX_PILLS) {
                                 showMaxWarning = true
                             } else {
                                 currentList.addAll(newApps)
@@ -230,24 +199,20 @@ fun SearchPillsScreen(
                         }
                     } else if (!showAppPicker) {
                         IconButton(onClick = {
-                            val savedState = getSavedProfilePills(activeProfile)
-                            val restoredPills = if (savedState.isNotBlank()) savedState else if (activeProfile == 1) defaultPills else ""
-                            val list = restoredPills.split(",").filter { it.isNotBlank() }
                             resetCounter++
-                            persistPills(list)
+                            localPillList = profiles.resetToSaved()
                             Toast.makeText(context, "Profile $activeProfile Reset to Saved State", Toast.LENGTH_SHORT).show()
                         }) {
                             Icon(Icons.Outlined.RestartAlt, contentDescription = "Reset to Saved State")
                         }
                         IconButton(onClick = {
-                            val pillString = localPillList.joinToString(",")
-                            prefs.edit().putString("app_search_profile_${activeProfile}_saved", pillString).apply()
+                            profiles.saveState(localPillList)
                             Toast.makeText(context, "Profile $activeProfile State Saved", Toast.LENGTH_SHORT).show()
                         }) {
                             Icon(Icons.Outlined.Save, contentDescription = "Save Profile State")
                         }
                         IconButton(onClick = {
-                            if (localPillList.size >= 20) {
+                            if (localPillList.size >= SearchPillProfiles.MAX_PILLS) {
                                 showMaxWarning = true
                             } else {
                                 showAppPicker = true
@@ -308,7 +273,7 @@ fun SearchPillsScreen(
 
                 if (isAppsLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(modifier = Modifier.testTag(com.pixel.intelligentsearch.core.ui.LOADING_INDICATOR_TAG))
                     }
                 } else {
                     androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -324,7 +289,7 @@ fun SearchPillsScreen(
                             ) {
                                 SettingsRow(
                                     title = appItem.label,
-                                    subtitle = if (isAlreadyAdded) "Already in Quick Launch" else packageName,
+                                    subtitle = if (isAlreadyAdded) "Already in Quick Launch" else packageName.breakableAtDots(),
                                     icon = appItem.iconBitmap ?: Icons.Outlined.Apps,
                                     onClick = {
                                         if (multiSelectMode) {
@@ -332,7 +297,7 @@ fun SearchPillsScreen(
                                             if (selectedApps.isEmpty()) multiSelectMode = false
                                         } else {
                                             if (!isAlreadyAdded) {
-                                                if (localPillList.size >= 20) {
+                                                if (localPillList.size >= SearchPillProfiles.MAX_PILLS) {
                                                     showMaxWarning = true
                                                 } else {
                                                     val updated = localPillList + packageName
@@ -373,7 +338,7 @@ fun SearchPillsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    for (id in 1..5) {
+                    for (id in 1..SearchPillProfiles.PROFILE_COUNT) {
                         val isSelected = activeProfile == id
                         FilterChip(
                             selected = isSelected,
@@ -425,7 +390,7 @@ fun SearchPillsScreen(
                             )
                             Button(
                                 onClick = {
-                                    if (localPillList.size >= 20) {
+                                    if (localPillList.size >= SearchPillProfiles.MAX_PILLS) {
                                         showMaxWarning = true
                                     } else {
                                         showAppPicker = true
@@ -548,7 +513,6 @@ fun SearchPillsScreen(
                                 }
                             }
 
-                            val displayShiftY = if (isReordering) itemShiftAnim.value else 0f
 
                             val itemModifier = if (isDragging) {
                                 Modifier
@@ -574,7 +538,8 @@ fun SearchPillsScreen(
                                     )
                                     .zIndex(0f)
                                     .graphicsLayer {
-                                        translationY = displayShiftY
+                                        // Read here, in the draw phase, so the shift animation doesn't recompose the row.
+                                        translationY = if (isReordering) itemShiftAnim.value else 0f
                                     }
                             }
 
@@ -641,14 +606,14 @@ fun SearchPillsScreen(
                                                     }
                                                     Column {
                                                         Text(
-                                                            text = appName,
+                                                            text = appName.breakableAtDots(),
                                                             style = MaterialTheme.typography.titleMedium,
                                                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                                                             fontWeight = FontWeight.Medium,
                                                             color = MaterialTheme.colorScheme.onSurface
                                                         )
                                                         Text(
-                                                            text = packageName,
+                                                            text = packageName.breakableAtDots(),
                                                             style = MaterialTheme.typography.bodySmall,
                                                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -831,5 +796,5 @@ fun SearchPillsScreen(
     }
 }
 
-
-
+/** A package name that may wrap after any dot (zero-width spaces), so narrow screens never split it mid-word. */
+private fun String.breakableAtDots(): String = replace(".", ".\u200B")

@@ -376,10 +376,12 @@ fun MathResultOneBox(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
+            // Flows onto a second line when both chips don't fit (narrow phones, large text) instead of squeezing one.
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                itemVerticalAlignment = Alignment.CenterVertically
             ) {
                 AnimatedCopyChip(
                     textToCopy = result,

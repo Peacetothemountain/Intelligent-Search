@@ -209,8 +209,10 @@ class RadixTreeIndex<T> {
     }
 
     /**
-     * Performs typo-tolerant fuzzy search over the Radix Tree within maxDistance edit operations.
-     * Uses dynamic programming vector propagation along compressed tree edges with early subtree pruning.
+     * Typo-tolerant search: every value whose key starts with something within [maxDistance] edits of the query
+     * (insert, delete, substitute, or swap two adjacent letters). Matching key prefixes rather than whole keys
+     * finds partly typed names with a slip ("yuotu" -> "youtube"). Walks the tree carrying the edit-distance rows
+     * and prunes any branch whose best row already exceeds [maxDistance].
      */
     fun searchFuzzy(
         rawQuery: String,
@@ -218,100 +220,89 @@ class RadixTreeIndex<T> {
         limit: Int = 50
     ): List<FuzzyMatchResult<T>> {
         val query = rawQuery.trim().lowercase(java.util.Locale.ROOT)
-        if (query.isEmpty()) return emptyList()
+        if (query.isEmpty() || maxDistance < 0) return emptyList()
 
         return lock.read {
             val results = mutableListOf<FuzzyMatchResult<T>>()
-            val initialRow = IntArray(query.length + 1) { it }
+            val firstRow = IntArray(query.length + 1) { it }
             val candidateCap = maxOf(limit * 5, 200)
-
             for (child in root.children) {
-                searchFuzzyRecursive(
-                    node = child,
-                    query = query,
-                    previousRow = initialRow,
-                    currentKeyPath = StringBuilder(),
-                    maxDistance = maxDistance,
-                    candidateCap = candidateCap,
-                    results = results
-                )
+                searchFuzzyRecursive(child, query, firstRow, null, null, StringBuilder(), maxDistance, candidateCap, results)
                 if (results.size >= candidateCap) break
             }
-
-            val bestResults = LinkedHashMap<T, FuzzyMatchResult<T>>()
+            val best = LinkedHashMap<T, FuzzyMatchResult<T>>()
             for (res in results) {
-                val existing = bestResults[res.value]
-                if (existing == null || res.distance < existing.distance) {
-                    bestResults[res.value] = res
-                }
+                val existing = best[res.value]
+                if (existing == null || res.distance < existing.distance) best[res.value] = res
             }
-            bestResults.values.sortedBy { it.distance }.take(limit)
+            best.values.sortedBy { it.distance }.take(limit)
         }
     }
 
+    /**
+     * [row] is the distance row for the key path so far ([previousRow] is the row one letter earlier and
+     * [lastChar] that letter, both needed to price a swap).
+     */
     private fun searchFuzzyRecursive(
         node: RadixNode<T>,
         query: String,
-        previousRow: IntArray,
-        currentKeyPath: StringBuilder,
+        row: IntArray,
+        previousRow: IntArray?,
+        lastChar: Char?,
+        keyPath: StringBuilder,
         maxDistance: Int,
         candidateCap: Int,
         results: MutableList<FuzzyMatchResult<T>>
     ) {
-        val pathLengthBefore = currentKeyPath.length
-        currentKeyPath.append(node.edge)
-
-        var currentRow = previousRow.copyOf()
-        val scratch = IntArray(query.length + 1)
-        // Propagate DP vector across each character of the compressed edge
-        for (i in 0 until node.edge.length) {
-            val edgeChar = node.edge[i]
-            scratch[0] = currentRow[0] + 1
-
-            for (j in 1..query.length) {
-                val insertCost = scratch[j - 1] + 1
-                val deleteCost = currentRow[j] + 1
-                val replaceCost = if (query[j - 1] == edgeChar) currentRow[j - 1] else currentRow[j - 1] + 1
-                scratch[j] = min(min(insertCost, deleteCost), replaceCost)
-            }
-            System.arraycopy(scratch, 0, currentRow, 0, scratch.size)
-        }
-
-        // Subtree pruning: if the minimum edit distance in currentRow exceeds maxDistance,
-        // no descendant branch can possibly match within maxDistance
-        var minRowDistance = Int.MAX_VALUE
-        for (d in currentRow) {
-            if (d < minRowDistance) minRowDistance = d
-        }
-
-        if (minRowDistance <= maxDistance) {
-            val finalDistance = currentRow[query.length]
-            if (node.isTerminal && finalDistance <= maxDistance) {
-                val matchedKey = currentKeyPath.toString()
-                for (value in node.values) {
-                    results.add(FuzzyMatchResult(value, finalDistance, matchedKey))
-                    if (results.size >= candidateCap) {
-                        currentKeyPath.setLength(pathLengthBefore)
-                        return
-                    }
+        val m = query.length
+        val pathLengthBefore = keyPath.length
+        var prevPrev = previousRow
+        var prev = row
+        var prevChar = lastChar
+        for (c in node.edge) {
+            val curr = IntArray(m + 1)
+            curr[0] = prev[0] + 1
+            var minInRow = curr[0]
+            for (j in 1..m) {
+                val q = query[j - 1]
+                var d = min(min(curr[j - 1] + 1, prev[j] + 1), prev[j - 1] + if (q == c) 0 else 1)
+                if (prevPrev != null && prevChar != null && j > 1 && q == prevChar && query[j - 2] == c) {
+                    d = min(d, prevPrev[j - 2] + 1)
                 }
+                curr[j] = d
+                if (d < minInRow) minInRow = d
             }
-
-            for (child in node.children) {
-                searchFuzzyRecursive(
-                    node = child,
-                    query = query,
-                    previousRow = currentRow,
-                    currentKeyPath = currentKeyPath,
-                    maxDistance = maxDistance,
-                    candidateCap = candidateCap,
-                    results = results
-                )
-                if (results.size >= candidateCap) break
+            keyPath.append(c)
+            prevPrev = prev
+            prev = curr
+            prevChar = c
+            if (curr[m] <= maxDistance) {
+                // The key path so far is within reach of the whole query: everything below it matches.
+                collectFuzzyMatches(node, curr[m], keyPath.toString(), candidateCap, results)
+                keyPath.setLength(pathLengthBefore)
+                return
+            }
+            if (minInRow > maxDistance) {
+                keyPath.setLength(pathLengthBefore)
+                return
             }
         }
+        for (child in node.children) {
+            searchFuzzyRecursive(child, query, prev, prevPrev, prevChar, keyPath, maxDistance, candidateCap, results)
+            if (results.size >= candidateCap) break
+        }
+        keyPath.setLength(pathLengthBefore)
+    }
 
-        currentKeyPath.setLength(pathLengthBefore)
+    private fun collectFuzzyMatches(node: RadixNode<T>, distance: Int, matchedKey: String, cap: Int, results: MutableList<FuzzyMatchResult<T>>) {
+        for (value in node.values) {
+            results.add(FuzzyMatchResult(value, distance, matchedKey))
+            if (results.size >= cap) return
+        }
+        for (child in node.children) {
+            collectFuzzyMatches(child, distance, matchedKey, cap, results)
+            if (results.size >= cap) return
+        }
     }
 
     private fun collectAllDescendants(node: RadixNode<T>, results: LinkedHashSet<T>, limit: Int) {

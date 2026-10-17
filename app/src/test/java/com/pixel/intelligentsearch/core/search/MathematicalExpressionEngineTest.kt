@@ -5,6 +5,19 @@ import org.junit.Test
 
 class MathematicalExpressionEngineTest {
 
+    private fun computed(expression: String): String? =
+        (MathematicalExpressionEngine.evaluate(expression) as? MathematicalExpressionEngine.MathEvaluationResult.Computation)?.formattedResult
+
+    @Test
+    fun testFourOperationsAndErrors() {
+        assertEquals("4", computed("2+2"))
+        assertEquals("5", computed("10-5"))
+        assertEquals("9", computed("3*3"))
+        assertEquals("4", computed("8/2"))
+        assertNull(computed("5/0"))
+        assertNull(computed("2+a"))
+    }
+
     @Test
     fun testBasicArithmetic() {
         val res = MathematicalExpressionEngine.evaluate("2 + 2 * 3")

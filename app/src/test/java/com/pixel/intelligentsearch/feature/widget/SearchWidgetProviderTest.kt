@@ -90,29 +90,31 @@ class SearchWidgetProviderTest {
 
     @Test
     fun testHasSavedSystemDesign_detectsCustomColorIntAndSubtheme() {
+        val design = com.pixel.intelligentsearch.core.data.widget.WidgetDesign.SYSTEM
         val emptyPrefs = createMockPrefs(emptyMap())
-        assertFalse(SearchWidgetProvider.hasSavedSystemDesign(emptyPrefs))
+        assertFalse(com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore(emptyPrefs).isSaved(design))
 
         val customColorPrefs = createMockPrefs(mapOf("widget_system_custom_color_int" to 0xFF123456.toInt()))
-        assertTrue(SearchWidgetProvider.hasSavedSystemDesign(customColorPrefs))
+        assertTrue(com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore(customColorPrefs).isSaved(design))
 
         val subthemePrefs = createMockPrefs(mapOf("widget_system_subtheme" to "Custom"))
-        assertTrue(SearchWidgetProvider.hasSavedSystemDesign(subthemePrefs))
+        assertTrue(com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore(subthemePrefs).isSaved(design))
     }
 
     @Test
     fun testHasSavedMaterialDesign_detectsCustomColorIntAndSubtheme() {
+        val design = com.pixel.intelligentsearch.core.data.widget.WidgetDesign.MATERIAL
         val emptyPrefs = createMockPrefs(emptyMap())
-        assertFalse(SearchWidgetProvider.hasSavedMaterialDesign(emptyPrefs))
+        assertFalse(com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore(emptyPrefs).isSaved(design))
 
         val customColorPrefs = createMockPrefs(mapOf("widget_material_custom_color_int" to 0xFF654321.toInt()))
-        assertTrue(SearchWidgetProvider.hasSavedMaterialDesign(customColorPrefs))
+        assertTrue(com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore(customColorPrefs).isSaved(design))
 
         val subthemePrefs = createMockPrefs(mapOf("widget_material_subtheme" to "Custom"))
-        assertTrue(SearchWidgetProvider.hasSavedMaterialDesign(subthemePrefs))
+        assertTrue(com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore(subthemePrefs).isSaved(design))
 
         val lockBlackPrefs = createMockPrefs(mapOf("widget_material_lock_black" to true))
-        assertTrue(SearchWidgetProvider.hasSavedMaterialDesign(lockBlackPrefs))
+        assertTrue(com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore(lockBlackPrefs).isSaved(design))
     }
 
     @Test

@@ -67,7 +67,20 @@ phase ends green (tests, lint, release build) and is pushed to `dev`.
   the main page's `SearchRoleInfoDialog`.
 - 2026-10-16, R5 dropped by owner decision: for a single-app project, Gradle modules add build complexity for
   little gain.
-- Open, waiting on the phone: R4 voice session (1,125 lines) and R6 device validation of `dev`.
+- 2026-10-17, `main` merged into `dev` twice (its crash fixes, vector icon, backups, setup checklist, two-pane
+  overlay, morph rebuild, debug menu, glass tutorial bugdroid, small-screen and large-text fixes, fuzzy typing,
+  Did you mean, Material swipe to home), each change carried into `dev`'s split overlay, pill store and widget tabs
+  by hand; every golden matches `main`.
+- 2026-10-17, R4 (voice) done: the 1,140-line session is now the session (171 lines), `SessionLifecycleOwner`,
+  `VoiceRecognitionManager`, `VoiceWaveform` and `VoiceAssistantSheet`, as pure moves proven by ten new voice sheet
+  goldens; `VoiceRecognitionManagerTest` drives the manager through a simulated recognizer (listening, live words,
+  processing, result, every failure message). The widget slice of R4 was done on 2026-10-15.
+- Layout audit: `ResponsiveLayoutAuditTest` (run with `-PlayoutAudit`) renders every settings page, the overlay
+  states and the voice sheet on phones from 320 dp to 527 dp at 85% to 200% text, a phone in landscape, an
+  unfolded foldable, tablets both ways and an XR-sized window, and reports clipped, split, overlapping or
+  off-screen content.
+- Open, waiting on the owner: R6 device validation of `dev`. Installing `dev` would replace the owner's app, so it
+  waits for their go-ahead (or a side-by-side install under another package name).
 - Purpose (owner, 2026-10-16): `dev` is a comparison build, showing how the app would be built differently from
   the owner's own `main`; it is not scheduled to replace `main`.
 - Verification: targeted tests per change, then lint, all tests and the release build once per batch of commits

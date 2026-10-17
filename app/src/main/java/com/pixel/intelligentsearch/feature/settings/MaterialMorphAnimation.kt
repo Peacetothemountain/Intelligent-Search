@@ -90,13 +90,14 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
         val heightPx = constraints.maxHeight.toFloat()
         if (widthPx <= 0f || heightPx <= 0f) return@BoxWithConstraints
 
-        // Shape sizes as before: a share of the screen width, scaled for small and large screens and font size.
+        // Shape sizes: a share of the screen width (5.5%, up to 1.6x for the largest), scaled for small and large
+        // screens and font size.
         val dpScale = (configuration.smallestScreenWidthDp / 411f).coerceIn(0.65f, 1.4f)
         val fontAdjust = 1f / density.fontScale.coerceIn(0.8f, 1.5f)
         val screenWidthPx = LocalWindowInfo.current.containerSize.width.toFloat()
         val radiiMetres = remember(widthPx, heightPx, dpScale, fontAdjust, screenWidthPx) {
             (0 until 4).map { i ->
-                val sizePx = (screenWidthPx * 0.038f * dpScale * fontAdjust * (1f + i * 0.2f)).coerceIn(16f, (heightPx * 0.35f).coerceAtLeast(24f))
+                val sizePx = (screenWidthPx * 0.055f * dpScale * fontAdjust * (1f + i * 0.2f)).coerceIn(16f, (heightPx * 0.35f).coerceAtLeast(24f))
                 sizePx / 2f / pxPerMetre
             }
         }

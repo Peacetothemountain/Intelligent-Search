@@ -34,6 +34,8 @@
     <uses-feature android:name="android.hardware.fingerprint" android:required="false" />
     <uses-feature android:name="android.hardware.biometrics" android:required="false" />
     <uses-feature android:name="android.hardware.faketouch" android:required="false" />
+    <!-- Android XR headsets, Chromebooks and TVs have no touchscreen; without this Play hides the app from them. -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.screen.landscape" android:required="false" />
 
     <supports-screens

@@ -53,9 +53,14 @@ fun IntelligentSearchTheme(
     androidx.compose.runtime.CompositionLocalProvider(
         androidx.compose.ui.platform.LocalHapticFeedback provides expressiveHapticFeedback
     ) {
+        // Large accessibility text sizes hyphenate long words instead of splitting them at any letter.
+        val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+        val typography = androidx.compose.runtime.remember(fontScale) {
+            if (fontScale >= LARGE_TEXT_SCALE) Typography.withHyphenation() else Typography
+        }
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = Typography,
+            typography = typography,
             shapes = Shapes,
             content = content
         )

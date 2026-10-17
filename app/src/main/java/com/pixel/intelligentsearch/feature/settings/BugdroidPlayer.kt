@@ -97,13 +97,7 @@ fun BugdroidPlayer(
     modifier: Modifier = Modifier,
     scaleFactor: Float = 1.0f
 ) {
-    // A shader that fails to compile on some GPU driver leaves the video unkeyed rather than crashing the page.
-    val keyEffect = remember {
-        if (!isBugdroidVideoSupported) return@remember null
-        runCatching {
-            RenderEffect.createRuntimeShaderEffect(RuntimeShader(LUMA_KEY_SHADER), "content").asComposeRenderEffect()
-        }.getOrNull()
-    }
+    val keyEffect = lumaKeyEffect
     AndroidView(
         factory = { ctx ->
             TextureView(ctx).apply {
@@ -180,3 +174,15 @@ internal fun BugdroidClip.fittedScale(vw: Float, vh: Float, scaleFactor: Float):
 
 /** Empty space kept around a character that had to be shrunk to fit, as a share of the view's shorter side. */
 private const val FIT_MARGIN = 0.03f
+
+/**
+ * The key effect, compiled once for the whole app. Building it in each player recompiled the shader every time a
+ * page with a bugdroid appeared (returning to the main settings page included), costing frames as it opened.
+ * A shader that fails to compile on some GPU driver leaves the video unkeyed rather than crashing the page.
+ */
+private val lumaKeyEffect: androidx.compose.ui.graphics.RenderEffect? by lazy {
+    if (!isBugdroidVideoSupported) return@lazy null
+    runCatching {
+        RenderEffect.createRuntimeShaderEffect(RuntimeShader(LUMA_KEY_SHADER), "content").asComposeRenderEffect()
+    }.getOrNull()
+}

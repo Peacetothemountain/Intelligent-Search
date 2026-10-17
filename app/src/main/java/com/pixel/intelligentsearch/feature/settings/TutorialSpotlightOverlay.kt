@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.util.clampSafely
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.SharedPreferences
@@ -613,21 +614,21 @@ fun TutorialSpotlightOverlay(
                 val (startPoint, endPoint) = run {
                     if (cardBounds.bottom <= localTargetRect.top) {
                         // Card is above target: arrow flows downwards from card bottom to target top
-                        val startX = targetCenter.x.coerceIn(cardBounds.left + 24f, cardBounds.right - 24f)
+                        val startX = targetCenter.x.clampSafely(cardBounds.left + 24f, cardBounds.right - 24f)
                         val startY = cardBounds.bottom + 2f
                         val endX = targetCenter.x
                         val endY = (localTargetRect.top - 12f).coerceAtLeast(startY + 8f)
                         Offset(startX, startY) to Offset(endX, endY)
                     } else if (cardBounds.top >= localTargetRect.bottom) {
                         // Card is below target: arrow flows upwards from card top to target bottom
-                        val startX = targetCenter.x.coerceIn(cardBounds.left + 24f, cardBounds.right - 24f)
+                        val startX = targetCenter.x.clampSafely(cardBounds.left + 24f, cardBounds.right - 24f)
                         val startY = cardBounds.top - 2f
                         val endX = targetCenter.x
                         val endY = (localTargetRect.bottom + 12f).coerceAtMost(startY - 8f)
                         Offset(startX, startY) to Offset(endX, endY)
                     } else {
                         // Horizontally adjacent
-                        val startY = targetCenter.y.coerceIn(cardBounds.top + 16f, cardBounds.bottom - 16f)
+                        val startY = targetCenter.y.clampSafely(cardBounds.top + 16f, cardBounds.bottom - 16f)
                         if (cardBounds.right <= localTargetRect.left) {
                             Offset(cardBounds.right + 2f, startY) to Offset((localTargetRect.left - 12f).coerceAtLeast(cardBounds.right + 8f), targetCenter.y)
                         } else {

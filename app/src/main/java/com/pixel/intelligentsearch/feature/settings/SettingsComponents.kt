@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.util.clampSafely
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.compose.foundation.combinedClickable
@@ -701,7 +702,7 @@ fun Android17Slider(
             val thumbWidth = 6.dp.toPx()
             val thumbHeight = 36.dp.toPx()
 
-            val thumbX = (fraction * (size.width - thumbWidth) + thumbWidth / 2f).coerceIn(thumbWidth / 2f, size.width - thumbWidth / 2f)
+            val thumbX = (fraction * (size.width - thumbWidth) + thumbWidth / 2f).clampSafely(thumbWidth / 2f, size.width - thumbWidth / 2f)
             val centerY = size.height / 2f
             val yDots = centerY + 16.dp.toPx()
             val effectivePhase = phase.value + dragPhaseOffset.floatValue

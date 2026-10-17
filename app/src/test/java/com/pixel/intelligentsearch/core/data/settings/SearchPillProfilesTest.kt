@@ -24,6 +24,13 @@ class SearchPillProfilesTest {
         profiles = SearchPillProfiles(prefs)
     }
 
+    /** The page keys its list by package name, so a repeated pill in storage would crash it. */
+    @Test
+    fun storedPillsAreReadTrimmedAndOnceEach() {
+        prefs.edit().put(SettingsManager.SEARCH_PILLS, "a, b,a,,b ").commit()
+        assertEquals(listOf("a", "b"), profiles.pills())
+    }
+
     @Test
     fun freshInstallShowsTheDefaultsInProfileOne() {
         assertEquals(1, profiles.activeProfile)

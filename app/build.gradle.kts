@@ -7,6 +7,7 @@ plugins {
   alias(libs.plugins.ksp)
   alias(libs.plugins.hilt)
   alias(libs.plugins.room)
+  alias(libs.plugins.baselineprofile)
 }
 
 android {
@@ -16,8 +17,8 @@ android {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
         targetSdk = 37
-        versionCode = 122
-        versionName = "9.2"
+        versionCode = 123
+        versionName = "9.3"
     }
 
     signingConfigs {
@@ -139,6 +140,10 @@ dependencies {
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.profileinstaller)
+  // The overlay start-up profile, generated on a phone by :baselineprofile.
+  baselineProfile(project(":baselineprofile"))
+  // Weekly automatic encrypted backups.
+  implementation(libs.androidx.work.runtime)
   implementation(platform(libs.androidx.compose.bom))
 
   // Compose
@@ -160,6 +165,7 @@ dependencies {
   // Robolectric runs Android-dependent code (SharedPreferences, DataStore, Room, ContentResolver) on the JVM.
   testImplementation(libs.robolectric)
   testImplementation(libs.androidx.test.core)
+  testImplementation(libs.androidx.work.testing)
   // Screenshot tests (Robolectric native graphics) that pin the UI while it is rebuilt.
   testImplementation(libs.roborazzi)
   testImplementation(libs.roborazzi.compose)

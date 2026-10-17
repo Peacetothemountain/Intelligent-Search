@@ -56,7 +56,8 @@ class SearchPillProfiles(private val prefs: SharedPreferences) {
     private fun savedState(id: Int): String =
         prefs.getString(savedKey(id), if (id == 1) DEFAULT_PILLS else "") ?: ""
 
-    private fun split(value: String): List<String> = value.split(",").filter { it.isNotBlank() }
+    // Trimmed and each app once, as the overlay reads them: the page keys and reorders its list by package name.
+    private fun split(value: String): List<String> = value.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
 
     companion object {
         const val PROFILE_COUNT = 5

@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.ui.uniqueItems
 import com.pixel.intelligentsearch.core.ui.getAppName
 import com.pixel.intelligentsearch.core.ui.AppIconResult
 import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
@@ -52,7 +53,7 @@ internal fun OverlayQuickAppPanel(s: OverlayScope) {
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(pillPackages, key = { pkg -> "pill_$pkg" }, contentType = { "pill" }) { packageName ->
+            uniqueItems(pillPackages, key = { pkg -> "pill_$pkg" }, contentType = { "pill" }) { packageName ->
                         val appIconState = remember(packageName, settingsState.activeIconPack) {
                             mutableStateOf<AppIconResult?>(peekThemedAppIcon(packageName, settingsState.activeIconPack))
                         }

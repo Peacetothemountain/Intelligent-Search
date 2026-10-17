@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -800,4 +801,18 @@ fun Android17Slider(
 
 fun performClickHaptic(context: android.content.Context) {
     com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click()
+}
+
+/**
+ * Auto-size for one-line text with a fixed space: a selector pill, a tab, a title bar. At large text sizes on narrow
+ * screens such text would clip or split mid-word; this shrinks it just enough to stay on one line, never below 60%
+ * of its size. Where it already fits it keeps its size, so nothing changes there.
+ */
+fun oneLineAutoSize(style: androidx.compose.ui.text.TextStyle): androidx.compose.foundation.text.TextAutoSize {
+    // Steps run up from the minimum, so the minimum sits a whole number of steps below the normal size; otherwise
+    // the largest size reachable would fall just short of it and fitting text would render a little small.
+    val step = 0.25f
+    val max = style.fontSize.value
+    val min = max - kotlin.math.floor(max * 0.4f / step) * step
+    return androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = min.sp, maxFontSize = max.sp, stepSize = step.sp)
 }

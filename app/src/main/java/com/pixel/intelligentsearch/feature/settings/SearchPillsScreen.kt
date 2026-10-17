@@ -191,11 +191,11 @@ fun SearchPillsScreen(
             TopAppBar(
                 title = {
                     if (showAppPicker && multiSelectMode) {
-                        Text("${selectedApps.size} Selected", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("${selectedApps.size} Selected", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
                     } else if (showAppPicker) {
-                        Text("Add Applications", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("Add Applications", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
                     } else {
-                        Text("Application Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("Application Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
                     }
                 },
                 navigationIcon = {
@@ -326,7 +326,7 @@ fun SearchPillsScreen(
                             ) {
                                 SettingsRow(
                                     title = appItem.label,
-                                    subtitle = if (isAlreadyAdded) "Already in Quick Launch" else packageName,
+                                    subtitle = if (isAlreadyAdded) "Already in Quick Launch" else packageName.breakableAtDots(),
                                     icon = appItem.iconBitmap ?: Icons.Outlined.Apps,
                                     onClick = {
                                         if (multiSelectMode) {
@@ -643,14 +643,14 @@ fun SearchPillsScreen(
                                                     }
                                                     Column {
                                                         Text(
-                                                            text = appName,
+                                                            text = appName.breakableAtDots(),
                                                             style = MaterialTheme.typography.titleMedium,
                                                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                                                             fontWeight = FontWeight.Medium,
                                                             color = MaterialTheme.colorScheme.onSurface
                                                         )
                                                         Text(
-                                                            text = packageName,
+                                                            text = packageName.breakableAtDots(),
                                                             style = MaterialTheme.typography.bodySmall,
                                                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -833,5 +833,5 @@ fun SearchPillsScreen(
     }
 }
 
-
-
+/** A package name that may wrap after any dot (zero-width spaces), so narrow screens never split it mid-word. */
+private fun String.breakableAtDots(): String = replace(".", ".\u200B")

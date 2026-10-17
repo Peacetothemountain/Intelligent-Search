@@ -808,7 +808,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
     Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
-                title = { Text("Widget Customization", style = MaterialTheme.typography.titleLarge) },
+                title = { Text("Widget Customization", style = MaterialTheme.typography.titleLarge, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.titleLarge)) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = handleBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
@@ -1219,6 +1219,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         Text(
                             "System Design",
                             style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                            autoSize = oneLineAutoSize(MaterialTheme.typography.labelLarge),
                             fontWeight = if (isSystem) FontWeight.Bold else FontWeight.Normal,
                             color = if (isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1240,6 +1242,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         Text(
                             "Material Design",
                             style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                            autoSize = oneLineAutoSize(MaterialTheme.typography.labelLarge),
                             fontWeight = if (!isSystem) FontWeight.Bold else FontWeight.Normal,
                             color = if (!isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1313,6 +1317,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = tab.first,
+                                autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
                                 color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1481,7 +1486,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         } else {
                                             MaterialTheme.colorScheme.onSurfaceVariant
                                         }
-                                        Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor)
+                                        Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium))
                                     }
                                 }
                             } else {
@@ -1532,7 +1537,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         } else {
                                             MaterialTheme.colorScheme.onSurfaceVariant
                                         }
-                                        Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor)
+                                        Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium))
                                     }
                                 }
                             }
@@ -1574,6 +1579,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         Text(
                                             text = label,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            maxLines = 1,
+                                            autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium),
                                             style = MaterialTheme.typography.labelMedium,
                                             fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                                             color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant

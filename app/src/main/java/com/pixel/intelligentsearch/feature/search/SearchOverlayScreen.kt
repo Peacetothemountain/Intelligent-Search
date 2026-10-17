@@ -175,8 +175,14 @@ fun SearchOverlayScreen(
     val density = LocalDensity.current
 
     val coroutineScope = rememberCoroutineScope()
-    // Animatable for the overlay expansion progress: starts fully expanded (1f) so returning from apps is instant and never transparent
-    val overlayProgressAnim = remember { Animatable(1f) }
+    // Overlay expansion progress. A fresh open starts at 0 and plays the entrance (scrim, panel, then search bar,
+    // quick apps and results rising in turn); returning from an app snaps to 1, so it is instant and never transparent.
+    val overlayProgressAnim = remember { Animatable(0f) }
+    var hasEntered by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        overlayProgressAnim.animateTo(1f, ExpressiveMotionTokens.Spatial.ExpressiveDefault())
+        hasEntered = true
+    }
     val predictiveBackProgress = remember { Animatable(0f) }
     var predictiveBackEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
 
@@ -231,7 +237,7 @@ fun SearchOverlayScreen(
 
     LaunchedEffect(isOpening) {
         if (isOpening) {
-            overlayProgressAnim.snapTo(1f)
+            if (hasEntered) overlayProgressAnim.snapTo(1f)
         } else {
             val act = context.findActivity()
             WindowFramePacing.setHighRefreshRateCategory(act)
@@ -476,7 +482,8 @@ fun SearchOverlayScreen(
                 transitionState.targetState = true
                 coroutineScope.launch {
                     predictiveBackProgress.snapTo(0f)
-                    overlayProgressAnim.snapTo(1f)
+                    // The first resume belongs to the entrance animation; later ones (back from an app) are instant.
+                    if (hasEntered) overlayProgressAnim.snapTo(1f)
                 }
 
                 if (showTutorial) {

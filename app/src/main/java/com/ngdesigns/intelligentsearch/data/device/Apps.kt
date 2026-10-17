@@ -91,10 +91,14 @@ class LauncherAppSource(private val context: Context) : AppSource {
             override fun onReceive(c: Context, i: Intent) { trySend(Unit) }
         }
         val filter = IntentFilter().apply {
-            addAction(Intent.ACTION_PROFILE_AVAILABLE)
-            addAction(Intent.ACTION_PROFILE_UNAVAILABLE)
-            addAction(Intent.ACTION_PROFILE_ADDED)
-            addAction(Intent.ACTION_PROFILE_REMOVED)
+            if (Build.VERSION.SDK_INT >= 35) {
+                addAction(Intent.ACTION_PROFILE_AVAILABLE)
+                addAction(Intent.ACTION_PROFILE_UNAVAILABLE)
+            }
+            if (Build.VERSION.SDK_INT >= 34) {
+                addAction(Intent.ACTION_PROFILE_ADDED)
+                addAction(Intent.ACTION_PROFILE_REMOVED)
+            }
             addAction(Intent.ACTION_MANAGED_PROFILE_AVAILABLE)
             addAction(Intent.ACTION_MANAGED_PROFILE_UNAVAILABLE)
         }

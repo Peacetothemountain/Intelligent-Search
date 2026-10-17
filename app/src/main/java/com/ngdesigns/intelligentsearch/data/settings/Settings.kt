@@ -66,8 +66,11 @@ data class Settings(
 
 @Serializable enum class ThemeMode { System, Light, Dark }
 
-/** Material dynamic scheme variants, all generated from the wallpaper's seed colour. */
-@Serializable enum class ColorStyle { TonalSpot, Vibrant, Expressive, FruitSalad, Rainbow, Content, Fidelity, Monochrome, Neutral }
+/**
+ * How the colour scheme is made from the wallpaper. [System] is the phone's own Material You scheme (whatever style
+ * the user picked in Wallpaper & style); the others are Material's scheme variants generated from the wallpaper colour.
+ */
+@Serializable enum class ColorStyle { System, TonalSpot, Vibrant, Expressive, FruitSalad, Rainbow, Content, Fidelity, Monochrome, Neutral }
 
 @Serializable enum class Contrast { System, Standard, Medium, High }
 
@@ -76,7 +79,7 @@ data class Settings(
 @Serializable
 data class Look(
     val theme: ThemeMode = ThemeMode.System,
-    val colorStyle: ColorStyle = ColorStyle.TonalSpot,
+    val colorStyle: ColorStyle = ColorStyle.System,
     val contrast: Contrast = Contrast.System,
     val density: Density = Density.Comfortable,
     val showWallpaper: Boolean = true,

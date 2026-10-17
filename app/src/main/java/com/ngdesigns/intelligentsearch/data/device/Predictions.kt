@@ -1,5 +1,6 @@
 package com.ngdesigns.intelligentsearch.data.device
 
+import androidx.core.net.toUri
 import android.content.Context
 import android.net.Uri
 import com.ngdesigns.intelligentsearch.data.history.Launch
@@ -19,7 +20,7 @@ class PixelLauncherPredictions(private val context: Context) : LauncherPredictio
     }.getOrDefault(emptyList())
 
     private companion object {
-        val URI: Uri = Uri.parse("content://com.google.android.apps.nexuslauncher.prediction/predictions")
+        val URI: Uri = "content://com.google.android.apps.nexuslauncher.prediction/predictions".toUri()
     }
 }
 

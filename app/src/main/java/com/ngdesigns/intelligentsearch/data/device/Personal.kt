@@ -1,5 +1,6 @@
 package com.ngdesigns.intelligentsearch.data.device
 
+import androidx.core.net.toUri
 import android.Manifest
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
@@ -125,13 +126,13 @@ class SharedFileSource(private val context: Context) : FileSource {
     override fun files(folders: List<String>, media: List<String>, includeHidden: Boolean): List<FileEntry> {
         val out = ArrayList<FileEntry>()
         for (tree in folders) {
-            val treeUri = Uri.parse(tree)
+            val treeUri = tree.toUri()
             val root = runCatching { DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri)) }.getOrNull() ?: continue
             walk(treeUri, root, depth = 0, includeHidden, out)
             if (out.size >= MAX_FILES) break
         }
         for (item in media) {
-            val uri = Uri.parse(item)
+            val uri = item.toUri()
             runCatching {
                 context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE), null, null, null)?.use { c ->
                     if (c.moveToFirst()) out += FileEntry(c.getString(0) ?: "Photo", c.getLong(1), 0L, Target.File(item, context.contentResolver.getType(uri)))

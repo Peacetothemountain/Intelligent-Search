@@ -53,3 +53,14 @@ Every phase ends green (lint with warnings as errors, all tests, release build) 
   DataStore store updates it atomically. Backups (`BackupCodec`) are AES-256-GCM: with a passphrase via PBKDF2 (any
   phone), or with a device key (this phone only); wrong passphrases, tampering and foreign files fail with clear
   errors. Folder grants and debug switches never travel in a backup.
+- 2026-10-17, D3 done: device sources behind interfaces (apps and shortcuts across personal, work and Private Space
+  profiles, usage, contacts, calendar, shared folders and picked media, web suggestions, history and launch memory,
+  Pixel Launcher predictions) and the snapshot that turns them into catalogs, tested with stand-ins.
+- 2026-10-17, D4 first pass: the search screen. Contained search bar paired with a vibrant voice FAB and ghost
+  completion; connected scope buttons; segmented result groups (bottom-up when the bar is at the bottom); the best
+  match as a content-coloured hero card with a split button; expressive long-press menus; instant answers (calculator,
+  commands with a wavy timer ring, morphing toggles, vertical volume sliders, web shortcuts and addresses); the empty
+  state (thin greeting, recent searches, suggested apps, the create FAB menu); the Neural Expressive glow while
+  working; haptics; Material You theming with colour styles, contrast and content-based colour. Twelve screenshot
+  goldens (six states, light and dark). Still to do in D4: large-screen layout, keyboard navigation, quick apps,
+  clipboard, layout audit.

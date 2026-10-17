@@ -7,4 +7,11 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
+    <!-- The search screen: the wallpaper shows through, blurred and dimmed by the app per the user's settings. -->
+    <style name="Theme.Search.Overlay">
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackgroundBlurRadius">0dp</item>
+    </style>
 </resources>

@@ -22,6 +22,8 @@ class ActionsTest {
         assertEquals(600, timer("Set a timer for 10 minutes"))
         assertEquals(90, timer("start a timer for 90 seconds"))
         assertEquals(600, timer("10 minute timer"))
+        assertEquals(750, timer("timer 12m30s"))
+        assertEquals(3_723, timer("timer 1h2m3s"))
     }
 
     @Test fun impossibleTimersAreRefused() {

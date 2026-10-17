@@ -56,7 +56,7 @@ object Actions {
         return if (seconds in 1..DAY) Action.Timer(seconds) else null
     }
 
-    private val unitPart = Regex("(\\d+(?:\\.\\d+)?)\\s*(hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\\b", RegexOption.IGNORE_CASE)
+    private val unitPart = Regex("(\\d+(?:\\.\\d+)?)\\s*(hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)(?=[0-9]|\\s|$)", RegexOption.IGNORE_CASE)
 
     /** "15" (minutes), "1:30" (m:ss), "1:05:00", "1h 30m 15s", "5 mins 30 secs", "90 seconds". */
     internal fun duration(spec: String): Int? {

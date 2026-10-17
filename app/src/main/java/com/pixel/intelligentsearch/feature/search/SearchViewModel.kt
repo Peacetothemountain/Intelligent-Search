@@ -660,10 +660,13 @@ class SearchViewModel @Inject constructor(
                     "${shownFiles.size} files, ${localShortcuts.size} shortcuts, ${directActions.size} actions")
             }
 
-            // "Did you mean": only when nothing on the phone matched (the user is about to search the web), and
-            // only once typing pauses; the next keystroke cancels this job, so the check never runs mid-word.
-            val checkSpelling = resolvedApps.isEmpty() && shownContacts.isEmpty() &&
-                SpellingSuggester.shouldCheck(newQuery, bangManager.getTriggerSymbol(), looksLikeWebAddress(newQuery.trim()))
+            // "Did you mean": once typing pauses (the next keystroke cancels this job, so it never runs mid-word),
+            // unless the query is plainly the start of an app or contact name, where a dictionary would "fix" it.
+            val typed = newQuery.trim()
+            val namingSomething = resolvedApps.any { it.name.startsWith(typed, ignoreCase = true) } ||
+                shownContacts.any { it.name.startsWith(typed, ignoreCase = true) }
+            val checkSpelling = !namingSomething &&
+                SpellingSuggester.shouldCheck(newQuery, bangManager.getTriggerSymbol(), looksLikeWebAddress(typed))
             if (checkSpelling) {
                 delay(SPELLING_PAUSE_MS)
                 withContext(Dispatchers.Main) {

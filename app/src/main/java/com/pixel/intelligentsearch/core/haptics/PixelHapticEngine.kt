@@ -404,6 +404,28 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
     }
 
     /**
+     * The app's standard tick at a chosen strength, for physical impacts: [strength] 1 is the full standard tick,
+     * lower is softer. Same waveform as [performPredictiveBackHaptic], so it still feels like the rest of the app.
+     */
+    fun performImpactHaptic(view: View?, strength: Float) {
+        val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+        if (!prefs[SettingsManager.VIBRATION]) return
+        val scale = strength.coerceIn(0.1f, 1f)
+        if (vibrator != null && vibrator.hasVibrator() && isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)) {
+            try {
+                vibrateWithAttributes(
+                    VibrationEffect.startComposition()
+                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, scale)
+                        .compose()
+                )
+                return
+            } catch (_: Exception) {}
+        }
+        // Without scalable primitives, a soft landing is skipped and a firm one gets the standard tick.
+        if (scale >= 0.5f) performPredictiveBackHaptic(view)
+    }
+
+    /**
      * Android 17 QPR2 Beta 5 Predictive Back gesture vibration.
      * Standardized across all interactive touch, click, swipe, gesture, and press events.
      */

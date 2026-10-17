@@ -340,20 +340,12 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
                 var webSuggestions by rememberSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS)
-                val advancedProtectionOn by remember(context) {
-                    com.pixel.intelligentsearch.core.security.AdvancedProtectionMonitor.ensureRegistered(context)
-                    com.pixel.intelligentsearch.core.security.AdvancedProtectionMonitor.enabled
-                }.collectAsState()
                 SettingsRowToggle(
                     title = "Web Suggestions",
-                    subtitle = if (advancedProtectionOn) {
-                        "Paused While Android Advanced Protection Is On."
-                    } else {
-                        "Sends What You Type to Your Search Engine for Live Suggestions."
-                    },
+                    subtitle = "Sends What You Type to Your Search Engine for Live Suggestions.",
                     icon = Icons.Outlined.ChatBubbleOutline,
-                    isChecked = webSuggestions && !advancedProtectionOn,
-                    onCheckedChange = { if (!advancedProtectionOn) webSuggestions = it },
+                    isChecked = webSuggestions,
+                    onCheckedChange = { webSuggestions = it },
                     showDivider = true
                 )
 

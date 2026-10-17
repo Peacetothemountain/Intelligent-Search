@@ -339,7 +339,7 @@ class SearchViewModel @Inject constructor(
                 val events = eventsDeferred.await()
 
                 val clipboardActions = mutableListOf<DirectAction>()
-                if (settingsState.value.smartClipboardSuggestions && !isAdvancedProtectionOn()) {
+                if (settingsState.value.smartClipboardSuggestions) {
                     try {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                         // Password managers mark copied secrets sensitive; never show or search those.
@@ -585,7 +585,7 @@ class SearchViewModel @Inject constructor(
                 unifiedResults.shortcuts.filter { it.packageName !in settings.hiddenApps }.take(settings.shortcutResultsCount)
             } else emptyList()
 
-            val suggestionsEnabled = settings.searchWeb && customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS] && !isAdvancedProtectionOn()
+            val suggestionsEnabled = settings.searchWeb && customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
                 WebSearchProvider.getCachedSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(5))
@@ -650,9 +650,6 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    private fun isAdvancedProtectionOn(): Boolean =
-        com.pixel.intelligentsearch.core.security.AdvancedProtectionMonitor.isEnabled(context)
-
     /**
      * Text for the calculator card. Unit conversions return null because they render in the dedicated
      * conversion card; showing them in both places duplicated the answer.
@@ -709,7 +706,7 @@ class SearchViewModel @Inject constructor(
         }
 
         val suggestionsEnabled = customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]
-        if (!suggestionsEnabled || isAdvancedProtectionOn()) {
+        if (!suggestionsEnabled) {
             _uiState.update { it.copy(webSuggestions = emptyList()) }
             return
         }

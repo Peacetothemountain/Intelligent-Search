@@ -28,7 +28,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,16 +38,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.pixel.intelligentsearch.core.security.AdvancedProtectionMonitor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
-    val advancedProtectionOn by remember(context) {
-        AdvancedProtectionMonitor.ensureRegistered(context)
-        AdvancedProtectionMonitor.enabled
-    }.collectAsState()
     Box(modifier = Modifier.fillMaxSize()) {
         val morphAnimationEnabled by rememberSetting(SettingsManager.MORPH_ANIMATION_ENABLED) {}
         Scaffold(
@@ -137,15 +131,10 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                         SettingsRowToggle(
                             title = "Smart Clipboard Suggestions",
-                            subtitle = if (advancedProtectionOn) {
-                                "Paused While Android Advanced Protection Is On."
-                            } else {
-                                "Suggested Actions Based on Clipboard Text. I.E. Open Photos, Open Music Player, Etc."
-                            },
+                            subtitle = "Suggested Actions Based on Clipboard Text. I.E. Open Photos, Open Music Player, Etc.",
                             icon = Icons.Outlined.ContentPaste,
-                            isChecked = smartClipboard && !advancedProtectionOn,
-                            onCheckedChange = { 
-                                if (advancedProtectionOn) return@SettingsRowToggle
+                            isChecked = smartClipboard,
+                            onCheckedChange = {
                                 if (it) {
                                     showClipboardWarning = true
                                 } else {
@@ -154,10 +143,6 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             },
                             showDivider = false
                         )
-                    }
-
-                    if (advancedProtectionOn) {
-                        AdvancedProtectionNotice()
                     }
                 }
                 

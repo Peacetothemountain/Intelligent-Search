@@ -112,6 +112,19 @@ class BackupManager @Inject constructor(
             else -> null
         }
 
+        /**
+         * Opt-ins that share data. A backup may switch them off but never on: a file someone else made must not
+         * be able to start sharing contacts with assistants or sending clipboard text and keystrokes out.
+         */
+        private val PRIVACY_OPT_IN_KEYS = setOf(
+            SettingsManager.APP_FUNCTIONS_SHARE_CONTACTS.name,
+            SettingsManager.SMART_CLIPBOARD_SUGGESTIONS.name,
+            SettingsManager.SEARCH_WEB_SUGGESTIONS.name
+        )
+
+        private fun isPrivacyOptInKey(key: String): Boolean =
+            key in PRIVACY_OPT_IN_KEYS || SettingsManager.keyFor(key)?.name in PRIVACY_OPT_IN_KEYS
+
         /** Blank (no custom engine) or an address that passes the same checks as one typed in settings. */
         private fun isValidCustomSearchUrl(url: String): Boolean =
             url.isBlank() || com.pixel.intelligentsearch.core.security.CustomSearchUrl.validate(url) is
@@ -226,25 +239,13 @@ class BackupManager @Inject constructor(
                 // Passphrase backups are encrypted in software from the passphrase so they restore on
                 // any phone; the device Keystore is not involved, so they are not hardware backed.
                 val salt = BackupCryptoEngine.generateRandomSalt()
-                val iv = BackupCryptoEngine.generateRandomIv()
                 val passChars = passphrase.toCharArray()
                 val key = try {
                     BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt)
                 } finally {
                     com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
                 }
-                val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
-                val sha = BackupCryptoEngine.calculateSha256(cipherBytes)
-
-                EncryptedBackupEnvelope(
-                    isHardwareBacked = false,
-                    hardwareChip = hwInfo.chipName,
-                    deviceModel = hwInfo.deviceDisplayName,
-                    kdf = KdfMetadata(iterations = BackupCryptoEngine.PBKDF2_ITERATIONS, saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
-                    cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
-                    encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
-                    payloadSha256 = sha
-                )
+                passphraseEnvelope(plainJson, key, salt, hwInfo)
             } else {
                 // No passphrase: encrypt with a non-exportable AES-256 key generated inside this phone's
                 // Keystore (StrongBox when present, otherwise the TEE). The key never leaves the
@@ -277,41 +278,76 @@ class BackupManager @Inject constructor(
                 )
             }
 
-            val envelopeJson = serializeEnvelope(envelope)
-            val bytes = envelopeJson.toByteArray(Charsets.UTF_8)
-
-            var writeSuccess = false
-            // Method 1: Try openFileDescriptor with rwt / sync
-            try {
-                val pfd = context.contentResolver.openFileDescriptor(uri, "rwt")
-                    ?: context.contentResolver.openFileDescriptor(uri, "wt")
-                    ?: context.contentResolver.openFileDescriptor(uri, "w")
-                if (pfd != null) {
-                    pfd.use { fd ->
-                        java.io.FileOutputStream(fd.fileDescriptor).let { fos ->
-                            fos.write(bytes)
-                            fos.flush()
-                            try { fd.fileDescriptor.sync() } catch (_: Throwable) {}
-                        }
-                    }
-                    writeSuccess = true
-                }
-            } catch (e: Throwable) {
-                Log.w("BackupManager", "openFileDescriptor write failed, falling back to openOutputStream", e)
-            }
-
-            // Method 2: Fallback to openOutputStream if PFD failed
-            if (!writeSuccess) {
-                val os = context.contentResolver.openOutputStream(uri, "wt")
-                    ?: context.contentResolver.openOutputStream(uri, "w")
-                    ?: throw IllegalArgumentException("Could not open destination file for writing")
-                os.use { stream ->
-                    stream.write(bytes)
-                    stream.flush()
-                }
-            }
-
+            writeEnvelope(uri, envelope)
         }
+    }
+
+    /**
+     * Writes an automatic backup to [uri], encrypted with a key already derived from the user's passphrase with
+     * [salt]. The file is the same as a passphrase export, so it restores on any phone with that passphrase.
+     */
+    suspend fun exportWithDerivedKey(uri: Uri, key: javax.crypto.SecretKey, salt: ByteArray): Result<Unit> = withContext(Dispatchers.IO) {
+        backupResult("exportWithDerivedKey") {
+            val plainJson = serializePayload(createBackupPayload())
+            val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
+            writeEnvelope(uri, passphraseEnvelope(plainJson, key, salt, hwInfo))
+        }
+    }
+
+    private fun passphraseEnvelope(
+        plainJson: String,
+        key: javax.crypto.SecretKey,
+        salt: ByteArray,
+        hwInfo: com.pixel.intelligentsearch.core.security.SecurityHardwareInfo
+    ): EncryptedBackupEnvelope {
+        val iv = BackupCryptoEngine.generateRandomIv()
+        val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
+        return EncryptedBackupEnvelope(
+            isHardwareBacked = false,
+            hardwareChip = hwInfo.chipName,
+            deviceModel = hwInfo.deviceDisplayName,
+            kdf = KdfMetadata(iterations = BackupCryptoEngine.PBKDF2_ITERATIONS, saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
+            cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
+            encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
+            payloadSha256 = BackupCryptoEngine.calculateSha256(cipherBytes)
+        )
+    }
+
+    /** Serializes [envelope] and writes it to [uri], replacing anything already there. */
+    private fun writeEnvelope(uri: Uri, envelope: EncryptedBackupEnvelope) {
+        val bytes = serializeEnvelope(envelope).toByteArray(Charsets.UTF_8)
+
+        var writeSuccess = false
+        // Method 1: Try openFileDescriptor with rwt / sync
+        try {
+            val pfd = context.contentResolver.openFileDescriptor(uri, "rwt")
+                ?: context.contentResolver.openFileDescriptor(uri, "wt")
+                ?: context.contentResolver.openFileDescriptor(uri, "w")
+            if (pfd != null) {
+                pfd.use { fd ->
+                    java.io.FileOutputStream(fd.fileDescriptor).let { fos ->
+                        fos.write(bytes)
+                        fos.flush()
+                        try { fd.fileDescriptor.sync() } catch (_: Throwable) {}
+                    }
+                }
+                writeSuccess = true
+            }
+        } catch (e: Throwable) {
+            Log.w("BackupManager", "openFileDescriptor write failed, falling back to openOutputStream", e)
+        }
+
+        // Method 2: Fallback to openOutputStream if PFD failed
+        if (!writeSuccess) {
+            val os = context.contentResolver.openOutputStream(uri, "wt")
+                ?: context.contentResolver.openOutputStream(uri, "w")
+                ?: throw IllegalArgumentException("Could not open destination file for writing")
+            os.use { stream ->
+                stream.write(bytes)
+                stream.flush()
+            }
+        }
+
     }
 
     /** Runs [block], turning any failure other than cancellation into a logged [Result.failure]. */
@@ -320,7 +356,7 @@ class BackupManager @Inject constructor(
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
     } catch (e: Throwable) {
-        Log.e("BackupManager", "$operation failed", e)
+        Log.e("BackupManager", "$operation failed: ${e.javaClass.simpleName}") // messages can contain the file URI
         Result.failure(e)
     }
 
@@ -354,7 +390,16 @@ class BackupManager @Inject constructor(
     }
 
     /** Decrypts the backup at [uri], restores it, and returns how many items were restored. */
-    suspend fun importFromFile(uri: Uri, passphrase: String?): Result<Int> = withContext(Dispatchers.IO) {
+    /** Thrown for an old-format file encrypted with the key built into the app: anyone could have made it. */
+    class UntrustedLegacyBackupException : SecurityException(
+        "This backup uses an old format that anyone could have created. Restore it only if you made it yourself."
+    )
+
+    /**
+     * Restores [uri]. Old-format files (no passphrase, not bound to this phone) are refused with
+     * [UntrustedLegacyBackupException] unless [allowLegacy] is set after the user confirms.
+     */
+    suspend fun importFromFile(uri: Uri, passphrase: String?, allowLegacy: Boolean = false): Result<Int> = withContext(Dispatchers.IO) {
         backupResult("importFromFile") {
             val envelopeJson = readBackupText(uri)
                 ?: throw IllegalArgumentException("Could not read backup file")
@@ -420,17 +465,18 @@ class BackupManager @Inject constructor(
                 }
             } else {
                 // Legacy portable file (APK-embedded key, not secret); new exports never use this. One
-                // short-lived build also wrote device-key files with this flag off, so fall back to the
-                // device key before giving up.
-                try {
+                // short-lived build also wrote device-key files with this flag off, so try the device key first;
+                // only a file that needs the public key requires the user's go-ahead.
+                val deviceKey = runCatching {
+                    strongBoxSecurityManager.getExistingSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
+                }.getOrNull()
+                val viaDeviceKey = deviceKey?.let { runCatching { BackupCryptoEngine.decryptPayload(cipherBytes, it, iv) }.getOrNull() }
+                if (viaDeviceKey == null && !allowLegacy) throw UntrustedLegacyBackupException()
+                viaDeviceKey ?: try {
                     val key = BackupCryptoEngine.getPortableDefaultKey()
                     BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
                 } catch (e: Throwable) {
-                    val deviceKey = runCatching {
-                        strongBoxSecurityManager.getExistingSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
-                    }.getOrNull()
-                    deviceKey?.let { runCatching { BackupCryptoEngine.decryptPayload(cipherBytes, it, iv) }.getOrNull() }
-                        ?: throw SecurityException("Failed to decrypt backup. The file may be corrupt or encrypted with an incompatible key.")
+                    throw SecurityException("Failed to decrypt backup. The file may be corrupt or encrypted with an incompatible key.")
                 }
             }
 
@@ -470,7 +516,11 @@ class BackupManager @Inject constructor(
                             return@runCatching
                         }
                         when (type) {
-                            "BOOLEAN" -> editor.putBoolean(target, itemObj.getBoolean("value"))
+                            "BOOLEAN" -> {
+                                val boolVal = itemObj.getBoolean("value")
+                                if (boolVal && isPrivacyOptInKey(target)) return@runCatching
+                                editor.putBoolean(target, boolVal)
+                            }
                             "INT" -> {
                                 val intVal = itemObj.getInt("value")
                                 val range = (setting as? IntSetting)?.range ?: BackupPreferenceSchema.intRange(key)
@@ -516,7 +566,9 @@ class BackupManager @Inject constructor(
         // writes DataStore plus every SharedPreferences spelling of the key.
         payload.preferencesMap.forEach { (k, v) ->
             val restored = BOOLEAN_SETTING_KEYS[k]?.let { key ->
-                v.toBooleanStrictOrNull()?.let { settingsManager.updateSetting(key, it) }
+                v.toBooleanStrictOrNull()
+                    ?.takeUnless { it && isPrivacyOptInKey(key.name) }
+                    ?.let { settingsManager.updateSetting(key, it) }
             } ?: INT_SETTING_KEYS[k]?.let { key ->
                 v.toIntOrNull()
                     ?.takeIf { value -> BackupPreferenceSchema.intRange(key.name)?.contains(value) ?: true }

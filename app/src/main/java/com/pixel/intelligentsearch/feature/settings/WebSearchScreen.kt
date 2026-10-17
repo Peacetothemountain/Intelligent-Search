@@ -3,7 +3,6 @@ package com.pixel.intelligentsearch.feature.settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
-import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.Intent
 import android.content.SharedPreferences
@@ -242,7 +241,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.ime),
         topBar = {
             TopAppBar(
-                title = { Text("Web Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+                title = { Text("Web Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
@@ -341,20 +340,12 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
                 var webSuggestions by rememberSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS)
-                val advancedProtectionOn by remember(context) {
-                    com.pixel.intelligentsearch.core.security.AdvancedProtectionMonitor.ensureRegistered(context)
-                    com.pixel.intelligentsearch.core.security.AdvancedProtectionMonitor.enabled
-                }.collectAsState()
                 SettingsRowToggle(
                     title = "Web Suggestions",
-                    subtitle = if (advancedProtectionOn) {
-                        "Paused While Android Advanced Protection Is On."
-                    } else {
-                        "Sends What You Type to Your Search Engine for Live Suggestions."
-                    },
+                    subtitle = "Sends What You Type to Your Search Engine for Live Suggestions.",
                     icon = Icons.Outlined.ChatBubbleOutline,
-                    isChecked = webSuggestions && !advancedProtectionOn,
-                    onCheckedChange = { if (!advancedProtectionOn) webSuggestions = it },
+                    isChecked = webSuggestions,
+                    onCheckedChange = { webSuggestions = it },
                     showDivider = true
                 )
 
@@ -409,53 +400,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                var webWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_WEB)
-                val webLevelIndex = remember(webWeight) { PriorityWeightHelper.weightToLevelIndex(webWeight) }
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Web Priority Weight: ${PriorityWeightHelper.levelLabel(webLevelIndex)}",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        IconButton(
-                            onClick = {
-                                performClickHaptic(context)
-                                webWeight = PriorityWeightHelper.DEFAULT_WEIGHT
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.RestartAlt,
-                                contentDescription = "Reset to Default",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                    Text(
-                        text = "Adjust Ranking Priority of Web Search.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Android17Slider(
-                        label = "Web priority weight",
-                        value = webLevelIndex.toFloat(),
-                        onValueChange = { newValue ->
-                            val idx = Math.round(newValue).coerceIn(0, PriorityWeightHelper.LEVELS.size - 1)
-                            webWeight = PriorityWeightHelper.levelIndexToWeight(idx)
-                        },
-                        valueRange = 0f..(PriorityWeightHelper.LEVELS.size - 1).toFloat(),
-                        steps = PriorityWeightHelper.LEVELS.size - 2,
-                        isSquiggly = false,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
-                    )
-                }
+                PrioritySetting(SettingsManager.SEARCH_WEIGHT_WEB, "Web", largeTitle = false)
             }
 
             Text(

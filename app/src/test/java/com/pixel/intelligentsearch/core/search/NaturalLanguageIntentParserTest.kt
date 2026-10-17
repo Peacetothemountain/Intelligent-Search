@@ -101,6 +101,31 @@ class NaturalLanguageIntentParserTest {
         assertEquals("Central Park", (navRes as NaturalLanguageIntentParser.ParsedIntent.Navigation).destination)
     }
 
+    /** The phrasings the Play listing advertises, word for word. */
+    @Test
+    fun testStoreListingExamples() {
+        val timer = NaturalLanguageIntentParser.parse("Set a timer for 10 minutes")
+        assertEquals(600, (timer as NaturalLanguageIntentParser.ParsedIntent.Timer).durationSeconds)
+        val started = NaturalLanguageIntentParser.parse("start a timer for 90 seconds")
+        assertEquals(90, (started as NaturalLanguageIntentParser.ParsedIntent.Timer).durationSeconds)
+
+        for (phrase in listOf("Directions home", "navigate home", "take me home")) {
+            val home = NaturalLanguageIntentParser.parse(phrase)
+            assertEquals(phrase, "Home", (home as NaturalLanguageIntentParser.ParsedIntent.Navigation).destination)
+        }
+        val takeMe = NaturalLanguageIntentParser.parse("take me to the airport")
+        assertEquals("the airport", (takeMe as NaturalLanguageIntentParser.ParsedIntent.Navigation).destination)
+
+        val text = NaturalLanguageIntentParser.parse("Text Sarah that I'm running 5 minutes late")
+        val message = text as NaturalLanguageIntentParser.ParsedIntent.DirectMessage
+        assertEquals("Sarah", message.recipientName)
+        assertEquals("I'm running 5 minutes late", message.body)
+
+        assertTrue(NaturalLanguageIntentParser.parse("Wake me up at 7:30") is NaturalLanguageIntentParser.ParsedIntent.Alarm)
+        assertTrue(NaturalLanguageIntentParser.parse("Remind me to call the pharmacy at 6") is NaturalLanguageIntentParser.ParsedIntent.Reminder)
+        assertTrue(NaturalLanguageIntentParser.parse("Meeting tomorrow at 3 PM") is NaturalLanguageIntentParser.ParsedIntent.CalendarEvent)
+    }
+
     private fun at(hour: Int, minute: Int = 0): Long = Calendar.getInstance().apply {
         set(2026, Calendar.MARCH, 10, hour, minute, 0); set(Calendar.MILLISECOND, 0)
     }.timeInMillis

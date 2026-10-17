@@ -1,5 +1,14 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import com.pixel.intelligentsearch.core.data.settings.SettingKey
+import androidx.compose.material.icons.Icons
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
@@ -47,5 +56,72 @@ object PriorityWeightHelper {
 
     fun levelLabel(index: Int): String {
         return LEVELS.getOrElse(index.coerceIn(0, LEVELS.size - 1)) { LEVELS[1] }.label
+    }
+}
+
+/**
+ * The "<label> Priority Weight" block shared by the App, Contact, File and Web search screens: title with the
+ * current level and a reset button, a one-line explanation, and a four-step slider. [largeTitle] selects the
+ * title style those screens use (Web uses the smaller one).
+ */
+@Composable
+fun PrioritySetting(key: SettingKey<Int>, label: String, largeTitle: Boolean) {
+    val context = LocalContext.current
+    var weight by rememberSetting(key)
+    val levelIndex = remember(weight) { PriorityWeightHelper.weightToLevelIndex(weight) }
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val title = "$label Priority Weight: ${PriorityWeightHelper.levelLabel(levelIndex)}"
+            if (largeTitle) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            } else {
+                Text(
+                    text = title,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            IconButton(
+                onClick = {
+                    performClickHaptic(context)
+                    weight = PriorityWeightHelper.DEFAULT_WEIGHT
+                },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.RestartAlt,
+                    contentDescription = "Reset to Default",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Text(
+            text = "Adjust Ranking Priority of $label Search.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Android17Slider(
+            label = "$label priority weight",
+            value = levelIndex.toFloat(),
+            onValueChange = { newValue ->
+                val idx = Math.round(newValue).coerceIn(0, PriorityWeightHelper.LEVELS.size - 1)
+                weight = PriorityWeightHelper.levelIndexToWeight(idx)
+            },
+            valueRange = 0f..(PriorityWeightHelper.LEVELS.size - 1).toFloat(),
+            steps = PriorityWeightHelper.LEVELS.size - 2,
+            isSquiggly = false,
+            modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
+        )
     }
 }

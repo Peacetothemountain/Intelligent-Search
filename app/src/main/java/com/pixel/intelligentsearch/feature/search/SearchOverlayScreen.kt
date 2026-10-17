@@ -1,7 +1,9 @@
 package com.pixel.intelligentsearch.feature.search
+import androidx.compose.foundation.gestures.detectTapGestures
 import com.pixel.intelligentsearch.feature.widget.getLensSearchIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceActionIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceSearchIntent
+import com.pixel.intelligentsearch.core.ui.uniqueItems
 import com.pixel.intelligentsearch.core.ui.getAppName
 import com.pixel.intelligentsearch.core.ui.AppIconResult
 import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
@@ -114,6 +116,12 @@ import androidx.compose.ui.graphics.Brush
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/** Material 3 emphasized-accelerate: a quick, committed exit. */
+private val EmphasizedAccelerate = androidx.compose.animation.core.CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
+
+/** How long the panel takes to leave after a swipe to home is released. */
+private const val BACK_EXIT_MS = 200
+
 @Composable
 fun SearchOverlayScreen(
     onOpenSettings: (String) -> Unit,
@@ -129,6 +137,9 @@ fun SearchOverlayScreen(
     
     val prefs = remember(context) { context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE) }
     val appWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_APPS)
+    val mockTrendingUnlocked by rememberSetting(SettingsManager.DEBUG_UNLOCKED)
+    val mockTrendingSwitch by rememberSetting(SettingsManager.DEBUG_MOCK_TRENDING)
+    val mockTrendingOn = mockTrendingUnlocked && mockTrendingSwitch
     val webWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_WEB)
     val contactWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_CONTACTS)
     val fileWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_FILES)
@@ -170,9 +181,26 @@ fun SearchOverlayScreen(
     val density = LocalDensity.current
 
     val coroutineScope = rememberCoroutineScope()
-    // Animatable for the overlay expansion progress: starts fully expanded (1f) so returning from apps is instant and never transparent
-    val overlayProgressAnim = remember { Animatable(1f) }
+    // Overlay expansion progress. A fresh open starts at 0 and plays the entrance (scrim, panel, then search bar,
+    // quick apps and results rising in turn); returning from an app snaps to 1, so it is instant and never transparent.
+    val overlayProgressAnim = remember { Animatable(0f) }
+    var hasEntered by remember { mutableStateOf(false) }
+    // The window blur fades in and out with the overlay rather than snapping (the home screen sharpens as the
+    // panel leaves after a swipe home).
+    val blurHost = remember(context) { context.findActivity() as? com.pixel.intelligentsearch.MainActivity }
+    LaunchedEffect(blurHost) {
+        val host = blurHost ?: return@LaunchedEffect
+        snapshotFlow { overlayProgressAnim.value }.collect { host.setBlurFraction(it) }
+    }
+    LaunchedEffect(Unit) {
+        overlayProgressAnim.animateTo(1f, ExpressiveMotionTokens.Spatial.ExpressiveDefault())
+        hasEntered = true
+    }
     val predictiveBackProgress = remember { Animatable(0f) }
+    // Swipe-to-home after release: 0 to 1 as the panel shrinks and slides away. While it runs the panel moves as
+    // one piece (its contents skip their own entrance and exit motion).
+    val backExitProgress = remember { Animatable(0f) }
+    var exitingByBack by remember { mutableStateOf(false) }
     var predictiveBackEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
 
     val sensoryEngine = rememberTactileSonicEngine()
@@ -226,7 +254,7 @@ fun SearchOverlayScreen(
 
     LaunchedEffect(isOpening) {
         if (isOpening) {
-            overlayProgressAnim.snapTo(1f)
+            if (hasEntered) overlayProgressAnim.snapTo(1f)
         } else {
             val act = context.findActivity()
             WindowFramePacing.setHighRefreshRateCategory(act)
@@ -300,7 +328,8 @@ fun SearchOverlayScreen(
                 addCategory(Intent.CATEGORY_HOME)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
-            context.startActivity(homeIntent)
+            // Our own exit has just played; the launcher's default return animation would be a second motion.
+            context.startActivity(homeIntent, android.app.ActivityOptions.makeCustomAnimation(context, 0, 0).toBundle())
         } catch (e: Exception) {
             android.util.Log.w("IntelligentSearch", "Unexpected error", e)
         }
@@ -373,21 +402,12 @@ fun SearchOverlayScreen(
                 }
             }
             "Tor Project", "Tor Browser" -> {
-                val pm = context.packageManager
-                val torPkg = when {
-                    pm.getLaunchIntentForPackage("org.torproject.torbrowser") != null -> "org.torproject.torbrowser"
-                    pm.getLaunchIntentForPackage("org.torproject.torbrowser_alpha") != null -> "org.torproject.torbrowser_alpha"
-                    else -> null
-                }
-                if (torPkg != null) {
-                    val torUrl = "https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q=$encodedQuery"
-                    Intent(Intent.ACTION_VIEW, Uri.parse(torUrl)).apply {
-                        setPackage(torPkg)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                when (val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.torSearch(context, searchQuery)) {
+                    is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open -> launch.intent
+                    else -> {
+                        showTorInstallPopup = true
+                        null
                     }
-                } else {
-                    showTorInstallPopup = true
-                    null
                 }
             }
             else -> {
@@ -413,6 +433,11 @@ fun SearchOverlayScreen(
         viewModel.addSearchHistory(searchQuery)
         viewModel.onQueryChanged("")
         if (!launchSafeIntent(context, intent)) {
+            // A failed Tor launch must not fall back to a normal browser search.
+            if (com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(engine)) {
+                showTorInstallPopup = true
+                return@launchWebSearch
+            }
             val fallbackIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                 putExtra(SearchManager.QUERY, searchQuery)
                 putExtra("query", searchQuery)
@@ -421,6 +446,15 @@ fun SearchOverlayScreen(
             if (!launchSafeIntent(context, fallbackIntent)) {
                 Toast.makeText(context, "No app available to search the web", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    // Typed or tapped web addresses: http(s) only, browsable apps only, and only Tor Browser when Tor is the engine.
+    val openWebAddress: (String) -> Unit = { address ->
+        when (val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.forAddress(context, address, settingsState.searchEngine)) {
+            is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open -> launchSafeIntent(context, launch.intent)
+            com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.NeedsTorBrowser -> showTorInstallPopup = true
+            com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.NotAWebAddress -> launchWebSearch(address)
         }
     }
 
@@ -466,7 +500,8 @@ fun SearchOverlayScreen(
                 transitionState.targetState = true
                 coroutineScope.launch {
                     predictiveBackProgress.snapTo(0f)
-                    overlayProgressAnim.snapTo(1f)
+                    // The first resume belongs to the entrance animation; later ones (back from an app) are instant.
+                    if (hasEntered) overlayProgressAnim.snapTo(1f)
                 }
 
                 if (showTutorial) {
@@ -507,16 +542,11 @@ fun SearchOverlayScreen(
                 sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
                 viewModel.onQueryChanged("")
                 textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
-                coroutineScope.launch {
-                    predictiveBackProgress.animateTo(
-                        targetValue = 1f,
-                        animationSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault()
-                    )
-                }
-                overlayProgressAnim.animateTo(
-                    targetValue = 0f,
-                    animationSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault()
-                )
+                exitingByBack = true
+                val exitSpec = androidx.compose.animation.core.tween<Float>(BACK_EXIT_MS, easing = EmphasizedAccelerate)
+                // The scrim and backdrop fade with the panel, which shrinks and slides out from where it was let go.
+                coroutineScope.launch { overlayProgressAnim.animateTo(0f, exitSpec) }
+                backExitProgress.animateTo(1f, exitSpec)
                 goToHomeScreen()
             }
         } catch (_: java.util.concurrent.CancellationException) {
@@ -707,7 +737,9 @@ fun SearchOverlayScreen(
                     )
                 }
             }
-            val showPerfStats = prefs[SettingsManager.DEBUG_SHOW_PERF_STATS]
+            val debugUnlocked by rememberSetting(SettingsManager.DEBUG_UNLOCKED)
+            val perfStatsOn by rememberSetting(SettingsManager.DEBUG_SHOW_PERF_STATS)
+            val showPerfStats = debugUnlocked && perfStatsOn
             AnimatedVisibility(
                 visible = showPerfStats,
                 enter = fadeIn(animationSpec = ExpressiveMotionTokens.morphSpring()) + expandVertically(animationSpec = ExpressiveMotionTokens.morphSpring()),
@@ -798,7 +830,7 @@ fun SearchOverlayScreen(
                             if (newQuery.isNotEmpty()) {
                                 hasStartedTyping = true
                             }
-                            if (com.pixel.intelligentsearch.BuildConfig.DEBUG && newQuery == "*xy88x*") {
+                            if (newQuery == "*xy88x*") {
                                 prefs.edit().put(SettingsManager.DEBUG_UNLOCKED, true).apply()
                                 viewModel.onQueryChanged("")
                                 textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
@@ -842,9 +874,7 @@ fun SearchOverlayScreen(
                                             val intent = if (settingsState.contactDirectCall && match.phoneNumber.isNotBlank()) {
                                                 Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                             } else if (match.lookupUri.isNotBlank()) {
-                                                Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {
-                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                }
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)) // Contacts reads it with its own permission; no grant needed
                                             } else if (match.phoneNumber.isNotBlank()) {
                                                 Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                             } else {
@@ -864,15 +894,7 @@ fun SearchOverlayScreen(
                                         }
                                     }
                                 } else if (uiState.instantAnswer?.iconType == "url") {
-                                    val answer = uiState.instantAnswer
-                                    if (answer != null) {
-                                        val targetUrl = if (answer.title.startsWith("http://", ignoreCase = true) || answer.title.startsWith("https://", ignoreCase = true)) {
-                                            answer.title
-                                        } else "https://${answer.title}"
-                                        launchSafeIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                        })
-                                    }
+                                    uiState.instantAnswer?.let { answer -> openWebAddress(answer.title) }
                                 } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
                                     performAppLaunch(visibleApps.first())
                                 } else {
@@ -973,7 +995,7 @@ fun SearchOverlayScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(uiState.bangSuggestions, key = { bang -> "bang_${bang.prefix}" }, contentType = { "bang" }) { bang ->
+                    uniqueItems(uiState.bangSuggestions, key = { bang -> "bang_${bang.prefix}" }, contentType = { "bang" }) { bang ->
                         AssistChip(
                             onClick = {
                                 val currentQ = uiState.query
@@ -1031,7 +1053,7 @@ fun SearchOverlayScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(pillPackages, key = { pkg -> "pill_$pkg" }, contentType = { "pill" }) { packageName ->
+                uniqueItems(pillPackages, key = { pkg -> "pill_$pkg" }, contentType = { "pill" }) { packageName ->
                             val appIconState = remember(packageName, settingsState.activeIconPack) {
                                 mutableStateOf<AppIconResult?>(peekThemedAppIcon(packageName, settingsState.activeIconPack))
                             }
@@ -1241,10 +1263,50 @@ fun SearchOverlayScreen(
                 }
             }
 
+            // "Did you mean": an obvious typo in a query that matched nothing on the phone. Tapping fills the fix in.
+            uiState.spellingSuggestion?.let { corrected ->
+                item(key = "did_you_mean", contentType = "did_you_mean") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .clip(RoundedCornerShape(28.dp))
+                            .expressiveRowClickable {
+                                textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
+                                    text = corrected,
+                                    selection = androidx.compose.ui.text.TextRange(corrected.length)
+                                )
+                                viewModel.onQueryChanged(corrected)
+                            }
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Spellcheck,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Text(
+                            text = androidx.compose.ui.text.buildAnnotatedString {
+                                append("Did you mean ")
+                                pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary))
+                                append(corrected)
+                                pop()
+                            },
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 15.sp,
+                            fontFamily = GoogleSansFlex
+                        )
+                    }
+                }
+            }
+
             // Parsed intents (timers, alarms, events, messages, calls, navigation) always show; clipboard
             // actions are only added to this list when smart clipboard suggestions are enabled.
             if (uiState.directActions.isNotEmpty()) {
-                items(uiState.directActions, key = { action -> "direct_action_${action.title}_${action.subtitle}" }, contentType = { "direct_action" }) { action ->
+                uniqueItems(uiState.directActions, key = { action -> "direct_action_${action.title}_${action.subtitle}" }, contentType = { "direct_action" }) { action ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableFloatStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1469,9 +1531,7 @@ fun SearchOverlayScreen(
                                                 val intent = if (isDirectCall && match.phoneNumber.isNotBlank()) {
                                                     Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                                 } else if (match.lookupUri.isNotBlank()) {
-                                                    Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)).apply {
-                                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                    }
+                                                    Intent(Intent.ACTION_VIEW, Uri.parse(match.lookupUri)) // Contacts reads it with its own permission; no grant needed
                                                 } else if (match.phoneNumber.isNotBlank()) {
                                                     Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phoneNumber}"))
                                                 } else {
@@ -1669,8 +1729,53 @@ fun SearchOverlayScreen(
                 }
             }
 
+            // Debug menu: Mock Trending Queries fills the empty search state with stand-in topics.
+            if (mockTrendingOn && uiState.query.isEmpty()) {
+                item(key = "header_trending", contentType = "recent_label") {
+                    Text(
+                        text = "Trending",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        fontFamily = GoogleSansFlex,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp)
+                    )
+                }
+                uniqueItems(DebugMocks.trendingQueries, key = { topic -> "trending_$topic" }, contentType = { "recent_query" }) { topic ->
+                    val pillShape = RoundedCornerShape(28.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 5.dp)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f), pillShape)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f), pillShape)
+                            .clip(pillShape)
+                            .bouncyClickable { launchWebSearch(topic) }
+                            .padding(horizontal = 16.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Text(
+                            text = topic,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 15.sp,
+                            fontFamily = GoogleSansFlex,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
             if (settingsState.searchPreviousSearches && uiState.query.isEmpty() && distinctRecents.isNotEmpty()) {
-                item(key = "recent_label", contentType = "recent_label") {
+                item(key = "header_recent_searches", contentType = "recent_label") {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1728,7 +1833,7 @@ fun SearchOverlayScreen(
                         }
                     }
                 }
-                items(distinctRecents, key = { query -> "recent_$query" }, contentType = { "recent_query" }) { recentQuery ->
+                uniqueItems(distinctRecents, key = { query -> "recent_$query" }, contentType = { "recent_query" }) { recentQuery ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableFloatStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -1897,7 +2002,7 @@ fun SearchOverlayScreen(
 
             if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
                 // Title + time can repeat (same meeting on two calendars); the instance id and begin time cannot.
-                items(uiState.calendarEvents, key = { event -> "event_${event.eventId}_${event.beginMillis}_${event.title}" }, contentType = { "calendar_event" }) { event ->
+                uniqueItems(uiState.calendarEvents, key = { event -> "event_${event.eventId}_${event.beginMillis}_${event.title}" }, contentType = { "calendar_event" }) { event ->
                     var dismissed by remember { mutableStateOf(false) }
                     var dismissDirection by remember { mutableFloatStateOf(1f) }
                     val offsetX = remember { Animatable(0f) }
@@ -2001,7 +2106,7 @@ fun SearchOverlayScreen(
             }
 
             if (settingsState.searchShortcuts && uiState.shortcuts.isNotEmpty()) {
-                items(uiState.shortcuts, key = { shortcut -> "shortcut_${shortcut.packageName}_${shortcut.id}_${shortcut.userHandle.hashCode()}" }, contentType = { "app_shortcut" }) { shortcut ->
+                uniqueItems(uiState.shortcuts, key = { shortcut -> "shortcut_${shortcut.packageName}_${shortcut.id}_${shortcut.userHandle.hashCode()}" }, contentType = { "app_shortcut" }) { shortcut ->
                     Row(
                         modifier = Modifier.fillMaxWidth().expressiveRowClickable {
                             hasStartedTyping = false
@@ -2058,31 +2163,7 @@ fun SearchOverlayScreen(
                                 url = instantAnswer.title,
                                 onClick = {
                                     hasStartedTyping = false
-                                    val targetUrl = if (instantAnswer.title.startsWith("http://") || instantAnswer.title.startsWith("https://")) {
-                                        instantAnswer.title
-                                    } else "https://${instantAnswer.title}"
-                                    if (settingsState.searchEngine == "Tor Project" || settingsState.searchEngine == "Tor Browser") {
-                                        val pm = context.packageManager
-                                        val torPkg = when {
-                                            pm.getLaunchIntentForPackage("org.torproject.torbrowser") != null -> "org.torproject.torbrowser"
-                                            pm.getLaunchIntentForPackage("org.torproject.torbrowser_alpha") != null -> "org.torproject.torbrowser_alpha"
-                                            else -> null
-                                        }
-                                        if (torPkg != null) {
-                                            val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
-                                                setPackage(torPkg)
-                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                            }
-                                            launchSafeIntent(context, urlIntent)
-                                        } else {
-                                            showTorInstallPopup = true
-                                        }
-                                    } else {
-                                        val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                        }
-                                        launchSafeIntent(context, urlIntent)
-                                    }
+                                    openWebAddress(instantAnswer.title)
                                 }
                             )
                         }
@@ -2131,7 +2212,7 @@ fun SearchOverlayScreen(
                                             }
                                         }
                                     }
-                                    items(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }, contentType = { "app_item" }) { app ->
+                                    uniqueItems(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }, contentType = { "app_item" }) { app ->
                                         AppGridItem(app) { performAppLaunch(app) }
                                     }
                                 }
@@ -2141,7 +2222,7 @@ fun SearchOverlayScreen(
                     "web" -> {
                         if (showWeb && (settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
                             if (allDisplaySuggestions.isNotEmpty()) {
-                                items(allDisplaySuggestions, key = { suggestion -> "sugg_$suggestion" }, contentType = { "web_suggestion" }) { suggestion ->
+                                uniqueItems(allDisplaySuggestions, key = { suggestion -> "sugg_$suggestion" }, contentType = { "web_suggestion" }) { suggestion ->
                                     val isRecent = uiState.recentSearches.any { it.equals(suggestion, ignoreCase = true) }
                                     val trimmed = uiState.query.trim()
                                     val annotatedSuggestion = remember(suggestion, trimmed) {
@@ -2240,7 +2321,7 @@ fun SearchOverlayScreen(
                         val displayContacts = if (filteredContacts.isNotEmpty()) filteredContacts else uiState.contacts
                         if (showPeople && isContactsEnabled && displayContacts.isNotEmpty()) {
                             item(key = "contacts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                            items(displayContacts, key = { contact -> "contact_${contact.lookupUri.ifBlank { "${contact.name}_${contact.phoneNumber}" }}" }, contentType = { "contact" }) { contact ->
+                            uniqueItems(displayContacts, key = { contact -> "contact_${contact.lookupUri.ifBlank { "${contact.name}_${contact.phoneNumber}" }}" }, contentType = { "contact" }) { contact ->
                                 val isDirectCall = settingsState.contactDirectCall || prefs[SettingsManager.CONTACT_DIRECT_CALL] || prefs[SettingsManager.CONTACT_DIRECT_CALL]
                                 Row(
                                     modifier = Modifier
@@ -2250,9 +2331,7 @@ fun SearchOverlayScreen(
                                             val intent = if (isDirectCall && contact.phoneNumber.isNotBlank()) {
                                                 Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
                                             } else if (contact.lookupUri.isNotBlank()) {
-                                                Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri)).apply {
-                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                }
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(contact.lookupUri)) // Contacts reads it with its own permission; no grant needed
                                             } else if (contact.phoneNumber.isNotBlank()) {
                                                 Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phoneNumber}"))
                                             } else {
@@ -2290,7 +2369,7 @@ fun SearchOverlayScreen(
                         val displayFiles = if (filteredFiles.isNotEmpty()) filteredFiles else uiState.files
                         if (showFiles && isFilesEnabled && displayFiles.isNotEmpty()) {
                             item(key = "files_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                            items(displayFiles, key = { file -> "file_${file.uri}" }, contentType = { "file" }) { file ->
+                            uniqueItems(displayFiles, key = { file -> "file_${file.uri}" }, contentType = { "file" }) { file ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -2395,11 +2474,11 @@ fun SearchOverlayScreen(
                     }
                 )
             }
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                if (!showTutorial) closeOverlay()
+            // Tap on the empty background closes the overlay. A plain gesture rather than clickable(): clickable
+            // made the whole overlay one merged accessibility node (TalkBack read it as a single button, and the
+            // tutorial's pane title inside it crashed). Children's own clicks consume the tap first, as before.
+            .pointerInput(showTutorial) {
+                detectTapGestures(onTap = { if (!showTutorial) closeOverlay() })
             },
         contentAlignment = Alignment.BottomCenter
     ) {
@@ -2457,35 +2536,42 @@ fun SearchOverlayScreen(
             }
             
             val surfaceAlpha = if (isShowWallpaper) ((100 - isTransparency) / 100f).coerceIn(0f, 1f) else 1f
+            // Unfolded foldables and tablets (shorter side 600dp or more) get two panes: search bar and quick apps on
+            // the left, results beside them, in a wider panel. A phone in landscape is wide but short, so it keeps one
+            // column and the 720dp panel.
+            // Measured from this window, so the app in half of a split screen counts as the half it has.
+            val windowSize = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize
+            val windowWidthDp = with(density) { windowSize.width.toDp() }
+            val windowHeightDp = with(density) { windowSize.height.toDp() }
+            val useTwoPane = minOf(windowWidthDp, windowHeightDp) >= 600.dp && windowWidthDp >= 700.dp
+            val searchPaneWidth = (windowWidthDp * 0.4f).coerceIn(300.dp, 420.dp)
 
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .widthIn(max = 720.dp)
+                    .widthIn(max = if (useTwoPane) 1200.dp else 720.dp)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 16.dp)
                     .graphicsLayer {
                         val progress = overlayProgressAnim.value.coerceIn(0.001f, 1f)
                         val backProg = predictiveBackProgress.value.coerceIn(0f, 1f)
+                        val exit = backExitProgress.value.coerceIn(0f, 1f)
                         val shellCornerRadius = androidx.compose.ui.unit.lerp(24.dp, 32.dp, backProg)
-                        val predictiveScale = 1f - (backProg * 0.08f)
-
+                        // Material 3 predictive back for full-screen surfaces: toward 90% while dragging, then on
+                        // release on down to about 80% as it leaves.
+                        val predictiveScale = (1f - backProg * 0.10f) * (1f - exit * 0.12f)
                         scaleX = predictiveScale
                         scaleY = predictiveScale
 
-                        val maxShiftPx = 48.dp.toPx()
-                        translationX = if (predictiveBackEdge == BackEventCompat.EDGE_LEFT) {
-                            backProg * maxShiftPx
-                        } else {
-                            -backProg * maxShiftPx
-                        }
+                        // Follows the swipe toward the side it came from (Material: a twentieth of the width less
+                        // 8 dp), then carries on that way out of view.
+                        val direction = if (predictiveBackEdge == BackEventCompat.EDGE_LEFT) 1f else -1f
+                        val gestureShiftPx = (size.width / 20f - 8.dp.toPx()).coerceAtLeast(0f)
+                        translationX = direction * (backProg * gestureShiftPx + exit * size.width * 0.12f)
 
-                        transformOrigin = TransformOrigin(
-                            if (predictiveBackEdge == BackEventCompat.EDGE_LEFT) 0.05f else 0.95f,
-                            0.5f
-                        )
-                        alpha = (progress * (1f - backProg * 0.25f)).coerceIn(0f, 1f)
+                        transformOrigin = TransformOrigin(0.5f, 0.5f)
+                        alpha = if (exitingByBack) (1f - exit) else (progress * (1f - backProg * 0.15f)).coerceIn(0f, 1f)
                         shape = RoundedCornerShape(shellCornerRadius)
                         clip = true
                     }
@@ -2519,7 +2605,52 @@ fun SearchOverlayScreen(
                     ) {}
             ) {
                 
-                Column(
+                if (useTwoPane) {
+                    val paneOffsetPx = with(density) { 20.dp.toPx() }
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier.width(searchPaneWidth).fillMaxHeight(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            if (settingsState.bottomSearch) Spacer(modifier = Modifier.weight(1f))
+                            else {
+                                Spacer(modifier = Modifier.statusBarsPadding())
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                            val searchBarPane = @Composable {
+                                Box(modifier = Modifier.graphicsLayer {
+                                    val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
+                                    alpha = p
+                                    translationY = (1f - p) * paneOffsetPx
+                                }) { searchBarContent() }
+                            }
+                            val quickAppsPane = @Composable {
+                                Box(modifier = Modifier.graphicsLayer {
+                                    val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
+                                    val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
+                                    alpha = a
+                                    translationY = (1f - a) * paneOffsetPx
+                                }) { quickAppPanelContent() }
+                            }
+                            // Same order as on a phone: the bar sits nearest the edge it is anchored to.
+                            if (settingsState.bottomSearch) { quickAppsPane(); searchBarPane() } else { searchBarPane(); quickAppsPane() }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .statusBarsPadding()
+                                .graphicsLayer {
+                                    val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
+                                    val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
+                                    alpha = a
+                                    translationY = (1f - a) * paneOffsetPx
+                                }
+                        ) {
+                            searchResultsContent()
+                        }
+                    }
+                } else Column(
                     modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -2528,18 +2659,18 @@ fun SearchOverlayScreen(
                         Spacer(modifier = Modifier.statusBarsPadding())
                         Spacer(modifier = Modifier.height(8.dp))
                         Box(modifier = Modifier.graphicsLayer {
-                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
                             alpha = p
                             translationY = (1f - p) * contentOffsetPx
                         }) { searchBarContent() }
                         Box(modifier = Modifier.graphicsLayer {
-                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
                             val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
                             alpha = a
                             translationY = (1f - a) * contentOffsetPx
                         }) { quickAppPanelContent() }
                         Box(modifier = Modifier.weight(1f).graphicsLayer {
-                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
                             val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
                             alpha = a
                             translationY = (1f - a) * contentOffsetPx
@@ -2549,7 +2680,7 @@ fun SearchOverlayScreen(
                         }
                     } else {
                         Box(modifier = Modifier.weight(1f).graphicsLayer {
-                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
                             val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
                             alpha = a
                             translationY = -(1f - a) * contentOffsetPx
@@ -2568,13 +2699,13 @@ fun SearchOverlayScreen(
                             searchResultsContent()
                         }
                         Box(modifier = Modifier.graphicsLayer {
-                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
                             val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
                             alpha = a
                             translationY = -(1f - a) * contentOffsetPx
                         }) { quickAppPanelContent() }
                         Box(modifier = Modifier.graphicsLayer {
-                            val p = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
                             alpha = p
                             translationY = -(1f - p) * contentOffsetPx
                         }) { searchBarContent() }

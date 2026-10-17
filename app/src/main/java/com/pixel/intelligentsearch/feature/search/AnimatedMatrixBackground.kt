@@ -128,6 +128,9 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
                 val minFrameIntervalNanos = 33_333_333L // ~30 FPS cap for ambient background twinkle
                 val twoPi = (2.0f * PI.toFloat())
                 while (isActive) {
+                    // Sleep between updates instead of waking every vsync just to skip it; the phase uses
+                    // the measured time step, so the motion is unchanged.
+                    if (lastUpdateNanos != 0L) kotlinx.coroutines.delay(30)
                     withFrameNanos { frameTime ->
                         if (lastUpdateNanos == 0L) {
                             lastUpdateNanos = frameTime

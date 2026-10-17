@@ -120,7 +120,7 @@ import kotlinx.coroutines.launch
 private val EmphasizedAccelerate = androidx.compose.animation.core.CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 
 /** How long the panel takes to leave after a swipe to home is released. */
-private const val BACK_EXIT_MS = 260
+private const val BACK_EXIT_MS = 200
 
 @Composable
 fun SearchOverlayScreen(

@@ -101,17 +101,6 @@
     </issue>
 
     <issue
-        id="ModifierParameter"
-        message="Optional Modifier parameter should have a default value of `Modifier`"
-        errorLine1="    modifier: Modifier = Modifier.size(width = 40.dp, height = 56.dp)"
-        errorLine2="    ~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/TutorialSpotlightOverlay.kt"
-            line="135"
-            column="5"/>
-    </issue>
-
-    <issue
         id="DiscouragedApi"
         message="Use of this function is discouraged because resource reflection makes it harder to perform build optimizations and compile-time verification of code. It is much more efficient to retrieve resources by identifier (e.g. `R.foo.bar`) than by name (e.g. `getIdentifier(&quot;bar&quot;, &quot;foo&quot;, null)`)."
         errorLine1="                        val resId = appContext.resources.getIdentifier(&quot;config_batteryCapacity&quot;, &quot;dimen&quot;, &quot;android&quot;)"

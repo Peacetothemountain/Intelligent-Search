@@ -42,3 +42,9 @@ Every phase ends green (lint with warnings as errors, all tests, release build) 
   layout scaffold and spacing system, expressive lists and menus) and Neural Expressive; `docs/DESIGN.md` maps every
   foundation and component to where it is used. Type is now Google Sans Flex with all 30 baseline and emphasized
   styles, per optical size.
+- 2026-10-17, D1 done: the engine (52 tests). Matching and ranking (typo-tolerant prefix distance, sound-alike
+  names, camel-case words and acronyms, use and recency), the calculator (functions, calculator-style percentages,
+  exact bitwise maths and bases, unit and currency conversion, phone numbers and dates refused), actions (timers,
+  alarms, reminders, events, messages, calls, directions), toggles and volumes, the safe-address gate, engines and
+  quick web shortcuts, and the `Search` pipeline (instant answers, weighted sections, best match, ghost text). About
+  1.3 ms per query over 5,000 candidates on a desktop JVM. Every case from `main`'s engine tests is ported.

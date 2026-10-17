@@ -288,7 +288,7 @@ fun SettingsScreensHub(
                     composable<com.pixel.intelligentsearch.core.navigation.Route.BackupRestore> { BackupRestoreScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Setup> { SetupChecklistScreen(prefs, onNavigate, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Debug> {
-                        if (com.pixel.intelligentsearch.BuildConfig.DEBUG && prefs[SettingsManager.DEBUG_UNLOCKED]) {
+                        if (prefs[SettingsManager.DEBUG_UNLOCKED]) {
                             DebugScreen(
                                 prefs = prefs,
                                 onBack = onBack,

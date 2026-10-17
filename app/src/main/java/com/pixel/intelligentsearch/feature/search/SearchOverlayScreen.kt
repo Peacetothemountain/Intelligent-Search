@@ -185,6 +185,13 @@ fun SearchOverlayScreen(
     // quick apps and results rising in turn); returning from an app snaps to 1, so it is instant and never transparent.
     val overlayProgressAnim = remember { Animatable(0f) }
     var hasEntered by remember { mutableStateOf(false) }
+    // The window blur fades in and out with the overlay rather than snapping (the home screen sharpens as the
+    // panel leaves after a swipe home).
+    val blurHost = remember(context) { context.findActivity() as? com.pixel.intelligentsearch.MainActivity }
+    LaunchedEffect(blurHost) {
+        val host = blurHost ?: return@LaunchedEffect
+        snapshotFlow { overlayProgressAnim.value }.collect { host.setBlurFraction(it) }
+    }
     LaunchedEffect(Unit) {
         overlayProgressAnim.animateTo(1f, ExpressiveMotionTokens.Spatial.ExpressiveDefault())
         hasEntered = true

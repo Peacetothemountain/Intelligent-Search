@@ -109,6 +109,28 @@ open class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** The background blur the settings and thermal state ask for. */
+    private var targetBlurRadius = 0
+    /** How much of it to show: the overlay sets this from its open/close progress. Starts at 0 for the entrance. */
+    private var blurFraction = 0f
+    private var lastWindowBlur = -1
+
+    /**
+     * Scales the window's background blur by [fraction] (0 to 1). The overlay calls this every frame of its
+     * entrance and exit, so the blur fades with the panel instead of snapping on or off; only the radius changes.
+     */
+    fun setBlurFraction(fraction: Float) {
+        blurFraction = fraction.coerceIn(0f, 1f)
+        applyWindowBlur()
+    }
+
+    private fun applyWindowBlur() {
+        val radius = (targetBlurRadius * blurFraction).toInt()
+        if (radius == lastWindowBlur) return
+        lastWindowBlur = radius
+        runCatching { window.setBackgroundBlurRadius(radius) }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Immediately dismiss system splash screen to avoid any black splash or flicker
         splashScreen.setOnExitAnimationListener { splashScreenView ->
@@ -156,13 +178,9 @@ open class MainActivity : AppCompatActivity() {
             overridePendingTransition(0, 0)
         }
 
-        runCatching {
-            if (initialShowWallpaper && initialBlur > 0) {
-                window.setBackgroundBlurRadius(initialBlur)
-            } else {
-                window.setBackgroundBlurRadius(0)
-            }
-        }
+        // The overlay scales this with its entrance (see setBlurFraction), so the blur fades in rather than snapping.
+        targetBlurRadius = if (initialShowWallpaper && initialBlur > 0) initialBlur else 0
+        applyWindowBlur()
 
         if (handleIntent(intent)) return
         if (checkAndForwardIfSearchOverlayDisabled()) return
@@ -201,11 +219,11 @@ open class MainActivity : AppCompatActivity() {
                             runCatching {
                                 if (targetBlur > 0) {
                                     window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                                    window.setBackgroundBlurRadius(targetBlur)
                                 } else {
                                     window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                                    window.setBackgroundBlurRadius(0)
                                 }
+                                targetBlurRadius = targetBlur
+                                applyWindowBlur()
                                 lastAppliedBlur = targetBlur
                             }
                         }

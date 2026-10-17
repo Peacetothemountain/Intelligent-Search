@@ -28,6 +28,43 @@ class MorphBouncePhysicsTest {
     }
 
     @Test
+    fun noShapeEverHopsSkittersOrRollsAlongTheFloor() {
+        for (seed in 1..40) {
+            val physics = world(seed)
+            val contactTime = mutableMapOf<Int, Float>()
+            val lastBounceAt = mutableMapOf<Int, Float>()
+            var t = 0f
+            run(physics, 30f, onFrame = {
+                t += 1f / 120f
+                for (b in physics.bodies) {
+                    // One trampoline contact lasts about π/ω ≈ 80 ms (a little more squeezed under another shape);
+                    // never long enough to roll.
+                    contactTime[b.id] = if (b.penetration > 0f) (contactTime[b.id] ?: 0f) + 1f / 120f else 0f
+                    assertTrue("seed $seed: shape ${b.id} on the floor for ${contactTime[b.id]}s", contactTime[b.id]!! < 0.35f)
+                }
+            }, listener = { b, _ ->
+                // Bounces, and so shape changes, are at least a real flight apart.
+                val previous = lastBounceAt[b.id]
+                if (previous != null) assertTrue("seed $seed: shape ${b.id} bounced again after ${t - previous}s", t - previous > 0.35f)
+                lastBounceAt[b.id] = t
+            })
+        }
+    }
+
+    @Test
+    fun everyShapeLeavesTheScreenSoonAfterItsPlannedBounces() {
+        for (seed in 1..40) {
+            val physics = world(seed)
+            run(physics, 40f, onFrame = {
+                for (b in physics.bodies) {
+                    assertTrue("seed $seed: shape ${b.id} still on screen after ${b.age}s", b.age < 10f)
+                    assertTrue("seed $seed: shape ${b.id} made ${b.bounces} bounces, planned ${b.plannedBounces}", b.bounces <= b.plannedBounces + 2)
+                }
+            })
+        }
+    }
+
+    @Test
     fun theOpeningWaveDropsFourOrFiveShapes() {
         val physics = world()
         var peak = 0
@@ -143,8 +180,9 @@ class MorphBouncePhysicsTest {
             if (rising && body.vy > 0f) { apexes += top; rising = false; top = Float.MAX_VALUE }
         })
         assertTrue("apexes $apexes", apexes.size >= 2)
-        // y grows downwards: each apex sits lower (larger y) than the one before.
-        for (i in 1 until apexes.size) assertTrue("apexes $apexes", apexes[i] > apexes[i - 1])
+        // y grows downwards: each apex sits lower (larger y) than the one before, or at the bed's minimum bounce.
+        val minimumApex = physics.height - body.radius - (physics.height - 2f * body.radius - MorphBouncePhysics.TOP_MARGIN) * MorphBouncePhysics.MIN_REBOUND_SHARE
+        for (i in 1 until apexes.size) assertTrue("apexes $apexes", apexes[i] > apexes[i - 1] || apexes[i] <= minimumApex + 0.02f)
     }
 
     @Test
@@ -207,11 +245,12 @@ class MorphBouncePhysicsTest {
     @Test
     fun aRestitutionOfPoint75KeepsThreeQuartersOfTheImpactSpeed() {
         val physics = MorphBouncePhysics(Random(1)).apply { resize(4f, 2f, listOf(0.1f)) }
-        val body = MorphBouncePhysics.Body(0, 0.1f, 0.06f, 0.75f, 1).apply { x = 2f; y = 1.9f - 0.0001f; vy = 3f }
+        val body = MorphBouncePhysics.Body(0, 0.1f, 0.06f, 0.75f, 1).apply { x = 2f; y = 1.9f - 0.0001f; vy = 6f }
         var t = 0f
         while (body.vy > 0f || body.penetration > 0f) { physics.step(body, MorphBouncePhysics.STEP, null); t += MorphBouncePhysics.STEP; if (t > 1f) break }
         // Air drag takes a little too, so allow a small margin below 0.75.
-        val ratio = -body.vy / 3f
+        // A firm landing, so the bed's minimum bounce doesn't come into it.
+        val ratio = -body.vy / 6f
         assertTrue("rebound ratio $ratio", ratio in 0.66f..0.76f)
     }
 }

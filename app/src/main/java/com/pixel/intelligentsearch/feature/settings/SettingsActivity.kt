@@ -76,11 +76,8 @@ class SettingsActivity : AppCompatActivity() {
         // they carry this app's own launch token. Other apps always land on the main settings page.
         val isInternalLaunch = com.pixel.intelligentsearch.core.security.InternalLaunchToken.isInternal(intent)
         val fromSearchOverlay = isInternalLaunch && intent.getBooleanExtra("FROM_SEARCH_OVERLAY", false)
-        val rawScreenKey = if (isInternalLaunch) intent.getStringExtra("extra_screen") else null
-        val sanitizedScreenKey = when {
-            rawScreenKey == "debug" && !com.pixel.intelligentsearch.BuildConfig.DEBUG -> null
-            else -> rawScreenKey
-        }
+        // The debug page opens only from the overlay's debug code, which carries the launch token like every page.
+        val sanitizedScreenKey = if (isInternalLaunch) intent.getStringExtra("extra_screen") else null
         val initialRoute = if (isWidgetConfigure && sanitizedScreenKey == null) {
             Route.WidgetCustomization
         } else {

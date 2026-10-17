@@ -21,14 +21,20 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.pixel.intelligentsearch.R
 
 /**
- * The bugdroid clips. They were rendered as 1920x1080 frames on black and are stored cropped to the area the
- * character ever occupies; the crop rectangle (in source pixels) lets [BugdroidPlayer] place them exactly where
- * the full frame would have put them.
+ * The bugdroid clips. They were rendered as 16:9 frames on black and are stored cropped to the area the
+ * character ever occupies, with a margin; the crop rectangle lets [BugdroidPlayer] place them exactly where the
+ * full frame would have put them. The character rectangle is the furthest the character (balloon, waving arm,
+ * fan) reaches in any frame, so the player can keep all of it inside the view. Both are in 1920x1080 pixels.
  */
-enum class BugdroidClip(@param:RawRes val rawRes: Int, val cropLeft: Int, val cropTop: Int, val cropWidth: Int, val cropHeight: Int) {
-    SETTINGS(R.raw.bugdroid_video, 340, 0, 1216, 1080),
-    WELCOME(R.raw.bugdroid_welcome_video, 500, 144, 800, 800),
-    BACKUP(R.raw.bugdroid_backup_video, 628, 232, 928, 752);
+enum class BugdroidClip(
+    @param:RawRes val rawRes: Int,
+    val cropLeft: Int, val cropTop: Int, val cropWidth: Int, val cropHeight: Int,
+    val characterLeft: Int, val characterTop: Int, val characterRight: Int, val characterBottom: Int
+) {
+    SETTINGS(R.raw.bugdroid_video, 340, 0, 1216, 1080, 350, 3, 1543, 1073),
+    // Rendered at 1280x720; its rectangles are scaled to the shared 1920x1080 frame.
+    WELCOME(R.raw.bugdroid_welcome_video, 348, 6, 1335, 1071, 367, 25, 1664, 1059),
+    BACKUP(R.raw.bugdroid_backup_video, 586, 14, 1036, 986, 603, 30, 1604, 982);
 
     companion object {
         const val SOURCE_WIDTH = 1920
@@ -91,13 +97,7 @@ fun BugdroidPlayer(
     modifier: Modifier = Modifier,
     scaleFactor: Float = 1.0f
 ) {
-    // A shader that fails to compile on some GPU driver leaves the video unkeyed rather than crashing the page.
-    val keyEffect = remember {
-        if (!isBugdroidVideoSupported) return@remember null
-        runCatching {
-            RenderEffect.createRuntimeShaderEffect(RuntimeShader(LUMA_KEY_SHADER), "content").asComposeRenderEffect()
-        }.getOrNull()
-    }
+    val keyEffect = lumaKeyEffect
     AndroidView(
         factory = { ctx ->
             TextureView(ctx).apply {
@@ -139,10 +139,50 @@ internal fun applyClipTransform(view: TextureView, clip: BugdroidClip, scaleFact
     var fillX = 1f
     var fillY = 1f
     if (vw / vh > frameAspect) fillY = (vw / frameAspect) / vh else fillX = (vh * frameAspect) / vw
+    val scale = clip.fittedScale(vw, vh, scaleFactor)
     val matrix = Matrix().apply {
         setScale(clip.cropWidth / sourceW, clip.cropHeight / sourceH)
         postTranslate(clip.cropLeft * vw / sourceW, clip.cropTop * vh / sourceH)
-        postScale(fillX * scaleFactor, fillY * scaleFactor, vw / 2f, vh / 2f)
+        postScale(fillX * scale, fillY * scale, vw / 2f, vh / 2f)
     }
     view.setTransform(matrix)
+}
+
+/**
+ * [scaleFactor], lowered just enough that the whole character fits inside a [vw] x [vh] view with a small
+ * margin. Filling a view whose shape differs from 16:9 crops the frame, which on narrower phones cut off the
+ * backup bugdroid's fan; on views where everything fits it is unchanged. The frame scales about the view
+ * centre, so each edge of the character limits the scale on its own.
+ */
+internal fun BugdroidClip.fittedScale(vw: Float, vh: Float, scaleFactor: Float): Float {
+    if (vw <= 0f || vh <= 0f) return scaleFactor
+    val sourceW = BugdroidClip.SOURCE_WIDTH.toFloat()
+    val sourceH = BugdroidClip.SOURCE_HEIGHT.toFloat()
+    // View pixels per source pixel at scale 1 (the fill scale).
+    val fill = maxOf(vw / sourceW, vh / sourceH)
+    val margin = FIT_MARGIN * minOf(vw, vh)
+    var scale = scaleFactor
+    fun limit(reach: Float, room: Float) {
+        if (reach > 0f) scale = minOf(scale, (room - margin).coerceAtLeast(0f) / (reach * fill))
+    }
+    limit(sourceW / 2f - characterLeft, vw / 2f)
+    limit(characterRight - sourceW / 2f, vw / 2f)
+    limit(sourceH / 2f - characterTop, vh / 2f)
+    limit(characterBottom - sourceH / 2f, vh / 2f)
+    return scale
+}
+
+/** Empty space kept around a character that had to be shrunk to fit, as a share of the view's shorter side. */
+private const val FIT_MARGIN = 0.03f
+
+/**
+ * The key effect, compiled once for the whole app. Building it in each player recompiled the shader every time a
+ * page with a bugdroid appeared (returning to the main settings page included), costing frames as it opened.
+ * A shader that fails to compile on some GPU driver leaves the video unkeyed rather than crashing the page.
+ */
+private val lumaKeyEffect: androidx.compose.ui.graphics.RenderEffect? by lazy {
+    if (!isBugdroidVideoSupported) return@lazy null
+    runCatching {
+        RenderEffect.createRuntimeShaderEffect(RuntimeShader(LUMA_KEY_SHADER), "content").asComposeRenderEffect()
+    }.getOrNull()
 }

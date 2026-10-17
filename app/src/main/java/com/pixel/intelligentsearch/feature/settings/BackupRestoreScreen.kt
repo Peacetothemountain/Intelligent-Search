@@ -446,7 +446,7 @@ fun BackupRestoreScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Encrypted Backup", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+                title = { Text("Encrypted Backup", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
@@ -690,7 +690,10 @@ fun BackupRestoreScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            AutoBackupCard(passphrase = passphrase)
+
+            // Extra room above the bugdroid so its whole video shows below the cards.
+            Spacer(modifier = Modifier.height(40.dp))
 
             Box(
                 modifier = Modifier
@@ -737,14 +740,16 @@ fun BackupRestoreScreen(
                 ) {
                     val alpha = pulseAlpha.value
                     val scale = pulseScale.value
+                    // On narrow screens the bugdroid shrinks to fit; its shadows shrink with it about the same centre.
+                    val fit = BugdroidClip.BACKUP.fittedScale(size.width, size.height, 1f)
                     val contactShadowColor = Color.Black.copy(alpha = (if (isDark) 0.70f else 0.38f) * alpha)
                     val ambientShadowColor = Color.Black.copy(alpha = (if (isDark) 0.32f else 0.16f) * alpha)
-                    val centerX = size.width / 2f + swayOffset.value.dp.toPx()
-                    val groundY = 292.dp.toPx()
+                    val centerX = size.width / 2f + swayOffset.value.dp.toPx() * fit
+                    val groundY = size.height / 2f + (292.dp.toPx() - size.height / 2f) * fit
 
                     // Ambient ground diffusion shadow
-                    val ambientWidth = 110.dp.toPx() * scale
-                    val ambientHeight = 22.dp.toPx() * scale
+                    val ambientWidth = 110.dp.toPx() * scale * fit
+                    val ambientHeight = 22.dp.toPx() * scale * fit
                     drawOval(
                         brush = Brush.radialGradient(
                             colors = listOf(ambientShadowColor, Color.Transparent),
@@ -756,9 +761,9 @@ fun BackupRestoreScreen(
                     )
 
                     // Left foot contact shadow (grounded directly beneath left foot)
-                    val leftFootCenterX = centerX - 28.dp.toPx()
-                    val footWidth = 36.dp.toPx() * scale
-                    val footHeight = 12.dp.toPx() * scale
+                    val leftFootCenterX = centerX - 28.dp.toPx() * fit
+                    val footWidth = 36.dp.toPx() * scale * fit
+                    val footHeight = 12.dp.toPx() * scale * fit
                     drawOval(
                         brush = Brush.radialGradient(
                             colors = listOf(contactShadowColor, Color.Transparent),
@@ -770,7 +775,7 @@ fun BackupRestoreScreen(
                     )
 
                     // Right foot contact shadow (grounded directly beneath right foot)
-                    val rightFootCenterX = centerX + 24.dp.toPx()
+                    val rightFootCenterX = centerX + 24.dp.toPx() * fit
                     drawOval(
                         brush = Brush.radialGradient(
                             colors = listOf(contactShadowColor, Color.Transparent),
@@ -792,8 +797,6 @@ fun BackupRestoreScreen(
                 )
             }
 
-            // Below the bugdroid, so the bugdroid keeps its place at the bottom of the first screen.
-            AutoBackupCard(passphrase = passphrase)
             Spacer(modifier = Modifier.height(32.dp))
         }
     }

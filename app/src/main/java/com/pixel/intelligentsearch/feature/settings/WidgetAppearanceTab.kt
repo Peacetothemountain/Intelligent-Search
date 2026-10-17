@@ -209,7 +209,7 @@ internal fun WidgetAppearanceTab(
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     }
-                    Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor)
+                    Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium))
                 }
             }
         } else {
@@ -260,7 +260,7 @@ internal fun WidgetAppearanceTab(
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     }
-                    Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor)
+                    Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium))
                 }
             }
         }
@@ -302,6 +302,8 @@ internal fun WidgetAppearanceTab(
                     Text(
                         text = label,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        maxLines = 1,
+                        autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                         color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant

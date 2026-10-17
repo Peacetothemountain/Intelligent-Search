@@ -67,7 +67,7 @@ fun MainSettingsScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+                title = { Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 },
@@ -186,7 +186,7 @@ fun MainSettingsScreen(
                     showDivider = true,
                 )
                 val rawDebugUnlocked by rememberSetting(SettingsManager.DEBUG_UNLOCKED)
-                val isDebugUnlocked = com.pixel.intelligentsearch.BuildConfig.DEBUG && rawDebugUnlocked
+                val isDebugUnlocked = rawDebugUnlocked
                 val searchEngine = prefs[SettingsManager.SEARCH_ENGINE]
                 var showTorBrowserSettingsDialog by remember { mutableStateOf(false) }
                 val customEngineUrl = prefs[SettingsManager.CUSTOM_SEARCH_ENGINE_URL]
@@ -294,19 +294,17 @@ fun MainSettingsScreen(
                             fontSize = titleFontSize,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
-                            lineHeight = titleLineHeight,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            maxLines = 2
+                            lineHeight = titleLineHeight
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                        // No line limit: large text wraps instead of hiding the address. Zero-width spaces let the
+                        // address break after "support." and "@" on narrow screens rather than mid-word.
                         Text(
-                            text = "If you need support please email me at:\nsupport.ngdesigns@gmail.com",
+                            text = "If you need support please email me at:\nsupport.\u200Bngdesigns@\u200Bgmail.com",
                             fontSize = subtextFontSize,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = subtextLineHeight,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            maxLines = 2,
                             modifier = Modifier.bouncyClickable {
                                 try {
                                     uriHandler.openUri("mailto:support.ngdesigns@gmail.com")

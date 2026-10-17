@@ -10,6 +10,7 @@ import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
 import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
@@ -91,6 +92,9 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     val distinctRecents = s.distinctRecents
     var hasStartedTyping by s.ui::hasStartedTyping
     var textFieldValue by s.ui::textFieldValue
+    val mockTrendingUnlocked by rememberSetting(SettingsManager.DEBUG_UNLOCKED)
+    val mockTrendingSwitch by rememberSetting(SettingsManager.DEBUG_MOCK_TRENDING)
+    val mockTrendingOn = mockTrendingUnlocked && mockTrendingSwitch
     var showHistoryClearedSnackbar by s.ui::showHistoryClearedSnackbar
     val context = LocalContext.current
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -216,6 +220,46 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     maxLevel = volumeSlider.maxLevel,
                     onVolumeChange = volumeSlider.onVolumeChange
                 )
+            }
+        }
+
+        // "Did you mean": an obvious typo in a query that matched nothing on the phone. Tapping fills the fix in.
+        uiState.spellingSuggestion?.let { corrected ->
+            item(key = "did_you_mean", contentType = "did_you_mean") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                        .expressiveRowClickable {
+                            textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
+                                text = corrected,
+                                selection = androidx.compose.ui.text.TextRange(corrected.length)
+                            )
+                            viewModel.onQueryChanged(corrected)
+                        }
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Spellcheck,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Text(
+                        text = androidx.compose.ui.text.buildAnnotatedString {
+                            append("Did you mean ")
+                            pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary))
+                            append(corrected)
+                            pop()
+                        },
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 15.sp,
+                        fontFamily = GoogleSansFlex
+                    )
+                }
             }
         }
 
@@ -584,6 +628,51 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // Debug menu: Mock Trending Queries fills the empty search state with stand-in topics.
+        if (mockTrendingOn && uiState.query.isEmpty()) {
+            item(key = "header_trending", contentType = "recent_label") {
+                Text(
+                    text = "Trending",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp,
+                    fontFamily = GoogleSansFlex,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp)
+                )
+            }
+            uniqueItems(DebugMocks.trendingQueries, key = { topic -> "trending_$topic" }, contentType = { "recent_query" }) { topic ->
+                val pillShape = RoundedCornerShape(28.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 5.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f), pillShape)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f), pillShape)
+                        .clip(pillShape)
+                        .bouncyClickable { launchWebSearch(topic) }
+                        .padding(horizontal = 16.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Text(
+                        text = topic,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 15.sp,
+                        fontFamily = GoogleSansFlex,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }

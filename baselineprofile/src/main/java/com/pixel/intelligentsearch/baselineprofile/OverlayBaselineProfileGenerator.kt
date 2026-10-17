@@ -21,4 +21,11 @@ class OverlayBaselineProfileGenerator {
         openOverlay()
         typeAQuery()
     }
+
+    /** Settings navigation: the first layout of each page runs as its transition starts, the slowest frames measured. */
+    @Test
+    fun settings() = rule.collect(packageName = TARGET_PACKAGE, includeInStartupProfile = false) {
+        pressHome()
+        browseSettings()
+    }
 }

@@ -6,6 +6,7 @@ import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.feature.settings.tutorialTarget
@@ -102,7 +103,9 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                 )
             }
         }
-        val showPerfStats = prefs[SettingsManager.DEBUG_SHOW_PERF_STATS]
+        val debugUnlocked by rememberSetting(SettingsManager.DEBUG_UNLOCKED)
+        val perfStatsOn by rememberSetting(SettingsManager.DEBUG_SHOW_PERF_STATS)
+        val showPerfStats = debugUnlocked && perfStatsOn
         AnimatedVisibility(
             visible = showPerfStats,
             enter = fadeIn(animationSpec = ExpressiveMotionTokens.morphSpring()) + expandVertically(animationSpec = ExpressiveMotionTokens.morphSpring()),
@@ -193,7 +196,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                         if (newQuery.isNotEmpty()) {
                             hasStartedTyping = true
                         }
-                        if (com.pixel.intelligentsearch.BuildConfig.DEBUG && newQuery == "*xy88x*") {
+                        if (newQuery == "*xy88x*") {
                             prefs.edit { put(SettingsManager.DEBUG_UNLOCKED, true) }
                             viewModel.onQueryChanged("")
                             textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")

@@ -1,81 +1,84 @@
 package com.ngdesigns.intelligentsearch.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import com.ngdesigns.intelligentsearch.ui.theme.Mono
-import com.ngdesigns.intelligentsearch.ui.theme.Theme
+import com.ngdesigns.intelligentsearch.R
 
-/** The search screen's frame: results grow upward from the input line at the bottom. */
+/** The search screen's frame: results grow upward towards the scope chips and the floating search bar. */
 @Composable
 fun SearchShell(modifier: Modifier = Modifier) {
-    val palette = Theme.palette
-    val type = Theme.type
-    val metrics = Theme.metrics
+    val colors = MaterialTheme.colorScheme
     val query = rememberTextFieldState()
-    Column(
-        modifier
-            .fillMaxSize()
-            .background(palette.background)
-            .safeDrawingPadding()
-            .imePadding(),
-    ) {
-        Box(Modifier.weight(1f).fillMaxWidth())
-        Hairline()
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = metrics.gutter, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            listOf("ALL", "APPS", "PEOPLE", "FILES", "WEB").forEachIndexed { i, scope ->
-                Text(scope, type.label, if (i == 0) palette.text else palette.dim)
+    var scope by remember { mutableIntStateOf(0) }
+    Surface(modifier.fillMaxSize(), color = colors.surface) {
+        Column(Modifier.safeDrawingPadding().imePadding()) {
+            Box(Modifier.weight(1f).fillMaxWidth())
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf("All", "Apps", "People", "Files", "Web").forEachIndexed { i, label ->
+                    FilterChip(selected = scope == i, onClick = { scope = i }, label = { Text(label) })
+                }
             }
-        }
-        Row(
-            Modifier.fillMaxWidth().padding(start = metrics.gutter, end = metrics.gutter, top = 8.dp, bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("›", type.query.copy(fontFamily = Mono), palette.accent)
-            Spacer(Modifier.padding(start = 10.dp))
-            Box(Modifier.weight(1f)) {
-                if (query.text.isEmpty()) Text("Search or type a command", type.query, palette.dim, maxLines = 1)
-                BasicTextField(
-                    state = query,
-                    textStyle = type.query.copy(color = palette.text),
-                    cursorBrush = SolidColor(palette.accent),
-                    lineLimits = TextFieldLineLimits.SingleLine,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            Row(
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Surface(Modifier.weight(1f).height(56.dp), shape = CircleShape, color = colors.surfaceContainerHighest) {
+                    Row(Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Search, contentDescription = null, tint = colors.onSurfaceVariant)
+                        Box(Modifier.weight(1f).padding(start = 12.dp)) {
+                            if (query.text.isEmpty()) {
+                                Text("Search", style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
+                            }
+                            BasicTextField(
+                                state = query,
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
+                                cursorBrush = SolidColor(colors.primary),
+                                lineLimits = TextFieldLineLimits.SingleLine,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                }
+                FloatingActionButton(onClick = {}, containerColor = colors.primaryContainer) {
+                    Icon(painterResource(R.drawable.ic_mic), contentDescription = "Voice search")
+                }
             }
-            Spacer(Modifier.padding(start = 10.dp))
-            Box(
-                Modifier
-                    .border(metrics.hairline, palette.line, RoundedCornerShape(metrics.corner))
-                    .padding(horizontal = 7.dp, vertical = 5.dp),
-            ) { Text("GOOGLE", type.key, palette.text) }
         }
     }
-}
-
-@Composable
-private fun Hairline() {
-    Box(Modifier.fillMaxWidth().height(Theme.metrics.hairline).background(Theme.palette.line))
 }

@@ -1,18 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The prompt mark: a chevron and a cursor bar, inside the adaptive icon's 66 dp safe zone. -->
+<!-- A nine-sided Material cookie holding a search glyph, inside the adaptive icon's 66 dp safe zone. Colours follow
+     the wallpaper (system accent palette). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#00000000"
-        android:pathData="M40,38 L56,54 L40,70"
-        android:strokeColor="#FF5B3A"
-        android:strokeLineCap="square"
-        android:strokeLineJoin="miter"
-        android:strokeWidth="8" />
+        android:fillColor="@android:color/system_accent1_600"
+        android:pathData="M54,23C57.6,23,60.3,27.3,63.3,28.4C66.3,29.5,71.2,27.9,73.9,30.3C76.7,32.6,76,37.6,77.6,40.4C79.2,43.1,83.9,45.1,84.5,48.6C85.2,52.2,81.4,55.6,80.9,58.7C80.3,61.9,82.7,66.4,80.8,69.5C79,72.6,74,72.9,71.5,74.9C69.1,76.9,68,81.9,64.6,83.1C61.2,84.4,57.2,81.3,54,81.3C50.8,81.3,46.8,84.4,43.4,83.1C40,81.9,38.9,76.9,36.5,74.9C34,72.9,29,72.6,27.2,69.5C25.3,66.4,27.7,61.9,27.1,58.7C26.6,55.6,22.8,52.2,23.5,48.6C24.1,45.1,28.8,43.1,30.4,40.4C32,37.6,31.3,32.6,34.1,30.3C36.8,27.9,41.7,29.5,44.7,28.4C47.7,27.3,50.4,23,54,23Z" />
     <path
-        android:fillColor="#FF5B3A"
-        android:pathData="M60,64 h12 v8 h-12 z" />
+        android:fillColor="#00000000"
+        android:pathData="M50,50 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0"
+        android:strokeColor="@android:color/system_accent1_50"
+        android:strokeWidth="5" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M57,57 L66,66"
+        android:strokeColor="@android:color/system_accent1_50"
+        android:strokeLineCap="round"
+        android:strokeWidth="5" />
 </vector>

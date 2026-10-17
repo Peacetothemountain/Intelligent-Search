@@ -12,14 +12,14 @@
   suggestions, history) feed the engine through one interface each; screens are Compose with a state holder per
   screen; settings are one immutable, versioned, serializable object in DataStore, so backups contain exactly the
   settings and a restore is validated by the same schema.
-- No Material dependency: the design system in `ui/` is built on Compose Foundation.
+- Material 3 Expressive (Material You colour from the wallpaper) for every component; see `docs/DESIGN.md`.
 - Dependencies are wired by hand in one app graph; no annotation processing, for fast builds.
 
 ## Phases
 
 | Phase | Work | Done when |
 |---|---|---|
-| D0 | Project, design tokens, fonts, icon | Builds, lint clean, engine tests run |
+| D0 | Project, Material You theme, type, icon | Builds, lint clean, engine tests run |
 | D1 | Engine: index, matching, scoring, calculator, actions, toggles, shortcuts, pipeline | Engine tests cover every rule in FEATURES 2 and 3 |
 | D2 | Settings model and store, backup format | Round-trip and validation tests |
 | D3 | Sources: apps, shortcuts, profiles, contacts, calendar, files, usage, predictions, web, history | Tests with stand-in sources |
@@ -35,5 +35,6 @@ Every phase ends green (lint with warnings as errors, all tests, release build) 
 
 ## Progress
 
-- 2026-10-17, D0 done: empty orphan branch, `:engine` and `:app`, the ink and paper palettes with five accents,
-  Space Grotesk and JetBrains Mono, the prompt-mark icon, the search screen frame.
+- 2026-10-17, D0 done: empty orphan branch, `:engine` and `:app`, the Material You theme (wallpaper colour,
+  Material 3 Expressive, Roboto Flex), the cookie icon, the search screen frame. The first direction (ink and
+  paper, no Material) was dropped the same day: the owner wants Material You as the core.

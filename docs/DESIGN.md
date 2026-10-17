@@ -1,39 +1,48 @@
 # dev2 design
 
-The rule: nothing may look like `main`. `main` is Pixel-native (Material You colours from the wallpaper, rounded
-pills and squircles, Google's four colours, glass, the Gemini plate, the bugdroid, bouncing shapes and springs).
-`dev2` is an instrument: typographic, squared-off, quiet, fast.
+Material You is the core: colour from the wallpaper, Material 3 Expressive components, shapes, type and motion.
+What changes from `main` is how screens are composed, so `dev2` is unmistakably Material and still nothing like the
+current app.
 
-## Principles
+## What `main` looks like (and `dev2` avoids)
 
-1. **Type does the work.** Hierarchy comes from size, weight and the two typefaces, not from cards, shadows or
-   colour fills. Space Grotesk for names, queries and headings; JetBrains Mono for labels, counts, numbers and
-   key hints. Both are bundled (SIL Open Font License, texts in `assets/licenses`).
-2. **One accent.** Ink (`#0F1012`) or paper (`#F3F0E8`) surfaces, one text colour and its dimmed variant,
-   hairlines, and a single accent the user picks: vermilion (default), cobalt, signal green, amber or bone.
-   Not taken from the wallpaper.
-3. **Lines, not boxes.** Lists are rows separated by 1 dp hairlines. Corners are 4 dp (7 dp on app icons).
-   No elevation, no blur on components, no gradients.
-4. **The input line is home.** Search is a command line: an accent `›` prompt, large query text, ghost text for
-   the best match, and the results stacked above it, nearest first. The bar is at the bottom by default.
-5. **Everything is numbered and labelled.** Sections carry mono labels with counts (`APPS 03`); rows carry their
-   position, so keyboard users and screen readers always know where they are.
-6. **Motion is short and straight.** 120 to 220 ms, ease-out, slides and fades along one axis. No springs, no
-   bounces, no looping decorations. With Remove animations on, changes are instant.
-7. **Works everywhere.** Phones from 320 dp, foldables, tablets, desktop windows and Android XR; text from 85% to
+- Settings pages as one large rounded card per group, rows divided by lines, outline icons and chevrons.
+- Wavy sliders, Google Messages-style switches.
+- The Gemini gradient search pill at the bottom, the matrix sparkle background, the bugdroid, bouncing morph shapes.
+- Big dark answer cards with outlined chips.
+
+## dev2's Material You
+
+1. **Wallpaper colour, everywhere.** `dynamicLightColorScheme`/`dynamicDarkColorScheme` (Android 12+ is the
+   minimum, so always available). Tonal roles carry meaning: the best match in primary container, the calculator
+   in tertiary container, actions in secondary container. The launcher icon and the window background follow the
+   wallpaper too.
+2. **Segmented lists.** Every list (results and settings) uses Material 3 Expressive segmented list items: each row
+   its own tonal surface, 3 dp apart, large outer corners on the group and small inner ones. No dividers.
+3. **Material shapes as identity.** Icon containers, the voice indicator, settings categories and widget buttons use
+   `MaterialShapes` (cookie, clover, sunny, gem, flower, pill), and the loading indicator morphs between them.
+4. **Connected button groups and split buttons** for result actions (Open | New event | Info; Start ▾), toggle
+   button groups for choices (System | Light | Dark).
+5. **A floating search bar with a FAB.** The search field floats at the bottom in a full-round surface with the
+   voice FAB beside it; scope filter chips (All, Apps, People, Files, Web) sit above it; results stack upward.
+6. **Settings home is a grid**, not a list: a large title, a "Search settings" bar, the setup progress card, then
+   category tiles, each with its own Material shape. Sections open as segmented lists. On wide screens the grid
+   and the open section sit side by side (list-detail).
+7. **Expressive motion.** `MotionScheme.expressive()` springs for components; shared-axis transitions between
+   screens; shape morphs on press. With Remove animations on, everything is instant.
+8. **Roboto Flex** for the whole type scale, bundled (SIL Open Font License, text in `assets/licenses`), so type is
+   the same on every device.
+9. **Works everywhere.** Phones from 320 dp, foldables, tablets, desktop windows and Android XR; text from 85% to
    200%; hardware keyboards (arrows, Enter, Escape) and TalkBack as first-class input.
 
-## Components (built in `ui/`)
+## Improvements over `main` that show in the design
 
-- `Text`: the only text primitive (no Material dependency).
-- Input line, scope bar, section label, result row, best match block, instant answer block (calculator, action,
-  toggle, setting), square toggle, stepped ruler slider, key-hint chip.
-- Settings: one scrolling page of numbered sections with an index rail on wide screens; every setting is also a
-  search result, so typing "blur" in search jumps straight to it.
+- Every setting is also a search result: typing "blur" in search shows the slider inline.
+- Instant answers act in place (start the timer, flip the flashlight, drag the blur) without leaving search.
 
 ## Identity
 
-- Name on the launcher: "Search 2" while it installs next to `main`.
-- Icon: the prompt mark (an accent chevron and cursor bar) on ink, with a monochrome layer for themed icons.
-- Widgets: a flat bar with a squared frame, an accent block and the word "Search", in ink or paper.
-- No mascot.
+- Launcher label "Search 2" while it installs next to `main`.
+- Icon: a nine-sided cookie holding a search glyph, in the wallpaper's accent tones, with a monochrome layer for
+  themed icons.
+- Widgets: a full-round search bar with shaped buttons, and a 2 by 2 tile with a search field and two shortcuts.

@@ -690,7 +690,10 @@ fun BackupRestoreScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            AutoBackupCard(passphrase = passphrase)
+
+            // Extra room above the bugdroid so its whole video shows below the cards.
+            Spacer(modifier = Modifier.height(40.dp))
 
             Box(
                 modifier = Modifier
@@ -792,8 +795,6 @@ fun BackupRestoreScreen(
                 )
             }
 
-            // Below the bugdroid, so the bugdroid keeps its place at the bottom of the first screen.
-            AutoBackupCard(passphrase = passphrase)
             Spacer(modifier = Modifier.height(32.dp))
         }
     }

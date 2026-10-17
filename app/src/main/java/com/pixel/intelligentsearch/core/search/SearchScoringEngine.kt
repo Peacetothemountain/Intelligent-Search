@@ -245,25 +245,41 @@ object SearchScoringEngine {
             }
         }
 
-        // F. Typo-Tolerant Edit Distance (applied for queries length >= 3 to avoid 1-2 character false positives)
-        if (query.length >= 3) {
-            val editDistance = LevenshteinDistance.computeDistance(query, title, maxDistance = 2)
-            if (editDistance <= 2) {
+        // F. Typo-tolerant edit distance, with more slips allowed as the query grows (none under 3 letters, where
+        // a guess would match almost anything). Swapped letters count as one slip.
+        val allowedEdits = fuzzyEditsFor(query.length)
+        if (allowedEdits > 0) {
+            val editDistance = LevenshteinDistance.computeDistance(query, title, maxDistance = allowedEdits)
+            if (editDistance <= allowedEdits) {
                 return (SCORE_FUZZY_BASE - (editDistance * PENALTY_PER_EDIT_DISTANCE)).coerceAtLeast(10.0f)
             }
-        }
-
-        // Check edit distance on word tokens for queries length >= 3
-        if (query.length >= 3) {
             for (w in words) {
-                val tokenDist = LevenshteinDistance.computeDistance(query, w, maxDistance = 2)
-                if (tokenDist <= 2) {
+                val tokenDist = LevenshteinDistance.computeDistance(query, w, maxDistance = allowedEdits)
+                if (tokenDist <= allowedEdits) {
                     return (SCORE_FUZZY_BASE - (tokenDist * PENALTY_PER_EDIT_DISTANCE) - 30.0f).coerceAtLeast(10.0f)
                 }
+            }
+            // G. A partly typed name with a slip ("yuotu", "gogle ma"): close to the start of the title or a word.
+            val prefixDist = minOf(
+                LevenshteinDistance.prefixDistance(query, title, maxDistance = allowedEdits),
+                words.minOfOrNull { LevenshteinDistance.prefixDistance(query, it, maxDistance = allowedEdits) } ?: Int.MAX_VALUE
+            )
+            if (prefixDist <= allowedEdits) {
+                return (SCORE_FUZZY_BASE - (prefixDist * PENALTY_PER_EDIT_DISTANCE) - 40.0f).coerceAtLeast(10.0f)
             }
         }
 
         return 0.0f
+    }
+
+    /**
+     * How many typing slips a query of [length] letters may contain and still match: none under 3 letters,
+     * one up to 5, two from 6. Shared by the scoring and the fuzzy index lookup.
+     */
+    fun fuzzyEditsFor(length: Int): Int = when {
+        length < 3 -> 0
+        length <= 5 -> 1
+        else -> 2
     }
 
     private fun matchesAcronym(query: String, rawTitle: String): Boolean {

@@ -27,8 +27,8 @@ import com.pixel.intelligentsearch.R
  */
 enum class BugdroidClip(@param:RawRes val rawRes: Int, val cropLeft: Int, val cropTop: Int, val cropWidth: Int, val cropHeight: Int) {
     SETTINGS(R.raw.bugdroid_video, 340, 0, 1216, 1080),
-    WELCOME(R.raw.bugdroid_welcome_video, 500, 144, 800, 800),
-    BACKUP(R.raw.bugdroid_backup_video, 628, 232, 928, 752);
+    WELCOME(R.raw.bugdroid_welcome_video, 406, 18, 1004, 1062),
+    BACKUP(R.raw.bugdroid_backup_video, 586, 14, 1036, 986);
 
     companion object {
         const val SOURCE_WIDTH = 1920

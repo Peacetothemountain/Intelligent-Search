@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch.feature.search
+import com.pixel.intelligentsearch.core.search.SpellingSuggester
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.WebSearchProvider
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
@@ -90,8 +91,13 @@ data class SearchUiState(
     val hasLockedPrivateSpace: Boolean = false,
     val lastQueryLatency: Long = 0,
     val bangSuggestions: List<com.pixel.intelligentsearch.core.bangs.SearchBang> = emptyList(),
-    val detectedBangQuery: com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = null
+    val detectedBangQuery: com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = null,
+    /** The query with an obvious typo fixed, offered as "Did you mean"; null when nothing is misspelled. */
+    val spellingSuggestion: String? = null
 )
+
+/** How long typing must pause before a query is spell checked for "Did you mean". */
+private const val SPELLING_PAUSE_MS = 450L
 
 /** The debug menu's Simulate Web Latency delay before web suggestions are fetched. */
 private const val SIMULATED_LATENCY_MS = 2_000L
@@ -438,6 +444,7 @@ class SearchViewModel @Inject constructor(
 
         _uiState.update { current ->
             current.copy(
+                spellingSuggestion = null,
                 bangSuggestions = bangSuggestions,
                 detectedBangQuery = parsedBang,
                 filteredApps = if (tier0.apps.isNotEmpty() && settingsState.value.searchApps) {
@@ -652,8 +659,25 @@ class SearchViewModel @Inject constructor(
                 debugLog("Local query finished in ${elapsed} ms: ${resolvedApps.size} apps, ${shownContacts.size} contacts, " +
                     "${shownFiles.size} files, ${localShortcuts.size} shortcuts, ${directActions.size} actions")
             }
+
+            // "Did you mean": only when nothing on the phone matched (the user is about to search the web), and
+            // only once typing pauses; the next keystroke cancels this job, so the check never runs mid-word.
+            val checkSpelling = resolvedApps.isEmpty() && shownContacts.isEmpty() &&
+                SpellingSuggester.shouldCheck(newQuery, bangManager.getTriggerSymbol(), looksLikeWebAddress(newQuery.trim()))
+            if (checkSpelling) {
+                delay(SPELLING_PAUSE_MS)
+                withContext(Dispatchers.Main) {
+                    val suggester = spellingSuggester ?: SpellingSuggester(context).also { spellingSuggester = it }
+                    suggester.suggest(newQuery) { corrected ->
+                        _uiState.update { if (it.query == newQuery) it.copy(spellingSuggestion = corrected) else it }
+                    }
+                }
+            }
         }
     }
+
+    /** Opened on first use, on the main thread (the spell checker answers on the thread that opened it). */
+    private var spellingSuggester: SpellingSuggester? = null
 
     /**
      * Text for the calculator card. Unit conversions return null because they render in the dedicated
@@ -854,6 +878,8 @@ class SearchViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        spellingSuggester?.close()
+        spellingSuggester = null
         searchJob?.cancel()
         searchJob = null
         initialDataJob?.cancel()

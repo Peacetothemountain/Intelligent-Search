@@ -36,5 +36,9 @@ Every phase ends green (lint with warnings as errors, all tests, release build) 
 ## Progress
 
 - 2026-10-17, D0 done: empty orphan branch, `:engine` and `:app`, the Material You theme (wallpaper colour,
-  Material 3 Expressive, Roboto Flex), the cookie icon, the search screen frame. The first direction (ink and
-  paper, no Material) was dropped the same day: the owner wants Material You as the core.
+  Material 3 Expressive), the cookie icon, the search screen frame. The first direction (ink and paper, no
+  Material) was dropped the same day: the owner wants Material You as the core.
+- 2026-10-17, design system: studied all 91 m3.material.io guideline pages (Material 3, M3 Expressive, the May 2026
+  layout scaffold and spacing system, expressive lists and menus) and Neural Expressive; `docs/DESIGN.md` maps every
+  foundation and component to where it is used. Type is now Google Sans Flex with all 30 baseline and emphasized
+  styles, per optical size.

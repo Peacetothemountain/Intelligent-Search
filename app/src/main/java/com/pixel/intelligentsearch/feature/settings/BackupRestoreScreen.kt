@@ -5,6 +5,7 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import com.pixel.intelligentsearch.core.util.findActivity
+import com.pixel.intelligentsearch.di.appEntryPoint
 import android.content.SharedPreferences
 import android.net.Uri
 import android.widget.Toast
@@ -550,17 +551,38 @@ fun BackupRestoreScreen(
                         onClick = {
                             if (passphrase.isNotBlank()) {
                                 val toSave = passphrase
-                                coroutineScope.launch {
-                                    // StrongBox key generation and the commit() are slow; keep them off the main thread.
-                                    val saved = withContext(Dispatchers.IO) { viewModel?.savePassphraseToSecurityChip(toSave) } == true
-                                    if (saved) {
-                                        isPassphraseSavedOnChip = true
-                                        hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
-                                        safeShowToast("Passphrase saved to ${hardwareInfo.shortChipName}")
-                                    } else {
-                                        safeShowToast("Failed to save to ${hardwareInfo.shortChipName}")
+                                // The chip's key only works shortly after the user has verified themselves; when that
+                                // window has passed (or the page opened without a prompt) the system prompt shows once
+                                // and the save is tried again.
+                                fun save(afterPrompt: Boolean) {
+                                    coroutineScope.launch {
+                                        // StrongBox key generation and the commit() are slow; keep them off the main thread.
+                                        val outcome = withContext(Dispatchers.IO) { viewModel?.savePassphraseToSecurityChip(toSave) }
+                                        when {
+                                            outcome == com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager.PassphraseSave.SAVED -> {
+                                                isPassphraseSavedOnChip = true
+                                                hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                                                safeShowToast("Passphrase saved to ${hardwareInfo.shortChipName}")
+                                            }
+                                            outcome == com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager.PassphraseSave.NEEDS_AUTHENTICATION && !afterPrompt -> {
+                                                val activity = context.findActivity()
+                                                if (activity == null) {
+                                                    safeShowToast("Failed to save to ${hardwareInfo.shortChipName}")
+                                                } else {
+                                                    context.appEntryPoint.biometricSearchGate().authenticate(
+                                                        activity = activity,
+                                                        title = "Verify it’s you",
+                                                        subtitle = "To save the passphrase to ${hardwareInfo.shortChipName}",
+                                                        onSuccess = { save(afterPrompt = true) },
+                                                        onFailure = { safeShowToast("Verify it’s you to save the passphrase") },
+                                                    )
+                                                }
+                                            }
+                                            else -> safeShowToast("Failed to save to ${hardwareInfo.shortChipName}")
+                                        }
                                     }
                                 }
+                                save(afterPrompt = false)
                             } else {
                                 safeShowToast("Enter a passphrase first")
                             }

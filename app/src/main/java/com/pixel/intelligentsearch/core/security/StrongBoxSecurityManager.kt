@@ -298,12 +298,16 @@ class StrongBoxSecurityManager @Inject constructor(
         return generateAesKey(KEY_ALIAS_SAVED_PASSPHRASE, isStrongBox = false, requireBiometric = false, authTimeoutSeconds = 0, requireRecentUserAuth = bind)
     }
 
+    /** How saving the passphrase went; [NEEDS_AUTHENTICATION] asks the caller to verify the user and try again. */
+    enum class PassphraseSave { SAVED, NEEDS_AUTHENTICATION, FAILED }
+
     /**
      * Encrypts the backup passphrase with a Keystore key (StrongBox when available) that only works while the
-     * phone is unlocked and shortly after the user authenticates. Call it right after the protected page's prompt.
+     * phone is unlocked and within [PASSPHRASE_AUTH_WINDOW_SECONDS] of the user authenticating. The Keystore
+     * refuses the key outside that window, so the caller then shows the system prompt and calls this again.
      */
     @Synchronized
-    fun savePassphrase(passphrase: String): Boolean {
+    fun savePassphrase(passphrase: String): PassphraseSave {
         val passBytes = passphrase.toByteArray(Charsets.UTF_8)
         return try {
             val key = newPassphraseKey()
@@ -316,10 +320,14 @@ class StrongBoxSecurityManager @Inject constructor(
                 .putString("saved_passphrase_cipher", Base64.encodeToString(cipherBytes, Base64.NO_WRAP))
                 .putString("saved_passphrase_iv", Base64.encodeToString(iv, Base64.NO_WRAP))
                 .commit()
-            true
+            PassphraseSave.SAVED
+        } catch (e: android.security.keystore.UserNotAuthenticatedException) {
+            // Longer than the window since the last unlock or prompt: not a failure, just a prompt away.
+            deleteKey(KEY_ALIAS_SAVED_PASSPHRASE)
+            PassphraseSave.NEEDS_AUTHENTICATION
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save passphrase to hardware security chip", e)
-            false
+            PassphraseSave.FAILED
         } finally {
             MemorySanitizer.wipe(passBytes)
         }
@@ -350,7 +358,7 @@ class StrongBoxSecurityManager @Inject constructor(
             decrypted = cipher.doFinal(cipherBytes)
             val passphrase = String(decrypted, Charsets.UTF_8)
             // One-time move of a passphrase saved under the old unbound key onto the authentication-bound one.
-            if (boundKey == null && savePassphrase(passphrase)) deleteKey(KEY_ALIAS_SAVED_PASSPHRASE_V1)
+            if (boundKey == null && savePassphrase(passphrase) == PassphraseSave.SAVED) deleteKey(KEY_ALIAS_SAVED_PASSPHRASE_V1)
             passphrase
         } catch (e: android.security.keystore.UserNotAuthenticatedException) {
             // Too long since the user authenticated: they type the passphrase instead.

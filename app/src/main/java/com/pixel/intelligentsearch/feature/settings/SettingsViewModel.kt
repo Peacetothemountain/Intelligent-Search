@@ -120,7 +120,7 @@ class SettingsViewModel @Inject constructor(
         return backupManager.inspectBackupEnvelope(uri)
     }
 
-    fun savePassphraseToSecurityChip(passphrase: String): Boolean {
+    fun savePassphraseToSecurityChip(passphrase: String): com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager.PassphraseSave {
         return strongBoxSecurityManager.savePassphrase(passphrase)
     }
 

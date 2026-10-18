@@ -67,7 +67,7 @@ internal class OverlayVoice(
     fun stop() = dictation.cancel()
 }
 
-/** [onHeard] gets the finished, tidied words; [onProblem] a short message when nothing usable was heard. */
+/** [onHeard] gets the finished, tidied words ("" when nothing was said); [onProblem] a short message when voice failed. */
 @Composable
 internal fun rememberOverlayVoice(onHeard: (text: String) -> Unit, onProblem: (String) -> Unit): OverlayVoice {
     val context = LocalContext.current

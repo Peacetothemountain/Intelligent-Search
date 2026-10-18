@@ -200,7 +200,6 @@ class Dictation(private val context: Context) {
         main.removeCallbacks(finishTimeout)
         main.removeCallbacks(maxLength)
         val done = onFinished ?: return
-        val problem = onProblem
         if (pending.isNotBlank()) heard += pending
         val text = SpeechCleanup.clean(heard)
         onFinished = null
@@ -208,7 +207,8 @@ class Dictation(private val context: Context) {
         release()
         phase.value = Phase.Idle
         amplitude.floatValue = 0f
-        if (text.isBlank()) problem?.invoke("No words heard. Tap the mic to try again.") else done(text)
+        // Nothing said is not a problem (people open the mic just to watch the animation): it ends quietly with "".
+        done(text)
     }
 
     private fun fail(message: String) {

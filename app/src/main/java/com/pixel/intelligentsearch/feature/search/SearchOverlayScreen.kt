@@ -349,7 +349,12 @@ fun SearchOverlayScreen(
     // Enter would; the keyboard stays down. The spoken words wait here until the results for them are in.
     var spokenQuery by remember { mutableStateOf<String?>(null) }
     val voice = rememberOverlayVoice(
-        onHeard = { text ->
+        onHeard = onHeard@{ text ->
+            // Nothing was said: listening just ends, without a message, and the keyboard may come back.
+            if (text.isBlank()) {
+                ui.isKeyboardDismissedByUser = false
+                return@onHeard
+            }
             ui.textFieldValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
             ui.hasStartedTyping = true
             viewModel.onQueryChanged(text)

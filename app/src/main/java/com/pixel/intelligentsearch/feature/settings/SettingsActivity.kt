@@ -78,6 +78,19 @@ class SettingsActivity : AppCompatActivity() {
         val fromSearchOverlay = isInternalLaunch && intent.getBooleanExtra("FROM_SEARCH_OVERLAY", false)
         // The debug page opens only from the overlay's debug code, which carries the launch token like every page.
         val sanitizedScreenKey = if (isInternalLaunch) intent.getStringExtra("extra_screen") else null
+
+        // A new user opening the app from the launcher starts on the search screen, where the tutorial begins; its
+        // last steps bring them back here, and the Finish Setting Up card greets them once it ends.
+        val prefsForTutorial = getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+        val fromLauncher = intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_LAUNCHER)
+        if (fromLauncher && !prefsForTutorial[SettingsManager.TUTORIAL_COMPLETED] && prefsForTutorial[SettingsManager.TUTORIAL_STEP] < 3) {
+            startActivity(
+                Intent(this, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            )
+            finish()
+            return
+        }
         val initialRoute = if (isWidgetConfigure && sanitizedScreenKey == null) {
             Route.WidgetCustomization
         } else {

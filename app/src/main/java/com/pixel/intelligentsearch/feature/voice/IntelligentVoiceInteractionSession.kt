@@ -129,8 +129,8 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
         // Haptic feedback on assistant invocation
         PixelHapticEngine.get(context).performHaptic(PixelHapticType.OVERLAY_OPEN)
 
-        // Listen right away only when the user wants voice and has allowed the microphone. Otherwise open the
-        // search with the keyboard ready: nobody should meet a permission error before they can type.
+        // Normally the assistant gesture just opens search with the keyboard ready; the microphone starts only if the
+        // user turned on Start Assistant with Voice (and has allowed the microphone).
         if (startsWithVoice()) recognitionManager?.startListening() else launchFullSearch("")
     }
 
@@ -138,11 +138,11 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
         val micAllowed = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
         if (!micAllowed) return false
-        // Settings live in credential-protected storage; before the first unlock keep the voice default.
+        // Settings live in credential-protected storage; before the first unlock keep the default (off).
         return try {
             context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)[SettingsManager.ASSISTANT_STARTS_WITH_VOICE]
         } catch (e: IllegalStateException) {
-            true
+            false
         }
     }
 

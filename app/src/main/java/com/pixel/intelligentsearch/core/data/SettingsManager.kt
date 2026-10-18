@@ -166,7 +166,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val CONTEXT_AWARE_QUICK_APPS = BooleanSetting("context_aware_quick_apps", false)
         val SMART_CLIPBOARD_SUGGESTIONS = BooleanSetting("smart_clipboard_suggestions", false)
         /** The assistant gesture starts listening; off, it opens search with the keyboard ready instead. */
-        val ASSISTANT_STARTS_WITH_VOICE = BooleanSetting("assistant_starts_with_voice", true)
+        val ASSISTANT_STARTS_WITH_VOICE = BooleanSetting("assistant_starts_with_voice", false)
         val ACTIVE_ICON_PACK = StringSetting("active_icon_pack", "system_default")
         val SEARCH_OVERLAY_ENABLED = BooleanSetting("search_overlay_enabled", true)
         val CUSTOM_ICON_PILLS = StringSetting("custom_icon_pills", "", "custom_icon_packs_order")

@@ -61,6 +61,8 @@ internal class OverlayScope(
     val closeOverlay: () -> Unit,
     val launchWebSearch: (String) -> Unit,
     val openWebAddress: (String) -> Unit,
+    /** "Go" for a query: Enter and the voice check button. The flag says it was spoken rather than typed. */
+    val submitQuery: (query: String, fromVoice: Boolean) -> Unit,
     val visibleApps: List<AppItem>,
     val bestMatch: Any?,
     val bestMatchText: String?,

@@ -17,6 +17,10 @@ import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.feature.settings.TutorialStepInfo
 import android.content.Intent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.core.net.toUri
 import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.PredictiveBackHandler
@@ -339,13 +343,15 @@ fun SearchOverlayScreen(
         }
     }
 
-    // Voice search, Rambler style: listens until the check button, then fills in the tidied words; the keyboard stays down.
+    // Voice search, Rambler style: listens until the check button, then fills in the tidied words and goes, the way
+    // Enter would; the keyboard stays down. The spoken words wait here until the results for them are in.
+    var spokenQuery by remember { mutableStateOf<String?>(null) }
     val voice = rememberOverlayVoice(
         onHeard = { text ->
             ui.textFieldValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
             ui.hasStartedTyping = true
             viewModel.onQueryChanged(text)
-            viewModel.addSearchHistory(text)
+            spokenQuery = text
         },
         onProblem = { message -> android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show() },
     )
@@ -523,6 +529,54 @@ fun SearchOverlayScreen(
         }
     }
 
+    // The one way to "go", for Enter and for the voice check button: a bang goes to its site; otherwise the best
+    // match opens, then a typed web address, Quick Launch, and finally a web search.
+    val submitQuery: (String, Boolean) -> Unit = submit@{ submittedQuery, fromVoice ->
+        if (submittedQuery.isEmpty()) return@submit
+        if (viewModel.resolveBangIntent(submittedQuery) != null) {
+            // A bang is an explicit request for that site: it must not be taken over by an app match or Quick Launch
+            // ("!g maps" would otherwise open Maps).
+            launchWebSearch(submittedQuery)
+            return@submit
+        }
+        viewModel.addSearchHistory(submittedQuery)
+        when (val match = bestMatch) {
+            is ContactItem -> {
+                // A spoken name can be misheard, so voice opens the contact rather than dialling straight away.
+                val intent = if (settingsState.contactDirectCall && !fromVoice && match.phoneNumber.isNotBlank()) {
+                    Intent(Intent.ACTION_DIAL, "tel:${match.phoneNumber}".toUri())
+                } else if (match.lookupUri.isNotBlank()) {
+                    Intent(Intent.ACTION_VIEW, match.lookupUri.toUri()) // Contacts reads it with its own permission; no grant needed
+                } else if (match.phoneNumber.isNotBlank()) {
+                    Intent(Intent.ACTION_DIAL, "tel:${match.phoneNumber}".toUri())
+                } else {
+                    Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
+                }
+                launchSafeIntent(context, intent)
+            }
+            is AppItem -> performAppLaunch(match)
+            is FileItem -> {
+                val intent = buildOpenFileIntent(match.uri, match.mimeType)
+                if (!launchSafeIntent(context, intent)) {
+                    intent.setPackage(null)
+                    launchSafeIntent(context, intent)
+                }
+            }
+            else -> when {
+                uiState.instantAnswer?.iconType == "url" -> uiState.instantAnswer?.let { answer -> openWebAddress(answer.title) }
+                settingsState.appQuickLaunch && visibleApps.isNotEmpty() -> performAppLaunch(visibleApps.first())
+                else -> launchWebSearch(submittedQuery)
+            }
+        }
+    }
+    // The check button's "go": once the results for the spoken words are in, act on them exactly as Enter would.
+    LaunchedEffect(spokenQuery) {
+        val spoken = spokenQuery ?: return@LaunchedEffect
+        viewModel.awaitSearch()
+        spokenQuery = null
+        submitQuery(spoken, true)
+    }
+
     val sections = OverlayScope(
         onOpenSettings = onOpenSettings,
         viewModel = viewModel,
@@ -545,6 +599,7 @@ fun SearchOverlayScreen(
         closeOverlay = closeOverlay,
         launchWebSearch = launchWebSearch,
         openWebAddress = openWebAddress,
+        submitQuery = submitQuery,
         visibleApps = visibleApps,
         bestMatch = bestMatch,
         bestMatchText = bestMatchText,

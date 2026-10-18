@@ -72,6 +72,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
     val closeOverlay = s.closeOverlay
     val launchWebSearch = s.launchWebSearch
     val openWebAddress = s.openWebAddress
+    val submitQuery = s.submitQuery
     val visibleApps = s.visibleApps
     val bestMatch = s.bestMatch
     val bestMatchText = s.bestMatchText
@@ -246,47 +247,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                         keyboardController?.hide()
                         // The collected uiState can lag a keystroke behind; read the live value so Enter
                         // never acts on a query missing its last character.
-                        val submittedQuery = viewModel.uiState.value.query
-                        if (submittedQuery.isNotEmpty() && viewModel.resolveBangIntent(submittedQuery) != null) {
-                            // A bang is an explicit request for that site: it must not be taken over by an
-                            // app match or Quick Launch ("!g maps" would otherwise open Maps).
-                            launchWebSearch(submittedQuery)
-                        } else if (submittedQuery.isNotEmpty()) {
-                            viewModel.addSearchHistory(submittedQuery)
-                            val match = bestMatch
-                            if (match != null) {
-                                when (match) {
-                                    is ContactItem -> {
-                                        val intent = if (settingsState.contactDirectCall && match.phoneNumber.isNotBlank()) {
-                                            Intent(Intent.ACTION_DIAL, "tel:${match.phoneNumber}".toUri())
-                                        } else if (match.lookupUri.isNotBlank()) {
-                                            Intent(Intent.ACTION_VIEW, match.lookupUri.toUri()) // Contacts reads it with its own permission; no grant needed
-                                        } else if (match.phoneNumber.isNotBlank()) {
-                                            Intent(Intent.ACTION_DIAL, "tel:${match.phoneNumber}".toUri())
-                                        } else {
-                                            Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
-                                        }
-                                        launchSafeIntent(context, intent)
-                                    }
-                                    is AppItem -> {
-                                        performAppLaunch(match)
-                                    }
-                                    is FileItem -> {
-                                        val intent = buildOpenFileIntent(match.uri, match.mimeType)
-                                        if (!launchSafeIntent(context, intent)) {
-                                            intent.setPackage(null)
-                                            launchSafeIntent(context, intent)
-                                        }
-                                    }
-                                }
-                            } else if (uiState.instantAnswer?.iconType == "url") {
-                                uiState.instantAnswer?.let { answer -> openWebAddress(answer.title) }
-                            } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
-                                performAppLaunch(visibleApps.first())
-                            } else {
-                                launchWebSearch(submittedQuery)
-                            }
-                        }
+                        submitQuery(viewModel.uiState.value.query, false)
                     }),
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.CenterStart) {

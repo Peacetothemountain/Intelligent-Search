@@ -134,6 +134,11 @@ class SearchViewModel @Inject constructor(
 
     private val _remoteSearchQueryFlow = MutableStateFlow("")
     private var searchJob: Job? = null
+
+    /** Waits for the local results of the latest [onQueryChanged], so a caller can act on the best match for it. */
+    suspend fun awaitSearch() {
+        searchJob?.join()
+    }
     private var initialDataJob: Job? = null
 
     private val customPrefs get() = settingsManager.prefs

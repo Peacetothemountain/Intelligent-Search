@@ -322,6 +322,14 @@
             </intent-filter>
         </service>
 
+        <!-- Android loses the assistant binding when the app updates; this asks it to bind again (see the class). -->
+        <receiver android:name=".feature.voice.AssistantRebindReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <service android:name=".feature.voice.IntelligentVoiceInteractionSessionService"
             android:permission="android.permission.BIND_VOICE_INTERACTION"
             android:exported="true">

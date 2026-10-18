@@ -43,6 +43,7 @@ class Dictation(private val context: Context) {
     private var preferDefaultEngine = false
     private val finishTimeout = Runnable { deliver() }
     private val maxLength = Runnable { finish() }
+    private val restart = Runnable { if (phase.value == Phase.Starting || phase.value == Phase.Listening) listen() }
 
     fun start(onFinished: (String) -> Unit, onProblem: (String) -> Unit) {
         cancel()
@@ -76,6 +77,7 @@ class Dictation(private val context: Context) {
     fun cancel() {
         main.removeCallbacks(finishTimeout)
         main.removeCallbacks(maxLength)
+        main.removeCallbacks(restart)
         onFinished = null
         onProblem = null
         release()
@@ -122,7 +124,7 @@ class Dictation(private val context: Context) {
         override fun onReadyForSpeech(params: Bundle?) { if (phase.value == Phase.Starting) phase.value = Phase.Listening }
         override fun onBeginningOfSpeech() { if (phase.value == Phase.Starting) phase.value = Phase.Listening }
         override fun onRmsChanged(rmsdB: Float) {
-            amplitude.floatValue = VoiceRecognitionManager.computeAmplitudeStep(amplitude.floatValue, VoiceRecognitionManager.normalizeRmsDb(rmsdB))
+            amplitude.floatValue = computeAmplitudeStep(amplitude.floatValue, normalizeRmsDb(rmsdB))
         }
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEndOfSpeech() {}
@@ -170,7 +172,10 @@ class Dictation(private val context: Context) {
             Phase.Finishing -> deliver()
             Phase.Idle -> Unit
             // Restarts back off a little with each failure, so a struggling engine gets time to recover.
-            else -> main.postDelayed({ if (phase.value == Phase.Starting || phase.value == Phase.Listening) listen() }, RESTART_DELAY_MS * (1 + failures))
+            else -> {
+                main.removeCallbacks(restart)
+                main.postDelayed(restart, RESTART_DELAY_MS * (1 + failures))
+            }
         }
     }
 
@@ -203,8 +208,20 @@ class Dictation(private val context: Context) {
         recognizer = null
     }
 
-    private companion object {
-        const val TAG = "Dictation"
+    companion object {
+        private const val TAG = "Dictation"
+
+        /** Maps the recognizer's RMS in dB (about -2 for silence, 10 for loud speech) to 0..1. */
+        fun normalizeRmsDb(rmsdB: Float): Float {
+            val clamped = rmsdB.coerceIn(-2f, 10f)
+            return ((clamped + 2f) / 12f).coerceIn(0f, 1f)
+        }
+
+        /** Eases the level towards [target]: quick to rise with the voice, slower to settle. */
+        fun computeAmplitudeStep(current: Float, target: Float, attack: Float = 0.40f, decay: Float = 0.14f): Float {
+            val speed = if (target > current) attack else decay
+            return current + (target - current) * speed
+        }
         const val FINISH_WAIT_MS = 1_800L
         const val RESTART_DELAY_MS = 120L
         /** A safety stop for a mic left open: three minutes, then finish with what was heard. */

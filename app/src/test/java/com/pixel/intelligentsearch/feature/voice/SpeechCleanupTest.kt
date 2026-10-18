@@ -16,6 +16,8 @@ class SpeechCleanupTest {
 
     @Test fun appliesSpokenCorrections() {
         assertEquals("timer for 10 minutes", clean("timer for 5 minutes, no, 10 minutes"))
+        assertEquals("timer for 10 minutes", clean("timer for 5 minutes, no, 10 minutes."))
+        assertEquals("5 mm socket near the ER", clean("5 mm socket near the ER"))
         assertEquals("weather in Chicago", clean("weather in Boston, no wait Chicago"))
         assertEquals("call Sam", clean("call Ben, I mean Sam"))
         assertEquals("directions to the airport", clean("directions to the station, actually the airport"))

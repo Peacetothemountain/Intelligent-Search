@@ -177,6 +177,8 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                         voice.stop()
                         viewModel.onQueryChanged("")
                         textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
+                        // Voice is over, so the keyboard may come back.
+                        isKeyboardDismissedByUser = false
                     },
                     colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,

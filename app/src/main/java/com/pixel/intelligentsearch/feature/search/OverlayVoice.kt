@@ -100,16 +100,17 @@ internal fun Modifier.listeningGlow(active: Boolean, level: () -> Float, cornerR
     val glow = colors.body
     // How far the field has spread from the middle: 0 is nothing, 1 is the whole bar.
     val spread by animateFloatAsState(if (active) 1f else 0f, tween(if (active) 420 else 320), label = "listening")
+    val smoothed = remember { floatArrayOf(0f) }
+    val field = remember {
+        if (android.os.Build.VERSION.SDK_INT >= 33) runCatching { ListeningField() }.getOrNull() else null
+    }
+    // Nothing runs while the field is away: no clock, no drawing.
+    if (spread == 0f) return@composed this
     // The clock behind the waves. Their speeds are whole multiples of this loop, so it repeats without a jump.
     val clock = rememberInfiniteTransition(label = "listening-field").animateFloat(
         initialValue = 0f, targetValue = LOOP_SECONDS,
         animationSpec = infiniteRepeatable(tween((LOOP_SECONDS * 1000).toInt(), easing = LinearEasing)), label = "time",
     )
-    val smoothed = remember { floatArrayOf(0f) }
-    val field = remember {
-        if (android.os.Build.VERSION.SDK_INT >= 33) runCatching { ListeningField() }.getOrNull() else null
-    }
-    if (spread == 0f) return@composed this
     drawWithCache {
         val w = size.width
         val h = size.height

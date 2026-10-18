@@ -7,7 +7,8 @@ package com.pixel.intelligentsearch.feature.voice
  * phone, instantly, with no network.
  */
 object SpeechCleanup {
-    private val fillers = setOf("um", "umm", "uh", "uhh", "uhm", "er", "erm", "ah", "hmm", "hm", "mm", "mhm")
+    // Only sounds that are never words: "mm" (millimetres) and "er" (emergency room) stay.
+    private val fillers = setOf("um", "umm", "uh", "uhh", "uhm", "erm", "ah", "hmm", "hm", "mhm")
 
     /** Phrases after which the user restates what they meant; the restated words replace as many words before. */
     private val corrections = listOf("no wait", "no no", "sorry i mean", "i mean", "no sorry", "actually no", "no", "sorry", "actually", "wait")
@@ -88,7 +89,9 @@ object SpeechCleanup {
                     val paused = before.lastOrNull()?.text?.lastOrNull()?.let { it == ',' || it == '.' } == true ||
                         result[at].text.firstOrNull()?.isUpperCase() == true && phrase == "no"
                     if (before.isNotEmpty() && after.isNotEmpty() && (paused || size > 1)) {
-                        val restated = after.takeWhile { it.text.lastOrNull() != '.' }.ifEmpty { after.take(1) }
+                        // The restatement runs to the end of its sentence, including the word carrying the full stop.
+                        val sentenceEnd = after.indexOfFirst { it.text.endsWith('.') }
+                        val restated = if (sentenceEnd < 0) after else after.subList(0, sentenceEnd + 1)
                         val drop = restated.size.coerceAtMost(before.size)
                         result = before.dropLast(drop).map { Word(it.text.trimEnd(',', '.')) } + after
                         continue@loop

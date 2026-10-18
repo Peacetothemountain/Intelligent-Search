@@ -17,6 +17,8 @@ import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.feature.settings.TutorialStepInfo
 import android.content.Intent
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
@@ -353,7 +355,11 @@ fun SearchOverlayScreen(
             viewModel.onQueryChanged(text)
             spokenQuery = text
         },
-        onProblem = { message -> android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show() },
+        onProblem = { message ->
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+            // Voice is over without words, so the keyboard may come back.
+            ui.isKeyboardDismissedByUser = false
+        },
     )
     val voiceRequests by viewModel.voiceRequests.collectAsStateWithLifecycle()
     // Saved, so recreating the screen (rotation) doesn't start listening again for a request already handled.
@@ -573,6 +579,11 @@ fun SearchOverlayScreen(
     LaunchedEffect(spokenQuery) {
         val spoken = spokenQuery ?: return@LaunchedEffect
         viewModel.awaitSearch()
+        // The results reach this screen through a collector; wait until what is composed here is what the view
+        // model holds, so bestMatch is for the spoken words and not the query before them.
+        kotlinx.coroutines.withTimeoutOrNull(500) {
+            snapshotFlow { uiState === viewModel.uiState.value && uiState.query == spoken }.first { it }
+        }
         spokenQuery = null
         submitQuery(spoken, true)
     }

@@ -107,6 +107,11 @@ open class MainActivity : AppCompatActivity() {
         } else {
             searchViewModel.onQueryChanged("")
         }
+        // A plain open after a voice one puts the keyboard mode back; the voice request sets it hidden itself.
+        if (!intent.getBooleanExtra(com.pixel.intelligentsearch.feature.voice.IntelligentVoiceInteractionSession.EXTRA_START_VOICE, false)) {
+            val prefs = getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+            applySoftInputMode(keyboardVisible = !com.pixel.intelligentsearch.feature.settings.TutorialManager.isTutorialActive(prefs))
+        }
         requestVoiceIfAsked(intent)
     }
 
@@ -197,7 +202,8 @@ open class MainActivity : AppCompatActivity() {
         if (!queryExtra.isNullOrBlank()) {
             searchViewModel.onQueryChanged(queryExtra)
         }
-        requestVoiceIfAsked(intent)
+        // Only a fresh open starts voice: a recreated activity (rotation) still carries the extra but must not restart it.
+        if (savedInstanceState == null) requestVoiceIfAsked(intent)
 
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()

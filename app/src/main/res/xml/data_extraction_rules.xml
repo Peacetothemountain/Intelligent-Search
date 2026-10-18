@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Nothing leaves the phone through Android backup or device transfer: settings, history and the passphrase vault are
+     moved only by the app's own encrypted backup. The device_* domains cover device-protected storage, where a copy of
+     the widget settings lives for drawing before the first unlock. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="root" path="." />
@@ -6,6 +9,10 @@
         <exclude domain="database" path="." />
         <exclude domain="sharedpref" path="." />
         <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
     </cloud-backup>
     <device-transfer>
         <exclude domain="root" path="." />
@@ -13,5 +20,9 @@
         <exclude domain="database" path="." />
         <exclude domain="sharedpref" path="." />
         <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
     </device-transfer>
 </data-extraction-rules>

@@ -151,10 +151,15 @@ fun getLensTranslateIntent(context: Context): Intent {
  * its own overlay.
  */
 fun launchGeminiCornerOverlay(context: Context): Boolean {
+    // launchAssist shows whichever app holds the assistant role. When that is Intelligent Search itself, it would only
+    // open this app's own search, so Gemini is reached through the fallbacks below instead.
+    val isTheAssistant = runCatching {
+        context.getSystemService(android.app.role.RoleManager::class.java)?.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT) == true
+    }.getOrDefault(false)
     try {
         val searchManager = context.getSystemService(Context.SEARCH_SERVICE) as? android.app.SearchManager
         val launchAssist = searchManager?.javaClass?.methods?.find { it.name == "launchAssist" && it.parameterTypes.size == 1 }
-        if (launchAssist != null) {
+        if (launchAssist != null && !isTheAssistant) {
             val args = android.os.Bundle().apply {
                 putInt("invocation_type", 1) // INVOCATION_TYPE_GESTURE: the corner swipe
                 putBoolean("launch_gemini_overlay", true)

@@ -27,6 +27,8 @@ class SpeechCleanupTest {
         assertEquals("coffee with no sugar", clean("coffee with no sugar"))
         assertEquals("is it actually good", clean("is it actually good"))
         assertEquals("no man's sky", clean("no man's sky"))
+        assertEquals("best games like No Man's Sky", SpeechCleanup.clean(listOf("best games like", "No Man's Sky")))
+        assertEquals("timer for 10 minutes", SpeechCleanup.clean(listOf("timer for 5 minutes", "No, 10 minutes")))
     }
 
     @Test fun restartsDiscardEarlierWords() {

@@ -367,6 +367,8 @@ fun SearchOverlayScreen(
     LaunchedEffect(voiceRequests) {
         if (voiceRequests > handledVoiceRequest) {
             handledVoiceRequest = voiceRequests
+            // A second gesture while already listening must not throw away the words heard so far.
+            if (voice.active) return@LaunchedEffect
             ui.isKeyboardDismissedByUser = true
             voice.start()
         }
@@ -585,7 +587,8 @@ fun SearchOverlayScreen(
             snapshotFlow { uiState === viewModel.uiState.value && uiState.query == spoken }.first { it }
         }
         spokenQuery = null
-        submitQuery(spoken, true)
+        // The user may have started typing over the words meanwhile; then the spoken query is theirs no longer.
+        if (viewModel.uiState.value.query == spoken) submitQuery(spoken, true)
     }
 
     val sections = OverlayScope(

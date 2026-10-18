@@ -86,8 +86,10 @@ object SpeechCleanup {
                     val after = result.subList(at + size, result.size)
                     // Only a correction when the speaker paused (comma or full stop before the marker), or the marker is
                     // a multi-word phrase; otherwise "no" and "actually" stay as ordinary words ("no sugar", "actually good").
+                    // A capital "No," is the recognizer's own pause mark; a bare capital "No" is just the start of a
+                    // segment ("No Man's Sky" after a pause) and stays.
                     val paused = before.lastOrNull()?.text?.lastOrNull()?.let { it == ',' || it == '.' } == true ||
-                        result[at].text.firstOrNull()?.isUpperCase() == true && phrase == "no"
+                        result[at].text == "No,"
                     if (before.isNotEmpty() && after.isNotEmpty() && (paused || size > 1)) {
                         // The restatement runs to the end of its sentence, including the word carrying the full stop.
                         val sentenceEnd = after.indexOfFirst { it.text.endsWith('.') }

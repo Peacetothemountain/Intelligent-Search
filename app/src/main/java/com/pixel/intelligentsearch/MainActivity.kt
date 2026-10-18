@@ -107,19 +107,21 @@ open class MainActivity : AppCompatActivity() {
         } else {
             searchViewModel.onQueryChanged("")
         }
-        // A plain open after a voice one puts the keyboard mode back; the voice request sets it hidden itself.
-        if (!intent.getBooleanExtra(com.pixel.intelligentsearch.feature.voice.IntelligentVoiceInteractionSession.EXTRA_START_VOICE, false)) {
-            val prefs = getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
-            applySoftInputMode(keyboardVisible = !com.pixel.intelligentsearch.feature.settings.TutorialManager.isTutorialActive(prefs))
-        }
-        requestVoiceIfAsked(intent)
+        requestVoiceIfAsked(intent, restoreKeyboard = true)
     }
 
-    /** The assistant gesture with Start Assistant with Voice on asks the search screen to start listening. */
-    private fun requestVoiceIfAsked(intent: Intent?) {
-        if (intent?.getBooleanExtra(com.pixel.intelligentsearch.feature.voice.IntelligentVoiceInteractionSession.EXTRA_START_VOICE, false) == true) {
+    /**
+     * The assistant gesture with Start Assistant with Voice on asks the search screen to start listening, with the
+     * keyboard kept down. With [restoreKeyboard], a plain open puts the keyboard mode back after an earlier voice one.
+     */
+    private fun requestVoiceIfAsked(intent: Intent?, restoreKeyboard: Boolean = false) {
+        val startVoice = intent?.getBooleanExtra(com.pixel.intelligentsearch.feature.voice.IntelligentVoiceInteractionSession.EXTRA_START_VOICE, false) == true
+        if (startVoice) {
             applySoftInputMode(keyboardVisible = false)
             searchViewModel.requestVoice()
+        } else if (restoreKeyboard) {
+            val prefs = getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+            applySoftInputMode(keyboardVisible = !com.pixel.intelligentsearch.feature.settings.TutorialManager.isTutorialActive(prefs))
         }
     }
 

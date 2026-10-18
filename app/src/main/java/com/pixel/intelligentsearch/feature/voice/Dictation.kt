@@ -41,6 +41,8 @@ class Dictation(private val context: Context) {
     private var failures = 0
     /** Set once the on-device engine has dropped the connection twice; the default engine is used from then on. */
     private var preferDefaultEngine = false
+    /** True while a recognizer session is open and may still produce results. */
+    private var live = false
     private val finishTimeout = Runnable { deliver() }
     private val maxLength = Runnable { finish() }
     private val restart = Runnable { if (phase.value == Phase.Starting || phase.value == Phase.Listening) listen() }
@@ -69,6 +71,8 @@ class Dictation(private val context: Context) {
     fun finish() {
         if (phase.value == Phase.Idle || phase.value == Phase.Finishing) return
         phase.value = Phase.Finishing
+        // Between sessions (or before the engine is ready) there are no last words to wait for.
+        if (!live) { deliver(); return }
         runCatching { recognizer?.stopListening() }
         main.postDelayed(finishTimeout, FINISH_WAIT_MS)
     }
@@ -81,12 +85,14 @@ class Dictation(private val context: Context) {
         onFinished = null
         onProblem = null
         release()
+        live = false
         phase.value = Phase.Idle
         amplitude.floatValue = 0f
     }
 
     private fun listen() {
         release()
+        live = false
         val r = try {
             if (!preferDefaultEngine && Build.VERSION.SDK_INT >= 33 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
                 SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
@@ -121,7 +127,10 @@ class Dictation(private val context: Context) {
     }
 
     private val listener = object : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) { if (phase.value == Phase.Starting) phase.value = Phase.Listening }
+        override fun onReadyForSpeech(params: Bundle?) {
+            live = true
+            if (phase.value == Phase.Starting) phase.value = Phase.Listening
+        }
         override fun onBeginningOfSpeech() { if (phase.value == Phase.Starting) phase.value = Phase.Listening }
         override fun onRmsChanged(rmsdB: Float) {
             amplitude.floatValue = computeAmplitudeStep(amplitude.floatValue, normalizeRmsDb(rmsdB))
@@ -136,22 +145,28 @@ class Dictation(private val context: Context) {
             pending = ""
             failures = 0
         }
-        override fun onEndOfSegmentedSession() = sessionEnded()
+        override fun onEndOfSegmentedSession() {
+            live = false
+            sessionEnded()
+        }
         override fun onResults(results: Bundle?) {
+            live = false
             best(results)?.let { heard += it }
             pending = ""
             failures = 0
             sessionEnded()
         }
         override fun onError(error: Int) {
+            live = false
+            Log.i(TAG, "Recognizer error $error in phase ${phase.value}, failures=$failures")
+            // The user has already tapped the check button: whatever the error, the words so far are theirs.
+            if (phase.value == Phase.Finishing) { deliver(); return }
             when (error) {
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> fail("Allow the microphone to search by voice.")
                 SpeechRecognizer.ERROR_AUDIO -> fail("The microphone isn't available right now.")
                 SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ->
                     fail("Your language isn't supported by the speech recognizer.")
                 else -> {
-                    Log.i(TAG, "Recognizer error $error in phase ${phase.value}, failures=$failures")
-                    if (phase.value == Phase.Finishing) { deliver(); return }
                     // Silence, no match, a busy or reconnecting engine: keep the words so far and keep listening.
                     if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) failures++
                     // An on-device engine that keeps dropping the connection (seen right after an app update) is
@@ -171,8 +186,10 @@ class Dictation(private val context: Context) {
         when (phase.value) {
             Phase.Finishing -> deliver()
             Phase.Idle -> Unit
-            // Restarts back off a little with each failure, so a struggling engine gets time to recover.
+            // Restarts back off a little with each failure, so a struggling engine gets time to recover. Words the
+            // engine only got as far as a partial result are kept, or the next session's partials would replace them.
             else -> {
+                if (pending.isNotBlank()) { heard += pending; pending = "" }
                 main.removeCallbacks(restart)
                 main.postDelayed(restart, RESTART_DELAY_MS * (1 + failures))
             }

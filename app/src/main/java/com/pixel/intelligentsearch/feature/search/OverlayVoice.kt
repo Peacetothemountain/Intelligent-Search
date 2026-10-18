@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -99,13 +100,15 @@ internal fun Modifier.listeningGlow(active: Boolean, level: () -> Float, cornerR
     val colors = remember(scheme.primary, scheme.tertiary) { ramblerGlowColors(scheme.primary, scheme.tertiary) }
     val glow = colors.body
     // How far the field has spread from the middle: 0 is nothing, 1 is the whole bar.
-    val spread by animateFloatAsState(if (active) 1f else 0f, tween(if (active) 420 else 320), label = "listening")
+    val spreadState = animateFloatAsState(if (active) 1f else 0f, tween(if (active) 420 else 320), label = "listening")
+    // Only the away/showing boundary recomposes; the spread itself is read in the draw phase.
+    val showing by remember { derivedStateOf { spreadState.value > 0f } }
     val smoothed = remember { floatArrayOf(0f) }
     val field = remember {
         if (android.os.Build.VERSION.SDK_INT >= 33) runCatching { ListeningField() }.getOrNull() else null
     }
     // Nothing runs while the field is away: no clock, no drawing.
-    if (spread == 0f) return@composed this
+    if (!showing) return@composed this
     // The clock behind the waves. Their speeds are whole multiples of this loop, so it repeats without a jump.
     val clock = rememberInfiniteTransition(label = "listening-field").animateFloat(
         initialValue = 0f, targetValue = LOOP_SECONDS,
@@ -120,6 +123,7 @@ internal fun Modifier.listeningGlow(active: Boolean, level: () -> Float, cornerR
         val clip = Path().apply { addRoundRect(RoundRect(0f, 0f, w, h, CornerRadius(radius))) }
         onDrawWithContent {
             val t = clock.value
+            val spread = spreadState.value
             val target = level().coerceIn(0f, 1f)
             smoothed[0] += (target - smoothed[0]) * (if (target > smoothed[0]) 0.4f else 0.1f)
             val loud = smoothed[0]
@@ -152,6 +156,9 @@ internal fun Modifier.listeningGlow(active: Boolean, level: () -> Float, cornerR
 
 private const val LOOP_SECONDS = 12f
 
+/** How far from the primary hue towards the tertiary the glow sits: measured from Gboard, pink, blue and orange seeds. */
+private const val GLOW_HUE_TURN = 0.38
+
 /** The AGSL field and its brush, Android 13 and up. */
 @androidx.annotation.RequiresApi(33)
 private class ListeningField {
@@ -174,17 +181,17 @@ internal class RamblerGlowColors(val body: Color, val line: Color)
 
 /**
  * Gboard's Rambler colours for a Material You palette, measured from Gboard on a Pixel with pink, blue and orange
- * seeds, light and dark. The light is not the primary colour: its hue sits a third of the way from the primary towards
- * the tertiary (twenty-odd degrees on), with more chroma than any tonal palette colour and the same tone in both
+ * seeds, light and dark. The light is not the primary colour: its hue sits [GLOW_HUE_TURN] of the way from the primary
+ * towards the tertiary (twenty-odd degrees on), with more chroma than any tonal palette colour and the same tone in both
  * themes; the line along the bottom is the same hue, lighter. The check button is the secondary colour.
  */
 @Suppress("RestrictedApi")
 internal fun ramblerGlowColors(primary: Color, tertiary: Color): RamblerGlowColors {
     val from = com.google.android.material.color.utilities.Hct.fromInt(primary.toArgb()).hue
     val to = com.google.android.material.color.utilities.Hct.fromInt(tertiary.toArgb()).hue
-    // Shortest way round the hue circle, a third of the way.
+    // Shortest way round the hue circle.
     val turn = ((to - from + 540.0) % 360.0) - 180.0
-    val hue = (from + turn * 0.38 + 360.0) % 360.0
+    val hue = (from + turn * GLOW_HUE_TURN + 360.0) % 360.0
     return RamblerGlowColors(
         body = Color(com.google.android.material.color.utilities.Hct.from(hue, 45.0, 75.0).toInt()),
         line = Color(com.google.android.material.color.utilities.Hct.from(hue, 45.0, 82.0).toInt()),

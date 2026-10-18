@@ -126,10 +126,10 @@ fun SearchOverlayMicIcon(modifier: Modifier = Modifier) {
     val palette = rememberSearchIconPalette().mic
     val parser = remember { androidx.compose.ui.graphics.vector.PathParser() }
     val capsule = remember { parser.parsePathString("M12,15c1.66,0 2.99,-1.34 2.99,-3L15,5c0,-1.66 -1.34,-3 -3,-3S9,3.34 9,5v7c0,1.66 1.34,3 3,3z").toPath() }
-    val stem = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M11,18.92h2V22h-2z").toPath() }
-    val leftCradle = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M7,12H5c0,1.93 0.78,3.68 2.05,4.95l1.41,-1.41C7.56,14.63 7,13.38 7,12z").toPath() }
-    val rightCradle = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,17c-1.38,0 -2.63,-0.56 -3.54,-1.47l-1.41,1.41C8.32,18.21 10.07,19 12.01,19c3.87,0 6.98,-3.14 6.98,-7h-2c0,2.76 -2.23,5 -4.99,5z").toPath() }
-    val sparkle = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M19.5,1 C19.5,3.6 21.5,5.5 24,5.5 C21.5,5.5 19.5,7.4 19.5,10 C19.5,7.4 17.5,5.5 15,5.5 C17.5,5.5 19.5,3.6 19.5,1 Z").toPath() }
+    val stem = remember { parser.parsePathString("M11,18.92h2V22h-2z").toPath() }
+    val leftCradle = remember { parser.parsePathString("M7,12H5c0,1.93 0.78,3.68 2.05,4.95l1.41,-1.41C7.56,14.63 7,13.38 7,12z").toPath() }
+    val rightCradle = remember { parser.parsePathString("M12,17c-1.38,0 -2.63,-0.56 -3.54,-1.47l-1.41,1.41C8.32,18.21 10.07,19 12.01,19c3.87,0 6.98,-3.14 6.98,-7h-2c0,2.76 -2.23,5 -4.99,5z").toPath() }
+    val sparkle = remember { parser.parsePathString("M19.5,1 C19.5,3.6 21.5,5.5 24,5.5 C21.5,5.5 19.5,7.4 19.5,10 C19.5,7.4 17.5,5.5 15,5.5 C17.5,5.5 19.5,3.6 19.5,1 Z").toPath() }
     androidx.compose.foundation.Canvas(modifier = modifier) {
         scale(size.width / 24f, size.height / 24f, pivot = androidx.compose.ui.geometry.Offset.Zero) {
             // The mic sits a little left of centre to leave the sparkle room, as on Rambler's key.

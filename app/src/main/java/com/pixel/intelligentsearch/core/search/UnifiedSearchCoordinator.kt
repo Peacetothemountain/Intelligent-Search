@@ -85,6 +85,9 @@ class UnifiedSearchCoordinator @Inject constructor(
         val totalExecutionTimeMs: Long = 0L
     )
 
+    /** The highest each result-count setting goes; the view model trims to the user's setting. */
+    private val MAX_RESULTS_PER_DOMAIN = 20
+
     private val appRadixTree = RadixTreeIndex<SearchItem>()
     // Package names live in their own tree: nearly every app shares the "com." prefix, so in the name tree
     // they used up the prefix-collection limit for "c"/"co" before names like "Camera" were reached.
@@ -139,7 +142,7 @@ class UnifiedSearchCoordinator @Inject constructor(
      */
     fun replaceContacts(contacts: List<ContactItem>, lastUsedMs: Long = 0L) {
         val keys = ArrayList<Pair<String, SearchItem>>(contacts.size * 4)
-        val fresh = HashSet<SearchItem>(contacts.size * 2)
+        val fresh = identitySet(contacts.size * 2)
         for (contact in contacts) {
             val item = newContactItem(contact, lastUsedMs)
             collectContactKeys(contact, item, keys)
@@ -180,6 +183,10 @@ class UnifiedSearchCoordinator @Inject constructor(
         if (shortcut.longLabel.isNotBlank()) {
             out.add(shortcut.longLabel to searchItem)
         }
+        // Lookup is by prefix, so each word is a key too: "tab" finds "New tab".
+        for (word in (QueryNormalizer.tokenize(shortcut.shortLabel) + QueryNormalizer.tokenize(shortcut.longLabel)).distinct()) {
+            out.add(word to searchItem)
+        }
     }
 
     /**
@@ -187,9 +194,12 @@ class UnifiedSearchCoordinator @Inject constructor(
      * linger in the index.
      */
     fun replaceFiles(files: List<FileItem>) {
-        val keys = ArrayList<Pair<String, SearchItem>>(files.size)
+        val keys = ArrayList<Pair<String, SearchItem>>(files.size * 3)
         for (file in files) {
-            keys.add(file.name to newFileItem(file, file.lastModifiedMs))
+            val item = newFileItem(file, file.lastModifiedMs)
+            keys.add(file.name to item)
+            // Each word of the name as well: "resume" finds "My Resume.pdf".
+            for (word in QueryNormalizer.tokenize(file.name)) keys.add(word to item)
         }
         fileRadixTree.replaceAll(keys)
     }
@@ -219,7 +229,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         if (apps.isEmpty()) return
         val keys = ArrayList<Pair<String, SearchItem>>(apps.size * 5)
         val packageKeys = ArrayList<Pair<String, SearchItem>>(apps.size)
-        val fresh = HashSet<SearchItem>(apps.size * 2)
+        val fresh = identitySet(apps.size * 2)
         for (app in apps) {
             val item = newAppItem(
                 app,
@@ -233,6 +243,13 @@ class UnifiedSearchCoordinator @Inject constructor(
         appPackageRadixTree.replaceAll(packageKeys)
         removeFromPhoneticIndex { it.domain == SearchScoringEngine.EntityDomain.APPLICATION && it !in fresh }
     }
+
+    /**
+     * The items just indexed, by identity. Items compare equal by id, so an id-based set would keep a renamed
+     * contact's or app's old phonetic entry (old name, old number); only the instances indexed now survive cleanup.
+     */
+    private fun identitySet(capacity: Int): MutableSet<SearchItem> =
+        java.util.Collections.newSetFromMap(java.util.IdentityHashMap(capacity))
 
     /** Replaces the app usage that feeds frequency and recency into app ranking. */
     fun updateAppUsage(usage: Map<String, SystemDataProvider.AppUsage>) {
@@ -834,13 +851,13 @@ class UnifiedSearchCoordinator @Inject constructor(
                     (ranked.item.payload as? AppItem)?.let { if (matchedApps.size < 12) matchedApps.add(it) }
                 }
                 SearchScoringEngine.EntityDomain.CONTACT -> {
-                    (ranked.item.payload as? ContactItem)?.let { if (matchedContacts.size < 8) matchedContacts.add(it) }
+                    (ranked.item.payload as? ContactItem)?.let { if (matchedContacts.size < MAX_RESULTS_PER_DOMAIN) matchedContacts.add(it) }
                 }
                 SearchScoringEngine.EntityDomain.APP_SHORTCUT -> {
-                    (ranked.item.payload as? AppShortcutItem)?.let { if (matchedShortcuts.size < 6) matchedShortcuts.add(it) }
+                    (ranked.item.payload as? AppShortcutItem)?.let { if (matchedShortcuts.size < MAX_RESULTS_PER_DOMAIN) matchedShortcuts.add(it) }
                 }
                 SearchScoringEngine.EntityDomain.FILE -> {
-                    (ranked.item.payload as? FileItem)?.let { if (matchedFiles.size < 8) matchedFiles.add(it) }
+                    (ranked.item.payload as? FileItem)?.let { if (matchedFiles.size < MAX_RESULTS_PER_DOMAIN) matchedFiles.add(it) }
                 }
                 else -> {}
             }

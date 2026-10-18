@@ -220,7 +220,9 @@ class SearchBangManager @Inject constructor(
 
             val candidates = arrayOf(p0, p1, p2, p3)
             for (p in candidates) {
-                if (p.isNullOrBlank()) continue
+                // A bang always starts with its trigger: a bare prefix ("wiki", from an older custom bang) would
+                // otherwise fire on ordinary words whenever the query happens to contain "!".
+                if (p.isNullOrBlank() || p.first().isLetterOrDigit()) continue
                 // Prefix check: query starts with "$p " or equals "$p"
                 if (trimmed.equals(p, ignoreCase = true)) {
                     return ParsedBangQuery(
@@ -318,14 +320,19 @@ class SearchBangManager @Inject constructor(
             }
         }
 
-        // Priority 2: the web URL. Custom bangs can arrive from imported backups, so the template goes through the
-        // same validation as a typed custom engine; one that fails is never opened and the query goes to Google.
-        val webUri = com.pixel.intelligentsearch.core.security.CustomSearchUrl.build(bang.urlTemplate, query)
-            ?: Uri.parse("https://www.google.com/search?q=${Uri.encode(query)}")
-        return com.pixel.intelligentsearch.core.security.CustomSearchUrl.browsableViewIntent(webUri).apply {
+        // Priority 2: the web URL.
+        return com.pixel.intelligentsearch.core.security.CustomSearchUrl.browsableViewIntent(bangWebUri(parsed)).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
     }
+
+    /**
+     * The bang's web address for its query. Custom bangs can arrive from imported backups, so the template goes
+     * through the same validation as a typed custom engine; one that fails is never opened and the query goes to Google.
+     */
+    fun bangWebUri(parsed: ParsedBangQuery): Uri =
+        com.pixel.intelligentsearch.core.security.CustomSearchUrl.build(parsed.bang.urlTemplate, parsed.extractedQuery)
+            ?: Uri.parse("https://www.google.com/search?q=${Uri.encode(parsed.extractedQuery)}")
 
     private fun isActivityExported(pm: PackageManager, component: android.content.ComponentName): Boolean {
         return try {

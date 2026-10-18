@@ -56,6 +56,11 @@ class AutoBackup(private val context: Context) {
      * be protected, in which case nothing is changed.
      */
     fun enable(folder: Uri, passphrase: CharArray): Boolean {
+        // A backup no one can restore is worse than none: an empty or short passphrase is refused here, whatever the UI did.
+        if (passphrase.size < MIN_PASSPHRASE_LENGTH) {
+            MemorySanitizer.wipe(passphrase)
+            return false
+        }
         val salt = BackupCryptoEngine.generateRandomSalt()
         val derived = try {
             BackupCryptoEngine.deriveKeyFromPassphrase(passphrase, salt)
@@ -90,9 +95,11 @@ class AutoBackup(private val context: Context) {
     fun disable() {
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
         folderUri?.let { uri ->
-            runCatching {
-                context.contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-            }
+            val settings = context.getSharedPreferences(com.pixel.intelligentsearch.core.data.SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+            val stillSearched = uri.toString() in com.pixel.intelligentsearch.core.data.UserGrantedFiles.folderUris(settings)
+            val release = if (stillSearched) Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            else Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            runCatching { context.contentResolver.releasePersistableUriPermission(uri, release) }
         }
         state.edit { clear() }
     }
@@ -175,6 +182,7 @@ class AutoBackup(private val context: Context) {
     companion object {
         private const val TAG = "AutoBackup"
         const val KEEP = 4
+        const val MIN_PASSPHRASE_LENGTH = 10
         const val FILE_PREFIX = "IntelligentSearch-auto-"
         const val FILE_SUFFIX = ".json"
         private const val WORK_NAME = "automatic_encrypted_backup"

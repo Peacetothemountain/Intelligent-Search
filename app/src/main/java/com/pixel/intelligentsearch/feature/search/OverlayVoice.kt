@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.search
 
 import android.Manifest
+import com.pixel.intelligentsearch.core.util.findActivity
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -76,7 +77,21 @@ internal fun rememberOverlayVoice(onHeard: (text: String) -> Unit, onProblem: (S
     val dictation = remember { Dictation(context) }
     val begin = remember { { dictation.start(onFinished = { heard(it) }, onProblem = { problem(it) }) } }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) begin() else problem("Allow the microphone to search by voice.")
+        when {
+            granted -> begin()
+            // Denied for good (Android no longer shows its dialog): the app's settings page is the only way back.
+            context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) == false -> {
+                problem("Turn on the microphone for Intelligent Search in Settings to search by voice.")
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                            .setData(android.net.Uri.fromParts("package", context.packageName, null))
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }
+            else -> problem("Allow the microphone to search by voice.")
+        }
     }
     val voice = remember { OverlayVoice(dictation, askPermission = { permission.launch(Manifest.permission.RECORD_AUDIO) }, begin = begin) }
     voice.permissionGranted = {

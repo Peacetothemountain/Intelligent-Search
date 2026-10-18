@@ -44,9 +44,13 @@ class SetupChecklistTest {
     }
 
     @Test
-    fun choosingAFolderCompletesFiles() {
+    fun aChosenFolderCompletesFilesOnlyWithFileSearchOn() {
         assertFalse(SetupChecklist.isDone(context, prefs, SetupStep.FILES))
         prefs.edit().putStringSet("search.files.tree_uris", setOf("content://com.android.externalstorage.documents/tree/primary%3ADocuments")).commit()
+        // A folder nobody searches isn't set up.
+        prefs.edit().put(SettingsManager.SEARCH_FILES, false).commit()
+        assertFalse(SetupChecklist.isDone(context, prefs, SetupStep.FILES))
+        prefs.edit().put(SettingsManager.SEARCH_FILES, true).commit()
         assertTrue(SetupChecklist.isDone(context, prefs, SetupStep.FILES))
     }
 

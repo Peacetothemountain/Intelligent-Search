@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.core.data
 
 import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.settings.put
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -74,12 +75,17 @@ object UserGrantedFiles {
         prefs.edit {
             putStringSet(KEY_FOLDER_URIS, updated)
             remove(LEGACY_KEY_FOLDER_URI)
+            // Choosing a folder means wanting it searched.
+            put(SettingsManager.SEARCH_FILES, true)
         }
         return true
     }
 
     fun removeFolder(context: Context, prefs: SharedPreferences, treeUri: String) {
-        releaseReadGrant(context, treeUri)
+        // The same folder may be the automatic backup folder, which shares this grant; it keeps its access then.
+        if (com.pixel.intelligentsearch.core.backup.AutoBackup(context).folderUri?.toString() != treeUri) {
+            releaseReadGrant(context, treeUri)
+        }
         val updated = folderUris(prefs) - treeUri
         prefs.edit {
             putStringSet(KEY_FOLDER_URIS, updated)

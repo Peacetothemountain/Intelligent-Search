@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -303,6 +304,19 @@ fun SearchOverlayScreen(
         hasStartedTyping = false
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
+        val torBangAddress = if (com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(settingsState.searchEngine)) {
+            viewModel.resolveBangWebAddress(searchQuery)
+        } else null
+        if (torBangAddress != null) {
+            // A Tor user's search never reaches a normal browser or another app: the bang's address opens in Tor Browser.
+            viewModel.addSearchHistory(searchQuery)
+            viewModel.onQueryChanged("")
+            when (val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.forAddress(context, torBangAddress, settingsState.searchEngine)) {
+                is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open -> launchSafeIntent(context, launch.intent)
+                else -> showTorInstallPopup = true
+            }
+            return@launchWebSearch
+        }
         val bangIntent = viewModel.resolveBangIntent(searchQuery)
         if (bangIntent != null) {
             // CLEAR_TOP like the other browser launches; CLEAR_TASK would wipe the target app's task.
@@ -367,16 +381,13 @@ fun SearchOverlayScreen(
         },
     )
     val voiceRequests by viewModel.voiceRequests.collectAsStateWithLifecycle()
-    // Saved, so recreating the screen (rotation) doesn't start listening again for a request already handled.
-    var handledVoiceRequest by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
     LaunchedEffect(voiceRequests) {
-        if (voiceRequests > handledVoiceRequest) {
-            handledVoiceRequest = voiceRequests
-            // A second gesture while already listening must not throw away the words heard so far.
-            if (voice.active) return@LaunchedEffect
-            ui.isKeyboardDismissedByUser = true
-            voice.start()
-        }
+        // Each request is claimed once, so recreating the screen doesn't start listening again.
+        if (!viewModel.takeVoiceRequest()) return@LaunchedEffect
+        // A second gesture while already listening must not throw away the words heard so far.
+        if (voice.active) return@LaunchedEffect
+        ui.isKeyboardDismissedByUser = true
+        voice.start()
     }
 
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
@@ -490,7 +501,7 @@ fun SearchOverlayScreen(
     val visibleApps by remember {
         derivedStateOf {
             val hidden = settingsState.hiddenApps
-            uiState.filteredApps.filter { !hidden.contains(it.packageName) }.distinctBy { it.packageName }
+            uiState.filteredApps.filter { !hidden.contains(it.packageName) }.distinctBy { it.packageName to it.userHandle }
         }
     }
 
@@ -734,6 +745,8 @@ fun SearchOverlayScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                // While the tutorial covers the screen, TalkBack can't reach or activate what lies beneath.
+                .then(if (showTutorial) Modifier.clearAndSetSemantics {} else Modifier)
                 .windowInsetsPadding(
                     if (!isKeyboardDisabled) {
                         WindowInsets.ime.union(WindowInsets.navigationBars).union(WindowInsets.displayCutout)

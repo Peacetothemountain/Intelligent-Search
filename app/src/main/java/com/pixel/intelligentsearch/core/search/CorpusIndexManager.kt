@@ -69,7 +69,9 @@ class CorpusIndexManager @Inject constructor(
     // ContentObserver callback and therefore stays volatile.
     private val observerLock = Any()
     private var contactsObserver: ContentObserver? = null
-    private var packageReceiver: BroadcastReceiver? = null
+    private var launcherCallback: android.content.pm.LauncherApps.Callback? = null
+    /** Coalesces a burst of package events (an update fires several) into one re-scan. */
+    private var pendingAppReindex: kotlinx.coroutines.Job? = null
     @Volatile
     private var contactsDebounceJob: Job? = null
     private val appsMutex = Mutex()
@@ -126,6 +128,16 @@ class CorpusIndexManager @Inject constructor(
                 isInitialized.set(false)
                 Log.e(TAG, "Error during corpus indexing initialization", e)
             }
+        }
+    }
+
+    /** A full re-scan (rather than dropping the package by name) keeps copies of the same app in other profiles. */
+    private fun appsChanged() {
+        pendingAppReindex?.cancel()
+        pendingAppReindex = scope.launch(Dispatchers.IO) {
+            kotlinx.coroutines.delay(300)
+            reindexAppsInternal(forceRefresh = true)
+            reindexShortcutsInternal()
         }
     }
 
@@ -304,36 +316,30 @@ class CorpusIndexManager @Inject constructor(
             Log.w(TAG, "Could not watch file search settings", e)
         }
 
-        // Register BroadcastReceiver for Application changes
+        // App changes in every profile (personal, work, private space): installs, removals, updates, apps disabled
+        // or suspended, profiles becoming available, and shortcut changes. Package broadcasts only cover the
+        // personal profile and miss disabling, so LauncherApps is the one source.
         try {
-            if (packageReceiver == null) {
-                packageReceiver = object : BroadcastReceiver() {
-                    override fun onReceive(context: Context?, intent: Intent?) {
-                        // A full re-scan (rather than dropping the package by name) keeps copies of the same app
-                        // in other profiles; installs, updates and removals are rare enough for that to be cheap.
-                        reindexApps(forceRefresh = true)
-                        reindexShortcuts()
-                    }
+            if (launcherCallback == null) {
+                val callback = object : android.content.pm.LauncherApps.Callback() {
+                    override fun onPackageRemoved(packageName: String, user: android.os.UserHandle) = appsChanged()
+                    override fun onPackageAdded(packageName: String, user: android.os.UserHandle) = appsChanged()
+                    override fun onPackageChanged(packageName: String, user: android.os.UserHandle) = appsChanged()
+                    override fun onPackagesAvailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) = appsChanged()
+                    override fun onPackagesUnavailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) = appsChanged()
+                    override fun onPackagesSuspended(packageNames: Array<out String>, user: android.os.UserHandle) = appsChanged()
+                    override fun onPackagesUnsuspended(packageNames: Array<out String>, user: android.os.UserHandle) = appsChanged()
+                    override fun onShortcutsChanged(
+                        packageName: String,
+                        shortcuts: MutableList<android.content.pm.ShortcutInfo>,
+                        user: android.os.UserHandle
+                    ) = reindexShortcuts()
                 }
-                val filter = IntentFilter().apply {
-                    addAction(Intent.ACTION_PACKAGE_ADDED)
-                    addAction(Intent.ACTION_PACKAGE_REMOVED)
-                    addAction(Intent.ACTION_PACKAGE_REPLACED)
-                    addDataScheme("package")
-                }
-                try {
-                    ContextCompat.registerReceiver(
-                        context,
-                        packageReceiver!!,
-                        filter,
-                        ContextCompat.RECEIVER_NOT_EXPORTED
-                    )
-                } catch (e: Exception) {
-                    context.registerReceiver(packageReceiver, filter)
-                }
+                context.getSystemService(android.content.pm.LauncherApps::class.java)?.registerCallback(callback, mainHandler)
+                launcherCallback = callback
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Could not register package BroadcastReceiver", e)
+            Log.w(TAG, "Could not watch app changes", e)
         }
     }
 

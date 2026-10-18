@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.core.ui.expressive
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -57,7 +58,9 @@ fun GoogleMessagesSwitch(
     onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    interactionSource: MutableInteractionSource? = null
+    interactionSource: MutableInteractionSource? = null,
+    /** What the switch turns on and off, for TalkBack ("Contacts, on, switch"). */
+    label: String? = null
 ) {
     val effectiveInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
     val isPressed by effectiveInteractionSource.collectIsPressedAsState()
@@ -146,6 +149,7 @@ fun GoogleMessagesSwitch(
     val semanticsModifier = if (onCheckedChange != null) {
         Modifier.semantics {
             role = Role.Switch
+            if (label != null) contentDescription = label
             stateDescription = stateDesc
             // Lets accessibility services read the checked state, not just the "On"/"Off" label.
             toggleableState = ToggleableState(checked)

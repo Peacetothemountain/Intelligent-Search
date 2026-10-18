@@ -116,7 +116,7 @@ fun SettingsRow(
                     is ImageVector -> {
                         Icon(
                             imageVector = icon,
-                            contentDescription = title,
+                            contentDescription = null, // decorative: the title is right beside it
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(24.dp)
                         )
@@ -125,7 +125,7 @@ fun SettingsRow(
                         if (iconBitmap != null) {
                             Image(
                                 bitmap = iconBitmap,
-                                contentDescription = title,
+                                contentDescription = null, // decorative: the title is right beside it
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -133,7 +133,7 @@ fun SettingsRow(
                     is androidx.compose.ui.graphics.ImageBitmap -> {
                         Image(
                             bitmap = icon,
-                            contentDescription = title,
+                            contentDescription = null, // decorative: the title is right beside it
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -207,7 +207,7 @@ fun SettingsDropdownRow(
             } else if (icon != null) {
                 Icon(
                     imageVector = icon,
-                    contentDescription = title,
+                    contentDescription = null, // decorative: the title is right beside it
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(24.dp)
                 )
@@ -440,7 +440,7 @@ fun SettingsRowToggle(
                     is ImageVector -> {
                         Icon(
                             imageVector = icon,
-                            contentDescription = title,
+                            contentDescription = null, // decorative: the title is right beside it
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(24.dp)
                         )
@@ -449,7 +449,7 @@ fun SettingsRowToggle(
                         if (iconBitmap != null) {
                             Image(
                                 bitmap = iconBitmap,
-                                contentDescription = title,
+                                contentDescription = null, // decorative: the title is right beside it
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -457,7 +457,7 @@ fun SettingsRowToggle(
                     is androidx.compose.ui.graphics.ImageBitmap -> {
                         Image(
                             bitmap = icon,
-                            contentDescription = title,
+                            contentDescription = null, // decorative: the title is right beside it
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -485,7 +485,8 @@ fun SettingsRowToggle(
             Spacer(modifier = Modifier.width(16.dp))
             com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(
                 checked = isChecked,
-                onCheckedChange = { next -> applyToggle(next) }
+                onCheckedChange = { next -> applyToggle(next) },
+                label = title
             )
         }
         if (showDivider && containerColor == Color.Transparent) {
@@ -519,7 +520,7 @@ fun SettingsSliderRow(
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = title,
+                contentDescription = null, // decorative: the title is right beside it
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp)
             )

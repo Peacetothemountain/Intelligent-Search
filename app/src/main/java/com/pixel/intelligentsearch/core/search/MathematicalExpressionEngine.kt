@@ -60,7 +60,10 @@ object MathematicalExpressionEngine {
             "|^\\+?1?-?\\d{3}-\\d{3}-\\d{4}$" +      // 1-800-555-1234, 800-555-1234
             "|^\\+?1?\\(\\d{3}\\)\\d{3}-?\\d{4}$" +  // (800)555-1234
             "|^\\d{4}-\\d{1,2}-\\d{1,2}$" +          // 2024-01-31
-            "|^\\d{1,2}-\\d{1,2}-\\d{2,4}$"          // 01-31-2024
+            "|^\\d{1,2}-\\d{1,2}-\\d{2,4}$" +        // 01-31-2024
+            "|^\\d{1,2}/\\d{1,2}/\\d{2,4}$" +        // 12/25/2024
+            "|^\\d{4}/\\d{1,2}/\\d{1,2}$" +          // 2024/12/25
+            "|^\\+\\d{1,3}(?:-\\d{1,4}){2,4}$"      // +44-20-7946-0958
     )
     // Thousands separators ("1,000") between digits, removed only from purely numeric expressions.
     private val REGEX_THOUSANDS_SEPARATOR = Regex("(?<=\\d),(?=\\d{3}(?!\\d))")
@@ -86,7 +89,14 @@ object MathematicalExpressionEngine {
         if (REGEX_SPACE_SEPARATED_NUMBERS.containsMatchIn(withNormalizedOperators)) return null
 
         val compact = withNormalizedOperators.replace(" ", "")
-        val expr = if (compact.none { it.isLetter() }) compact.replace(REGEX_THOUSANDS_SEPARATOR, "") else compact
+        // A comma is a thousands separator where the decimal point is "." ("1,000") and the decimal point where it
+        // is "," ("1,25"), as the user's locale writes numbers.
+        val commaIsDecimal = java.text.DecimalFormatSymbols.getInstance().decimalSeparator == ','
+        val expr = when {
+            compact.any { it.isLetter() } -> compact
+            commaIsDecimal -> compact.replace(',', '.')
+            else -> compact.replace(REGEX_THOUSANDS_SEPARATOR, "")
+        }
 
         if (!isLikelyMathExpression(expr)) return null
 

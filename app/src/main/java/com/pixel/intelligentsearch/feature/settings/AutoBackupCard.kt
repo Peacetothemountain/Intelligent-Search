@@ -65,6 +65,12 @@ internal fun AutoBackupCard(passphrase: String) {
 
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { folder ->
         if (folder == null) return@rememberLauncherForActivityResult
+        // The passphrase isn't kept in saved state, so if Android recreated the page while the picker was open it is
+        // empty now; ask again rather than turn on backups nobody can restore.
+        if (passphrase.length < AutoBackup.MIN_PASSPHRASE_LENGTH) {
+            Toast.makeText(context, "Type your passphrase again, then choose the folder", Toast.LENGTH_LONG).show()
+            return@rememberLauncherForActivityResult
+        }
         // Deriving the key (600k PBKDF2 rounds) and wrapping it in the Keystore takes seconds: never on the main thread.
         val secret = passphrase.toCharArray()
         scope.launch {
@@ -93,7 +99,7 @@ internal fun AutoBackupCard(passphrase: String) {
             if (!enabled) {
                 Button(
                     onClick = {
-                        if (passphrase.length < 10) {
+                        if (passphrase.length < AutoBackup.MIN_PASSPHRASE_LENGTH) {
                             Toast.makeText(context, "Enter a passphrase of at least 10 characters above first", Toast.LENGTH_SHORT).show()
                         } else {
                             folderPicker.launch(null)

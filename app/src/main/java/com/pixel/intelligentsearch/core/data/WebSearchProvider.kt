@@ -71,6 +71,8 @@ object WebSearchProvider {
     suspend fun getWebSuggestions(query: String, engine: String = "Google"): List<String> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return@withContext emptyList()
-        return@withContext getWebSuggestionsSync(trimmed, engine, timeoutMs = 800)
+        // runInterruptible lets cancellation interrupt the blocking socket read, so the next query's request doesn't
+        // queue behind this one's timeout.
+        return@withContext kotlinx.coroutines.runInterruptible { getWebSuggestionsSync(trimmed, engine, timeoutMs = 800) }
     }
 }

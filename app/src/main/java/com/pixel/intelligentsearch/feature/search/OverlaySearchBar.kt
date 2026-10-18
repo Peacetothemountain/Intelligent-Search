@@ -1,6 +1,8 @@
 package com.pixel.intelligentsearch.feature.search
 
 import com.pixel.intelligentsearch.core.ui.uniqueItems
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.core.net.toUri
 import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
@@ -330,7 +332,9 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                         isKeyboardDismissedByUser = true
                         voice.start()
                     },
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier
+                        .size(48.dp)
+                        .semantics { contentDescription = "Search by voice" }
                 ) {
                     SearchOverlayMicIcon(modifier = Modifier.size(28.dp))
                 }

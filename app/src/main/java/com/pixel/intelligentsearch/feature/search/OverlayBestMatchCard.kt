@@ -178,11 +178,14 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                     }
                 }
                 is AppItem -> {
-                    val appIconState = remember(match.packageName, settingsState.activeIconPack) {
-                        mutableStateOf<AppIconResult?>(peekThemedAppIcon(match.packageName, settingsState.activeIconPack))
+                    // Another profile's copy keeps its own (badged) icon and has no quick actions: those would open
+                    // the personal app, putting the event or alarm in the wrong profile.
+                    val otherProfile = match.userHandle != null && match.userHandle != android.os.Process.myUserHandle()
+                    val appIconState = remember(match.packageName, settingsState.activeIconPack, otherProfile) {
+                        mutableStateOf<AppIconResult?>(if (otherProfile) null else peekThemedAppIcon(match.packageName, settingsState.activeIconPack))
                     }
-                    LaunchedEffect(match.packageName, settingsState.activeIconPack) {
-                        if (appIconState.value == null) {
+                    LaunchedEffect(match.packageName, settingsState.activeIconPack, otherProfile) {
+                        if (appIconState.value == null && !otherProfile) {
                             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                                 val icon = getThemedAppIcon(context, match.packageName, activePackOverride = settingsState.activeIconPack)
                                 appIconState.value = icon
@@ -235,7 +238,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                 modifier = Modifier.size(20.dp)
                             )
                         }
-                        if (match.actions.isNotEmpty()) {
+                        if (match.actions.isNotEmpty() && !otherProfile) {
                             Spacer(modifier = Modifier.height(10.dp))
                             Row(
                                 modifier = Modifier.horizontalScroll(rememberScrollState()),

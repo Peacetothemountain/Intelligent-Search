@@ -97,6 +97,10 @@ fun BackupRestoreScreen(
     val hapticEngine = remember { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
 
     var passphrase by remember { mutableStateOf("") }
+    // Whether the export in progress was started with a passphrase. The passphrase itself is never put in saved state;
+    // if Android recreates the page while the file picker is open, it comes back empty, and the export must not then
+    // quietly become a this-phone-only backup.
+    var exportWantsPassphrase by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var passphraseVisible by remember { mutableStateOf(false) }
     var isPassphraseSavedOnChip by remember { mutableStateOf(false) }
     val hardwareInfo = remember { com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context) }
@@ -173,6 +177,12 @@ fun BackupRestoreScreen(
         android.util.Log.d("BackupRestoreScreen", "exportLauncher callback: uri=$uri, activity=$activity, viewModel=$viewModel")
         // The picker's grant covers this one write; persisting it would use up Android's 512-grant cap,
         // which also holds the folders and photos chosen for file search.
+        if (uri != null && exportWantsPassphrase && passphrase.isBlank()) {
+            // The passphrase was lost while the picker was open: remove the empty file and ask again.
+            runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri) }
+            safeShowToast("Type your passphrase again, then export")
+            return@rememberLauncherForActivityResult
+        }
         if (uri != null && activity != null) {
             if (viewModel == null) {
                 android.util.Log.e("BackupRestoreScreen", "viewModel is NULL in exportLauncher!")
@@ -420,6 +430,7 @@ fun BackupRestoreScreen(
                 Button(
                     onClick = {
                         showNoPassphraseWarningDialog = false
+                        exportWantsPassphrase = false
                         exportLauncher.launch("intelligent_search_backup_${System.currentTimeMillis()}.json")
                     },
                     shape = RoundedCornerShape(16.dp),
@@ -671,6 +682,7 @@ fun BackupRestoreScreen(
                                 // A portable backup can be attacked offline, so its passphrase needs some length.
                                 safeShowToast("Use a passphrase of at least 10 characters")
                             } else {
+                                exportWantsPassphrase = true
                                 exportLauncher.launch("intelligent_search_backup_${System.currentTimeMillis()}.json")
                             }
                         },

@@ -99,6 +99,11 @@ class GlobalSearchProvider : ContentProvider() {
         val customUrl = prefs?.get(SettingsManager.CUSTOM_SEARCH_ENGINE_URL) ?: ""
         // Apps the user hid in-app must not resurface through system global search.
         val hiddenApps = prefs?.get(SettingsManager.HIDDEN_APPS).orEmpty()
+        // The overlay's Search Sources switches apply here too.
+        val appsOn = prefs?.get(SettingsManager.SEARCH_APPS) ?: true
+        val calculatorOn = prefs?.get(SettingsManager.SEARCH_CALCULATOR) ?: true
+        val webOn = prefs?.get(SettingsManager.SEARCH_WEB) ?: true
+        val me = Process.myUserHandle()
 
         val isTorEngine = engine == "Tor Project" || engine == "Tor Browser"
         val isCustomEngine = engine == "Custom"
@@ -128,7 +133,7 @@ class GlobalSearchProvider : ContentProvider() {
                 val results = coordinator.executeSearchSync(queryTerm)
 
                 // 1. Math calculation result if available (its row searches the web, so not for Tor)
-                results.mathResult?.takeUnless { isTorEngine }?.let { math ->
+                results.mathResult?.takeUnless { isTorEngine || !calculatorOn }?.let { math ->
                     val display = when (math) {
                         is MathematicalExpressionEngine.MathEvaluationResult.Computation -> math.formattedResult
                         is MathematicalExpressionEngine.MathEvaluationResult.UnitConversion -> math.formatted
@@ -149,6 +154,8 @@ class GlobalSearchProvider : ContentProvider() {
                 // 2. Apps - In-memory intent synthesis
                 for (app in results.apps) {
                     if (cancellationSignal?.isCanceled == true) break
+                    if (!appsOn) break
+                    if (app.userHandle != null && app.userHandle != me) continue
                     if (app.packageName in hiddenApps) continue
                     if ((app.isPrivateProfile || app.profileType == ProfileType.PRIVATE) && isPrivateSpaceLocked) continue
                     val launchIntentUri = if (app.activityName != null) {
@@ -213,7 +220,7 @@ class GlobalSearchProvider : ContentProvider() {
             }
 
             // 5. Dynamic Autocomplete Suggestions
-            val suggestions = if (isTorEngine || isCustomEngine || !suggestionsEnabled) {
+            val suggestions = if (isTorEngine || isCustomEngine || !suggestionsEnabled || !webOn) {
                 emptyList()
             } else {
                 WebSearchProvider.getCachedSuggestions(queryTerm, engine) ?: emptyList()
@@ -237,7 +244,7 @@ class GlobalSearchProvider : ContentProvider() {
 
         // 6. Web Search Fallback Row (always present, except for Tor: a suggestion row opens in the default browser,
         // which must never be handed an onion address).
-        if (isTorEngine) return cursor
+        if (isTorEngine || !webOn) return cursor
         val searchUrl = buildWebSearchUrl(queryTerm)
         val encodedQuery = Uri.encode(queryTerm)
         cursor.addRow(arrayOf<Any?>(

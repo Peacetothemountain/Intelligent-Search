@@ -128,16 +128,33 @@ class SearchViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     private val _voiceRequests = MutableStateFlow(0)
-    /** Counts requests to start voice search as the screen opens (the assistant gesture with Start Assistant with Voice on). */
+    /**
+     * Bumps for each request to start voice search as the screen opens (the assistant gesture with Start Assistant
+     * with Voice on). The screen claims each with [takeVoiceRequest], which answers true once per request, so a
+     * recreated screen can't repeat one, and a fresh view model after process death can't swallow the next.
+     */
     val voiceRequests: StateFlow<Int> = _voiceRequests.asStateFlow()
-    fun requestVoice() { _voiceRequests.value++ }
+    private var voiceRequestPending = false
+    fun requestVoice() {
+        voiceRequestPending = true
+        _voiceRequests.value++
+    }
+    fun takeVoiceRequest(): Boolean = voiceRequestPending.also { voiceRequestPending = false }
 
     private val _remoteSearchQueryFlow = MutableStateFlow("")
     private var searchJob: Job? = null
 
+    /** Completed once the latest search's local results are published (before its "did you mean" pause). */
+    private var localResultsReady: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
     /** Waits for the local results of the latest [onQueryChanged], so a caller can act on the best match for it. */
     suspend fun awaitSearch() {
-        searchJob?.join()
+        val job = searchJob ?: return
+        val ready = localResultsReady ?: return job.join()
+        kotlinx.coroutines.selects.select<Unit> {
+            ready.onAwait {}
+            job.onJoin {}
+        }
     }
     private var initialDataJob: Job? = null
 
@@ -147,6 +164,14 @@ class SearchViewModel @Inject constructor(
     init {
         // initialize() already indexes contacts (when permitted); loadInitialData() refreshes them if stale.
         corpusIndexManager.initialize()
+
+        // A query handed in with the launch (another app's search, a widget, the assistant) may arrive before the
+        // index is built; search it again the moment the index is ready.
+        viewModelScope.launch {
+            corpusIndexManager.isIndexReady.first { it }
+            val query = _uiState.value.query
+            if (query.isNotBlank()) executeLocalSearch(query)
+        }
 
         // Tier 2: Debounced Remote Web Suggestions (80ms human-pause debounce)
         viewModelScope.launch {
@@ -399,7 +424,8 @@ class SearchViewModel @Inject constructor(
                     allApps = allApps,
                     recentApps = recentApps,
                     calendarEvents = events,
-                    directActions = clipboardActions
+                    // Only the empty screen shows clipboard actions; a query's own actions ("call mom") stay.
+                    directActions = if (it.query.isBlank()) clipboardActions else it.directActions
                 ) }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -427,7 +453,8 @@ class SearchViewModel @Inject constructor(
                 systemToggle = null,
                 volumeSlider = null,
                 bangSuggestions = emptyList(),
-                detectedBangQuery = null
+                detectedBangQuery = null,
+                spellingSuggestion = null
             ) }
             return
         }
@@ -484,6 +511,8 @@ class SearchViewModel @Inject constructor(
         val mockLargeDataset = debugSwitch(SettingsManager.DEBUG_MOCK_LARGE_DATASET)
 
         searchJob?.cancel()
+        val ready = kotlinx.coroutines.CompletableDeferred<Unit>()
+        localResultsReady = ready
         searchJob = viewModelScope.launch(Dispatchers.Default) {
             if (verboseLogging) debugLog("Local query started (length ${newQuery.length})")
             val startTime = System.currentTimeMillis()
@@ -608,7 +637,7 @@ class SearchViewModel @Inject constructor(
             val suggestionsEnabled = settings.searchWeb && customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
-                sources.cachedWebSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(5))
+                sources.cachedWebSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(1))
             } else null
 
             val q = newQuery.lowercase().trim()
@@ -663,6 +692,7 @@ class SearchViewModel @Inject constructor(
                     lastQueryLatency = elapsed
                 )
             }
+            ready.complete(Unit)
 
             if (verboseLogging) {
                 debugLog("Local query finished in ${elapsed} ms: ${resolvedApps.size} apps, ${shownContacts.size} contacts, " +
@@ -752,7 +782,7 @@ class SearchViewModel @Inject constructor(
             return
         }
 
-        val maxResults = settings.webResultsCount.coerceAtLeast(5)
+        val maxResults = settings.webResultsCount.coerceAtLeast(1)
 
         withContext(Dispatchers.IO) {
             try {
@@ -880,6 +910,10 @@ class SearchViewModel @Inject constructor(
     /** Intent for a bang query such as "!yt cats", or null when [query] contains no known bang. */
     fun resolveBangIntent(query: String): android.content.Intent? =
         bangManager.parseBangQuery(query)?.let(bangManager::dispatchBangSearch)
+
+    /** The web address a bang would open (never an app), or null if [query] isn't a bang. */
+    fun resolveBangWebAddress(query: String): String? =
+        bangManager.parseBangQuery(query)?.let(bangManager::bangWebUri)?.toString()
 
     fun notifyAppLaunch(packageName: String) {
         nativeAppPredictionProvider.notifyAppLaunch(packageName)

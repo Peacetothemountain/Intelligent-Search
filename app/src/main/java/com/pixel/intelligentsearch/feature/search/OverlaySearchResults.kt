@@ -125,7 +125,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         }
     }
     val allDisplaySuggestions = remember(matchingRecent, uiState.webSuggestions, settingsState.webResultsCount) {
-        val maxCount = settingsState.webResultsCount.coerceAtLeast(6)
+        val maxCount = settingsState.webResultsCount.coerceAtLeast(1)
         val nonRecentWeb = uiState.webSuggestions.filter { webSugg ->
             matchingRecent.none { it.equals(webSugg, ignoreCase = true) }
         }

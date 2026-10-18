@@ -249,8 +249,7 @@ class BackupManager @Inject constructor(
             } else {
                 // No passphrase: encrypt with a non-exportable AES-256 key generated inside this phone's
                 // Keystore (StrongBox when present, otherwise the TEE). The key never leaves the
-                // hardware, so the file only restores on this phone and this install. The old
-                // APK-embedded "portable" key is kept for restoring legacy files only.
+                // hardware, so the file only restores on this phone and this install.
                 val (key, keyLevel) = strongBoxSecurityManager.getOrCreateSymmetricKey(
                     HARWARE_BACKUP_KEY_ALIAS,
                     purgeIfUnrecoverable = false
@@ -390,16 +389,8 @@ class BackupManager @Inject constructor(
     }
 
     /** Decrypts the backup at [uri], restores it, and returns how many items were restored. */
-    /** Thrown for an old-format file encrypted with the key built into the app: anyone could have made it. */
-    class UntrustedLegacyBackupException : SecurityException(
-        "This backup uses an old format that anyone could have created. Restore it only if you made it yourself."
-    )
-
-    /**
-     * Restores [uri]. Old-format files (no passphrase, not bound to this phone) are refused with
-     * [UntrustedLegacyBackupException] unless [allowLegacy] is set after the user confirms.
-     */
-    suspend fun importFromFile(uri: Uri, passphrase: String?, allowLegacy: Boolean = false): Result<Int> = withContext(Dispatchers.IO) {
+    /** Restores [uri]: a passphrase backup, or one locked to this phone's Keystore. */
+    suspend fun importFromFile(uri: Uri, passphrase: String?): Result<Int> = withContext(Dispatchers.IO) {
         backupResult("importFromFile") {
             val envelopeJson = readBackupText(uri)
                 ?: throw IllegalArgumentException("Could not read backup file")
@@ -464,20 +455,15 @@ class BackupManager @Inject constructor(
                     throw SecurityException("This backup could not be decrypted with this phone's key. It may be corrupt, or from another install.", e)
                 }
             } else {
-                // Legacy portable file (APK-embedded key, not secret); new exports never use this. One
-                // short-lived build also wrote device-key files with this flag off, so try the device key first;
-                // only a file that needs the public key requires the user's go-ahead.
+                // One short-lived build wrote device-key files with this flag off, so the device key is tried. Older
+                // files made with a key built into the app are refused: anyone with the app could read or forge them.
                 val deviceKey = runCatching {
                     strongBoxSecurityManager.getExistingSymmetricKey(HARWARE_BACKUP_KEY_ALIAS)
                 }.getOrNull()
-                val viaDeviceKey = deviceKey?.let { runCatching { BackupCryptoEngine.decryptPayload(cipherBytes, it, iv) }.getOrNull() }
-                if (viaDeviceKey == null && !allowLegacy) throw UntrustedLegacyBackupException()
-                viaDeviceKey ?: try {
-                    val key = BackupCryptoEngine.getPortableDefaultKey()
-                    BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
-                } catch (e: Throwable) {
-                    throw SecurityException("Failed to decrypt backup. The file may be corrupt or encrypted with an incompatible key.")
-                }
+                deviceKey?.let { runCatching { BackupCryptoEngine.decryptPayload(cipherBytes, it, iv) }.getOrNull() }
+                    ?: throw SecurityException(
+                        "This backup was made by an older version of Intelligent Search and can't be restored. Make a new backup with a passphrase."
+                    )
             }
 
             restorePayload(parsePayload(decryptedJson))

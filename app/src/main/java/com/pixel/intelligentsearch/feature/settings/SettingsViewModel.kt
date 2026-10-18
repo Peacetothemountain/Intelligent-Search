@@ -97,22 +97,16 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /** [onUntrustedLegacy] runs instead of [onError] for an old-format file that needs the user's confirmation. */
     fun importBackup(
         uri: Uri,
         passphrase: String?,
-        allowLegacy: Boolean = false,
-        onUntrustedLegacy: () -> Unit = {},
         onSuccess: (Int) -> Unit,
         onError: (String) -> Unit
     ) {
         viewModelScope.launch {
-            backupManager.importFromFile(uri, passphrase, allowLegacy)
+            backupManager.importFromFile(uri, passphrase)
                 .onSuccess(onSuccess)
-                .onFailure {
-                    if (it is com.pixel.intelligentsearch.core.backup.BackupManager.UntrustedLegacyBackupException) onUntrustedLegacy()
-                    else onError(it.localizedMessage ?: "Failed to restore backup")
-                }
+                .onFailure { onError(it.localizedMessage ?: "Failed to restore backup") }
         }
     }
 

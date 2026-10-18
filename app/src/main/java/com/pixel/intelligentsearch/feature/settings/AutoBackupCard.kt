@@ -48,7 +48,7 @@ import kotlinx.coroutines.launch
  * passphrase typed above, so the weekly backups restore on any phone with that passphrase.
  */
 @Composable
-internal fun AutoBackupCard(passphrase: String) {
+internal fun AutoBackupCard(obtainPassphrase: (onReady: (String?) -> Unit) -> Unit) {
     val context = LocalContext.current
     val autoBackup = remember(context) { AutoBackup(context.applicationContext) }
     val scope = rememberCoroutineScope()
@@ -63,7 +63,11 @@ internal fun AutoBackupCard(passphrase: String) {
     val lastSuccess = remember(revision) { autoBackup.lastSuccessMs }
     val lastFailure = remember(revision) { autoBackup.lastFailure }
 
+    // The passphrase chosen for turning backups on, in memory only while the folder picker is open.
+    var pendingPassphrase by remember { mutableStateOf<String?>(null) }
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { folder ->
+        val passphrase = pendingPassphrase.orEmpty()
+        pendingPassphrase = null
         if (folder == null) return@rememberLauncherForActivityResult
         // The passphrase isn't kept in saved state, so if Android recreated the page while the picker was open it is
         // empty now; ask again rather than turn on backups nobody can restore.
@@ -99,10 +103,13 @@ internal fun AutoBackupCard(passphrase: String) {
             if (!enabled) {
                 Button(
                     onClick = {
-                        if (passphrase.length < AutoBackup.MIN_PASSPHRASE_LENGTH) {
-                            Toast.makeText(context, "Enter a passphrase of at least 10 characters above first", Toast.LENGTH_SHORT).show()
-                        } else {
-                            folderPicker.launch(null)
+                        obtainPassphrase { chosen ->
+                            if (chosen == null || chosen.length < AutoBackup.MIN_PASSPHRASE_LENGTH) {
+                                Toast.makeText(context, "Enter a passphrase of at least 10 characters above first", Toast.LENGTH_SHORT).show()
+                            } else {
+                                pendingPassphrase = chosen
+                                folderPicker.launch(null)
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),

@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.feature.settings
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.getValue
 import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.di.appEntryPoint
@@ -97,6 +98,8 @@ fun BackupRestoreScreen(
     val hapticEngine = remember { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
 
     var passphrase by remember { mutableStateOf("") }
+    // The passphrase an export in progress will use, kept in memory only while the file picker is open.
+    var exportPassphrase by remember { mutableStateOf<String?>(null) }
     // Whether the export in progress was started with a passphrase. The passphrase itself is never put in saved state;
     // if Android recreates the page while the file picker is open, it comes back empty, and the export must not then
     // quietly become a this-phone-only backup.
@@ -107,7 +110,6 @@ fun BackupRestoreScreen(
     var showNoPassphraseWarningDialog by remember { mutableStateOf(false) }
     var showRestorePassphraseDialog by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
-    var pendingLegacyUri by remember { mutableStateOf<Uri?>(null) }
     var pendingEnvelope by remember { mutableStateOf<com.pixel.intelligentsearch.core.backup.EncryptedBackupEnvelope?>(null) }
     var dialogPassphrase by remember { mutableStateOf("") }
     var dialogPassphraseVisible by remember { mutableStateOf(false) }
@@ -128,12 +130,8 @@ fun BackupRestoreScreen(
     val backupExoPlayer = rememberBugdroidPlayer(BugdroidClip.BACKUP, enabled = isScreenUnlocked)
     LaunchedEffect(isScreenUnlocked) {
         if (!isScreenUnlocked) return@LaunchedEffect
-        // Keystore (StrongBox) decryption can take hundreds of milliseconds; keep it off the main thread.
-        val saved = withContext(Dispatchers.IO) { viewModel?.getSavedPassphraseFromSecurityChip() }
-        if (!saved.isNullOrBlank()) {
-            passphrase = saved
-            isPassphraseSavedOnChip = true
-        }
+        // Only whether one is saved: the saved passphrase is never decrypted into the field.
+        isPassphraseSavedOnChip = withContext(Dispatchers.IO) { viewModel?.hasSavedPassphraseOnSecurityChip() } == true
     }
 
     val safeShowToast: (String) -> Unit = { message ->
@@ -144,19 +142,14 @@ fun BackupRestoreScreen(
         }
     }
 
-    val performRestore: (Uri, String?, Boolean) -> Unit = { targetUri, targetPass, allowLegacy ->
+    val performRestore: (Uri, String?) -> Unit = { targetUri, targetPass ->
         if (activity != null) {
             viewModel?.importBackup(
                 uri = targetUri,
                 passphrase = targetPass,
-                allowLegacy = allowLegacy,
-                onUntrustedLegacy = { pendingLegacyUri = targetUri },
                 onSuccess = { count ->
                     showRestorePassphraseDialog = false
                     dialogErrorMessage = null
-                    if (!targetPass.isNullOrBlank() && passphrase.isBlank()) {
-                        passphrase = targetPass
-                    }
                     safeShowToast("Intelligent Search Settings Restored")
                 },
                 onError = { err ->
@@ -177,7 +170,7 @@ fun BackupRestoreScreen(
         android.util.Log.d("BackupRestoreScreen", "exportLauncher callback: uri=$uri, activity=$activity, viewModel=$viewModel")
         // The picker's grant covers this one write; persisting it would use up Android's 512-grant cap,
         // which also holds the folders and photos chosen for file search.
-        if (uri != null && exportWantsPassphrase && passphrase.isBlank()) {
+        if (uri != null && exportWantsPassphrase && exportPassphrase.isNullOrBlank()) {
             // The passphrase was lost while the picker was open: remove the empty file and ask again.
             runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri) }
             safeShowToast("Type your passphrase again, then export")
@@ -189,14 +182,16 @@ fun BackupRestoreScreen(
                 safeShowToast("Error: Settings manager is not available")
                 return@rememberLauncherForActivityResult
             }
+            val usedPassphrase = exportPassphrase
+            exportPassphrase = null
             viewModel.exportBackup(
                 uri = uri,
-                passphrase = passphrase.ifBlank { null },
+                passphrase = usedPassphrase,
                 onSuccess = {
                     android.util.Log.d("BackupRestoreScreen", "exportBackup onSuccess callback")
                     safeShowToast(
                         when {
-                            passphrase.isNotBlank() -> "Encrypted backup exported successfully!"
+                            !usedPassphrase.isNullOrBlank() -> "Encrypted backup exported successfully!"
                             else -> "Backup exported. Without a passphrase it can only be restored on this phone."
                         }
                     )
@@ -211,6 +206,33 @@ fun BackupRestoreScreen(
     }
 
     val coroutineScope = rememberCoroutineScope()
+
+    // The passphrase to back up with: what is typed, or else the one saved on the chip. The chip only hands it over
+    // shortly after the user has verified themselves, so when that window has passed the system prompt shows once.
+    fun withPassphrase(onReady: (String?) -> Unit) {
+        val typed = passphrase
+        if (typed.isNotBlank() || !isPassphraseSavedOnChip) {
+            onReady(typed.ifBlank { null })
+            return
+        }
+        fun load(afterPrompt: Boolean) {
+            coroutineScope.launch {
+                val saved = withContext(Dispatchers.IO) { viewModel?.getSavedPassphraseFromSecurityChip() }
+                when {
+                    !saved.isNullOrBlank() -> onReady(saved)
+                    !afterPrompt && activity != null -> context.appEntryPoint.biometricSearchGate().authenticate(
+                        activity = activity,
+                        title = "Verify it’s you",
+                        subtitle = "To use the passphrase saved to ${hardwareInfo.shortChipName}",
+                        onSuccess = { load(afterPrompt = true) },
+                        onFailure = { safeShowToast("Verify it’s you to use the saved passphrase") },
+                    )
+                    else -> safeShowToast("Couldn’t read the saved passphrase. Type it instead.")
+                }
+            }
+        }
+        load(afterPrompt = false)
+    }
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -235,7 +257,7 @@ fun BackupRestoreScreen(
                         withContext(Dispatchers.IO) { viewModel?.getSavedPassphraseFromSecurityChip() } ?: ""
                     }
                     if (effectivePass.isNotBlank()) {
-                        performRestore(uri, effectivePass, false)
+                        performRestore(uri, effectivePass)
                     } else {
                         pendingRestoreUri = uri
                         dialogPassphrase = ""
@@ -243,33 +265,10 @@ fun BackupRestoreScreen(
                         showRestorePassphraseDialog = true
                     }
                 } else {
-                    performRestore(uri, null, false)
+                    performRestore(uri, null)
                 }
             }
         }
-    }
-
-    pendingLegacyUri?.let { legacyUri ->
-        AlertDialog(
-            onDismissRequest = { pendingLegacyUri = null },
-            title = { Text("Restore Old Backup?") },
-            text = {
-                Text(
-                    "This file uses an old backup format with no passphrase, so anyone could have made it. " +
-                        "Restore it only if you created it yourself. It can change your search engine, shortcuts " +
-                        "and hidden apps; sharing settings stay as they are."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    pendingLegacyUri = null
-                    performRestore(legacyUri, null, true)
-                }) { Text("Restore") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingLegacyUri = null }) { Text("Cancel") }
-            }
-        )
     }
 
     if (showRestorePassphraseDialog && pendingRestoreUri != null) {
@@ -336,6 +335,7 @@ fun BackupRestoreScreen(
                         )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
+                    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.text.LocalAutofillHighlightColor provides MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)) {
                     OutlinedTextField(
                         value = dialogPassphrase,
                         onValueChange = {
@@ -364,7 +364,7 @@ fun BackupRestoreScreen(
                         visualTransformation = if (dialogPassphraseVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         // Password type keeps the keyboard from learning or suggesting the passphrase, even when shown.
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(percent = 50)),
                         shape = RoundedCornerShape(percent = 50),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
@@ -374,13 +374,14 @@ fun BackupRestoreScreen(
                             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                         )
                     )
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         val uri = pendingRestoreUri ?: return@Button
-                        performRestore(uri, dialogPassphrase, false)
+                        performRestore(uri, dialogPassphrase)
                     },
                     shape = RoundedCornerShape(16.dp)
                 ) {
@@ -431,6 +432,7 @@ fun BackupRestoreScreen(
                     onClick = {
                         showNoPassphraseWarningDialog = false
                         exportWantsPassphrase = false
+                        exportPassphrase = null
                         exportLauncher.launch("intelligent_search_backup_${System.currentTimeMillis()}.json")
                     },
                     shape = RoundedCornerShape(16.dp),
@@ -489,15 +491,19 @@ fun BackupRestoreScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
                 )
+                // Autofill's highlight is drawn over the whole field, so clipping the field to its own pill shape makes
+                // the highlight a pill; the colour is a light, see-through tint of the theme instead of yellow.
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.text.LocalAutofillHighlightColor provides MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)) {
                 OutlinedTextField(
                     value = passphrase,
-                    onValueChange = {
-                        passphrase = it
-                        if (isPassphraseSavedOnChip && it.isBlank()) {
-                            isPassphraseSavedOnChip = false
-                        }
+                    onValueChange = { passphrase = it },
+                    placeholder = {
+                        Text(
+                            if (isPassphraseSavedOnChip) "Saved to ${hardwareInfo.shortChipName} · type to replace" else "Enter passphrase (optional)",
+                            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                            fontSize = 14.sp
+                        )
                     },
-                    placeholder = { Text("Enter passphrase (optional)", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, fontSize = 14.sp) },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Outlined.Lock,
@@ -509,13 +515,7 @@ fun BackupRestoreScreen(
                     trailingIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (passphrase.isNotEmpty()) {
-                                IconButton(onClick = {
-                                    passphrase = ""
-                                    if (isPassphraseSavedOnChip) {
-                                        isPassphraseSavedOnChip = false
-                                        viewModel?.clearSavedPassphraseFromSecurityChip()
-                                    }
-                                }, modifier = Modifier.size(32.dp)) {
+                                IconButton(onClick = { passphrase = "" }, modifier = Modifier.size(32.dp)) {
                                     Icon(
                                         imageVector = Icons.Default.Close,
                                         contentDescription = "Clear",
@@ -540,7 +540,8 @@ fun BackupRestoreScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .clip(RoundedCornerShape(percent = 50)),
                     shape = RoundedCornerShape(percent = 50),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -550,6 +551,7 @@ fun BackupRestoreScreen(
                         unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
                 )
+                }
 
                 Row(
                     modifier = Modifier
@@ -572,6 +574,9 @@ fun BackupRestoreScreen(
                                         when {
                                             outcome == com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager.PassphraseSave.SAVED -> {
                                                 isPassphraseSavedOnChip = true
+                                                // Entered once, then gone: the passphrase lives only on the chip now.
+                                                passphrase = ""
+                                                passphraseVisible = false
                                                 hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
                                                 safeShowToast("Passphrase saved to ${hardwareInfo.shortChipName}")
                                             }
@@ -609,7 +614,7 @@ fun BackupRestoreScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            if (isPassphraseSavedOnChip) "Saved to ${hardwareInfo.shortChipName}" else "Save to ${hardwareInfo.shortChipName}",
+                            if (isPassphraseSavedOnChip && passphrase.isBlank()) "Saved to ${hardwareInfo.shortChipName}" else "Save to ${hardwareInfo.shortChipName}",
                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
@@ -676,14 +681,17 @@ fun BackupRestoreScreen(
                     Button(
                         onClick = {
                             hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
-                            if (passphrase.isBlank()) {
-                                showNoPassphraseWarningDialog = true
-                            } else if (passphrase.length < 10) {
-                                // A portable backup can be attacked offline, so its passphrase needs some length.
-                                safeShowToast("Use a passphrase of at least 10 characters")
-                            } else {
-                                exportWantsPassphrase = true
-                                exportLauncher.launch("intelligent_search_backup_${System.currentTimeMillis()}.json")
+                            withPassphrase { chosen ->
+                                if (chosen == null) {
+                                    showNoPassphraseWarningDialog = true
+                                } else if (chosen.length < 10) {
+                                    // A portable backup can be attacked offline, so its passphrase needs some length.
+                                    safeShowToast("Use a passphrase of at least 10 characters")
+                                } else {
+                                    exportPassphrase = chosen
+                                    exportWantsPassphrase = true
+                                    exportLauncher.launch("intelligent_search_backup_${System.currentTimeMillis()}.json")
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -724,7 +732,7 @@ fun BackupRestoreScreen(
                 }
             }
 
-            AutoBackupCard(passphrase = passphrase)
+            AutoBackupCard(obtainPassphrase = { onReady -> withPassphrase(onReady) })
 
             // Extra room above the bugdroid so its whole video shows below the cards.
             Spacer(modifier = Modifier.height(40.dp))

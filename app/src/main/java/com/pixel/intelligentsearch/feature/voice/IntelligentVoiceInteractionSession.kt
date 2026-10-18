@@ -1,20 +1,15 @@
 package com.pixel.intelligentsearch.feature.voice
 
-import android.Manifest
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
-import androidx.core.content.ContextCompat
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.core.view.WindowCompat
@@ -24,7 +19,6 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import android.service.voice.VoiceInteractionSession
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import com.pixel.intelligentsearch.core.haptics.PixelHapticType
-import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.widget.WidgetActivity
 
 /**
@@ -40,7 +34,6 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
     private val sessionLifecycleOwner = SessionLifecycleOwner(
         fallbackOnBackPressed = { hide() }
     )
-    private var recognitionManager: VoiceRecognitionManager? = null
     /** Set while handing the query to full search, so hiding the sheet doesn't play the dismiss haptic. */
     private var handingOffToSearch = false
 
@@ -77,40 +70,11 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
             bindViewTreeOwners(w.decorView)
         }
 
-        recognitionManager = VoiceRecognitionManager(context)
         Log.d(TAG, "IntelligentVoiceInteractionSession initialized.")
     }
 
-    override fun onCreateContentView(): View {
-        return ComposeView(context).apply {
-            setViewCompositionStrategy(
-                ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool
-            )
-            bindViewTreeOwners(this)
-
-            setContent {
-                IntelligentSearchTheme {
-                    val rm = recognitionManager
-                    if (rm != null) {
-                        VoiceAssistantBottomSheet(
-                            state = rm.state.value,
-                            audioAmplitude = { rm.amplitude.floatValue },
-                            spokenText = rm.recognizedText.value,
-                            errorMessage = rm.errorMessage.value,
-                            onMicClick = { rm.toggleListening() },
-                            onDismiss = { hide() },
-                            onOpenFullSearch = { query ->
-                                launchFullSearch(query)
-                            },
-                            onQuickPromptClick = { prompt ->
-                                launchFullSearch(prompt)
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
+    // No content view: the session draws nothing. It only hands off to the search screen, so nothing can flash on
+    // screen between the assistant gesture and search appearing.
 
     override fun onComputeInsets(insets: Insets) {
         super.onComputeInsets(insets)
@@ -129,15 +93,12 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
         // Haptic feedback on assistant invocation
         PixelHapticEngine.get(context).performHaptic(PixelHapticType.OVERLAY_OPEN)
 
-        // Normally the assistant gesture just opens search with the keyboard ready; the microphone starts only if the
-        // user turned on Start Assistant with Voice (and has allowed the microphone).
-        if (startsWithVoice()) recognitionManager?.startListening() else launchFullSearch("")
+        // The assistant gesture always opens the search screen; with Start Assistant with Voice on, it asks that
+        // screen to start listening.
+        launchFullSearch("", startVoice = startsWithVoice())
     }
 
     private fun startsWithVoice(): Boolean {
-        val micAllowed = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-            PackageManager.PERMISSION_GRANTED
-        if (!micAllowed) return false
         // Settings live in credential-protected storage; before the first unlock keep the default (off).
         return try {
             context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)[SettingsManager.ASSISTANT_STARTS_WITH_VOICE]
@@ -147,9 +108,6 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
     }
 
     override fun onHide() {
-        // Cancel rather than stop: a stopped recognizer still delivers results (and their haptics) after
-        // the sheet is gone, and stays bound until the session is destroyed.
-        recognitionManager?.cancel()
         sessionLifecycleOwner.onPause()
         sessionLifecycleOwner.onStop()
         // Every dismissal (close, scrim, back) ends here, so the haptic plays once per hide.
@@ -159,8 +117,6 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
     }
 
     override fun onDestroy() {
-        recognitionManager?.destroy()
-        recognitionManager = null
         sessionLifecycleOwner.onDestroy()
         super.onDestroy()
     }
@@ -173,7 +129,7 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
         }
     }
 
-    private fun launchFullSearch(query: String) {
+    private fun launchFullSearch(query: String, startVoice: Boolean = false) {
         // Safe over the lock screen: the search activities never call setShowWhenLocked, so the
         // system keeps them behind the keyguard until the user unlocks, then shows the search.
         val intent = Intent(context, WidgetActivity::class.java).apply {
@@ -182,9 +138,11 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
             putExtra(SearchManager.QUERY, query)
             putExtra(Intent.EXTRA_TEXT, query)
             putExtra("voice_source", "assistant_overlay")
+            putExtra(EXTRA_START_VOICE, startVoice)
         }
         try {
-            context.startActivity(intent)
+            // The assistant's own launch call: allowed from the assistant gesture without a background-start exemption.
+            startAssistantActivity(intent)
         } catch (e: Exception) {
             // A blocked or failed launch must not crash the assistant process.
             Log.w(TAG, "Could not open full search from the assistant session", e)
@@ -195,5 +153,7 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
 
     companion object {
         private const val TAG = "VoiceInteractionSession"
+        /** Asks the search screen to start voice input as it opens (Start Assistant with Voice). */
+        const val EXTRA_START_VOICE = "start_voice"
     }
 }

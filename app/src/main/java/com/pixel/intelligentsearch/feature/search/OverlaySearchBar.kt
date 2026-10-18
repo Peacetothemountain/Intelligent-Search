@@ -348,13 +348,13 @@ internal fun OverlaySearchBar(s: OverlayScope) {
             }
 
             // Voice search: the keyboard drops while the search bar listens; while listening the mic becomes
-            // Rambler's check button, which finishes and keeps the words.
+            // Rambler's check button, which finishes and keeps the words. Gboard draws it in the secondary colour.
             if (voice.active) {
                 androidx.compose.material3.FilledIconButton(
                     onClick = { voice.finish() },
                     colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
+                        containerColor = MaterialTheme.colorScheme.secondary,
+                        contentColor = MaterialTheme.colorScheme.onSecondary
                     ),
                     modifier = Modifier.size(40.dp)
                 ) { Icon(Icons.Default.Check, contentDescription = "Done speaking", modifier = Modifier.size(22.dp)) }

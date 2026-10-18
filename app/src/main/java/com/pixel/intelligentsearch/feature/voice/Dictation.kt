@@ -39,6 +39,8 @@ class Dictation(private val context: Context) {
     private var onProblem: ((String) -> Unit)? = null
     private var startedAt = 0L
     private var failures = 0
+    /** Set once the on-device engine has dropped the connection twice; the default engine is used from then on. */
+    private var preferDefaultEngine = false
     private val finishTimeout = Runnable { deliver() }
     private val maxLength = Runnable { finish() }
 
@@ -55,6 +57,7 @@ class Dictation(private val context: Context) {
         heard.clear()
         pending = ""
         failures = 0
+        preferDefaultEngine = false
         startedAt = System.currentTimeMillis()
         phase.value = Phase.Starting
         main.postDelayed(maxLength, MAX_LENGTH_MS)
@@ -83,7 +86,7 @@ class Dictation(private val context: Context) {
     private fun listen() {
         release()
         val r = try {
-            if (Build.VERSION.SDK_INT >= 33 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+            if (!preferDefaultEngine && Build.VERSION.SDK_INT >= 33 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
                 SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
             } else {
                 SpeechRecognizer.createSpeechRecognizer(context)
@@ -99,9 +102,10 @@ class Dictation(private val context: Context) {
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-            // Ask for long silences before the engine gives up; engines that ignore this just restart.
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 6_000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 6_000L)
+            // Ask for long silences before the engine gives up; engines that ignore this just restart. Google's
+            // on-device engine reads these as Integer and drops the segmented session if they aren't.
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 6_000)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 6_000)
             if (Build.VERSION.SDK_INT >= 33) {
                 putExtra(RecognizerIntent.EXTRA_SEGMENTED_SESSION, RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS)
             }
@@ -144,10 +148,14 @@ class Dictation(private val context: Context) {
                 SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ->
                     fail("Your language isn't supported by the speech recognizer.")
                 else -> {
+                    Log.i(TAG, "Recognizer error $error in phase ${phase.value}, failures=$failures")
                     if (phase.value == Phase.Finishing) { deliver(); return }
                     // Silence, no match, a busy or reconnecting engine: keep the words so far and keep listening.
                     if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) failures++
-                    if (failures > 4) fail("Voice search stopped. Tap the mic to try again.") else sessionEnded()
+                    // An on-device engine that keeps dropping the connection (seen right after an app update) is
+                    // swapped for the default engine rather than giving up.
+                    if (failures >= 2) preferDefaultEngine = true
+                    if (failures > 6) fail("Voice search stopped. Tap the mic to try again.") else sessionEnded()
                 }
             }
         }
@@ -161,7 +169,8 @@ class Dictation(private val context: Context) {
         when (phase.value) {
             Phase.Finishing -> deliver()
             Phase.Idle -> Unit
-            else -> main.postDelayed({ if (phase.value == Phase.Starting || phase.value == Phase.Listening) listen() }, RESTART_DELAY_MS)
+            // Restarts back off a little with each failure, so a struggling engine gets time to recover.
+            else -> main.postDelayed({ if (phase.value == Phase.Starting || phase.value == Phase.Listening) listen() }, RESTART_DELAY_MS * (1 + failures))
         }
     }
 

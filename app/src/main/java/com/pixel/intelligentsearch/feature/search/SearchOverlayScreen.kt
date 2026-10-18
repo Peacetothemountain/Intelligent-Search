@@ -339,9 +339,33 @@ fun SearchOverlayScreen(
         }
     }
 
+    // Voice search, Rambler style: listens until the check button, then fills in the tidied words; the keyboard stays down.
+    val voice = rememberOverlayVoice(
+        onHeard = { text ->
+            ui.textFieldValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
+            ui.hasStartedTyping = true
+            viewModel.onQueryChanged(text)
+            viewModel.addSearchHistory(text)
+        },
+        onProblem = { message -> android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show() },
+    )
+    val voiceRequests by viewModel.voiceRequests.collectAsStateWithLifecycle()
+    // Saved, so recreating the screen (rotation) doesn't start listening again for a request already handled.
+    var handledVoiceRequest by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
+    LaunchedEffect(voiceRequests) {
+        if (voiceRequests > handledVoiceRequest) {
+            handledVoiceRequest = voiceRequests
+            ui.isKeyboardDismissedByUser = true
+            voice.start()
+        }
+    }
+
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
-    LaunchedEffect(windowInfo.isWindowFocused, transitionState.targetState, showTutorial, isKeyboardDisabled, isKeyboardDismissedByUser) {
-        if (windowInfo.isWindowFocused && transitionState.targetState && !isKeyboardDisabled && !showTutorial && !isKeyboardDismissedByUser) {
+    // The keyboard never rises over the listening bar: it waits until voice is done or cancelled.
+    LaunchedEffect(windowInfo.isWindowFocused, transitionState.targetState, showTutorial, isKeyboardDisabled, isKeyboardDismissedByUser, voice.active) {
+        if (voice.active) {
+            keyboardController?.hide()
+        } else if (windowInfo.isWindowFocused && transitionState.targetState && !isKeyboardDisabled && !showTutorial && !isKeyboardDismissedByUser) {
             try {
                 focusRequester.requestFocus()
             } catch (_: Exception) {}
@@ -355,7 +379,8 @@ fun SearchOverlayScreen(
                 hasStartedTyping = false
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 hasStartedTyping = false
-                isKeyboardDismissedByUser = false
+                // Resuming into a voice request (the assistant gesture) keeps the keyboard down.
+                if (!voice.active) isKeyboardDismissedByUser = false
                 val isContactsEnabled = settingsState.searchContacts
                 if (isContactsEnabled) {
                     viewModel.refreshContacts()
@@ -495,27 +520,6 @@ fun SearchOverlayScreen(
             val match = bestMatch
             if (match is FileItem) uiState.files.filter { it != match }
             else uiState.files
-        }
-    }
-
-    // Voice search, Rambler style: listens until the check button, then fills in the tidied words; the keyboard stays down.
-    val voice = rememberOverlayVoice(
-        onHeard = { text ->
-            ui.textFieldValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
-            ui.hasStartedTyping = true
-            viewModel.onQueryChanged(text)
-            viewModel.addSearchHistory(text)
-        },
-        onProblem = { message -> android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show() },
-    )
-    val voiceRequests by viewModel.voiceRequests.collectAsStateWithLifecycle()
-    // Saved, so recreating the screen (rotation) doesn't start listening again for a request already handled.
-    var handledVoiceRequest by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
-    LaunchedEffect(voiceRequests) {
-        if (voiceRequests > handledVoiceRequest) {
-            handledVoiceRequest = voiceRequests
-            ui.isKeyboardDismissedByUser = true
-            voice.start()
         }
     }
 

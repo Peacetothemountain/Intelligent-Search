@@ -52,6 +52,8 @@ internal class OverlayScope(
     val fileWeight: Int,
     val suggestionsEnabled: Boolean,
     val focusRequester: FocusRequester,
+    /** Voice search for the search bar's mic button and the assistant gesture. */
+    val voice: OverlayVoice,
     val listState: LazyListState,
     /** Launches an app: package, profile (null = personal) and launcher activity if known. */
     val performLaunch: (String, android.os.UserHandle?, String?) -> Unit,

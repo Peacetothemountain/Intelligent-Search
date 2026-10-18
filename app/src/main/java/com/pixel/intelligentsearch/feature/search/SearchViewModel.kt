@@ -127,6 +127,11 @@ class SearchViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState = _uiState.asStateFlow()
 
+    private val _voiceRequests = MutableStateFlow(0)
+    /** Counts requests to start voice search as the screen opens (the assistant gesture with Start Assistant with Voice on). */
+    val voiceRequests: StateFlow<Int> = _voiceRequests.asStateFlow()
+    fun requestVoice() { _voiceRequests.value++ }
+
     private val _remoteSearchQueryFlow = MutableStateFlow("")
     private var searchJob: Job? = null
     private var initialDataJob: Job? = null

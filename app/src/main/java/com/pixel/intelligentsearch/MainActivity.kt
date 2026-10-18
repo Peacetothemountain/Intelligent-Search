@@ -107,6 +107,15 @@ open class MainActivity : AppCompatActivity() {
         } else {
             searchViewModel.onQueryChanged("")
         }
+        requestVoiceIfAsked(intent)
+    }
+
+    /** The assistant gesture with Start Assistant with Voice on asks the search screen to start listening. */
+    private fun requestVoiceIfAsked(intent: Intent?) {
+        if (intent?.getBooleanExtra(com.pixel.intelligentsearch.feature.voice.IntelligentVoiceInteractionSession.EXTRA_START_VOICE, false) == true) {
+            applySoftInputMode(keyboardVisible = false)
+            searchViewModel.requestVoice()
+        }
     }
 
     /** The background blur the settings and thermal state ask for. */
@@ -188,7 +197,8 @@ open class MainActivity : AppCompatActivity() {
         if (!queryExtra.isNullOrBlank()) {
             searchViewModel.onQueryChanged(queryExtra)
         }
-        
+        requestVoiceIfAsked(intent)
+
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             val settingsState by settingsViewModel.settingsState.collectAsStateWithLifecycle()

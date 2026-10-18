@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import android.Manifest
-import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -20,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.Event
@@ -60,7 +58,7 @@ import com.pixel.intelligentsearch.core.navigation.Route
 import com.pixel.intelligentsearch.core.system.SearchRoleManager
 
 /** One thing a new user sets up: what it gives them, and whether it is done. */
-enum class SetupStep { CONTACTS, CALENDAR, FILES, ASSISTANT, SEARCH_BAR }
+enum class SetupStep { CONTACTS, CALENDAR, FILES, SEARCH_BAR }
 
 /** Which setup steps apply on this phone and which are done; read fresh every time the page is shown. */
 object SetupChecklist {
@@ -75,9 +73,6 @@ object SetupChecklist {
         SetupStep.CONTACTS -> granted(context, Manifest.permission.READ_CONTACTS) && prefs[SettingsManager.SEARCH_CONTACTS]
         SetupStep.CALENDAR -> granted(context, Manifest.permission.READ_CALENDAR) && prefs[SettingsManager.SEARCH_CALENDAR]
         SetupStep.FILES -> UserGrantedFiles.folderUris(prefs).isNotEmpty() || UserGrantedFiles.mediaUris(prefs).isNotEmpty()
-        SetupStep.ASSISTANT -> runCatching {
-            context.getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_ASSISTANT) == true
-        }.getOrDefault(false)
         SetupStep.SEARCH_BAR -> SearchRoleManager.isSearchRoleHeld(context)
     }
 
@@ -204,7 +199,6 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                         SetupStep.CONTACTS -> Triple("Contacts", "Find people as you type, then call or message them.", Icons.Outlined.Contacts)
                         SetupStep.CALENDAR -> Triple("Calendar", "See upcoming events and search them.", Icons.Outlined.Event)
                         SetupStep.FILES -> Triple("Files", "Choose the folders to search. Nothing else is read.", Icons.Outlined.Folder)
-                        SetupStep.ASSISTANT -> Triple("Default Assistant", "Open Intelligent Search with your phone's assistant gesture.", Icons.Outlined.AutoAwesome)
                         SetupStep.SEARCH_BAR -> Triple("Home Screen Search Bar", "Power the Pixel search bar on your home screen.", Icons.Outlined.Search)
                     }
                     SettingsRow(
@@ -218,11 +212,6 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                                 SetupStep.CALENDAR ->
                                     if (isDone) onNavigate(Route.SearchSources) else calendarLauncher.launch(Manifest.permission.READ_CALENDAR)
                                 SetupStep.FILES -> onNavigate(Route.FileSearch)
-                                SetupStep.ASSISTANT -> runCatching {
-                                    context.startActivity(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                }.recoverCatching {
-                                    context.startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                }
                                 SetupStep.SEARCH_BAR ->
                                     if (isDone || SearchRoleManager.isListedAsSearchEngine(context)) {
                                         SearchRoleManager.openDefaultSearchEngineSettings(context)

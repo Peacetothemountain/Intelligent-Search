@@ -498,6 +498,27 @@ fun SearchOverlayScreen(
         }
     }
 
+    // Voice search, Rambler style: listens until the check button, then fills in the tidied words; the keyboard stays down.
+    val voice = rememberOverlayVoice(
+        onHeard = { text ->
+            ui.textFieldValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
+            ui.hasStartedTyping = true
+            viewModel.onQueryChanged(text)
+            viewModel.addSearchHistory(text)
+        },
+        onProblem = { message -> android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show() },
+    )
+    val voiceRequests by viewModel.voiceRequests.collectAsStateWithLifecycle()
+    // Saved, so recreating the screen (rotation) doesn't start listening again for a request already handled.
+    var handledVoiceRequest by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
+    LaunchedEffect(voiceRequests) {
+        if (voiceRequests > handledVoiceRequest) {
+            handledVoiceRequest = voiceRequests
+            ui.isKeyboardDismissedByUser = true
+            voice.start()
+        }
+    }
+
     val sections = OverlayScope(
         onOpenSettings = onOpenSettings,
         viewModel = viewModel,
@@ -513,6 +534,7 @@ fun SearchOverlayScreen(
         fileWeight = fileWeight,
         suggestionsEnabled = suggestionsEnabled,
         focusRequester = focusRequester,
+        voice = voice,
         listState = searchResultsListState,
         performLaunch = performLaunch,
         performAppLaunch = performAppLaunch,
@@ -674,7 +696,8 @@ fun SearchOverlayScreen(
                     .fillMaxHeight()
                     .widthIn(max = if (useTwoPane) 1200.dp else 720.dp)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    // Nearly edge to edge: just enough margin to keep the panel's rounded outline on screen.
+                    .padding(horizontal = 4.dp)
                     .padding(bottom = 16.dp)
                     .graphicsLayer {
                         val progress = overlayProgressAnim.value.coerceIn(0.001f, 1f)

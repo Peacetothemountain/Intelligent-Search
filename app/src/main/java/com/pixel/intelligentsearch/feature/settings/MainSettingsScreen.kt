@@ -150,29 +150,6 @@ fun MainSettingsScreen(
 
             SettingsCard {
                 SettingsRow(
-                    title = "Default Digital Assistant",
-                    subtitle = "Manage Android Assistant Settings.",
-                    icon = Icons.Outlined.AutoAwesome,
-                    onClick = {
-                        val intent = Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS)
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        try {
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            android.util.Log.w("IntelligentSearch", "Unexpected error", e)
-                            // Fallback if the specific intent is not available
-                            val fallbackIntent = Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
-                            fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            try {
-                                context.startActivity(fallbackIntent)
-                            } catch (e2: Exception) {
-                                android.util.Log.w("IntelligentSearch", "Unexpected error", e2)
-                            }
-                        }
-                    },
-                    showDivider = true,
-                )
-                SettingsRow(
                     title = "Google Activity",
                     subtitle = "View and Manage Your Google Activity.",
                     icon = Icons.Outlined.History,

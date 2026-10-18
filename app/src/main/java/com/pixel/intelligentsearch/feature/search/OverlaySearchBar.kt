@@ -67,6 +67,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
     val showTutorial = s.showTutorial
     val searchProviderName = s.searchProviderName
     val focusRequester = s.focusRequester
+    val voice = s.voice
     val performAppLaunch = s.performAppLaunch
     val closeOverlay = s.closeOverlay
     val launchWebSearch = s.launchWebSearch
@@ -137,7 +138,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
             modifier = Modifier
                 .tutorialTarget(1, prefs)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 10.dp, vertical = 8.dp)
                 .graphicsLayer {
                     shape = searchBarShape
                     clip = true
@@ -148,11 +149,13 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     cornerRadius = searchBarCornerRadius,
                     alpha = if (settingsState.pillOpacity == 50) 1f else (settingsState.pillOpacity / 100f).coerceIn(0f, 1f)
                 )
+                .listeningGlow(active = voice.active, level = { voice.level }, cornerRadius = searchBarCornerRadius)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 ) {
                     try {
+                        if (voice.active) voice.stop()
                         isKeyboardDismissedByUser = false
                         focusRequester.requestFocus()
                         keyboardController?.show()
@@ -166,9 +169,25 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                 .padding(horizontal = 24.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            SearchOverlayLensIcon(
-                modifier = Modifier.size(28.dp)
-            )
+            if (voice.active) {
+                // Rambler's cancel: stop listening and drop what was heard.
+                androidx.compose.material3.FilledTonalIconButton(
+                    onClick = {
+                        voice.stop()
+                        viewModel.onQueryChanged("")
+                        textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
+                    },
+                    colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.size(36.dp)
+                ) { Icon(Icons.Default.Close, contentDescription = "Cancel voice search", modifier = Modifier.size(20.dp)) }
+            } else {
+                SearchOverlayLensIcon(
+                    modifier = Modifier.size(28.dp)
+                )
+            }
             Spacer(modifier = Modifier.width(16.dp))
             Column(
                 modifier = Modifier.weight(1f),
@@ -191,6 +210,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                 androidx.compose.foundation.text.BasicTextField(
                     value = textFieldValue,
                     onValueChange = { newTfv ->
+                        if (voice.active) voice.stop()
                         textFieldValue = newTfv
                         val newQuery = newTfv.text
                         if (newQuery.isNotEmpty()) {
@@ -271,7 +291,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.CenterStart) {
                             if (uiState.query.isEmpty()) {
-                                Text("Search...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex)
+                                Text(if (voice.active) "Listening..." else "Search...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex)
                             } else if (ghostTextAnnotated != null) {
                                 Text(
                                     text = ghostTextAnnotated,
@@ -326,6 +346,43 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     )
                 }
             }
+
+            // Voice search: the keyboard drops while the search bar listens; while listening the mic becomes
+            // Rambler's check button, which finishes and keeps the words.
+            if (voice.active) {
+                androidx.compose.material3.FilledIconButton(
+                    onClick = { voice.finish() },
+                    colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    modifier = Modifier.size(40.dp)
+                ) { Icon(Icons.Default.Check, contentDescription = "Done speaking", modifier = Modifier.size(22.dp)) }
+            } else {
+                // Gboard Rambler's voice key: a sparkle mic in a soft tonal circle.
+                androidx.compose.material3.FilledTonalIconButton(
+                    onClick = {
+                        focusManager.clearFocus(force = true)
+                        keyboardController?.hide()
+                        isKeyboardDismissedByUser = true
+                        voice.start()
+                    },
+                    colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_mic_spark),
+                        contentDescription = "Search by voice",
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            // A clear gap between the voice button and settings.
+            Spacer(modifier = Modifier.width(6.dp))
 
             IconButton(
                 onClick = { 

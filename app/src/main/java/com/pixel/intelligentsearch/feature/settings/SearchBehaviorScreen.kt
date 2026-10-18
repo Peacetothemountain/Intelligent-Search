@@ -147,7 +147,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         var assistantVoice by rememberSetting(SettingsManager.ASSISTANT_STARTS_WITH_VOICE)
                         SettingsRowToggle(
                             title = "Start Assistant with Voice",
-                            subtitle = "The Assistant Gesture Starts Listening Right Away. Off, It Opens Search with the Keyboard Ready.",
+                            subtitle = "Only Applies If Intelligent Search Is Your Default Digital Assistant. On, the Assistant Gesture Opens Search and Starts the Microphone Right Away. Off, It Opens Search with the Keyboard Ready and the Microphone Waits for You to Tap It.",
                             icon = Icons.Outlined.Mic,
                             isChecked = assistantVoice,
                             onCheckedChange = { assistantVoice = it },

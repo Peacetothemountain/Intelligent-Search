@@ -67,7 +67,14 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     title = "Contact Menu",
                     subtitle = "Opens Contact Picker.",
                     icon = Icons.Outlined.Contacts,
-                    onClick = { launcher.launch(null) },
+                    onClick = {
+                        // Not every device has a contact picker (minimal builds, some work profiles).
+                        try {
+                            launcher.launch(null)
+                        } catch (e: android.content.ActivityNotFoundException) {
+                            Toast.makeText(context, "No contact picker available", Toast.LENGTH_SHORT).show()
+                        }
+                    },
                     showDivider = true
                 )
                 var directCall by rememberSetting(SettingsManager.CONTACT_DIRECT_CALL)

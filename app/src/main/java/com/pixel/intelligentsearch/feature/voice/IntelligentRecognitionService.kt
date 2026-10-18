@@ -32,6 +32,8 @@ class IntelligentRecognitionService : RecognitionService() {
     }
 
     private var delegate: SpeechRecognizer? = null
+    /** The recognizer a model download was asked of; it binds asynchronously, so it lives until the service ends. */
+    private var downloadDelegate: SpeechRecognizer? = null
 
     override fun onStartListening(recognizerIntent: Intent, listener: Callback) {
         destroyDelegate()
@@ -97,17 +99,20 @@ class IntelligentRecognitionService : RecognitionService() {
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onTriggerModelDownload(recognizerIntent: Intent) {
+        runCatching { downloadDelegate?.destroy() }
         val recognizer = createDelegate(this) ?: return
+        downloadDelegate = recognizer
         try {
+            // Destroying here would cancel the request before the engine has even connected; onDestroy cleans up.
             recognizer.triggerModelDownload(recognizerIntent)
         } catch (e: Exception) {
             Log.w(TAG, "Model download request failed", e)
-        } finally {
-            recognizer.destroy()
         }
     }
 
     override fun onDestroy() {
+        runCatching { downloadDelegate?.destroy() }
+        downloadDelegate = null
         destroyDelegate()
         super.onDestroy()
     }

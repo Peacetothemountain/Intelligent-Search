@@ -29,6 +29,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -53,19 +56,26 @@ internal fun AutoBackupCard(passphrase: String) {
     var revision by remember { mutableIntStateOf(0) }
     var isRunning by remember { mutableStateOf(false) }
     val enabled = remember(revision) { autoBackup.isEnabled }
-    val folderName = remember(revision) { autoBackup.folderName() }
+    // A DocumentsProvider query (possibly a slow cloud provider), so it runs off the main thread.
+    val folderName by produceState<String?>(initialValue = null, revision) {
+        value = withContext(Dispatchers.IO) { autoBackup.folderName() }
+    }
     val lastSuccess = remember(revision) { autoBackup.lastSuccessMs }
     val lastFailure = remember(revision) { autoBackup.lastFailure }
 
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { folder ->
         if (folder == null) return@rememberLauncherForActivityResult
-        val turnedOn = autoBackup.enable(folder, passphrase.toCharArray())
-        Toast.makeText(
-            context,
-            if (turnedOn) "Automatic backup is on" else "Couldn't protect the backup key on this phone",
-            Toast.LENGTH_SHORT
-        ).show()
-        revision++
+        // Deriving the key (600k PBKDF2 rounds) and wrapping it in the Keystore takes seconds: never on the main thread.
+        val secret = passphrase.toCharArray()
+        scope.launch {
+            val turnedOn = withContext(Dispatchers.IO) { autoBackup.enable(folder, secret) }
+            Toast.makeText(
+                context,
+                if (turnedOn) "Automatic backup is on" else "Couldn't protect the backup key on this phone",
+                Toast.LENGTH_SHORT
+            ).show()
+            revision++
+        }
     }
 
     Card(

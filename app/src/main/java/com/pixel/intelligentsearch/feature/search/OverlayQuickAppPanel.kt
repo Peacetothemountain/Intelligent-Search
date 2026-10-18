@@ -35,14 +35,13 @@ internal fun OverlayQuickAppPanel(s: OverlayScope) {
     val context = LocalContext.current
 
     if (settingsState.quickSearchHorizontal) {
-        val pillPackages by remember {
-            derivedStateOf {
-                // Chosen pills are shown as listed; recent apps are capped by the shortcut count.
-                if (settingsState.contextAwareQuickApps) {
-                    uiState.recentApps.map { it.packageName }.distinct().take(settingsState.shortcutResultsCount)
-                } else {
-                    settingsState.searchPills.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
-                }
+        // Keyed on plain scope values (not snapshot state), so it follows recent apps and settings as they change.
+        val pillPackages = remember(settingsState.contextAwareQuickApps, settingsState.searchPills, settingsState.shortcutResultsCount, uiState.recentApps) {
+            // Chosen pills are shown as listed; recent apps are capped by the shortcut count.
+            if (settingsState.contextAwareQuickApps) {
+                uiState.recentApps.map { it.packageName }.distinct().take(settingsState.shortcutResultsCount)
+            } else {
+                settingsState.searchPills.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
             }
         }
         val dynamicScale = if (pillPackages.size > 6) (6f / pillPackages.size.toFloat()).coerceIn(0.6f, 1f) else 1f

@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.core.search
 
 import com.pixel.intelligentsearch.di.ApplicationScope
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -210,7 +211,9 @@ class CorpusIndexManager @Inject constructor(
                 android.os.SystemClock.elapsedRealtime() - lastContactsIndexAtMs < onlyIfOlderThanMs
             ) return
             try {
-                val contacts = sources.allContacts()
+                // With contact search off nothing is indexed, so no surface (global search included) can show them.
+                val contactsOn = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)[SettingsManager.SEARCH_CONTACTS]
+                val contacts = if (contactsOn) sources.allContacts() else emptyList()
                 // Atomic swap: searches never observe an empty or partially rebuilt contact index.
                 searchCoordinator.replaceContacts(contacts)
                 // Only a read made with the permission counts as fresh, so granting it later still re-reads.

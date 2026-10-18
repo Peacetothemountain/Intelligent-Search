@@ -219,8 +219,8 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
                 if (context.packageManager.resolveActivityCompat(intentSearchWeather) != null) {
                     intentSearchWeather
                 } else {
+                    // Any browser: the Google app is already known to be missing by this point.
                     Intent(Intent.ACTION_VIEW, Uri.parse("https://google.com/search?q=weather")).apply {
-                        setPackage("com.google.android.googlequicksearchbox")
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                 }

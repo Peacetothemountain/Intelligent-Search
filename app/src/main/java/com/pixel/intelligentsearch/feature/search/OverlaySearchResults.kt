@@ -104,36 +104,32 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     val searchResultsListState = s.listState
     val verticalPad = 14.dp
 
-    val sortedResultSections by remember {
-        derivedStateOf {
-            listOf(
-                "apps" to appWeight,
-                "web" to webWeight,
-                "contacts" to contactWeight,
-                "files" to fileWeight
-            ).sortedByDescending { it.second }.map { it.first }
+    // These are plain values from the scope, not snapshot state, so they are keyed rather than derived: a
+    // derivedStateOf over them would compute once and never again.
+    val sortedResultSections = remember(appWeight, webWeight, contactWeight, fileWeight) {
+        listOf(
+            "apps" to appWeight,
+            "web" to webWeight,
+            "contacts" to contactWeight,
+            "files" to fileWeight
+        ).sortedByDescending { it.second }.map { it.first }
+    }
+    val matchingRecent = remember(uiState.query, uiState.recentSearches, settingsState.searchPreviousSearches) {
+        val trimmed = uiState.query.trim()
+        if (!settingsState.searchPreviousSearches || trimmed.isEmpty()) {
+            emptyList()
+        } else {
+            uiState.recentSearches
+                .filter { it.contains(trimmed, ignoreCase = true) }
+                .distinct()
         }
     }
-    val matchingRecent by remember {
-        derivedStateOf {
-            val trimmed = uiState.query.trim()
-            if (!settingsState.searchPreviousSearches || trimmed.isEmpty()) {
-                emptyList()
-            } else {
-                uiState.recentSearches
-                    .filter { it.contains(trimmed, ignoreCase = true) }
-                    .distinct()
-            }
+    val allDisplaySuggestions = remember(matchingRecent, uiState.webSuggestions, settingsState.webResultsCount) {
+        val maxCount = settingsState.webResultsCount.coerceAtLeast(6)
+        val nonRecentWeb = uiState.webSuggestions.filter { webSugg ->
+            matchingRecent.none { it.equals(webSugg, ignoreCase = true) }
         }
-    }
-    val allDisplaySuggestions by remember {
-        derivedStateOf {
-            val maxCount = settingsState.webResultsCount.coerceAtLeast(6)
-            val nonRecentWeb = uiState.webSuggestions.filter { webSugg ->
-                matchingRecent.none { it.equals(webSugg, ignoreCase = true) }
-            }
-            (matchingRecent + nonRecentWeb).distinct().take(maxCount)
-        }
+        (matchingRecent + nonRecentWeb).distinct().take(maxCount)
     }
 
     val isBottomResults = settingsState.bottomSearch && settingsState.bottomSearchResult

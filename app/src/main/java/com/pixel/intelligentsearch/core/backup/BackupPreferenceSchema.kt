@@ -34,8 +34,14 @@ internal object BackupPreferenceSchema {
             "widget_material_show_g_icon", "widget_material_show_voice", "widget_show_g_icon", "widget_show_gemini",
             "widget_show_voice", "widget_suppress_unsaved_warning", "widget_system_custom_keep_system_g",
             "widget_system_custom_sync_colors", "widget_system_design_saved", "widget_system_show_g_icon",
-            "widget_system_show_voice"
+            "widget_system_show_voice", "widget_system_lock_black"
         )
+        // The per-design element colours the widget reads with getInt (WidgetDesignSettings).
+        for (design in listOf("widget", "widget_system", "widget_material")) {
+            for (element in listOf("g_icon", "mic", "shortcut1", "shortcut2", "shortcut3", "action_icon", "shortcuts")) {
+                put("${design}_custom_${element}_color", "INT")
+            }
+        }
         typed(
             "INT",
             "active_app_search_profile", "background.blur", "background.transparency", "contact_results_count",

@@ -262,9 +262,9 @@
             android:label="@string/widget_material_search_bar"
             android:directBootAware="true"
             android:exported="true">
+            <!-- MY_PACKAGE_REPLACED is handled once, by SearchWidgetProvider, which redraws both widgets. -->
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

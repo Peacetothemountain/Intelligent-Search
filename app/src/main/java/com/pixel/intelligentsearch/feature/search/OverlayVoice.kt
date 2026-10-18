@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.search
 
 import android.Manifest
+import com.pixel.intelligentsearch.core.util.findActivity
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -21,16 +23,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PointMode
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.asAndroidPath
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
@@ -67,7 +68,7 @@ internal class OverlayVoice(
     fun stop() = dictation.cancel()
 }
 
-/** [onHeard] gets the finished, tidied words; [onProblem] a short message when nothing usable was heard. */
+/** [onHeard] gets the finished, tidied words ("" when nothing was said); [onProblem] a short message when voice failed. */
 @Composable
 internal fun rememberOverlayVoice(onHeard: (text: String) -> Unit, onProblem: (String) -> Unit): OverlayVoice {
     val context = LocalContext.current
@@ -76,7 +77,21 @@ internal fun rememberOverlayVoice(onHeard: (text: String) -> Unit, onProblem: (S
     val dictation = remember { Dictation(context) }
     val begin = remember { { dictation.start(onFinished = { heard(it) }, onProblem = { problem(it) }) } }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) begin() else problem("Allow the microphone to search by voice.")
+        when {
+            granted -> begin()
+            // Denied for good (Android no longer shows its dialog): the app's settings page is the only way back.
+            context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) == false -> {
+                problem("Turn on the microphone for Intelligent Search in Settings to search by voice.")
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                            .setData(android.net.Uri.fromParts("package", context.packageName, null))
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }
+            else -> problem("Allow the microphone to search by voice.")
+        }
     }
     val voice = remember { OverlayVoice(dictation, askPermission = { permission.launch(Manifest.permission.RECORD_AUDIO) }, begin = begin) }
     voice.permissionGranted = {
@@ -87,85 +102,191 @@ internal fun rememberOverlayVoice(onHeard: (text: String) -> Unit, onProblem: (S
 }
 
 /**
- * The search bar's listening animation, matched to Gboard's Rambler voice strip: a bright line hugging the bar's bottom
- * edge and curving up into its corners, and above it a soft glow of broad hills that drift sideways and rise with the
- * voice, built from a fine diamond halftone of dots that fade as they climb. All in the colour scheme's primary tone.
- * Drawn above the bar's plate and below its text; the plate shader itself is untouched.
+ * The search bar's listening animation, matched frame by frame to Gboard's Rambler strip. A field of light in the
+ * colour scheme's primary tone sits on the bottom edge: full strength there, fading to nothing on a soft S-curve over a
+ * height that swells while speaking (about half the bar when quiet, nearly all of it when loud). Two slow, long waves
+ * roll across it so dark lobes drift along the top. A faint diamond halftone shows inside the light only, never past
+ * its edge. The field grows out from the middle when listening starts and shrinks back when it stops. Its colour is
+ * Rambler's own reading of the user's Material You palette, see [ramblerGlowColors]. Drawn per pixel by an AGSL
+ * shader; Android 12 draws it in thin slices.
  */
 internal fun Modifier.listeningGlow(active: Boolean, level: () -> Float, cornerRadius: Dp): Modifier = composed {
-    val glow = MaterialTheme.colorScheme.primary
-    val strength by animateFloatAsState(if (active) 1f else 0f, tween(320), label = "listening")
-    val clock = rememberInfiniteTransition(label = "listening-wave").animateFloat(
-        initialValue = 0f, targetValue = (2 * Math.PI).toFloat(),
-        animationSpec = infiniteRepeatable(tween(5200, easing = LinearEasing)), label = "phase",
+    val scheme = MaterialTheme.colorScheme
+    val colors = remember(scheme.primary, scheme.tertiary) { ramblerGlowColors(scheme.primary, scheme.tertiary) }
+    val glow = colors.body
+    // How far the field has spread from the middle: 0 is nothing, 1 is the whole bar.
+    val spreadState = animateFloatAsState(if (active) 1f else 0f, tween(if (active) 420 else 320), label = "listening")
+    // Only the away/showing boundary recomposes; the spread itself is read in the draw phase.
+    val showing by remember { derivedStateOf { spreadState.value > 0f } }
+    val smoothed = remember { floatArrayOf(0f) }
+    val field = remember {
+        if (android.os.Build.VERSION.SDK_INT >= 33) runCatching { ListeningField() }.getOrNull() else null
+    }
+    // Nothing runs while the field is away: no clock, no drawing.
+    if (!showing) return@composed this
+    // The clock behind the waves. Their speeds are whole multiples of this loop, so it repeats without a jump.
+    val clock = rememberInfiniteTransition(label = "listening-field").animateFloat(
+        initialValue = 0f, targetValue = LOOP_SECONDS,
+        animationSpec = infiniteRepeatable(tween((LOOP_SECONDS * 1000).toInt(), easing = LinearEasing)), label = "time",
     )
-    if (strength == 0f) return@composed this
     drawWithCache {
         val w = size.width
         val h = size.height
         val radius = cornerRadius.toPx().coerceAtMost(h / 2)
-        val spacing = 4.5f * density
-        val dot = 1.5f * density
-        val line = 2.2f * density
-        val columns = (w / spacing).toInt() + 2
-        val rows = (h / spacing).toInt() + 2
-        val path = Path()
-        val glowPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            maskFilter = android.graphics.BlurMaskFilter(12f * density, android.graphics.BlurMaskFilter.Blur.NORMAL)
-        }
-        val lineBrush = Brush.verticalGradient(
-            0f to glow.copy(alpha = 0f), 0.38f to glow.copy(alpha = 0f), 0.78f to glow, 1f to glow, startY = 0f, endY = h,
-        )
-        val buckets = Array(4) { ArrayList<Offset>(columns * rows / 4) }
+        val slices = ((w / (2f * density)).toInt() + 1).coerceAtLeast(1)
+        val column = if (field == null) glowColumn(colors) else null
+        val clip = Path().apply { addRoundRect(RoundRect(0f, 0f, w, h, CornerRadius(radius))) }
         onDrawWithContent {
             val t = clock.value
-            val voice = level().coerceIn(0f, 1f)
-            // Wave height (px from the bottom) at x: two drifting hills, taller while speaking.
-            fun crest(x: Float): Float {
-                val u = x / w
-                val a = 0.5f + 0.5f * kotlin.math.sin((u * 2.2f * Math.PI).toFloat() + t)
-                val b = 0.55f + 0.45f * kotlin.math.sin((u * 1.1f * Math.PI).toFloat() - 0.7f * t + 1.3f)
-                return h * (0.22f + (0.16f + 0.42f * voice) * a * b)
-            }
-            // Soft glow under the wave, brightest at the bottom edge.
-            path.reset()
-            path.moveTo(0f, h)
-            var x = 0f
-            while (x <= w) { path.lineTo(x, h - crest(x)); x += w / 48f }
-            path.lineTo(w, h - crest(w)); path.lineTo(w, h); path.close()
-            // Soft-edged glow: the wave shape blurred, so its crest melts into the bar like Rambler's.
-            drawIntoCanvas { canvas ->
-                glowPaint.shader = android.graphics.LinearGradient(
-                    0f, h * 0.15f, 0f, h,
-                    intArrayOf(glow.copy(alpha = 0f).toArgb(), glow.copy(alpha = 0.30f).toArgb(), glow.copy(alpha = 0.70f).toArgb()),
-                    floatArrayOf(0f, 0.55f, 1f), android.graphics.Shader.TileMode.CLAMP,
-                )
-                glowPaint.alpha = (strength * 255).toInt()
-                canvas.nativeCanvas.drawPath(path.asAndroidPath(), glowPaint)
-            }
-            // Halftone: a diamond grid of dots inside the glow, fading as they rise.
-            buckets.forEach { it.clear() }
-            for (r in 0 until rows) {
-                val y = h - r * spacing
-                val offset = if (r % 2 == 0) 0f else spacing / 2
-                for (c in 0 until columns) {
-                    val px = c * spacing + offset
-                    if (px > w) continue
-                    val top = h - crest(px)
-                    if (y < top || y > h - line * 2) continue
-                    val depth = ((y - top) / (h - top).coerceAtLeast(1f)).coerceIn(0f, 1f)
-                    if (depth < 0.12f) continue
-                    buckets[(depth * 3.99f).toInt()].add(Offset(px, y))
+            val spread = spreadState.value
+            val target = level().coerceIn(0f, 1f)
+            smoothed[0] += (target - smoothed[0]) * (if (target > smoothed[0]) 0.4f else 0.1f)
+            val loud = smoothed[0]
+            if (android.os.Build.VERSION.SDK_INT >= 33 && field != null) {
+                field.set(w, h, density, t, loud, spread, colors)
+                drawRoundRect(field.brush, cornerRadius = CornerRadius(radius))
+            } else if (column != null) {
+                // Android 12: the same field, one two-dp slice at a time, each a stretched copy of the fade.
+                clipPath(clip) {
+                    for (i in 0 until slices) {
+                        val x = (i + 0.5f) / slices
+                        val reach = fieldReach(x, t, loud, spread)
+                        if (reach <= 0.01f) continue
+                        val top = h * (1f - reach)
+                        // Whole-pixel edges that meet exactly, so no seams show between slices.
+                        val left = (w * i / slices).toInt()
+                        val right = (w * (i + 1) / slices).toInt().coerceAtLeast(left + 1)
+                        drawImage(
+                            column, dstOffset = IntOffset(left, top.toInt()),
+                            dstSize = IntSize(right - left, (h - top).toInt().coerceAtLeast(1)),
+                            alpha = fieldStrength(x, spread),
+                        )
+                    }
                 }
             }
-            buckets.forEachIndexed { i, points ->
-                if (points.isNotEmpty()) drawPoints(points, PointMode.Points, glow, strokeWidth = dot, cap = StrokeCap.Round, alpha = strength * (0.14f + 0.20f * i))
-            }
-            // The bright line along the bottom edge, rising into the corners.
-            // fading out as it climbs the sides.
-            drawRoundRect(lineBrush, cornerRadius = CornerRadius(radius), style = Stroke(line * 4f), alpha = strength * 0.25f)
-            drawRoundRect(lineBrush, topLeft = Offset(line / 2, line / 2), size = Size(w - line, h - line), cornerRadius = CornerRadius(radius - line / 2), style = Stroke(line), alpha = strength)
             drawContent()
         }
     }
 }
+
+private const val LOOP_SECONDS = 12f
+
+/** How far from the primary hue towards the tertiary the glow sits: measured from Gboard, pink, blue and orange seeds. */
+private const val GLOW_HUE_TURN = 0.38
+
+/** The AGSL field and its brush, Android 13 and up. */
+@androidx.annotation.RequiresApi(33)
+private class ListeningField {
+    private val shader = android.graphics.RuntimeShader(AGSL_LISTENING_FIELD)
+    val brush = ShaderBrush(shader)
+
+    fun set(w: Float, h: Float, dp: Float, time: Float, loud: Float, spread: Float, colors: RamblerGlowColors) {
+        shader.setFloatUniform("uSize", w, h)
+        shader.setFloatUniform("uDp", dp)
+        shader.setFloatUniform("uTime", time)
+        shader.setFloatUniform("uLoud", loud)
+        shader.setFloatUniform("uSpread", spread)
+        shader.setColorUniform("uColor", colors.body.toArgb())
+        shader.setColorUniform("uLine", colors.line.toArgb())
+    }
+}
+
+/** The field's two colours: the body of the light, and the lighter line it rests on along the bottom edge. */
+internal class RamblerGlowColors(val body: Color, val line: Color)
+
+/**
+ * Gboard's Rambler colours for a Material You palette, measured from Gboard on a Pixel with pink, blue and orange
+ * seeds, light and dark. The light is not the primary colour: its hue sits [GLOW_HUE_TURN] of the way from the primary
+ * towards the tertiary (twenty-odd degrees on), with more chroma than any tonal palette colour and the same tone in both
+ * themes; the line along the bottom is the same hue, lighter. The check button is the secondary colour.
+ */
+@Suppress("RestrictedApi")
+internal fun ramblerGlowColors(primary: Color, tertiary: Color): RamblerGlowColors {
+    val from = com.google.android.material.color.utilities.Hct.fromInt(primary.toArgb()).hue
+    val to = com.google.android.material.color.utilities.Hct.fromInt(tertiary.toArgb()).hue
+    // Shortest way round the hue circle.
+    val turn = ((to - from + 540.0) % 360.0) - 180.0
+    val hue = (from + turn * GLOW_HUE_TURN + 360.0) % 360.0
+    return RamblerGlowColors(
+        body = Color(com.google.android.material.color.utilities.Hct.from(hue, 45.0, 75.0).toInt()),
+        line = Color(com.google.android.material.color.utilities.Hct.from(hue, 45.0, 82.0).toInt()),
+    )
+}
+
+/** How high the light reaches at [x] (0..1 across the bar), as a fraction of the bar's height. Mirrors the shader. */
+private fun fieldReach(x: Float, t: Float, loud: Float, spread: Float): Float {
+    val tau = (2 * Math.PI).toFloat()
+    val wave = 0.6f * kotlin.math.sin(tau * (1.3f * x + t / 4f)) + 0.4f * kotlin.math.sin(tau * (2.1f * x - t / 6f) + 2f)
+    val base = 0.50f + 0.42f * loud
+    val reach = base * (1f + 0.22f * (0.45f + 0.55f * loud) * wave)
+    return reach * (0.4f + 0.6f * fieldStrength(x, spread))
+}
+
+/** How much of the field has reached [x]: it grows from the middle outwards with a soft front. */
+private fun fieldStrength(x: Float, spread: Float): Float {
+    val edge = kotlin.math.abs(x - 0.5f) * 2f
+    val front = spread * 1.3f
+    return ((front - edge) / 0.3f).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) }
+}
+
+/** One column of the fade, bottom full strength to nothing at the top, for the Android 12 slices. */
+private fun glowColumn(colors: RamblerGlowColors): ImageBitmap {
+    val rows = 128
+    val bitmap = ImageBitmap(1, rows)
+    val pixels = IntArray(rows) { row ->
+        val d = 1f - (row + 0.5f) / rows
+        val s = ((d + 0.1f) / 1.1f).coerceIn(0f, 1f)
+        val color = if (row >= rows - 2) colors.line else colors.body
+        color.copy(alpha = 1f - s * s * (3f - 2f * s)).toArgb()
+    }
+    bitmap.asAndroidBitmap().setPixels(pixels, 0, 1, 0, 0, 1, rows)
+    return bitmap
+}
+
+@org.intellij.lang.annotations.Language("AGSL")
+private const val AGSL_LISTENING_FIELD = """
+    uniform float2 uSize;
+    uniform float uDp;
+    uniform float uTime;
+    uniform float uLoud;
+    uniform float uSpread;
+    layout(color) uniform half4 uColor;
+    layout(color) uniform half4 uLine;
+    const float TAU = 6.28318530718;
+
+    // The field grows from the middle outwards with a soft front.
+    float strengthAt(float x) {
+        float edge = abs(x - 0.5) * 2.0;
+        float front = uSpread * 1.3;
+        return smoothstep(0.0, 1.0, (front - edge) / 0.3);
+    }
+
+    // How high the light reaches at x, as a fraction of the bar: a base lifted by the voice, two slow waves on top.
+    float reachAt(float x, float strength) {
+        float wave = 0.6 * sin(TAU * (1.3 * x + uTime / 4.0)) + 0.4 * sin(TAU * (2.1 * x - uTime / 6.0) + 2.0);
+        float base = 0.50 + 0.42 * uLoud;
+        float reach = base * (1.0 + 0.22 * (0.45 + 0.55 * uLoud) * wave);
+        return reach * (0.4 + 0.6 * strength);
+    }
+
+    half4 main(float2 p) {
+        float x = p.x / uSize.x;
+        float strength = strengthAt(x);
+        if (strength <= 0.0) return half4(0.0);
+        float reach = reachAt(x, strength) * uSize.y;
+        float d = uSize.y - p.y;
+        // Full strength on the bottom edge, fading on an S-curve: slow at first, fastest halfway, a soft tail at the top.
+        float a = 1.0 - smoothstep(-0.1 * reach, reach, d);
+        // A faint diamond halftone inside the light: dots on a grid turned 45 degrees, strongest where the fade is half.
+        float cell = 2.4 * uDp;
+        float2 g = float2(p.x + p.y, p.x - p.y) / (cell * 1.41421356);
+        float2 f = fract(g) - 0.5;
+        float dot = 1.0 - smoothstep(0.18, 0.34, length(f));
+        float mid = 4.0 * a * (1.0 - a);
+        a += dot * 0.06 * mid;
+        // The lighter line the light rests on: solid along the bottom dp, melting into the body above.
+        float line = 1.0 - smoothstep(1.0 * uDp, 3.5 * uDp, d);
+        half3 rgb = mix(uColor.rgb, uLine.rgb, half(line));
+        return half4(rgb, 1.0) * half(clamp(a, 0.0, 1.0) * strength);
+    }
+"""

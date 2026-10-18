@@ -29,6 +29,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -45,7 +48,7 @@ import kotlinx.coroutines.launch
  * passphrase typed above, so the weekly backups restore on any phone with that passphrase.
  */
 @Composable
-internal fun AutoBackupCard(passphrase: String) {
+internal fun AutoBackupCard(obtainPassphrase: (onReady: (String?) -> Unit) -> Unit) {
     val context = LocalContext.current
     val autoBackup = remember(context) { AutoBackup(context.applicationContext) }
     val scope = rememberCoroutineScope()
@@ -53,19 +56,36 @@ internal fun AutoBackupCard(passphrase: String) {
     var revision by remember { mutableIntStateOf(0) }
     var isRunning by remember { mutableStateOf(false) }
     val enabled = remember(revision) { autoBackup.isEnabled }
-    val folderName = remember(revision) { autoBackup.folderName() }
+    // A DocumentsProvider query (possibly a slow cloud provider), so it runs off the main thread.
+    val folderName by produceState<String?>(initialValue = null, revision) {
+        value = withContext(Dispatchers.IO) { autoBackup.folderName() }
+    }
     val lastSuccess = remember(revision) { autoBackup.lastSuccessMs }
     val lastFailure = remember(revision) { autoBackup.lastFailure }
 
+    // The passphrase chosen for turning backups on, in memory only while the folder picker is open.
+    var pendingPassphrase by remember { mutableStateOf<String?>(null) }
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { folder ->
+        val passphrase = pendingPassphrase.orEmpty()
+        pendingPassphrase = null
         if (folder == null) return@rememberLauncherForActivityResult
-        val turnedOn = autoBackup.enable(folder, passphrase.toCharArray())
-        Toast.makeText(
-            context,
-            if (turnedOn) "Automatic backup is on" else "Couldn't protect the backup key on this phone",
-            Toast.LENGTH_SHORT
-        ).show()
-        revision++
+        // The passphrase isn't kept in saved state, so if Android recreated the page while the picker was open it is
+        // empty now; ask again rather than turn on backups nobody can restore.
+        if (passphrase.length < AutoBackup.MIN_PASSPHRASE_LENGTH) {
+            Toast.makeText(context, "Type your passphrase again, then choose the folder", Toast.LENGTH_LONG).show()
+            return@rememberLauncherForActivityResult
+        }
+        // Deriving the key (600k PBKDF2 rounds) and wrapping it in the Keystore takes seconds: never on the main thread.
+        val secret = passphrase.toCharArray()
+        scope.launch {
+            val turnedOn = withContext(Dispatchers.IO) { autoBackup.enable(folder, secret) }
+            Toast.makeText(
+                context,
+                if (turnedOn) "Automatic backup is on" else "Couldn't protect the backup key on this phone",
+                Toast.LENGTH_SHORT
+            ).show()
+            revision++
+        }
     }
 
     Card(
@@ -83,10 +103,13 @@ internal fun AutoBackupCard(passphrase: String) {
             if (!enabled) {
                 Button(
                     onClick = {
-                        if (passphrase.length < 10) {
-                            Toast.makeText(context, "Enter a passphrase of at least 10 characters above first", Toast.LENGTH_SHORT).show()
-                        } else {
-                            folderPicker.launch(null)
+                        obtainPassphrase { chosen ->
+                            if (chosen == null || chosen.length < AutoBackup.MIN_PASSPHRASE_LENGTH) {
+                                Toast.makeText(context, "Enter a passphrase of at least 10 characters above first", Toast.LENGTH_SHORT).show()
+                            } else {
+                                pendingPassphrase = chosen
+                                folderPicker.launch(null)
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),

@@ -911,8 +911,13 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
             } else if (materialGIconTheme == "Material G Icon") {
                 val gBitmap = createCustomMaterialGBitmap(pColor, config.themeSColor, config.themeTColor, isPillLight, context)
-                views.setImageViewBitmap(R.id.widget_g_logo, gBitmap)
-                views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
+                if (gBitmap != null) {
+                    views.setImageViewBitmap(R.id.widget_g_logo, gBitmap)
+                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
+                } else {
+                    views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo)
+                    views.setColorStateList(R.id.widget_g_logo, "setImageTintList", ColorStateList.valueOf(pColor))
+                }
             } else if (materialGIconTheme == "Custom G Icon") {
                 val customGColor = config.elementColors.gIcon
                 views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo)

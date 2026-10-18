@@ -64,7 +64,7 @@ internal fun createCustomMaterialGBitmap(
     tColor: Int,
     isPillLight: Boolean,
     context: Context
-): Bitmap {
+): Bitmap? {
     val metrics = context.resources.displayMetrics
     val density = metrics.density
     val densityDpi = metrics.densityDpi
@@ -111,11 +111,9 @@ internal fun createCustomMaterialGBitmap(
         bitmapCache.put(cacheKey, bitmap)
         bitmap
     } catch (e: Throwable) {
+        // The caller falls back to the plain G drawable; a blank bitmap would leave an invisible tap target.
         Log.w(TAG, "Failed to create custom material G bitmap", e)
-        val fallbackSize = (24 * context.resources.displayMetrics.density).toInt().coerceAtLeast(48)
-        Bitmap.createBitmap(fallbackSize, fallbackSize, Bitmap.Config.ARGB_8888).apply {
-            this.density = context.resources.displayMetrics.densityDpi
-        }
+        null
     }
 }
 

@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -17,6 +18,12 @@ import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.feature.settings.TutorialStepInfo
 import android.content.Intent
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.core.net.toUri
 import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.PredictiveBackHandler
@@ -297,6 +304,19 @@ fun SearchOverlayScreen(
         hasStartedTyping = false
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
+        val torBangAddress = if (com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(settingsState.searchEngine)) {
+            viewModel.resolveBangWebAddress(searchQuery)
+        } else null
+        if (torBangAddress != null) {
+            // A Tor user's search never reaches a normal browser or another app: the bang's address opens in Tor Browser.
+            viewModel.addSearchHistory(searchQuery)
+            viewModel.onQueryChanged("")
+            when (val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.forAddress(context, torBangAddress, settingsState.searchEngine)) {
+                is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open -> launchSafeIntent(context, launch.intent)
+                else -> showTorInstallPopup = true
+            }
+            return@launchWebSearch
+        }
         val bangIntent = viewModel.resolveBangIntent(searchQuery)
         if (bangIntent != null) {
             // CLEAR_TOP like the other browser launches; CLEAR_TASK would wipe the target app's task.
@@ -339,9 +359,43 @@ fun SearchOverlayScreen(
         }
     }
 
+    // Voice search, Rambler style: listens until the check button, then fills in the tidied words and goes, the way
+    // Enter would; the keyboard stays down. The spoken words wait here until the results for them are in.
+    var spokenQuery by remember { mutableStateOf<String?>(null) }
+    val voice = rememberOverlayVoice(
+        onHeard = onHeard@{ text ->
+            // Nothing was said: listening just ends, without a message, and the keyboard may come back.
+            if (text.isBlank()) {
+                ui.isKeyboardDismissedByUser = false
+                return@onHeard
+            }
+            ui.textFieldValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
+            ui.hasStartedTyping = true
+            viewModel.onQueryChanged(text)
+            spokenQuery = text
+        },
+        onProblem = { message ->
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+            // Voice is over without words, so the keyboard may come back.
+            ui.isKeyboardDismissedByUser = false
+        },
+    )
+    val voiceRequests by viewModel.voiceRequests.collectAsStateWithLifecycle()
+    LaunchedEffect(voiceRequests) {
+        // Each request is claimed once, so recreating the screen doesn't start listening again.
+        if (!viewModel.takeVoiceRequest()) return@LaunchedEffect
+        // A second gesture while already listening must not throw away the words heard so far.
+        if (voice.active) return@LaunchedEffect
+        ui.isKeyboardDismissedByUser = true
+        voice.start()
+    }
+
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
-    LaunchedEffect(windowInfo.isWindowFocused, transitionState.targetState, showTutorial, isKeyboardDisabled, isKeyboardDismissedByUser) {
-        if (windowInfo.isWindowFocused && transitionState.targetState && !isKeyboardDisabled && !showTutorial && !isKeyboardDismissedByUser) {
+    // The keyboard never rises over the listening bar: it waits until voice is done or cancelled.
+    LaunchedEffect(windowInfo.isWindowFocused, transitionState.targetState, showTutorial, isKeyboardDisabled, isKeyboardDismissedByUser, voice.active) {
+        if (voice.active) {
+            keyboardController?.hide()
+        } else if (windowInfo.isWindowFocused && transitionState.targetState && !isKeyboardDisabled && !showTutorial && !isKeyboardDismissedByUser) {
             try {
                 focusRequester.requestFocus()
             } catch (_: Exception) {}
@@ -355,7 +409,8 @@ fun SearchOverlayScreen(
                 hasStartedTyping = false
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 hasStartedTyping = false
-                isKeyboardDismissedByUser = false
+                // Resuming into a voice request (the assistant gesture) keeps the keyboard down.
+                if (!voice.active) isKeyboardDismissedByUser = false
                 val isContactsEnabled = settingsState.searchContacts
                 if (isContactsEnabled) {
                     viewModel.refreshContacts()
@@ -446,7 +501,7 @@ fun SearchOverlayScreen(
     val visibleApps by remember {
         derivedStateOf {
             val hidden = settingsState.hiddenApps
-            uiState.filteredApps.filter { !hidden.contains(it.packageName) }.distinctBy { it.packageName }
+            uiState.filteredApps.filter { !hidden.contains(it.packageName) }.distinctBy { it.packageName to it.userHandle }
         }
     }
 
@@ -498,25 +553,58 @@ fun SearchOverlayScreen(
         }
     }
 
-    // Voice search, Rambler style: listens until the check button, then fills in the tidied words; the keyboard stays down.
-    val voice = rememberOverlayVoice(
-        onHeard = { text ->
-            ui.textFieldValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
-            ui.hasStartedTyping = true
-            viewModel.onQueryChanged(text)
-            viewModel.addSearchHistory(text)
-        },
-        onProblem = { message -> android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show() },
-    )
-    val voiceRequests by viewModel.voiceRequests.collectAsStateWithLifecycle()
-    // Saved, so recreating the screen (rotation) doesn't start listening again for a request already handled.
-    var handledVoiceRequest by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
-    LaunchedEffect(voiceRequests) {
-        if (voiceRequests > handledVoiceRequest) {
-            handledVoiceRequest = voiceRequests
-            ui.isKeyboardDismissedByUser = true
-            voice.start()
+    // The one way to "go", for Enter and for the voice check button: a bang goes to its site; otherwise the best
+    // match opens, then a typed web address, Quick Launch, and finally a web search.
+    val submitQuery: (String, Boolean) -> Unit = submit@{ submittedQuery, fromVoice ->
+        if (submittedQuery.isEmpty()) return@submit
+        if (viewModel.resolveBangIntent(submittedQuery) != null) {
+            // A bang is an explicit request for that site: it must not be taken over by an app match or Quick Launch
+            // ("!g maps" would otherwise open Maps).
+            launchWebSearch(submittedQuery)
+            return@submit
         }
+        viewModel.addSearchHistory(submittedQuery)
+        when (val match = bestMatch) {
+            is ContactItem -> {
+                // A spoken name can be misheard, so voice opens the contact rather than dialling straight away.
+                val intent = if (settingsState.contactDirectCall && !fromVoice && match.phoneNumber.isNotBlank()) {
+                    Intent(Intent.ACTION_DIAL, "tel:${match.phoneNumber}".toUri())
+                } else if (match.lookupUri.isNotBlank()) {
+                    Intent(Intent.ACTION_VIEW, match.lookupUri.toUri()) // Contacts reads it with its own permission; no grant needed
+                } else if (match.phoneNumber.isNotBlank()) {
+                    Intent(Intent.ACTION_DIAL, "tel:${match.phoneNumber}".toUri())
+                } else {
+                    Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
+                }
+                launchSafeIntent(context, intent)
+            }
+            is AppItem -> performAppLaunch(match)
+            is FileItem -> {
+                val intent = buildOpenFileIntent(match.uri, match.mimeType)
+                if (!launchSafeIntent(context, intent)) {
+                    intent.setPackage(null)
+                    launchSafeIntent(context, intent)
+                }
+            }
+            else -> when {
+                uiState.instantAnswer?.iconType == "url" -> uiState.instantAnswer?.let { answer -> openWebAddress(answer.title) }
+                settingsState.appQuickLaunch && visibleApps.isNotEmpty() -> performAppLaunch(visibleApps.first())
+                else -> launchWebSearch(submittedQuery)
+            }
+        }
+    }
+    // The check button's "go": once the results for the spoken words are in, act on them exactly as Enter would.
+    LaunchedEffect(spokenQuery) {
+        val spoken = spokenQuery ?: return@LaunchedEffect
+        viewModel.awaitSearch()
+        // The results reach this screen through a collector; wait until what is composed here is what the view
+        // model holds, so bestMatch is for the spoken words and not the query before them.
+        kotlinx.coroutines.withTimeoutOrNull(500) {
+            snapshotFlow { uiState === viewModel.uiState.value && uiState.query == spoken }.first { it }
+        }
+        spokenQuery = null
+        // The user may have started typing over the words meanwhile; then the spoken query is theirs no longer.
+        if (viewModel.uiState.value.query == spoken) submitQuery(spoken, true)
     }
 
     val sections = OverlayScope(
@@ -541,6 +629,7 @@ fun SearchOverlayScreen(
         closeOverlay = closeOverlay,
         launchWebSearch = launchWebSearch,
         openWebAddress = openWebAddress,
+        submitQuery = submitQuery,
         visibleApps = visibleApps,
         bestMatch = bestMatch,
         bestMatchText = bestMatchText,
@@ -656,6 +745,8 @@ fun SearchOverlayScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                // While the tutorial covers the screen, TalkBack can't reach or activate what lies beneath.
+                .then(if (showTutorial) Modifier.clearAndSetSemantics {} else Modifier)
                 .windowInsetsPadding(
                     if (!isKeyboardDisabled) {
                         WindowInsets.ime.union(WindowInsets.navigationBars).union(WindowInsets.displayCutout)

@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.feature.settings
 import com.pixel.intelligentsearch.core.util.clampSafely
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.SharedPreferences
 import android.os.Build
 import androidx.compose.animation.core.Animatable
@@ -140,7 +141,9 @@ fun TutorialSpotlightOverlay(
     val stepInfo = stepsInfo[currentStep]
     if (stepInfo == null) {
         LaunchedEffect(currentStep) {
-            if (currentStep >= TutorialManager.TOTAL_STEPS) {
+            // Finished, or stuck on a search-screen step with the search overlay switched off (those steps can only
+            // run there): either way the tutorial ends rather than hanging around unfinished.
+            if (currentStep >= TutorialManager.TOTAL_STEPS || !prefs[SettingsManager.SEARCH_OVERLAY_ENABLED]) {
                 TutorialManager.completeTutorial(prefs)
             }
             onComplete()

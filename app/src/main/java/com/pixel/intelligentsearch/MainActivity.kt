@@ -107,14 +107,21 @@ open class MainActivity : AppCompatActivity() {
         } else {
             searchViewModel.onQueryChanged("")
         }
-        requestVoiceIfAsked(intent)
+        requestVoiceIfAsked(intent, restoreKeyboard = true)
     }
 
-    /** The assistant gesture with Start Assistant with Voice on asks the search screen to start listening. */
-    private fun requestVoiceIfAsked(intent: Intent?) {
-        if (intent?.getBooleanExtra(com.pixel.intelligentsearch.feature.voice.IntelligentVoiceInteractionSession.EXTRA_START_VOICE, false) == true) {
+    /**
+     * The assistant gesture with Start Assistant with Voice on asks the search screen to start listening, with the
+     * keyboard kept down. With [restoreKeyboard], a plain open puts the keyboard mode back after an earlier voice one.
+     */
+    private fun requestVoiceIfAsked(intent: Intent?, restoreKeyboard: Boolean = false) {
+        val startVoice = intent?.getBooleanExtra(com.pixel.intelligentsearch.feature.voice.IntelligentVoiceInteractionSession.EXTRA_START_VOICE, false) == true
+        if (startVoice) {
             applySoftInputMode(keyboardVisible = false)
             searchViewModel.requestVoice()
+        } else if (restoreKeyboard) {
+            val prefs = getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+            applySoftInputMode(keyboardVisible = !com.pixel.intelligentsearch.feature.settings.TutorialManager.isTutorialActive(prefs))
         }
     }
 
@@ -194,10 +201,12 @@ open class MainActivity : AppCompatActivity() {
         if (handleIntent(intent)) return
         if (checkAndForwardIfSearchOverlayDisabled()) return
         val queryExtra = (intent?.getStringExtra("query") ?: intent?.getStringExtra(SearchManager.QUERY) ?: intent?.getStringExtra(Intent.EXTRA_TEXT))?.take(512)
-        if (!queryExtra.isNullOrBlank()) {
+        // Only a fresh open: a restored activity still carries its launch query, which was already used and cleared.
+        if (savedInstanceState == null && !queryExtra.isNullOrBlank()) {
             searchViewModel.onQueryChanged(queryExtra)
         }
-        requestVoiceIfAsked(intent)
+        // Only a fresh open starts voice: a recreated activity (rotation) still carries the extra but must not restart it.
+        if (savedInstanceState == null) requestVoiceIfAsked(intent)
 
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()

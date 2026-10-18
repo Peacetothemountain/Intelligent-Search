@@ -23,22 +23,6 @@ object BackupCryptoEngine {
 
     private val secureRandom = SecureRandom()
 
-    private val PORTABLE_DEFAULT_SALT = byteArrayOf(
-        0x50.toByte(), 0x69.toByte(), 0x78.toByte(), 0x65.toByte(),
-        0x6C.toByte(), 0x49.toByte(), 0x6E.toByte(), 0x74.toByte(),
-        0x65.toByte(), 0x6C.toByte(), 0x6C.toByte(), 0x69.toByte(),
-        0x67.toByte(), 0x65.toByte(), 0x6E.toByte(), 0x74.toByte()
-    )
-
-    fun getPortableDefaultKey(): SecretKey {
-        val pass = "PORTABLE_BACKUP_INTELLIGENT_SEARCH_V2".toCharArray()
-        return try {
-            deriveKeyFromPassphrase(pass, PORTABLE_DEFAULT_SALT, LEGACY_PBKDF2_ITERATIONS)
-        } finally {
-            MemorySanitizer.wipe(pass)
-        }
-    }
-
     fun deriveKeyFromPassphrase(passphrase: CharArray, salt: ByteArray, iterations: Int = PBKDF2_ITERATIONS): SecretKey {
         require(iterations in MIN_ACCEPTED_ITERATIONS..MAX_ACCEPTED_ITERATIONS) { "Unsupported KDF iteration count" }
         val spec = PBEKeySpec(passphrase, salt, iterations, PBKDF2_KEY_LENGTH_BITS)

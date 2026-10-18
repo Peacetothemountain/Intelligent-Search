@@ -200,63 +200,6 @@
     </issue>
 
     <issue
-        id="IconNoDpi"
-        message="The following images appear in both `-nodpi` and in a density folder: ic_bugdroid_balloon.png, ic_bugdroid_body.png, ic_bugdroid_body_blink.png, ic_bugdroid_body_half.png">
-        <location
-            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_body_half.png"/>
-        <location
-            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_body_blink.png"/>
-        <location
-            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_body.png"/>
-        <location
-            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_balloon.png"/>
-    </issue>
-
-    <issue
-        id="IconDuplicatesConfig"
-        message="The `ic_bugdroid_balloon.png` icon has identical contents in the following configuration folders: drawable-nodpi, drawable-xxxhdpi, drawable">
-        <location
-            file="src/main/res/drawable/ic_bugdroid_balloon.png"/>
-        <location
-            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_balloon.png"/>
-        <location
-            file="src/main/res/drawable-nodpi/ic_bugdroid_balloon.png"/>
-    </issue>
-
-    <issue
-        id="IconDuplicatesConfig"
-        message="The `ic_bugdroid_body.png` icon has identical contents in the following configuration folders: drawable-nodpi, drawable-xxxhdpi, drawable">
-        <location
-            file="src/main/res/drawable/ic_bugdroid_body.png"/>
-        <location
-            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_body.png"/>
-        <location
-            file="src/main/res/drawable-nodpi/ic_bugdroid_body.png"/>
-    </issue>
-
-    <issue
-        id="IconDuplicatesConfig"
-        message="The `ic_bugdroid_body_blink.png` icon has identical contents in the following configuration folders: drawable-nodpi, drawable-xxxhdpi, drawable">
-        <location
-            file="src/main/res/drawable/ic_bugdroid_body_blink.png"/>
-        <location
-            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_body_blink.png"/>
-        <location
-            file="src/main/res/drawable-nodpi/ic_bugdroid_body_blink.png"/>
-    </issue>
-
-    <issue
-        id="IconDuplicatesConfig"
-        message="The `ic_bugdroid_body_half.png` icon has identical contents in the following configuration folders: drawable-nodpi, drawable-xxxhdpi, drawable">
-        <location
-            file="src/main/res/drawable/ic_bugdroid_body_half.png"/>
-        <location
-            file="src/main/res/drawable-xxxhdpi/ic_bugdroid_body_half.png"/>
-        <location
-            file="src/main/res/drawable-nodpi/ic_bugdroid_body_half.png"/>
-    </issue>
-
-    <issue
         id="IconLocation"
         message="Found bitmap drawable `res/drawable/ic_bugdroid_balloon.png` in densityless folder">
         <location

@@ -67,20 +67,17 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **Purpose**: `BLUETOOTH_CONNECT` lets the Bluetooth quick toggle show and change Bluetooth state. `WRITE_SECURE_SETTINGS` cannot be granted by installing the app; it only works if you grant it yourself over ADB, and is then used only to register Intelligent Search as the device's search engine choice.
 * **Processing & Security**: Read and applied locally only when you use these features.
 
-### J. Advanced Protection (`QUERY_ADVANCED_PROTECTION_MODE`)
-* **Purpose**: Detects Android Advanced Protection so that Intelligent Search can pause live web suggestions and contact sharing while it is on.
-
-### K. On-Device Assistants (Android App Functions)
+### J. On-Device Assistants (Android App Functions)
 * **Purpose**: On Android 16 and later, on-device assistants can ask Intelligent Search to search your installed apps, run a calculation, or (only if you turn on **Settings -> Search Sources -> Contacts -> Share with Assistants**, which is off by default) search your contacts.
-* **Processing & Security**: Requests are answered on the device. Hidden apps are never returned, and contacts are never shared while contact search or sharing is off, contacts access is not granted, or Advanced Protection is on.
+* **Processing & Security**: Requests are answered on the device. Hidden apps are never returned, and contacts are never shared while contact search or sharing is off, or contacts access is not granted.
 
 ---
 
 ## 3. Web Search & External Search Engines
 
 When you execute a web search or request live autocomplete suggestions:
-1. **Direct Communication**: Search queries are transmitted directly and securely (via HTTPS) to your chosen search engine provider (e.g., Google, DuckDuckGo, Bing, Brave, or your configured Custom Search URL).
-   * **Live suggestions are on by default**: while web search is on, the text you type in the search bar is sent to your search engine as you type to fetch suggestions. Turn this off in **Settings -> Web Search -> Web Suggestions** (it is paused automatically while Advanced Protection is on).
+1. **Direct Communication**: Search queries are transmitted directly and securely (via HTTPS) to your chosen search engine provider (e.g., Google, DuckDuckGo, Bing, or your configured Custom Search URL).
+   * **Live suggestions are on by default**: while web search is on, the text you type in the search bar is sent to your search engine as you type to fetch suggestions. Turn this off in **Settings -> Web Search -> Web Suggestions**.
 2. **No Intermediary Logging**: Intelligent Search operates **no intermediary proxy server**, tracking gateway, or cloud middleman. We never intercept, inspect, log, or record your web searches.
 3. **Third-Party Privacy Policies**: Your interactions with external search engines are governed by the respective provider's privacy policy:
    * [Google Privacy Policy](https://policies.google.com/privacy)

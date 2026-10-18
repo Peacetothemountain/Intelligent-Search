@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
@@ -231,6 +232,8 @@ fun SettingsScreensHub(
                 modifier = Modifier
                     .fillMaxSize()
                     .then(if (showTutorial) Modifier.blur(24.dp) else Modifier)
+                    // Hidden from TalkBack too while the tutorial covers it, so it can't be reached or activated.
+                    .then(if (showTutorial) Modifier.clearAndSetSemantics {} else Modifier)
             ) {
                 NavHost(
                     navController = navController,

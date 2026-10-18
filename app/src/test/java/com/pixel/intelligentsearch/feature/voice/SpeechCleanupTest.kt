@@ -16,6 +16,8 @@ class SpeechCleanupTest {
 
     @Test fun appliesSpokenCorrections() {
         assertEquals("timer for 10 minutes", clean("timer for 5 minutes, no, 10 minutes"))
+        assertEquals("timer for 10 minutes", clean("timer for 5 minutes, no, 10 minutes."))
+        assertEquals("5 mm socket near the ER", clean("5 mm socket near the ER"))
         assertEquals("weather in Chicago", clean("weather in Boston, no wait Chicago"))
         assertEquals("call Sam", clean("call Ben, I mean Sam"))
         assertEquals("directions to the airport", clean("directions to the station, actually the airport"))
@@ -25,6 +27,8 @@ class SpeechCleanupTest {
         assertEquals("coffee with no sugar", clean("coffee with no sugar"))
         assertEquals("is it actually good", clean("is it actually good"))
         assertEquals("no man's sky", clean("no man's sky"))
+        assertEquals("best games like No Man's Sky", SpeechCleanup.clean(listOf("best games like", "No Man's Sky")))
+        assertEquals("timer for 10 minutes", SpeechCleanup.clean(listOf("timer for 5 minutes", "No, 10 minutes")))
     }
 
     @Test fun restartsDiscardEarlierWords() {

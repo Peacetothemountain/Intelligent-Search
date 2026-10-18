@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import android.Manifest
+import com.pixel.intelligentsearch.core.util.findActivity
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -72,7 +73,8 @@ object SetupChecklist {
     fun isDone(context: Context, prefs: SharedPreferences, step: SetupStep): Boolean = when (step) {
         SetupStep.CONTACTS -> granted(context, Manifest.permission.READ_CONTACTS) && prefs[SettingsManager.SEARCH_CONTACTS]
         SetupStep.CALENDAR -> granted(context, Manifest.permission.READ_CALENDAR) && prefs[SettingsManager.SEARCH_CALENDAR]
-        SetupStep.FILES -> UserGrantedFiles.folderUris(prefs).isNotEmpty() || UserGrantedFiles.mediaUris(prefs).isNotEmpty()
+        SetupStep.FILES -> prefs[SettingsManager.SEARCH_FILES] &&
+            (UserGrantedFiles.folderUris(prefs).isNotEmpty() || UserGrantedFiles.mediaUris(prefs).isNotEmpty())
         SetupStep.SEARCH_BAR -> SearchRoleManager.isSearchRoleHeld(context)
     }
 
@@ -120,7 +122,7 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
         if (granted) {
             prefs.edit { put(SettingsManager.SEARCH_CONTACTS, true) }
             viewModel?.reindexContacts()
-        } else {
+        } else if (context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS) == false) {
             Toast.makeText(context, "Contacts access was declined. You can allow it in Android settings.", Toast.LENGTH_LONG).show()
             openAppSettings()
         }
@@ -129,7 +131,7 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
     val calendarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
             prefs.edit { put(SettingsManager.SEARCH_CALENDAR, true) }
-        } else {
+        } else if (context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.READ_CALENDAR) == false) {
             Toast.makeText(context, "Calendar access was declined. You can allow it in Android settings.", Toast.LENGTH_LONG).show()
             openAppSettings()
         }

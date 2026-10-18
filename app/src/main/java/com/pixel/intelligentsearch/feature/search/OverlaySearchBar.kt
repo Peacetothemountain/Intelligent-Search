@@ -1,6 +1,8 @@
 package com.pixel.intelligentsearch.feature.search
 
 import com.pixel.intelligentsearch.core.ui.uniqueItems
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.core.net.toUri
 import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
@@ -72,6 +74,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
     val closeOverlay = s.closeOverlay
     val launchWebSearch = s.launchWebSearch
     val openWebAddress = s.openWebAddress
+    val submitQuery = s.submitQuery
     val visibleApps = s.visibleApps
     val bestMatch = s.bestMatch
     val bestMatchText = s.bestMatchText
@@ -176,6 +179,8 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                         voice.stop()
                         viewModel.onQueryChanged("")
                         textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
+                        // Voice is over, so the keyboard may come back.
+                        isKeyboardDismissedByUser = false
                     },
                     colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -246,47 +251,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                         keyboardController?.hide()
                         // The collected uiState can lag a keystroke behind; read the live value so Enter
                         // never acts on a query missing its last character.
-                        val submittedQuery = viewModel.uiState.value.query
-                        if (submittedQuery.isNotEmpty() && viewModel.resolveBangIntent(submittedQuery) != null) {
-                            // A bang is an explicit request for that site: it must not be taken over by an
-                            // app match or Quick Launch ("!g maps" would otherwise open Maps).
-                            launchWebSearch(submittedQuery)
-                        } else if (submittedQuery.isNotEmpty()) {
-                            viewModel.addSearchHistory(submittedQuery)
-                            val match = bestMatch
-                            if (match != null) {
-                                when (match) {
-                                    is ContactItem -> {
-                                        val intent = if (settingsState.contactDirectCall && match.phoneNumber.isNotBlank()) {
-                                            Intent(Intent.ACTION_DIAL, "tel:${match.phoneNumber}".toUri())
-                                        } else if (match.lookupUri.isNotBlank()) {
-                                            Intent(Intent.ACTION_VIEW, match.lookupUri.toUri()) // Contacts reads it with its own permission; no grant needed
-                                        } else if (match.phoneNumber.isNotBlank()) {
-                                            Intent(Intent.ACTION_DIAL, "tel:${match.phoneNumber}".toUri())
-                                        } else {
-                                            Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
-                                        }
-                                        launchSafeIntent(context, intent)
-                                    }
-                                    is AppItem -> {
-                                        performAppLaunch(match)
-                                    }
-                                    is FileItem -> {
-                                        val intent = buildOpenFileIntent(match.uri, match.mimeType)
-                                        if (!launchSafeIntent(context, intent)) {
-                                            intent.setPackage(null)
-                                            launchSafeIntent(context, intent)
-                                        }
-                                    }
-                                }
-                            } else if (uiState.instantAnswer?.iconType == "url") {
-                                uiState.instantAnswer?.let { answer -> openWebAddress(answer.title) }
-                            } else if (settingsState.appQuickLaunch && visibleApps.isNotEmpty()) {
-                                performAppLaunch(visibleApps.first())
-                            } else {
-                                launchWebSearch(submittedQuery)
-                            }
-                        }
+                        submitQuery(viewModel.uiState.value.query, false)
                     }),
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.CenterStart) {
@@ -348,36 +313,30 @@ internal fun OverlaySearchBar(s: OverlayScope) {
             }
 
             // Voice search: the keyboard drops while the search bar listens; while listening the mic becomes
-            // Rambler's check button, which finishes and keeps the words.
+            // Rambler's check button, which finishes and keeps the words. Gboard draws it in the secondary colour.
             if (voice.active) {
                 androidx.compose.material3.FilledIconButton(
                     onClick = { voice.finish() },
                     colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
+                        containerColor = MaterialTheme.colorScheme.secondary,
+                        contentColor = MaterialTheme.colorScheme.onSecondary
                     ),
                     modifier = Modifier.size(40.dp)
                 ) { Icon(Icons.Default.Check, contentDescription = "Done speaking", modifier = Modifier.size(22.dp)) }
             } else {
-                // Gboard Rambler's voice key: a sparkle mic in a soft tonal circle.
-                androidx.compose.material3.FilledTonalIconButton(
+                // Gboard Rambler's sparkle mic, drawn in the same colours as the lens icon; no container.
+                IconButton(
                     onClick = {
                         focusManager.clearFocus(force = true)
                         keyboardController?.hide()
                         isKeyboardDismissedByUser = true
                         voice.start()
                     },
-                    colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier
+                        .size(48.dp)
+                        .semantics { contentDescription = "Search by voice" }
                 ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_mic_spark),
-                        contentDescription = "Search by voice",
-                        modifier = Modifier.size(22.dp)
-                    )
+                    SearchOverlayMicIcon(modifier = Modifier.size(28.dp))
                 }
             }
 

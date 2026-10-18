@@ -1,6 +1,9 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import androidx.core.content.edit
+import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.util.findActivity
 import android.Manifest
 import android.content.Intent
 import android.content.SharedPreferences
@@ -130,6 +133,11 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                                     context.checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED
                                 ) {
                                     searchContacts = false
+                                }
+                                if (event == Lifecycle.Event.ON_RESUME &&
+                                    context.checkSelfPermission(Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    prefs.edit { put(SettingsManager.SEARCH_CALENDAR, false) }
                                 }
                             }
                             lifecycleOwner.lifecycle.addObserver(observer)
@@ -271,9 +279,10 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                         )
                         var searchCalendar by rememberSetting(SettingsManager.SEARCH_CALENDAR)
                         val calendarPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
-                            if (results.values.all { it }) {
+                            // An empty result (a request already in flight) is not a grant.
+                            if (results.values.isNotEmpty() && results.values.all { it }) {
                                 searchCalendar = true
-                            } else {
+                            } else if (context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.READ_CALENDAR) == false) {
                                 Toast.makeText(context, "Permission denied. Please enable in Settings.", Toast.LENGTH_LONG).show()
                                 try {
                                     val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {

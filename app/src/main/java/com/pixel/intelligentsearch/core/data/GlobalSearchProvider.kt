@@ -99,6 +99,11 @@ class GlobalSearchProvider : ContentProvider() {
         val customUrl = prefs?.get(SettingsManager.CUSTOM_SEARCH_ENGINE_URL) ?: ""
         // Apps the user hid in-app must not resurface through system global search.
         val hiddenApps = prefs?.get(SettingsManager.HIDDEN_APPS).orEmpty()
+        // The overlay's Search Sources switches apply here too.
+        val appsOn = prefs?.get(SettingsManager.SEARCH_APPS) ?: true
+        val calculatorOn = prefs?.get(SettingsManager.SEARCH_CALCULATOR) ?: true
+        val webOn = prefs?.get(SettingsManager.SEARCH_WEB) ?: true
+        val me = Process.myUserHandle()
 
         val isTorEngine = engine == "Tor Project" || engine == "Tor Browser"
         val isCustomEngine = engine == "Custom"
@@ -127,8 +132,8 @@ class GlobalSearchProvider : ContentProvider() {
             if (coordinator != null && cancellationSignal?.isCanceled != true) {
                 val results = coordinator.executeSearchSync(queryTerm)
 
-                // 1. Math calculation result if available
-                results.mathResult?.let { math ->
+                // 1. Math calculation result if available (its row searches the web, so not for Tor)
+                results.mathResult?.takeUnless { isTorEngine || !calculatorOn }?.let { math ->
                     val display = when (math) {
                         is MathematicalExpressionEngine.MathEvaluationResult.Computation -> math.formattedResult
                         is MathematicalExpressionEngine.MathEvaluationResult.UnitConversion -> math.formatted
@@ -149,6 +154,8 @@ class GlobalSearchProvider : ContentProvider() {
                 // 2. Apps - In-memory intent synthesis
                 for (app in results.apps) {
                     if (cancellationSignal?.isCanceled == true) break
+                    if (!appsOn) break
+                    if (app.userHandle != null && app.userHandle != me) continue
                     if (app.packageName in hiddenApps) continue
                     if ((app.isPrivateProfile || app.profileType == ProfileType.PRIVATE) && isPrivateSpaceLocked) continue
                     val launchIntentUri = if (app.activityName != null) {
@@ -190,7 +197,9 @@ class GlobalSearchProvider : ContentProvider() {
                     }
                 }
 
-                if (isAuthorized) {
+                // Contacts show only when the user has contact search on, as in the app itself.
+                val contactsOn = prefs?.get(SettingsManager.SEARCH_CONTACTS) ?: false
+                if (isAuthorized && contactsOn) {
                     for (contact in results.contacts) {
                         if (cancellationSignal?.isCanceled == true) break
                         cursor.addRow(arrayOf<Any?>(
@@ -206,27 +215,12 @@ class GlobalSearchProvider : ContentProvider() {
                     }
                 }
 
-                // 4. App Shortcuts
-                for (shortcut in results.shortcuts) {
-                    if (cancellationSignal?.isCanceled == true) break
-                    if (shortcut.packageName in hiddenApps) continue
-                    if (isPrivateSpaceLocked && shortcut.userHandle in privateUsers) continue
-                    val shortcutLaunchUri = "intent:#Intent;action=android.intent.action.MAIN;package=${shortcut.packageName};end"
-                    cursor.addRow(arrayOf<Any?>(
-                        rowId++,
-                        shortcut.shortLabel,
-                        shortcut.longLabel.ifBlank { "Shortcut" },
-                        "android.resource://${safeCtx?.packageName}/drawable/ic_search_lens_expressive",
-                        Intent.ACTION_VIEW,
-                        shortcutLaunchUri,
-                        shortcut.shortLabel,
-                        "shortcut:${shortcut.packageName}/${shortcut.id}"
-                    ))
-                }
+                // App shortcuts are not offered here: a suggestion row can only carry an intent URI, which can't
+                // start a launcher shortcut (that needs LauncherApps.startShortcut), so a row would just open the app.
             }
 
             // 5. Dynamic Autocomplete Suggestions
-            val suggestions = if (isTorEngine || isCustomEngine || !suggestionsEnabled) {
+            val suggestions = if (isTorEngine || isCustomEngine || !suggestionsEnabled || !webOn) {
                 emptyList()
             } else {
                 WebSearchProvider.getCachedSuggestions(queryTerm, engine) ?: emptyList()
@@ -248,7 +242,9 @@ class GlobalSearchProvider : ContentProvider() {
             Log.e(TAG, "Error generating search suggestions in GlobalSearchProvider", e)
         }
 
-        // 6. Web Search Fallback Row (Always present as guaranteed fallback)
+        // 6. Web Search Fallback Row (always present, except for Tor: a suggestion row opens in the default browser,
+        // which must never be handed an onion address).
+        if (isTorEngine || !webOn) return cursor
         val searchUrl = buildWebSearchUrl(queryTerm)
         val encodedQuery = Uri.encode(queryTerm)
         cursor.addRow(arrayOf<Any?>(

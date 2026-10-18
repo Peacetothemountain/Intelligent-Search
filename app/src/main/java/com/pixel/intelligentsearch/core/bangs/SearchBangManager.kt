@@ -189,9 +189,16 @@ class SearchBangManager @Inject constructor(
         val builtIns = BUILT_IN_BANGS.map { bang ->
             if (trigger != "!" && bang.prefix.startsWith("!")) bang.copy(prefix = trigger + bang.prefix.removePrefix("!")) else bang
         }
-        return (parseCustomBangs(customBangsJson) + builtIns.filter { it.displayPrefix !in disabled })
+        // Disabled built-ins are compared by their canonical "!" prefix, so changing the trigger symbol doesn't
+        // bring them back (older entries were stored with whatever trigger was current at the time).
+        val disabledCanonical = disabled.map(::canonicalBuiltInPrefix).toSet()
+        return (parseCustomBangs(customBangsJson) + builtIns.filter { canonicalBuiltInPrefix(it.displayPrefix) !in disabledCanonical })
             .distinctBy { it.displayPrefix }
     }
+
+    /** A built-in's prefix with the "!" trigger, whatever trigger it was written with. */
+    private fun canonicalBuiltInPrefix(prefix: String): String =
+        "!" + prefix.lowercase(Locale.ROOT).trim().trimStart { !it.isLetterOrDigit() }
 
     fun parseBangQuery(query: String, availableBangs: List<SearchBang> = getAllBangsSync()): ParsedBangQuery? {
         val trimmed = query.trim()
@@ -213,7 +220,9 @@ class SearchBangManager @Inject constructor(
 
             val candidates = arrayOf(p0, p1, p2, p3)
             for (p in candidates) {
-                if (p.isNullOrBlank()) continue
+                // A bang always starts with its trigger: a bare prefix ("wiki", from an older custom bang) would
+                // otherwise fire on ordinary words whenever the query happens to contain "!".
+                if (p.isNullOrBlank() || p.first().isLetterOrDigit()) continue
                 // Prefix check: query starts with "$p " or equals "$p"
                 if (trimmed.equals(p, ignoreCase = true)) {
                     return ParsedBangQuery(
@@ -311,14 +320,19 @@ class SearchBangManager @Inject constructor(
             }
         }
 
-        // Priority 2: the web URL. Custom bangs can arrive from imported backups, so the template goes through the
-        // same validation as a typed custom engine; one that fails is never opened and the query goes to Google.
-        val webUri = com.pixel.intelligentsearch.core.security.CustomSearchUrl.build(bang.urlTemplate, query)
-            ?: Uri.parse("https://www.google.com/search?q=${Uri.encode(query)}")
-        return com.pixel.intelligentsearch.core.security.CustomSearchUrl.browsableViewIntent(webUri).apply {
+        // Priority 2: the web URL.
+        return com.pixel.intelligentsearch.core.security.CustomSearchUrl.browsableViewIntent(bangWebUri(parsed)).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
     }
+
+    /**
+     * The bang's web address for its query. Custom bangs can arrive from imported backups, so the template goes
+     * through the same validation as a typed custom engine; one that fails is never opened and the query goes to Google.
+     */
+    fun bangWebUri(parsed: ParsedBangQuery): Uri =
+        com.pixel.intelligentsearch.core.security.CustomSearchUrl.build(parsed.bang.urlTemplate, parsed.extractedQuery)
+            ?: Uri.parse("https://www.google.com/search?q=${Uri.encode(parsed.extractedQuery)}")
 
     private fun isActivityExported(pm: PackageManager, component: android.content.ComponentName): Boolean {
         return try {
@@ -351,11 +365,12 @@ class SearchBangManager @Inject constructor(
     }
 
     suspend fun restoreBuiltInBang(prefix: String) = editBangs { _, disabled ->
-        disabled.remove(prefix.lowercase(Locale.ROOT).trim())
+        val canonical = canonicalBuiltInPrefix(prefix)
+        disabled.removeAll { canonicalBuiltInPrefix(it) == canonical }
     }
 
     private fun removeFrom(custom: MutableList<SearchBang>, disabled: MutableSet<String>, bang: SearchBang) {
-        if (bang.isBuiltIn) disabled.add(bang.displayPrefix) else custom.removeAll { it.displayPrefix == bang.displayPrefix }
+        if (bang.isBuiltIn) disabled.add(canonicalBuiltInPrefix(bang.displayPrefix)) else custom.removeAll { it.displayPrefix == bang.displayPrefix }
     }
 
     /** Read-modify-write of both bang settings under one lock, committed together so edits can't interleave. */

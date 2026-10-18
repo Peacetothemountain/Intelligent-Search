@@ -35,9 +35,14 @@ import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 @Composable
 fun AppGridItem(app: AppItem, onClick: () -> Unit) {
     val context = LocalContext.current
-    val appIconState = remember(app.packageName) { mutableStateOf<AppIconResult?>(peekThemedAppIcon(app.packageName)) }
-    LaunchedEffect(app.packageName) {
-        if (appIconState.value == null) {
+    // Another profile's copy keeps its own (badged) icon: themed icons are looked up by package, i.e. the personal app.
+    val otherProfile = app.userHandle != null && app.userHandle != android.os.Process.myUserHandle()
+    val label = if (otherProfile) "${app.name}, Work" else app.name
+    val appIconState = remember(app.packageName, otherProfile) {
+        mutableStateOf<AppIconResult?>(if (otherProfile) null else peekThemedAppIcon(app.packageName))
+    }
+    LaunchedEffect(app.packageName, otherProfile) {
+        if (appIconState.value == null && !otherProfile) {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val icon = getThemedAppIcon(context, app.packageName)
                 if (icon != null) {
@@ -63,14 +68,14 @@ fun AppGridItem(app: AppItem, onClick: () -> Unit) {
         if (appIcon != null) {
             Image(
                 bitmap = appIcon.bitmap,
-                contentDescription = app.name,
+                contentDescription = label,
                 modifier = Modifier.size(48.dp),
                 colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
             )
         } else if (fallbackBitmap != null) {
             Image(
                 bitmap = fallbackBitmap,
-                contentDescription = app.name,
+                contentDescription = label,
                 modifier = Modifier.size(48.dp)
             )
         }

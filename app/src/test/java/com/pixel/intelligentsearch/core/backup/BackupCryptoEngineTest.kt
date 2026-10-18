@@ -66,31 +66,6 @@ class BackupCryptoEngineTest {
     }
 
     @Test
-    fun testPortableDefaultKeyRoundTrip() {
-        val key = BackupCryptoEngine.getPortableDefaultKey()
-        assertNotNull(key)
-        assertEquals("AES", key.algorithm)
-
-        val iv = BackupCryptoEngine.generateRandomIv()
-        val payload = """{"theme":"system","searchApps":true,"pillOpacity":100,"preferencesMap":{"customIconPills":"true"}}"""
-
-        val cipherBytes = BackupCryptoEngine.encryptPayload(payload, key, iv)
-        assertNotNull(cipherBytes)
-        assertTrue(cipherBytes.isNotEmpty())
-
-        val decrypted = BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
-        assertEquals(payload, decrypted)
-    }
-
-    @Test
-    fun testPortableDefaultKeyDeterminism() {
-        val key1 = BackupCryptoEngine.getPortableDefaultKey()
-        val key2 = BackupCryptoEngine.getPortableDefaultKey()
-
-        assertArrayEquals(key1.encoded, key2.encoded)
-    }
-
-    @Test
     fun testHardwareBackedEnvelopeMetadata() {
         val envelope = EncryptedBackupEnvelope(
             isHardwareBacked = true,

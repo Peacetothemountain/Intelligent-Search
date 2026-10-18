@@ -83,7 +83,10 @@ class SettingsActivity : AppCompatActivity() {
         // last steps bring them back here, and the Finish Setting Up card greets them once it ends.
         val prefsForTutorial = getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
         val fromLauncher = intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_LAUNCHER)
-        if (fromLauncher && !prefsForTutorial[SettingsManager.TUTORIAL_COMPLETED] && prefsForTutorial[SettingsManager.TUTORIAL_STEP] < 3) {
+        // With the search overlay switched off the search screen only forwards to Google, so settings must open.
+        if (fromLauncher && !prefsForTutorial[SettingsManager.TUTORIAL_COMPLETED] && prefsForTutorial[SettingsManager.TUTORIAL_STEP] < 3 &&
+            prefsForTutorial[SettingsManager.SEARCH_OVERLAY_ENABLED]
+        ) {
             startActivity(
                 Intent(this, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),

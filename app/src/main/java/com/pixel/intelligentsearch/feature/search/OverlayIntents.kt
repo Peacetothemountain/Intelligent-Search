@@ -82,7 +82,8 @@ internal fun launchSafeIntent(context: Context, intent: Intent, options: android
 internal fun systemWebSearchIntent(query: String): Intent = Intent(Intent.ACTION_WEB_SEARCH).apply {
     putExtra(android.app.SearchManager.QUERY, query)
     putExtra("query", query)
-    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    // CLEAR_TOP, not CLEAR_TASK: a search must not wipe the search app's own task (Discover, Lens, earlier pages).
+    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
 }
 
 /**

@@ -39,8 +39,13 @@ class Dictation(private val context: Context) {
     private var onProblem: ((String) -> Unit)? = null
     private var startedAt = 0L
     private var failures = 0
+    /** Set once the on-device engine has dropped the connection twice; the default engine is used from then on. */
+    private var preferDefaultEngine = false
+    /** True while a recognizer session is open and may still produce results. */
+    private var live = false
     private val finishTimeout = Runnable { deliver() }
     private val maxLength = Runnable { finish() }
+    private val restart = Runnable { if (phase.value == Phase.Starting || phase.value == Phase.Listening) listen() }
 
     fun start(onFinished: (String) -> Unit, onProblem: (String) -> Unit) {
         cancel()
@@ -55,6 +60,7 @@ class Dictation(private val context: Context) {
         heard.clear()
         pending = ""
         failures = 0
+        preferDefaultEngine = false
         startedAt = System.currentTimeMillis()
         phase.value = Phase.Starting
         main.postDelayed(maxLength, MAX_LENGTH_MS)
@@ -65,6 +71,8 @@ class Dictation(private val context: Context) {
     fun finish() {
         if (phase.value == Phase.Idle || phase.value == Phase.Finishing) return
         phase.value = Phase.Finishing
+        // Between sessions (or before the engine is ready) there are no last words to wait for.
+        if (!live) { deliver(); return }
         runCatching { recognizer?.stopListening() }
         main.postDelayed(finishTimeout, FINISH_WAIT_MS)
     }
@@ -73,17 +81,20 @@ class Dictation(private val context: Context) {
     fun cancel() {
         main.removeCallbacks(finishTimeout)
         main.removeCallbacks(maxLength)
+        main.removeCallbacks(restart)
         onFinished = null
         onProblem = null
         release()
+        live = false
         phase.value = Phase.Idle
         amplitude.floatValue = 0f
     }
 
     private fun listen() {
         release()
+        live = false
         val r = try {
-            if (Build.VERSION.SDK_INT >= 33 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+            if (!preferDefaultEngine && Build.VERSION.SDK_INT >= 33 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
                 SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
             } else {
                 SpeechRecognizer.createSpeechRecognizer(context)
@@ -99,9 +110,10 @@ class Dictation(private val context: Context) {
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-            // Ask for long silences before the engine gives up; engines that ignore this just restart.
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 6_000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 6_000L)
+            // Ask for long silences before the engine gives up; engines that ignore this just restart. Google's
+            // on-device engine reads these as Integer and drops the segmented session if they aren't.
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 6_000)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 6_000)
             if (Build.VERSION.SDK_INT >= 33) {
                 putExtra(RecognizerIntent.EXTRA_SEGMENTED_SESSION, RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS)
             }
@@ -115,10 +127,13 @@ class Dictation(private val context: Context) {
     }
 
     private val listener = object : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) { if (phase.value == Phase.Starting) phase.value = Phase.Listening }
+        override fun onReadyForSpeech(params: Bundle?) {
+            live = true
+            if (phase.value == Phase.Starting) phase.value = Phase.Listening
+        }
         override fun onBeginningOfSpeech() { if (phase.value == Phase.Starting) phase.value = Phase.Listening }
         override fun onRmsChanged(rmsdB: Float) {
-            amplitude.floatValue = VoiceRecognitionManager.computeAmplitudeStep(amplitude.floatValue, VoiceRecognitionManager.normalizeRmsDb(rmsdB))
+            amplitude.floatValue = computeAmplitudeStep(amplitude.floatValue, normalizeRmsDb(rmsdB))
         }
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEndOfSpeech() {}
@@ -130,24 +145,34 @@ class Dictation(private val context: Context) {
             pending = ""
             failures = 0
         }
-        override fun onEndOfSegmentedSession() = sessionEnded()
+        override fun onEndOfSegmentedSession() {
+            live = false
+            sessionEnded()
+        }
         override fun onResults(results: Bundle?) {
+            live = false
             best(results)?.let { heard += it }
             pending = ""
             failures = 0
             sessionEnded()
         }
         override fun onError(error: Int) {
+            live = false
+            Log.i(TAG, "Recognizer error $error in phase ${phase.value}, failures=$failures")
+            // The user has already tapped the check button: whatever the error, the words so far are theirs.
+            if (phase.value == Phase.Finishing) { deliver(); return }
             when (error) {
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> fail("Allow the microphone to search by voice.")
                 SpeechRecognizer.ERROR_AUDIO -> fail("The microphone isn't available right now.")
                 SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ->
                     fail("Your language isn't supported by the speech recognizer.")
                 else -> {
-                    if (phase.value == Phase.Finishing) { deliver(); return }
                     // Silence, no match, a busy or reconnecting engine: keep the words so far and keep listening.
                     if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) failures++
-                    if (failures > 4) fail("Voice search stopped. Tap the mic to try again.") else sessionEnded()
+                    // An on-device engine that keeps dropping the connection (seen right after an app update) is
+                    // swapped for the default engine rather than giving up.
+                    if (failures >= 2) preferDefaultEngine = true
+                    if (failures > 6) fail("Voice search stopped. Tap the mic to try again.") else sessionEnded()
                 }
             }
         }
@@ -161,7 +186,13 @@ class Dictation(private val context: Context) {
         when (phase.value) {
             Phase.Finishing -> deliver()
             Phase.Idle -> Unit
-            else -> main.postDelayed({ if (phase.value == Phase.Starting || phase.value == Phase.Listening) listen() }, RESTART_DELAY_MS)
+            // Restarts back off a little with each failure, so a struggling engine gets time to recover. Words the
+            // engine only got as far as a partial result are kept, or the next session's partials would replace them.
+            else -> {
+                if (pending.isNotBlank()) { heard += pending; pending = "" }
+                main.removeCallbacks(restart)
+                main.postDelayed(restart, RESTART_DELAY_MS * (1 + failures))
+            }
         }
     }
 
@@ -169,7 +200,6 @@ class Dictation(private val context: Context) {
         main.removeCallbacks(finishTimeout)
         main.removeCallbacks(maxLength)
         val done = onFinished ?: return
-        val problem = onProblem
         if (pending.isNotBlank()) heard += pending
         val text = SpeechCleanup.clean(heard)
         onFinished = null
@@ -177,7 +207,8 @@ class Dictation(private val context: Context) {
         release()
         phase.value = Phase.Idle
         amplitude.floatValue = 0f
-        if (text.isBlank()) problem?.invoke("No words heard. Tap the mic to try again.") else done(text)
+        // Nothing said is not a problem (people open the mic just to watch the animation): it ends quietly with "".
+        done(text)
     }
 
     private fun fail(message: String) {
@@ -194,8 +225,20 @@ class Dictation(private val context: Context) {
         recognizer = null
     }
 
-    private companion object {
-        const val TAG = "Dictation"
+    companion object {
+        private const val TAG = "Dictation"
+
+        /** Maps the recognizer's RMS in dB (about -2 for silence, 10 for loud speech) to 0..1. */
+        fun normalizeRmsDb(rmsdB: Float): Float {
+            val clamped = rmsdB.coerceIn(-2f, 10f)
+            return ((clamped + 2f) / 12f).coerceIn(0f, 1f)
+        }
+
+        /** Eases the level towards [target]: quick to rise with the voice, slower to settle. */
+        fun computeAmplitudeStep(current: Float, target: Float, attack: Float = 0.40f, decay: Float = 0.14f): Float {
+            val speed = if (target > current) attack else decay
+            return current + (target - current) * speed
+        }
         const val FINISH_WAIT_MS = 1_800L
         const val RESTART_DELAY_MS = 120L
         /** A safety stop for a mic left open: three minutes, then finish with what was heard. */

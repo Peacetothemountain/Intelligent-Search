@@ -17,13 +17,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.platform.LocalContext
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.core.data.*
 
 /** The four colours the search screen's icons are drawn in, following the widget icon theme and Material You. */
-internal class SearchIconPalette(val rim: Color, val top: Color, val handle: Color, val sparkle: Color)
+internal class SearchIconPalette(val rim: Color, val top: Color, val handle: Color, val sparkle: Color, val mic: MicPalette)
+
+/** The home screen widget's mic colours: Material You's three-tier accent palette (see WidgetBitmaps). */
+internal class MicPalette(val capsule: Color, val stem: Color, val leftCradle: Color, val rightCradle: Color)
 
 /**
  * The search icons' colours: the icon theme chosen in Widget Customization (Material, Accented, System four-colour or
@@ -73,13 +77,19 @@ internal fun rememberSearchIconPalette(): SearchIconPalette {
         MaterialYouPaletteHelper.getFourColorMaterialGPalette(pColor, sColor, tColor, isLight)
     }
 
+    // The same tiers the widget's mic is drawn in: capsule third tone, stem and left cradle second, right cradle primary.
+    val tiers = remember(pColor, sColor, isLight) { MaterialYouPaletteHelper.getThreeTierAccentedPalette(pColor, sColor, isPillLight = isLight) }
+    val mic = MicPalette(
+        capsule = Color(tiers.thirdLighter), stem = Color(tiers.secondLighter),
+        leftCradle = Color(tiers.secondLighter), rightCradle = Color(tiers.primaryDarker),
+    )
     return when (effectiveTheme) {
-        "Custom G Icon" -> Color(customColor).let { SearchIconPalette(it, it, it, it) }
-        "Accented G Icon" -> Color(pColor).let { SearchIconPalette(it, it, it, it) }
-        "System G Icon" -> SearchIconPalette(Color(0xFF4285F4), Color(0xFFFBBC05), Color(0xFF34A853), Color(0xFFEA4335))
+        "Custom G Icon" -> Color(customColor).let { SearchIconPalette(it, it, it, it, mic) }
+        "Accented G Icon" -> Color(pColor).let { SearchIconPalette(it, it, it, it, mic) }
+        "System G Icon" -> SearchIconPalette(Color(0xFF4285F4), Color(0xFFFBBC05), Color(0xFF34A853), Color(0xFFEA4335), mic)
         else -> SearchIconPalette(
             rim = Color(fourPalette.rightArcAndBar), top = Color(fourPalette.topArc),
-            handle = Color(fourPalette.bottomArc), sparkle = Color(fourPalette.leftArc),
+            handle = Color(fourPalette.bottomArc), sparkle = Color(fourPalette.leftArc), mic = mic,
         )
     }
 }
@@ -107,22 +117,29 @@ fun SearchOverlayLensIcon(
 }
 
 /**
- * The search bar's voice key, after Gboard Rambler's sparkle mic, in the same four colours as the lens icon: the
- * capsule like the lens rim, the cradle like its top arc, the stem like its handle, and the same sparkle.
+ * The search bar's voice key: Gboard Rambler's sparkle mic, coloured exactly like the home screen widget's mic
+ * (capsule in the lighter third tone, stem and left cradle in the second, right cradle in the darker primary), with
+ * the sparkle in the third tone. The mic shapes are the widget's own.
  */
 @Composable
 fun SearchOverlayMicIcon(modifier: Modifier = Modifier) {
-    val palette = rememberSearchIconPalette()
-    val capsule = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 9,3 A 3,3 0 0 1 12,6 L 12,11 A 3,3 0 0 1 6,11 L 6,6 A 3,3 0 0 1 9,3 Z").toPath() }
-    val cradle = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 4,11 A 5,5 0 0 0 14,11").toPath() }
-    val stem = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 9,16 L 9,20.5").toPath() }
-    val sparkle = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 18,0.5 C 18,4 21,6.5 24,6.5 C 21,6.5 18,9 18,12.5 C 18,9 15,6.5 12,6.5 C 15,6.5 18,4 18,0.5 Z").toPath() }
+    val palette = rememberSearchIconPalette().mic
+    val parser = remember { androidx.compose.ui.graphics.vector.PathParser() }
+    val capsule = remember { parser.parsePathString("M12,15c1.66,0 2.99,-1.34 2.99,-3L15,5c0,-1.66 -1.34,-3 -3,-3S9,3.34 9,5v7c0,1.66 1.34,3 3,3z").toPath() }
+    val stem = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M11,18.92h2V22h-2z").toPath() }
+    val leftCradle = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M7,12H5c0,1.93 0.78,3.68 2.05,4.95l1.41,-1.41C7.56,14.63 7,13.38 7,12z").toPath() }
+    val rightCradle = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,17c-1.38,0 -2.63,-0.56 -3.54,-1.47l-1.41,1.41C8.32,18.21 10.07,19 12.01,19c3.87,0 6.98,-3.14 6.98,-7h-2c0,2.76 -2.23,5 -4.99,5z").toPath() }
+    val sparkle = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M19.5,1 C19.5,3.6 21.5,5.5 24,5.5 C21.5,5.5 19.5,7.4 19.5,10 C19.5,7.4 17.5,5.5 15,5.5 C17.5,5.5 19.5,3.6 19.5,1 Z").toPath() }
     androidx.compose.foundation.Canvas(modifier = modifier) {
         scale(size.width / 24f, size.height / 24f, pivot = androidx.compose.ui.geometry.Offset.Zero) {
-            drawPath(path = capsule, color = palette.rim)
-            drawPath(path = cradle, color = palette.top, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-            drawPath(path = stem, color = palette.handle, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-            drawPath(path = sparkle, color = palette.sparkle)
+            // The mic sits a little left of centre to leave the sparkle room, as on Rambler's key.
+            translate(left = -2.5f, top = 0.5f) {
+                drawPath(path = capsule, color = palette.capsule)
+                drawPath(path = stem, color = palette.stem)
+                drawPath(path = leftCradle, color = palette.leftCradle)
+                drawPath(path = rightCradle, color = palette.rightCradle)
+            }
+            drawPath(path = sparkle, color = palette.capsule)
         }
     }
 }

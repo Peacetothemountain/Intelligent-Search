@@ -88,14 +88,14 @@ internal fun rememberOverlayVoice(onHeard: (text: String) -> Unit, onProblem: (S
 
 /**
  * The search bar's listening animation, matched to Gboard's Rambler voice strip. A field of light in the colour
- * scheme's primary tone rises from a bright line along the bottom edge: low and calm when quiet, filling nearly the
+ * scheme's primary tone rises from a glow line along the bottom edge: low and calm when quiet, filling nearly the
  * whole bar while speaking. Dark rounded valleys press down from the top and travel quickly across it. The light is a
- * true halftone, a diamond grid of dots that grow where the light is bright and shrink to nothing at its edge.
+ * true halftone, a diamond grid of dots that grow where the light is glow and shrink to nothing at its edge.
  * Drawn above the bar's plate and below its icons; the plate shader itself is untouched.
  */
 internal fun Modifier.listeningGlow(active: Boolean, level: () -> Float, cornerRadius: Dp): Modifier = composed {
+    // All in the Material You primary tone, as Rambler's strip is in the keyboard's accent: no white.
     val glow = MaterialTheme.colorScheme.primary
-    val bright = androidx.compose.ui.graphics.lerp(glow, androidx.compose.ui.graphics.Color.White, 0.35f)
     val strength by animateFloatAsState(if (active) 1f else 0f, tween(280), label = "listening")
     // One loop of the field's motion; the waves inside run at whole multiples of it, so the loop is seamless.
     val clock = rememberInfiniteTransition(label = "listening-field").animateFloat(
@@ -109,19 +109,20 @@ internal fun Modifier.listeningGlow(active: Boolean, level: () -> Float, cornerR
         val w = size.width
         val h = size.height
         val radius = cornerRadius.toPx().coerceAtMost(h / 2)
-        val spacing = 3.6f * density
-        val maxDot = 2.1f * density
+        val spacing = 2.8f * density
+        val maxDot = 2.2f * density
         val line = 1.8f * density
         val columns = (w / spacing).toInt() + 2
         val rows = (h / spacing).toInt() + 2
         val path = Path()
-        val sizes = 6
+        val sizes = 10
         val buckets = Array(sizes) { ArrayList<Offset>(columns * rows / sizes) }
+        val tops = FloatArray(columns * 2)
         val fieldPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
             maskFilter = android.graphics.BlurMaskFilter(10f * density, android.graphics.BlurMaskFilter.Blur.NORMAL)
         }
         val lineBrush = Brush.verticalGradient(
-            0f to bright.copy(alpha = 0f), 0.42f to bright.copy(alpha = 0f), 0.8f to bright, 1f to bright, startY = 0f, endY = h,
+            0f to glow.copy(alpha = 0f), 0.42f to glow.copy(alpha = 0f), 0.8f to glow, 1f to glow, startY = 0f, endY = h,
         )
         onDrawWithContent {
             val t = clock.value
@@ -155,30 +156,35 @@ internal fun Modifier.listeningGlow(active: Boolean, level: () -> Float, cornerR
                 fieldPaint.alpha = (strength * 255).toInt()
                 canvas.nativeCanvas.drawPath(path.asAndroidPath(), fieldPaint)
             }
-            // The halftone: dot size follows the light, biggest low down, vanishing at the light's edge.
+            // The halftone: dots grow smoothly from nothing at the light's edge to full size low down, so the field has
+            // no hard rim, just a fine texture that thickens with the light.
             buckets.forEach { it.clear() }
+            for (k in 0..1) for (c in 0 until columns) {
+                tops[k * columns + c] = h - h * reach(c * spacing + k * spacing / 2)
+            }
             for (r in 0 until rows) {
                 val y = h - line - r * spacing
                 if (y < 0f) break
-                val offset = if (r % 2 == 0) 0f else spacing / 2
+                val k = r % 2
+                val offset = k * spacing / 2
                 for (c in 0 until columns) {
                     val px = c * spacing + offset
                     if (px > w) continue
-                    val top = h - h * reach(px)
+                    val top = tops[k * columns + c]
                     if (y < top) continue
                     val depth = ((y - top) / (h - top).coerceAtLeast(1f)).coerceIn(0f, 1f)
-                    val light = (depth * 3f).coerceAtMost(1f)
-                    val index = (light * (sizes - 1)).toInt()
-                    if (light > 0.05f) buckets[index].add(Offset(px, y))
+                    val light = (depth * 2.4f).coerceAtMost(1f)
+                    if (light < 0.08f) continue
+                    buckets[(light * (sizes - 1)).toInt()].add(Offset(px, y))
                 }
             }
             buckets.forEachIndexed { i, points ->
                 if (points.isNotEmpty()) {
-                    val dot = maxDot * (0.35f + 0.65f * (i + 1) / sizes)
-                    drawPoints(points, PointMode.Points, if (i >= sizes - 2) bright else glow, strokeWidth = dot, cap = StrokeCap.Round, alpha = strength * (0.45f + 0.1f * i))
+                    val light = (i + 0.5f) / sizes
+                    drawPoints(points, PointMode.Points, glow, strokeWidth = maxDot * (0.2f + 0.8f * light), cap = StrokeCap.Round, alpha = strength * (0.35f + 0.6f * light))
                 }
             }
-            // The bright line along the bottom edge, fading out as it climbs into the corners.
+            // The glow line along the bottom edge, fading out as it climbs into the corners.
             drawRoundRect(lineBrush, cornerRadius = CornerRadius(radius), style = Stroke(line * 4f), alpha = strength * 0.30f)
             drawRoundRect(lineBrush, topLeft = Offset(line / 2, line / 2), size = Size(w - line, h - line), cornerRadius = CornerRadius(radius - line / 2), style = Stroke(line), alpha = strength)
             drawContent()

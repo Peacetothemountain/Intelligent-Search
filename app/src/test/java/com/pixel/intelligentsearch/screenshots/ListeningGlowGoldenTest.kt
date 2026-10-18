@@ -52,7 +52,8 @@ class ListeningGlowGoldenTest(private val level: Float, private val dark: Boolea
                 }
             }
         }
-        compose.mainClock.advanceTimeBy(1_300)
+        // Frame by frame, so the eased voice level settles as it would on screen.
+        repeat(80) { compose.mainClock.advanceTimeBy(16) }
         compose.onRoot().captureRoboImage(
             filePath = "src/test/screenshots/voice/listening_${if (level > 0.5f) "loud" else "quiet"}_${if (dark) "dark" else "light"}.png",
             roborazziOptions = SettingsGoldenTest.GOLDEN_OPTIONS

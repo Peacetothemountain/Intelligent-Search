@@ -359,25 +359,17 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     modifier = Modifier.size(40.dp)
                 ) { Icon(Icons.Default.Check, contentDescription = "Done speaking", modifier = Modifier.size(22.dp)) }
             } else {
-                // Gboard Rambler's voice key: a sparkle mic in a soft tonal circle.
-                androidx.compose.material3.FilledTonalIconButton(
+                // Gboard Rambler's sparkle mic, drawn in the same colours as the lens icon; no container.
+                IconButton(
                     onClick = {
                         focusManager.clearFocus(force = true)
                         keyboardController?.hide()
                         isKeyboardDismissedByUser = true
                         voice.start()
                     },
-                    colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_mic_spark),
-                        contentDescription = "Search by voice",
-                        modifier = Modifier.size(22.dp)
-                    )
+                    SearchOverlayMicIcon(modifier = Modifier.size(28.dp))
                 }
             }
 

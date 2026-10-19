@@ -11,12 +11,11 @@ expected to behave. No change is finished until it passes.
   ./gradlew lintDebug testDebugUnitTest
   ```
 
-  Both must pass. This includes the screenshot goldens in `app/src/test/screenshots`, which CI skips
-  (`-PskipScreenshots`), so this local run is the only place visual regressions are caught. None of it needs a
-  phone attached.
-- Never commit with a failing or skipped test. Don't delete, `@Ignore`, loosen or rewrite a test's assertions just to
-  make it pass. If a test is genuinely wrong or the behaviour change is intended, say so and get the owner's OK first.
-- Don't re-record goldens (`-Proborazzi.record`) to clear a screenshot failure unless the visual change is intended.
+  Both must pass. This includes the screenshot goldens in `app/src/test/screenshots`, which CI also compares, so
+  catch visual changes here before pushing. None of it needs a phone attached.
+- Never commit with a failing test, and never skip one to get past it (the layout audit skipping itself is
+  expected). Don't delete, `@Ignore`, loosen or rewrite a test's assertions just to make it pass. If a test is genuinely wrong or the behaviour change is intended, say so and get the owner's OK first.
+- Don't re-record goldens (`-Proborazzi.record=true`) to clear a screenshot failure unless the visual change is intended.
   Look at the diff images in `app/build/outputs/roborazzi` first and say which goldens changed and why.
 - Lint fails on any warning not in `app/lint-baseline.xml`. Fix new warnings; don't add them to the baseline.
 - Every bug fix gets a test that fails without the fix. New behaviour gets tests alongside it.

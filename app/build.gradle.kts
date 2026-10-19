@@ -94,7 +94,7 @@ android {
           test.systemProperty("roborazzi.test.verify", if (project.hasProperty("roborazzi.record")) "false" else "true")
           // Goldens are inputs: replacing an image must re-run the comparison instead of reusing a cached result.
           test.inputs.files(project.fileTree("src/test/screenshots")).withPropertyName("screenshotGoldens")
-          // Goldens are recorded on Windows; until Linux rendering is confirmed identical, CI can skip them.
+          // Goldens are recorded on Windows and match on CI's Linux runners; -PskipScreenshots leaves them out of a run.
           if (project.hasProperty("skipScreenshots")) test.exclude("**/screenshots/**")
           // The layout audit renders every screen at many device sizes and text sizes; it runs only on request
           // (-PlayoutAudit) and writes its report and captures to build/layout-audit.

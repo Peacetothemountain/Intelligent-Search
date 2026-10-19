@@ -57,8 +57,11 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew assembleRelease --no-daemon
 
-      - name: Verify signed APK exists
-        run: test -f app/build/outputs/apk/release/app-release.apk
+      # Name the APK like the earlier releases: tag v9.3.1-125 gives IntelligentSearch-9.3.1-125.apk.
+      - name: Verify and name the signed APK
+        run: |
+          test -f app/build/outputs/apk/release/app-release.apk
+          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/IntelligentSearch-${GITHUB_REF_NAME#v}.apk"
 
       - name: Remove signing keystore
         if: always()
@@ -68,8 +71,8 @@ jobs:
       - name: Create GitHub Release & Attach APK
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
-          files: app/build/outputs/apk/release/app-release.apk
-          name: Intelligent Search Release ${{ github.ref_name }}
+          files: app/build/outputs/apk/release/IntelligentSearch-*.apk
+          name: Intelligent Search ${{ github.ref_name }}
           draft: false
           prerelease: false
           fail_on_unmatched_files: true

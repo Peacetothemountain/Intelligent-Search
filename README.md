@@ -1,111 +1,134 @@
 <div align="center">
 
-<h1 align="center">
-  <svg width="42" height="42" viewBox="0 0 24 24" fill="none" style="vertical-align: middle; margin-right: 8px;">
-    <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="#4285F4"/>
-    <path d="M12 1.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6.6-1.4z" fill="#FBBC05"/>
-    <path d="M19 4.5l.4.9.9.4-.9.4-.4.9-.4-.9-.9-.4.9-.4.4-.9z" fill="#EA4335"/>
-    <path d="M17 10.5l.5 1.1 1.1.5-1.1.5-.5 1.1-.5-1.1-1.1-.5 1.1-.5.5-1.1z" fill="#34A853"/>
-  </svg>
-  Intelligent Search
-</h1>
+<img src="docs/images/logo.svg" width="72" height="72" alt="Intelligent Search logo" />
 
-**A Pixel-Inspired Search Overlay & Home Screen Widget Experience for Android**
+# Intelligent Search
 
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge&logo=androidstudio)](https://github.com/Peacetothemountain/Intelligent-Search)
-[![Target Android](https://img.shields.io/badge/Android-15%2B%20%2F%20SDK%2035-3DDC84?style=for-the-badge&logo=android)](https://developer.android.com)
-[![Version Code](https://img.shields.io/badge/Version-v8.1%20(81)-blue?style=for-the-badge)](https://github.com/Peacetothemountain/Intelligent-Search/releases)
+**A Pixel-inspired search overlay, assistant and home screen widget for Android**
+
+[![CI](https://img.shields.io/github/actions/workflow/status/Peacetothemountain/Intelligent-Search/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI)](https://github.com/Peacetothemountain/Intelligent-Search/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Peacetothemountain/Intelligent-Search?style=for-the-badge&logo=android&logoColor=white&color=3DDC84&label=Release)](https://github.com/Peacetothemountain/Intelligent-Search/releases/latest)
+[![Android](https://img.shields.io/badge/Android-12%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com/about/versions)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge&logo=apache)](LICENSE)
 
-
-## 🚀 Join on Google Play
-
-Join Intelligent Search now on Google Play
-
-### How to join:
-
-Visit https://play.google.com/store/apps/details?id=com.pixel.intelligentsearch and download
-   
-## 🌟 Overview
-
-**Intelligent Search** is a fast, highly customizable search application designed to bring authentic Google Pixel Search Bar styling and system-wide search overlays to any Android device. Engineered with modern Jetpack Compose, AGSL GPU shaders, dynamic Material You color systems, and RenderThread layer compositing, Intelligent Search delivers instant access to installed apps, system settings, contact shortcuts, web search engines, and device media.
-
----
-
-## 📸 App & Settings Showcase
-
-<div align="center">
-
-<table>
-  <tr>
-    <td align="center" width="20%" valign="top">
-      <b>🔍 Search Overlay</b><br/><br/>
-      <img src="docs/images/01_screen_overlay.png" alt="Search Overlay" width="180" /><br/><br/>
-      <sub><i>Pixel Pill Bar, Ambient Shader & Quick Apps</i></sub>
-    </td>
-    <td align="center" width="20%" valign="top">
-      <b>🎨 Widget Customization</b><br/><br/>
-      <img src="docs/images/02_widget_customization.png" alt="Widget Customization" width="180" /><br/><br/>
-      <sub><i>Live Widget Preview, Monet 3-Color & Slot Reordering</i></sub>
-    </td>
-    <td align="center" width="20%" valign="top">
-      <b>⚙️ Settings Overview</b><br/><br/>
-      <img src="docs/images/03_settings_overview.png" alt="Settings Overview" width="180" /><br/><br/>
-      <sub><i>Unified Control Center & System Integration</i></sub>
-    </td>
-    <td align="center" width="20%" valign="top">
-      <b>⚡ Search Behavior</b><br/><br/>
-      <img src="docs/images/04_search_behavior.png" alt="Search Behavior" width="180" /><br/><br/>
-      <sub><i>Bottom Searchbar, Smart Clipboard & Search Sources</i></sub>
-    </td>
-    <td align="center" width="20%" valign="top">
-      <b>✨ Appearance & Shaders</b><br/><br/>
-      <img src="docs/images/05_appearance_settings.png" alt="Appearance Settings" width="180" /><br/><br/>
-      <sub><i>AGSL Background Shaders, Material Morph & Blur</i></sub>
-    </td>
-  </tr>
-</table>
+<a href="https://play.google.com/store/apps/details?id=com.pixel.intelligentsearch"><img src="https://img.shields.io/badge/Get%20it%20on-Google%20Play-414141?style=for-the-badge&logo=googleplay&logoColor=white" alt="Get it on Google Play" /></a>
 
 </div>
 
 ---
 
-## ✨ Features at a Glance
+## 🌟 Overview
+
+**Intelligent Search** brings Pixel-style search to any Android 12+ phone or tablet. One search bar finds your apps,
+shortcuts, contacts, calendar, files and the web, answers calculations and conversions instantly, and turns plain
+sentences like *"timer 10 minutes"* into actions. It can replace the default digital assistant, lives on your home
+screen as a fully customizable widget, and does all of its matching on the device.
+
+Built with Jetpack Compose, Material 3 Expressive, Material You dynamic color and AGSL GPU shaders.
+
+---
+
+## 📸 Screenshots
+
+<div align="center">
+<table>
+  <tr>
+    <td align="center" valign="top"><img src="docs/images/01_search_overlay.png" width="180" alt="Search overlay" /><br/><sub><b>Search overlay</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/02_calculator.png" width="180" alt="Calculator answer" /><br/><sub><b>Instant calculator</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/03_unit_conversion.png" width="180" alt="Unit conversion" /><br/><sub><b>Unit conversion</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/04_quick_actions.png" width="180" alt="Timer quick action" /><br/><sub><b>Quick actions</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><img src="docs/images/05_app_search.png" width="180" alt="App search best match" /><br/><sub><b>Best match</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/06_voice_search.png" width="180" alt="Voice search" /><br/><sub><b>Voice search</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/07_settings.png" width="180" alt="Settings" /><br/><sub><b>Settings</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/08_appearance.png" width="180" alt="Appearance settings" /><br/><sub><b>Appearance</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><img src="docs/images/09_search_behavior.png" width="180" alt="Search behavior settings" /><br/><sub><b>Search behavior</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/10_widget_customization.png" width="180" alt="Widget customization" /><br/><sub><b>Widget customization</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/11_search_sources.png" width="180" alt="Search sources" /><br/><sub><b>Search sources</b></sub></td>
+    <td></td>
+  </tr>
+</table>
+</div>
+
+---
+
+## ✨ Features
 
 <table>
   <tr>
-    <td width="50%">
-      <h3>📱 Authentic Pixel Styling</h3>
+    <td width="50%" valign="top">
+      <h3>🔍 Search everything</h3>
       <ul>
-        <li>Native Pixel Launcher pill containers and dynamic elevation.</li>
-        <li>Dual design engines: <b>Material Design Expressive</b> (Monet 3-color palette) and <b>System Design</b> (Google brand colors).</li>
-        <li>Smooth gesture-driven search overlay expansion.</li>
+        <li>Apps across your personal, work and private space profiles, plus their app shortcuts.</li>
+        <li>Contacts, calendar events and files you choose through the system picker.</li>
+        <li>Live web suggestions and your previous searches, each of which can be turned off.</li>
+        <li>Quick web shortcuts such as <code>!yt</code>, <code>!w</code> or <code>!gh</code>, plus your own custom search engines.</li>
       </ul>
     </td>
-    <td width="50%">
-      <h3>⚡ Ultra-Fast Performance</h3>
+    <td width="50%" valign="top">
+      <h3>⚡ Instant answers and actions</h3>
       <ul>
-        <li><b>RenderThread Layer Compositing</b> for zero-overhead animation.</li>
-        <li><b>Critically Damped Spring Physics</b> for instant touch response.</li>
-        <li><b>AGSL GPU Ambient Shader</b> for dynamic background visuals.</li>
+        <li>A full calculator: functions, percentages, bitwise maths and number bases.</li>
+        <li>Unit conversion and the time in other places.</li>
+        <li>Plain sentences become actions: timers, alarms, reminders, calendar events, messages, calls and directions.</li>
+        <li>Toggle Wi-Fi, Bluetooth, the flashlight or airplane mode, and set the volume, right from the results.</li>
       </ul>
     </td>
   </tr>
   <tr>
-    <td width="50%">
-      <h3>🎨 Deep Customization</h3>
+    <td width="50%" valign="top">
+      <h3>🧠 Smart matching</h3>
       <ul>
-        <li>Resizable home screen widgets with custom action buttons.</li>
-        <li>Background transparency controls (0% to 100%).</li>
-        <li>Third-party icon pack support for search cards and widgets.</li>
+        <li>Typo-tolerant, sound-alike and acronym matching, so "spotfy" finds Spotify and "gps" finds Google Play Store.</li>
+        <li>Spelling suggestions, and a best match ranked by how often and how recently you use things.</li>
+        <li>Optional context-aware quick apps and clipboard suggestions.</li>
       </ul>
     </td>
-    <td width="50%">
-      <h3>🛡️ Privacy First Architecture</h3>
+    <td width="50%" valign="top">
+      <h3>🎙️ Assistant and voice</h3>
       <ul>
-        <li><b>100% On-Device Processing</b> for local search queries.</li>
-        <li>Search history kept in a local, sandboxed database (excluded from cloud backup).</li>
-        <li>User-controlled permission gating for Contacts & Calendar.</li>
+        <li>Can be set as the default digital assistant, so the assistant gesture opens search.</li>
+        <li>Built-in voice search with a live listening animation.</li>
+        <li>Google Lens and assistant shortcuts one tap away.</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🏠 Widgets and launch points</h3>
+      <ul>
+        <li>Resizable System Design and Material Design search bar widgets.</li>
+        <li>Color Studio, custom action buttons and G icon styles, with a live preview.</li>
+        <li>A Quick Settings tile and launcher app shortcuts; the widget keeps working before first unlock.</li>
+      </ul>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🎨 Make it yours</h3>
+      <ul>
+        <li>Material You colors, light and dark themes, and your wallpaper behind the overlay.</li>
+        <li>Background blur, transparency and pill opacity controls.</li>
+        <li>Icon packs and custom icons, animated backgrounds and haptic feedback.</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🛡️ Privacy first</h3>
+      <ul>
+        <li>All matching and ranking happens on the device.</li>
+        <li>Contacts, calendar and files are off until you allow them.</li>
+        <li>Hidden apps can be locked behind your fingerprint or face.</li>
+        <li>Nothing goes to Google's cloud backup; your own backups are encrypted with a passphrase.</li>
+      </ul>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🤖 Works with AI agents</h3>
+      <ul>
+        <li>On Android 16 and later, on-device assistants can use App Functions to search your apps and run calculations.</li>
+        <li>Hidden apps are never returned, and contact search for assistants is off until you turn it on.</li>
       </ul>
     </td>
   </tr>
@@ -113,53 +136,71 @@ Visit https://play.google.com/store/apps/details?id=com.pixel.intelligentsearch 
 
 ---
 
-## 🏗️ Architecture & Technology Stack
+## 🏗️ Architecture
 
 ```
-Intelligent Search Architecture
-├── UI Layer (Jetpack Compose, AGSL Shaders, Material You Monet)
-├── Feature Modules
-│   ├── Search Overlay (SearchViewModel, Matrix & Shader Backgrounds)
-│   ├── Settings & Customization (SettingsScreens, Icon Pack Resolution)
-│   ├── Widgets & Tiles (SearchWidgetProvider, SearchTileService)
-│   └── Voice & Intents (IntelligentVoiceInteractionSession)
-└── Core Infrastructure
-    ├── Data Providers (SystemDataProvider, WebSearchProvider, SettingsManager)
-    └── Local Database (Room SQLite - IntelligentSearchDatabase)
+app/src/main/java/com/pixel/intelligentsearch
+├── feature
+│   ├── search        Search overlay: SearchActivity, SearchViewModel, results, voice, quick apps
+│   ├── settings      Settings screens, widget editor, backup and restore, setup checklist, tutorial
+│   ├── widget        Search bar widgets, Quick Settings tile, widget updates
+│   ├── voice         Assistant (VoiceInteractionService), speech recognition, dictation
+│   └── appfunctions  App Functions offered to on-device agents
+├── core
+│   ├── search        Radix tree index, fuzzy and phonetic matching, ranking, calculator, intent parser
+│   ├── data          Settings store, device sources, Room history database, web suggestions
+│   ├── backup        Encrypted backup, auto backup and restore
+│   ├── security      Biometric gate, safe web launches, custom search URL checks
+│   ├── system        Assistant role, system toggles, Direct Boot
+│   └── theme, ui     Material You theming, shaders, shared components
+└── di                Hilt modules
 ```
 
 ---
 
-## 🛠️ Build Requirements & Setup
+## 🛠️ Building from source
 
-- **IDE**: Android Studio Jellyfish (2024.1.1) or newer
-- **JDK Target**: JDK 17 / JDK 21
-- **Android Target / Compile SDK**: SDK 37 (Android 17)
-- **Minimum Supported SDK**: SDK 31 (Android 12+)
-
-### Building from Source
+**Requirements:** a current Android Studio that supports Android Gradle Plugin 9.4, JDK 17, compile and target SDK 37
+(Android 17), minimum SDK 31 (Android 12).
 
 ```bash
-# Clone the repository
 git clone https://github.com/Peacetothemountain/Intelligent-Search.git
 cd Intelligent-Search
 
-# Build Release APK
+# Debug build
+./gradlew assembleDebug
+
+# Release build
 ./gradlew assembleRelease
 ```
 
-With signing configured (`release.keystore` in the project root plus `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD` in `local.properties` or the environment), the release binary is generated at:
-`app/build/outputs/apk/release/app-release.apk`
+A release build is signed when `release.keystore` is in the project root and `RELEASE_STORE_PASSWORD`,
+`RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD` are set in `local.properties` or the environment. The APK is written to
+`app/build/outputs/apk/release/app-release.apk`. Without them Gradle produces `app-release-unsigned.apk`; release
+builds are never signed with the debug key.
 
-Without signing, Gradle produces `app-release-unsigned.apk` instead; release builds are never signed with the debug key.
+### Tests
+
+```bash
+./gradlew lintDebug testDebugUnitTest
+```
+
+This runs lint and the unit, characterization and screenshot tests (Robolectric and Roborazzi); no device is needed.
+Screenshot references live in `app/src/test/screenshots`; after an intended visual change, re-record them with
+`./gradlew testDebugUnitTest -Proborazzi.record=true`.
 
 ---
 
-## 📦 Automated Release Pipeline
+## 📦 Continuous integration and releases
 
-Automated build and release workflows are managed via GitHub Actions on GitHub-hosted `ubuntu-latest` runners, with every action pinned to a commit SHA. `ci.yml` runs the unit tests and a release build on each push; `release.yml` builds a signed APK for each `v*` tag and attaches it to a GitHub release. The release workflow needs these repository secrets: `RELEASE_KEYSTORE_BASE64` (the keystore, base64-encoded), `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD`; it fails rather than publishing a release without an APK.
+GitHub Actions runs on GitHub-hosted runners, with every action pinned to a commit SHA.
 
-- **Releases Page**: Compiled release binaries (`v8.1`) are available under the repository [Releases Section](https://github.com/Peacetothemountain/Intelligent-Search/releases).
+- **`ci.yml`** runs lint, every test (including the screenshot comparisons) and a release build on each push and pull
+  request to `main` and `dev`. `main` is protected: a commit can only reach it once this check has passed.
+- **`release.yml`** builds a signed APK for each `v*` tag and publishes it as a GitHub release.
+
+Download the latest APK from the [Releases page](https://github.com/Peacetothemountain/Intelligent-Search/releases/latest),
+or install from [Google Play](https://play.google.com/store/apps/details?id=com.pixel.intelligentsearch).
 
 ---
 
@@ -167,14 +208,15 @@ Automated build and release workflows are managed via GitHub Actions on GitHub-h
 
 Intelligent Search is open source software licensed under the **Apache License, Version 2.0**.
 
-- **Full License Text**: Read the complete terms in the [`LICENSE`](LICENSE) file.
-- **Privacy Policy**: Read our data processing policies in [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md).
+- **Full license text:** [`LICENSE`](LICENSE)
+- **Privacy policy:** [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md)
+- **Reporting a security issue:** [`SECURITY.md`](SECURITY.md)
 
 ---
 
 ## 🏷️ Trademarks & Legal Disclaimer
 
-Android, Google, Google Pixel, Google Play, and the Google Play logo are registered trademarks of **Google LLC**. 
+Android, Google, Google Pixel, Google Play, and the Google Play logo are registered trademarks of **Google LLC**.
 
 - **Intelligent Search** is an independent software application developed by **NG Designs**.
 - This application and repository are not affiliated with, sponsored by, or endorsed by Google LLC.

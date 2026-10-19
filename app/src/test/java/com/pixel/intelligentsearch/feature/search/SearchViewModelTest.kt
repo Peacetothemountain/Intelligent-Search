@@ -137,7 +137,9 @@ class SearchViewModelTest {
         start()
         viewModel.onQueryChanged("cal")
         val apps = await("app results") { it.filteredApps.isNotEmpty() }.filteredApps.map { it.name }
-        assertEquals(listOf("Calendar"), apps)
+        // The instant results are prefix matches only; the full search may add a near miss ("Camera", one letter
+        // off) once the index is ready, which is when a slow machine first sees results. The match ranks first either way.
+        assertEquals("apps were $apps", "Calendar", apps.first())
     }
 
     @Test

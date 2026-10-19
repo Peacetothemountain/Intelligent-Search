@@ -46,6 +46,9 @@ data class ProcessRamEntry(
     val ramMb: Float
 )
 
+/** Process-wide so the learned current unit and sign survive reopening the page. */
+private val batteryCurrentReader = DiagnosticsReadings.CurrentReader()
+
 private data class MemorySnapshot(
     val totalGb: Double,
     val usedGb: Double,
@@ -58,16 +61,17 @@ private data class MemorySnapshot(
     val thresholdMb: Int,
     val memPressure: String,
     val processes: List<ProcessRamEntry>,
-    val physicalGb: Int = 12
+    val breakdownAvailable: Boolean,
+    val physicalGb: Int
 )
 
 private data class BatteryTelemetrySnapshot(
     val level: Int,
     val temp: Float,
     val volt: Float,
-    val watts: Float,
+    val watts: Float?,
     val health: String,
-    val healthPct: Int,
+    val healthSeverity: DiagnosticsReadings.HealthSeverity,
     val cycles: Int,
     val technology: String,
     val thermalStatus: String,
@@ -81,15 +85,15 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
     var batteryLevel by remember { mutableIntStateOf(0) }
     var batteryTemp by remember { mutableFloatStateOf(0f) }
     var batteryVolt by remember { mutableFloatStateOf(0f) }
-    var batteryWatts by remember { mutableFloatStateOf(0f) }
-    var batteryHealth by remember { mutableStateOf("Unknown") }
-    var batteryHealthPct by remember { mutableIntStateOf(-1) }
+    var batteryWatts by remember { mutableStateOf<Float?>(null) }
+    var batteryHealth by remember { mutableStateOf(DiagnosticsReadings.HEALTH_NOT_REPORTED) }
+    var batteryHealthSeverity by remember { mutableStateOf(DiagnosticsReadings.HealthSeverity.Ok) }
     var batteryCycles by remember { mutableIntStateOf(-1) }
     var batteryTechnology by remember { mutableStateOf("Li-ion") }
-    var thermalStatus by remember { mutableStateOf("Optimal") }
+    var thermalStatus by remember { mutableStateOf("Normal") }
     var isCharging by remember { mutableStateOf(false) }
-    var chargingRateStr by remember { mutableStateOf("Calculating...") }
-    var timeEstimateStr by remember { mutableStateOf("Calculating...") }
+    var chargingRateStr by remember { mutableStateOf("Reading battery...") }
+    var timeEstimateStr by remember { mutableStateOf("Estimating...") }
 
     var totalRamGb by remember { mutableStateOf("0.0") }
     var usedRamGb by remember { mutableStateOf("0.0") }
@@ -99,30 +103,28 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
         val actMgr = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
         val memInfo = android.app.ActivityManager.MemoryInfo()
         actMgr?.getMemoryInfo(memInfo)
-        val totGb = memInfo.totalMem.toDouble() / 1_000_000_000.0
-        when {
-            totGb <= 4.5 -> 4
-            totGb <= 6.5 -> 6
-            totGb <= 8.5 -> 8
-            totGb <= 12.8 -> 12
-            totGb <= 16.8 -> 16
-            else -> 24
-        }
+        val advertised = if (Build.VERSION.SDK_INT >= 34) memInfo.advertisedMem else -1L
+        DiagnosticsReadings.retailRamGb(advertised, memInfo.totalMem)
     }
     var physicalRamGb by remember { mutableIntStateOf(initialPhysicalRam) }
     var zRamUsedGb by remember { mutableStateOf("0.0") }
     var zRamTotalGb by remember { mutableStateOf("0.0") }
     var cachedRamGb by remember { mutableStateOf("0.0") }
     var isLowMemory by remember { mutableStateOf(false) }
-    var memoryPressure by remember { mutableStateOf("Optimal") }
+    var memoryPressure by remember { mutableStateOf("Normal") }
     var lmkThresholdMb by remember { mutableIntStateOf(0) }
     var topProcesses by remember { mutableStateOf<List<ProcessRamEntry>>(emptyList()) }
+    var breakdownAvailable by remember { mutableStateOf(true) }
 
     val actMgr = remember(context) { context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager }
     val bm = remember(context) { context.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager }
 
     LaunchedEffect(Unit) {
         val appContext = context.applicationContext ?: context
+        // Carried across polls: the smoothed net current behind the time estimates, reset whenever the charging
+        // state changes. The current unit and sign are learned process-wide by batteryCurrentReader.
+        var smoothedNetMa: Float? = null
+        var lastChargeState: DiagnosticsReadings.ChargeState? = null
         while (true) {
             try {
                 val (bSnap, mSnap) = withContext(Dispatchers.IO) {
@@ -139,230 +141,113 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                     val bVolt = v / 1000f
 
                     val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-                    val bIsCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
-
                     val plugged = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) ?: 0
-
-                    val h = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_HEALTH, android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN) ?: android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN
-                    val bHealth = when (h) {
-                        android.os.BatteryManager.BATTERY_HEALTH_GOOD -> "Good"
-                        android.os.BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Overheat"
-                        android.os.BatteryManager.BATTERY_HEALTH_DEAD -> "Dead"
-                        android.os.BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over Voltage"
-                        android.os.BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "Failed"
-                        android.os.BatteryManager.BATTERY_HEALTH_COLD -> "Cold"
-                        8 -> "Dock Defender"
-                        11 -> "Optimized"
-                        android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN -> "Unknown"
-                        else -> "Normal"
+                    val chargeState = DiagnosticsReadings.chargeState(status, plugged)
+                    if (chargeState != lastChargeState) {
+                        // Also covers the page opening: plug changes made while it was closed were not seen.
+                        smoothedNetMa = null
+                        lastChargeState = chargeState
+                        batteryCurrentReader.restartSettleWindow()
                     }
 
-                    // Battery cycle count (Android 14+ / API 34+ property & sysfs fallback)
-                    var cycles = -1
-                    if (android.os.Build.VERSION.SDK_INT >= 34) {
-                        try {
-                            cycles = batteryStatus?.getIntExtra("android.os.extra.CYCLE_COUNT", -1) ?: -1
-                        } catch (_: Throwable) {}
-                        if (cycles <= 0) {
-                            try {
-                                cycles = bm?.getIntProperty(8 /* BATTERY_PROPERTY_CYCLE_COUNT */) ?: -1
-                            } catch (_: Throwable) {}
-                        }
-                    }
-                    if (cycles <= 0) {
-                        val cycleFiles = listOf(
-                            "/sys/class/power_supply/battery/cycle_count",
-                            "/sys/class/power_supply/max77779fg/cycle_count",
-                            "/sys/class/power_supply/maxfg/cycle_count",
-                            "/sys/class/power_supply/bms/battery_cycle"
-                        )
-                        for (cf in cycleFiles) {
-                            try {
-                                val file = java.io.File(cf)
-                                if (file.exists() && file.canRead()) {
-                                    val parsed = file.readText().trim().toIntOrNull()
-                                    if (parsed != null && parsed >= 0) {
-                                        cycles = parsed
-                                        break
-                                    }
-                                }
-                            } catch (_: Throwable) {}
-                        }
+                    val h = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_HEALTH, android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN)
+                        ?: android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN
+                    val bHealth = DiagnosticsReadings.healthLabel(h)
+                    val bHealthSeverity = DiagnosticsReadings.healthSeverity(h)
+
+                    // Cycle count is part of the battery broadcast from Android 14 (API 34); 0 is valid on a new battery.
+                    val cycles = if (Build.VERSION.SDK_INT >= 34) {
+                        batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_CYCLE_COUNT, -1) ?: -1
+                    } else {
+                        -1
                     }
 
                     val bTechnology = batteryStatus?.getStringExtra(android.os.BatteryManager.EXTRA_TECHNOLOGY)?.takeIf { it.isNotBlank() } ?: "Li-ion"
 
-                    // Thermals
+                    // Device-wide thermal throttling state (not battery temperature).
                     val pmPower = appContext.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
-                    val osThermal = try {
-                        when (pmPower?.currentThermalStatus) {
-                            android.os.PowerManager.THERMAL_STATUS_NONE -> "Cool"
-                            android.os.PowerManager.THERMAL_STATUS_LIGHT -> "Optimal"
-                            android.os.PowerManager.THERMAL_STATUS_MODERATE -> "Warm"
-                            android.os.PowerManager.THERMAL_STATUS_SEVERE -> "Hot"
-                            android.os.PowerManager.THERMAL_STATUS_CRITICAL -> "Critical"
-                            android.os.PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
-                            android.os.PowerManager.THERMAL_STATUS_SHUTDOWN -> "Overheat"
-                            else -> null
+                    val bThermalStatus = DiagnosticsReadings.thermalLabel(
+                        try { pmPower?.currentThermalStatus } catch (_: Exception) { null }
+                    ) ?: "N/A"
+
+                    // Net current into the battery (negative while draining): CURRENT_NOW for live power and for
+                    // learning the unit and sign; CURRENT_AVERAGE (smoothed further) for time estimates once the plug
+                    // state has settled and it agrees with CURRENT_NOW, so a stale or differently scaled average
+                    // can't drive them.
+                    val unplugged = chargeState == DiagnosticsReadings.ChargeState.Discharging
+                    val nowMs = android.os.SystemClock.elapsedRealtime()
+                    val rawCurrentNow = try { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) } catch (_: Throwable) { null } ?: Int.MIN_VALUE
+                    val rawCurrentAvg = try { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) } catch (_: Throwable) { null } ?: Int.MIN_VALUE
+                    val netNowMa = batteryCurrentReader.readNow(rawCurrentNow, unplugged, nowMs)
+                    val netAvgMa = batteryCurrentReader.convert(rawCurrentAvg)
+                    val netForEstimate = if (batteryCurrentReader.isSettled(nowMs) && DiagnosticsReadings.averageAgrees(netNowMa, netAvgMa)) netAvgMa else netNowMa
+                    if (netForEstimate != null) smoothedNetMa = DiagnosticsReadings.smooth(smoothedNetMa, netForEstimate)
+                    val bWatts = if (bVolt > 0f && netNowMa != null) bVolt * kotlin.math.abs(netNowMa) / 1000f else null
+
+                    // CHARGE_COUNTER is µAh; dropped when it implies an implausible full capacity.
+                    val chargeMah = try {
+                        val cc = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) ?: Int.MIN_VALUE
+                        if (cc != Int.MIN_VALUE && cc > 0) cc / 1000f else null
+                    } catch (_: Throwable) { null }?.takeIf { mah ->
+                        bLevel < 10 || (mah / (bLevel / 100f)) in 1000f..20000f
+                    }
+
+                    fun untilEmpty(otherwise: String): String {
+                        val minutes = DiagnosticsReadings.minutesUntilEmpty(chargeMah, smoothedNetMa)
+                        return when {
+                            minutes == null -> otherwise
+                            minutes > 7 * 24 * 60 -> "Over a week left"
+                            else -> "${DiagnosticsReadings.formatMinutes(minutes)} until empty"
                         }
-                    } catch (_: Exception) { null }
-
-                    val bThermalStatus = osThermal ?: when {
-                        bTemp < 20f -> "Cool"
-                        bTemp <= 35f -> "Optimal"
-                        bTemp <= 41f -> "Warm"
-                        else -> "Overheat"
                     }
-
-                    // Health Wear / State of Health (SoH %) from actual fuel gauge or design capacity
-                    var healthPct = -1
-                    val chargeFullPaths = listOf(
-                        "/sys/class/power_supply/battery/charge_full" to "/sys/class/power_supply/battery/charge_full_design",
-                        "/sys/class/power_supply/max77779fg/charge_full" to "/sys/class/power_supply/max77779fg/charge_full_design",
-                        "/sys/class/power_supply/maxfg/charge_full" to "/sys/class/power_supply/maxfg/charge_full_design",
-                        "/sys/class/power_supply/bms/charge_full" to "/sys/class/power_supply/bms/charge_full_design"
-                    )
-                    for ((fullPath, designPath) in chargeFullPaths) {
-                        try {
-                            val f1 = java.io.File(fullPath)
-                            val f2 = java.io.File(designPath)
-                            if (f1.exists() && f1.canRead() && f2.exists() && f2.canRead()) {
-                                val fullVal = f1.readText().trim().toDoubleOrNull() ?: 0.0
-                                val designVal = f2.readText().trim().toDoubleOrNull() ?: 0.0
-                                if (fullVal > 1000.0 && designVal > 1000.0) {
-                                    healthPct = ((fullVal / designVal) * 100.0).toInt().coerceIn(30, 100)
-                                    break
-                                }
-                            }
-                        } catch (_: Throwable) {}
-                    }
-                    if (healthPct <= 0) {
-                        healthPct = -1
-                    }
-
-                    // Accurate Current & Power (Watts)
-                    val rawCurrentNow = try { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) } catch (_: Throwable) { null } ?: Integer.MIN_VALUE
-                    val rawCurrentAvg = try { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) } catch (_: Throwable) { null } ?: Integer.MIN_VALUE
-
-                    val rawCurrent = when {
-                        rawCurrentNow != Integer.MIN_VALUE && rawCurrentNow != 0 -> rawCurrentNow
-                        rawCurrentAvg != Integer.MIN_VALUE && rawCurrentAvg != 0 -> rawCurrentAvg
-                        else -> listOf(
-                            "/sys/class/power_supply/battery/current_now",
-                            "/sys/class/power_supply/max77779fg/current_now",
-                            "/sys/class/power_supply/battery/current_avg"
-                        ).firstNotNullOfOrNull { path ->
-                            try {
-                                val f = java.io.File(path)
-                                if (f.exists() && f.canRead()) f.readText().trim().toIntOrNull() else null
-                            } catch (_: Throwable) { null }
-                        } ?: 0
-                    }
-                    val absCurrent = kotlin.math.abs(rawCurrent).toFloat()
-                    val currentMa = when {
-                        absCurrent > 1000f -> (absCurrent / 1000f).coerceAtMost(12000f)
-                        absCurrent > 0f -> absCurrent
-                        else -> 0f
-                    }
-                    val bWatts = if (bVolt > 0f && currentMa > 0f) (bVolt * currentMa) / 1000f else 0f
-
-                    // Battery Design Capacity Resolution Engine
-                    val sysfsCapacity = listOf(
-                        "/sys/class/power_supply/battery/charge_full_design",
-                        "/sys/class/power_supply/max77779fg/charge_full_design",
-                        "/sys/class/power_supply/maxfg/charge_full_design",
-                        "/sys/class/power_supply/bms/charge_full_design"
-                    ).firstNotNullOfOrNull { path ->
-                        try {
-                            val f = java.io.File(path)
-                            if (f.exists() && f.canRead()) {
-                                val v = f.readText().trim().toFloatOrNull()
-                                if (v != null && v > 1000f) v / 1000f else v
-                            } else null
-                        } catch (_: Throwable) { null }
-                    }
-
-                    val resourceCapacity = try {
-                        val resId = appContext.resources.getIdentifier("config_batteryCapacity", "dimen", "android")
-                        if (resId > 0) appContext.resources.getDimension(resId) else null
-                    } catch (_: Throwable) { null }
-
-                    // Public sources only: the hidden PowerProfile class is blocked for apps targeting new SDKs.
-                    val designMah = sysfsCapacity?.takeIf { it in 1500f..10000f }
-                        ?: resourceCapacity?.takeIf { it in 1500f..10000f }
-                        ?: 5000f
-
-                    val chargeCounter = try {
-                        val cc = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) ?: -1
-                        if (cc != Integer.MIN_VALUE && cc > 0) cc / 1000f else -1f
-                    } catch (_: Throwable) { -1f }
-
-                    val totalCapacityMah = if (bLevel > 5 && chargeCounter > 0f) {
-                        (chargeCounter / (bLevel / 100f).coerceAtLeast(0.05f)).coerceIn(2000f, 10000f)
-                    } else {
-                        designMah
-                    }
-                    val currentChargeMah = if (chargeCounter > 0f) chargeCounter else (bLevel / 100f * totalCapacityMah)
 
                     val bChargingRateStr: String
                     val bTimeEstimateStr: String
-
-                    if (bIsCharging) {
-                        val pluggedType = when (plugged) {
-                            android.os.BatteryManager.BATTERY_PLUGGED_AC -> if (bWatts >= 15f) "Rapid (AC)" else "AC"
-                            android.os.BatteryManager.BATTERY_PLUGGED_USB -> "USB"
-                            android.os.BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Wireless"
-                            android.os.BatteryManager.BATTERY_PLUGGED_DOCK -> "Dock"
-                            else -> "Charger"
-                        }
-                        bChargingRateStr = if (bWatts > 0.05f) {
-                            "Charging ($pluggedType) · ${String.format(java.util.Locale.US, "%.1f", bWatts)}W (${currentMa.toInt()}mA)"
-                        } else {
-                            "Charging ($pluggedType)"
-                        }
-
-                        if (bLevel >= 100) {
-                            bTimeEstimateStr = "Fully Charged"
-                        } else {
-                            var sysTimeRemainingMs = -1L
-                            try {
-                                sysTimeRemainingMs = bm?.computeChargeTimeRemaining() ?: -1L
-                            } catch (_: Throwable) {}
-                            if (sysTimeRemainingMs > 60_000L) {
-                                val totalMinutes = (sysTimeRemainingMs / 60_000L).toInt()
-                                val hours = totalMinutes / 60
-                                val mins = totalMinutes % 60
-                                bTimeEstimateStr = if (hours > 0) "${hours}h ${mins}m until full" else "${mins}m until full"
-                            } else {
-                                val remainingMah = ((100 - bLevel) / 100f * totalCapacityMah).coerceAtLeast(0f)
-                                if (currentMa > 50f) {
-                                    val estHours = remainingMah / currentMa.coerceAtLeast(1f)
-                                    val totalMinutes = (estHours * 60f).toInt().coerceIn(1, 1440)
-                                    val hours = totalMinutes / 60
-                                    val mins = totalMinutes % 60
-                                    bTimeEstimateStr = if (hours > 0) "${hours}h ${mins}m until full" else "${mins}m until full"
-                                } else {
-                                    bTimeEstimateStr = "Charging..."
-                                }
+                    when (chargeState) {
+                        DiagnosticsReadings.ChargeState.Charging -> {
+                            bChargingRateStr = when (plugged) {
+                                android.os.BatteryManager.BATTERY_PLUGGED_AC -> if ((bWatts ?: 0f) >= 15f) "Fast charging" else "Charging via AC"
+                                android.os.BatteryManager.BATTERY_PLUGGED_USB -> "Charging via USB"
+                                android.os.BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Charging wirelessly"
+                                android.os.BatteryManager.BATTERY_PLUGGED_DOCK -> "Charging on dock"
+                                else -> "Charging"
+                            }
+                            val systemMs = try { bm?.computeChargeTimeRemaining() ?: -1L } catch (_: Throwable) { -1L }
+                            // Until an unplugged reading has confirmed the vendor's sign, the direction is unproven:
+                            // trust the CHARGING status for the estimate and never claim the phone is losing charge.
+                            val signKnown = batteryCurrentReader.signLocked
+                            val chargeInMa = if (signKnown) smoothedNetMa else smoothedNetMa?.let { kotlin.math.abs(it) }
+                            val minutes = if (systemMs > 0L) (systemMs / 60_000L).toInt().coerceAtLeast(1)
+                                else DiagnosticsReadings.minutesUntilFull(chargeMah, bLevel, chargeInMa)
+                            // Both the live and the smoothed current must show a drain, so a lagging average right
+                            // after plugging in can't claim the phone is losing charge.
+                            val draining = signKnown && (netNowMa ?: 0f) < -20f && (smoothedNetMa ?: 0f) < -20f
+                            bTimeEstimateStr = when {
+                                bLevel >= 100 -> "Fully charged"
+                                systemMs > 0L && minutes != null && minutes <= 48 * 60 ->
+                                    "${DiagnosticsReadings.formatMinutes(minutes)} until full"
+                                draining -> "Not gaining charge"
+                                minutes == null -> "Estimating..."
+                                minutes > 48 * 60 -> "Charging slowly"
+                                else -> "${DiagnosticsReadings.formatMinutes(minutes)} until full"
                             }
                         }
-                    } else {
-                        bChargingRateStr = if (bWatts > 0.05f) {
-                            "Discharge · ${String.format(java.util.Locale.US, "%.1f", bWatts)}W (${currentMa.toInt()}mA)"
-                        } else {
-                            "Discharging"
+                        DiagnosticsReadings.ChargeState.Full -> {
+                            bChargingRateStr = "Plugged in"
+                            bTimeEstimateStr = "Fully charged"
                         }
-
-                        if (currentMa > 50f) {
-                            val estHours = (currentChargeMah / currentMa.coerceAtLeast(1f)).coerceIn(0.5f, 96f)
-                            val totalMinutes = (estHours * 60f).toInt()
-                            val hours = totalMinutes / 60
-                            val mins = totalMinutes % 60
-                            bTimeEstimateStr = if (hours > 0) "${hours}h ${mins}m until depleted" else "${mins}m until depleted"
-                        } else {
-                            val estHours = (bLevel / 100f * 24f).coerceAtLeast(1f)
-                            val hours = estHours.toInt()
-                            bTimeEstimateStr = "~${hours}h until depleted"
+                        DiagnosticsReadings.ChargeState.PluggedNotCharging -> {
+                            // The charger is not adding charge; the phone may still be running down slowly.
+                            bChargingRateStr = "Plugged in, not charging"
+                            bTimeEstimateStr = untilEmpty(otherwise = "Charging paused")
+                        }
+                        DiagnosticsReadings.ChargeState.PluggedUnknown -> {
+                            bChargingRateStr = "Plugged in"
+                            bTimeEstimateStr = untilEmpty(otherwise = "Estimating...")
+                        }
+                        DiagnosticsReadings.ChargeState.Discharging -> {
+                            bChargingRateStr = "Discharging"
+                            bTimeEstimateStr = untilEmpty(otherwise = "Estimating...")
                         }
                     }
 
@@ -372,146 +257,64 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         volt = bVolt,
                         watts = bWatts,
                         health = bHealth,
-                        healthPct = healthPct,
+                        healthSeverity = bHealthSeverity,
                         cycles = cycles,
                         technology = bTechnology,
                         thermalStatus = bThermalStatus,
-                        isCharging = bIsCharging,
+                        isCharging = chargeState == DiagnosticsReadings.ChargeState.Charging ||
+                            chargeState == DiagnosticsReadings.ChargeState.Full,
                         chargingRateStr = bChargingRateStr,
                         timeEstimateStr = bTimeEstimateStr
                     )
 
-                    // Memory Snapshot on IO
+                    // Memory: the kernel's own MemAvailable, the same figure ActivityManager reports as availMem.
                     val memInfo = android.app.ActivityManager.MemoryInfo()
                     actMgr?.getMemoryInfo(memInfo)
-                    var totalBytes = memInfo.totalMem
-                    var availBytes = memInfo.availMem
+                    val procMem = try {
+                        DiagnosticsReadings.parseMemInfo(java.io.File("/proc/meminfo").readText())
+                    } catch (_: Throwable) { null }
+                    val figures = DiagnosticsReadings.memoryFigures(procMem, memInfo.totalMem, memInfo.availMem)
 
-                    var procTotalKb = -1L
-                    var procAvailKb = -1L
-                    var procMemFreeKb = 0L
-                    var procBuffersKb = 0L
-                    var procCachedKb = 0L
-                    var procSwapTotalKb = 0L
-                    var procSwapFreeKb = 0L
-                    var procAnonPagesKb = 0L
-                    var procInactiveAnonKb = 0L
-                    var procActiveAnonKb = 0L
-                    var procKReclaimableKb = 0L
-                    var procSlabKb = 0L
-                    var procKernelStackKb = 0L
-                    var procPageTablesKb = 0L
-                    var procZramKb = 0L
-                    var procShmemKb = 0L
+                    // Decimal gigabytes, as Android Settings displays memory.
+                    val totGb = figures.totalBytes / 1_000_000_000.0
+                    val usdGb = figures.usedBytes / 1_000_000_000.0
+                    val avlGb = figures.availableBytes / 1_000_000_000.0
+                    val advertised = if (Build.VERSION.SDK_INT >= 34) memInfo.advertisedMem else -1L
+                    val physGb = DiagnosticsReadings.retailRamGb(advertised, figures.totalBytes)
 
-                    try {
-                        val memInfoFile = java.io.File("/proc/meminfo")
-                        if (memInfoFile.exists() && memInfoFile.canRead()) {
-                            memInfoFile.bufferedReader().use { reader ->
-                                reader.forEachLine { l ->
-                                    when {
-                                        l.startsWith("MemTotal:") -> procTotalKb = l.substringAfter("MemTotal:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: -1L
-                                        l.startsWith("MemFree:") -> procMemFreeKb = l.substringAfter("MemFree:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
-                                        l.startsWith("MemAvailable:") -> procAvailKb = l.substringAfter("MemAvailable:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: -1L
-                                        l.startsWith("Buffers:") -> procBuffersKb = l.substringAfter("Buffers:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
-                                        l.startsWith("Cached:") -> procCachedKb = l.substringAfter("Cached:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
-                                        l.startsWith("SwapTotal:") -> procSwapTotalKb = l.substringAfter("SwapTotal:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
-                                        l.startsWith("SwapFree:") -> procSwapFreeKb = l.substringAfter("SwapFree:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
-                                        l.startsWith("AnonPages:") -> procAnonPagesKb = l.substringAfter("AnonPages:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
-                                        l.startsWith("Inactive(anon):") -> procInactiveAnonKb = l.substringAfter("Inactive(anon):").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
-                                        l.startsWith("Active(anon):") -> procActiveAnonKb = l.substringAfter("Active(anon):").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
-                                        l.startsWith("KReclaimable:") -> procKReclaimableKb = l.substringAfter("KReclaimable:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
-                                        l.startsWith("Slab:") -> procSlabKb = l.substringAfter("Slab:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
-                                        l.startsWith("KernelStack:") -> procKernelStackKb = l.substringAfter("KernelStack:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
-                                        l.startsWith("PageTables:") -> procPageTablesKb = l.substringAfter("PageTables:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
-                                        l.startsWith("Zram:") -> procZramKb = l.substringAfter("Zram:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
-                                        l.startsWith("Shmem:") -> procShmemKb = l.substringAfter("Shmem:").trim().split(" ").firstOrNull()?.toLongOrNull() ?: 0L
-                                    }
-                                }
-                            }
-                        }
-                    } catch (_: Throwable) {}
-
-                    if (procTotalKb > 0) totalBytes = procTotalKb * 1024L
-
-                    // Modern Android Runtime (Android 14-17 / Canary QPR3) True RAM Accounting:
-                    // In Android Settings, "Free RAM" comprises:
-                    // 1. Raw MemFree
-                    // 2. Cached Kernel pages (Buffers + Cached + KReclaimable - Shmem)
-                    // 3. Cached background applications (Inactive Anon + background swap) which the OS evicts on demand.
-                    // "Used RAM" is Total RAM minus this true available headroom.
-                    val kernelReclaimableKb = (procMemFreeKb + procCachedKb + procBuffersKb + procKReclaimableKb - procShmemKb).coerceAtLeast(0L)
-                    val cachedAppsKb = procInactiveAnonKb + if (procZramKb > 0) (procZramKb * 0.9).toLong() else (((procSwapTotalKb - procSwapFreeKb).coerceAtLeast(0L)) * 0.25).toLong()
-
-                    val trueAvailableKb = if (kernelReclaimableKb > 0) {
-                        (kernelReclaimableKb + cachedAppsKb).coerceAtMost(if (procTotalKb > 0) procTotalKb else Long.MAX_VALUE)
-                    } else {
-                        // Fallback if /proc/meminfo is inaccessible: ActivityManager availMem only contains kernel free/cache.
-                        (memInfo.availMem / 1024L) + (memInfo.totalMem / 1024L * 0.14).toLong()
-                    }
-
-                    val trueAvailBytes = trueAvailableKb * 1024L
-                    val trueUsedBytes = (totalBytes - trueAvailBytes).coerceAtLeast(0L)
-                    val calculatedPct = if (totalBytes > 0) ((trueUsedBytes.toDouble() / totalBytes) * 100).toInt().coerceIn(0, 100) else 0
-
-                    // Android System Settings uses decimal gigabytes (10^9) for marketing specs & memory settings display
-                    val totGb = totalBytes.toDouble() / 1_000_000_000.0
-                    val usdGb = trueUsedBytes.toDouble() / 1_000_000_000.0
-                    val avlGb = trueAvailBytes.toDouble() / 1_000_000_000.0
-
-                    val physGb = when {
-                        totGb <= 4.5 -> 4
-                        totGb <= 6.5 -> 6
-                        totGb <= 8.5 -> 8
-                        totGb <= 12.8 -> 12
-                        totGb <= 16.8 -> 16
-                        else -> 24
-                    }
-
-                    val swapUsedKb = (procSwapTotalKb - procSwapFreeKb).coerceAtLeast(0L)
-                    // /proc/meminfo reports kB; convert to bytes before scaling to decimal GB.
-                    val zRamUsedGb = swapUsedKb * 1024.0 / 1_000_000_000.0
-                    val zRamTotGb = procSwapTotalKb * 1024.0 / 1_000_000_000.0
-                    val cacheGb = (procBuffersKb + procCachedKb + procKReclaimableKb) * 1024.0 / 1_000_000_000.0
+                    // /proc/meminfo reports KiB; convert to bytes before scaling to decimal units.
+                    fun kbToGb(kb: Long) = kb * 1024.0 / 1_000_000_000.0
+                    fun bytesToMb(bytes: Long) = bytes / 1_000_000f
+                    val swapTotalKb = procMem?.swapTotalKb ?: 0L
+                    val swapUsedKb = (swapTotalKb - (procMem?.swapFreeKb ?: swapTotalKb)).coerceAtLeast(0L)
+                    val fileCacheKb = (procMem?.cachedKb ?: 0L) + (procMem?.buffersKb ?: 0L)
 
                     val isLow = memInfo.lowMemory
                     val threshMb = (memInfo.threshold / (1024L * 1024L)).toInt()
+                    val pressure = DiagnosticsReadings.memoryPressure(isLow, figures.availablePercent)
 
-                    val freePct = if (totalBytes > 0) ((trueAvailBytes.toDouble() / totalBytes) * 100).toInt() else 30
-                    val pressure = when {
-                        isLow || freePct < 15 -> "Critical"
-                        freePct < 25 -> "High Load"
-                        freePct < 40 -> "Moderate"
-                        else -> "Optimal"
-                    }
-
-                    val rt = Runtime.getRuntime()
-                    // Decimal MB (10^6 bytes) to match the GB figures above; /proc/meminfo kB are KiB.
-                    val myHeapMb = ((rt.totalMemory() - rt.freeMemory()) + android.os.Debug.getNativeHeapAllocatedSize()) / 1_000_000f
-
-                    val activeAppsMb = (procActiveAnonKb.takeIf { it > 0 } ?: (procAnonPagesKb - procInactiveAnonKb).coerceAtLeast(0L)) * 1.024f / 1000f
-                    val sysCacheMb = (procCachedKb + procBuffersKb + procKReclaimableKb) * 1.024f / 1000f
-                    val kernelMb = (procSlabKb + procKernelStackKb + procPageTablesKb) * 1.024f / 1000f
-
-                    val topProcessesList = listOf(
-                        ProcessRamEntry(name = "Active Apps", ramMb = activeAppsMb),
-                        ProcessRamEntry(name = "System Cache", ramMb = sysCacheMb),
-                        ProcessRamEntry(name = "Kernel & OS", ramMb = kernelMb),
-                        ProcessRamEntry(name = "App Footprint", ramMb = myHeapMb)
-                    )
+                    // Used memory split into parts that add up to it; file cache the kernel can reclaim is in Available.
+                    val breakdown = DiagnosticsReadings.usedBreakdown(procMem, figures.usedBytes)
+                    val hasBreakdown = breakdown != null
+                    val topProcessesList = if (breakdown != null) listOf(
+                        ProcessRamEntry(name = "Apps", ramMb = bytesToMb(breakdown.appsBytes)),
+                        ProcessRamEntry(name = "Kernel", ramMb = bytesToMb(breakdown.kernelBytes)),
+                        ProcessRamEntry(name = "Other", ramMb = bytesToMb(breakdown.otherBytes))
+                    ) else emptyList()
 
                     val memSnap = MemorySnapshot(
                         totalGb = totGb,
                         usedGb = usdGb,
                         availGb = avlGb,
-                        pct = calculatedPct,
-                        zRamUsedGb = zRamUsedGb,
-                        zRamTotalGb = zRamTotGb,
-                        cachedGb = cacheGb,
+                        pct = figures.usedPercent,
+                        zRamUsedGb = kbToGb(swapUsedKb),
+                        zRamTotalGb = kbToGb(swapTotalKb),
+                        cachedGb = kbToGb(fileCacheKb),
                         isLowMem = isLow,
                         thresholdMb = threshMb,
                         memPressure = pressure,
                         processes = topProcessesList,
+                        breakdownAvailable = hasBreakdown,
                         physicalGb = physGb
                     )
 
@@ -524,7 +327,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 batteryVolt = bSnap.volt
                 batteryWatts = bSnap.watts
                 batteryHealth = bSnap.health
-                batteryHealthPct = bSnap.healthPct
+                batteryHealthSeverity = bSnap.healthSeverity
                 batteryCycles = bSnap.cycles
                 batteryTechnology = bSnap.technology
                 thermalStatus = bSnap.thermalStatus
@@ -544,6 +347,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                 memoryPressure = mSnap.memPressure
                 lmkThresholdMb = mSnap.thresholdMb
                 topProcesses = mSnap.processes
+                breakdownAvailable = mSnap.breakdownAvailable
             } catch (_: Throwable) {}
 
             kotlinx.coroutines.delay(2500)
@@ -615,29 +419,23 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (batteryHealthPct > 0) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
-                            ) {
-                                Text(
-                                    text = "$batteryHealthPct% Health",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
-                            }
+                        val (healthChipBg, healthChipFg) = when (batteryHealthSeverity) {
+                            DiagnosticsReadings.HealthSeverity.Bad ->
+                                MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+                            DiagnosticsReadings.HealthSeverity.Caution ->
+                                MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+                            DiagnosticsReadings.HealthSeverity.Ok ->
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) to MaterialTheme.colorScheme.onPrimaryContainer
                         }
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                            color = healthChipBg
                         ) {
                             Text(
-                                text = if (batteryHealth.isNotBlank() && batteryHealth != "Unknown") batteryHealth else "Hardware reporting unavailable",
+                                text = batteryHealth,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                color = healthChipFg,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                 maxLines = 1,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -728,7 +526,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${String.format(java.util.Locale.US, "%.1f", batteryTemp)} °C / ${String.format(java.util.Locale.US, "%.0f", batteryTemp * 1.8f + 32f)} °F ($thermalStatus)  •  ${String.format(java.util.Locale.US, "%.2f", batteryVolt)} V",
+                            text = "${String.format(java.util.Locale.US, "%.1f", batteryTemp)} °C / ${String.format(java.util.Locale.US, "%.0f", batteryTemp * 1.8f + 32f)} °F  •  ${String.format(java.util.Locale.US, "%.2f", batteryVolt)} V",
                             style = MaterialTheme.typography.labelSmall,
                             fontSize = 9.5.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -788,7 +586,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "${String.format(java.util.Locale.US, "%.1f", batteryWatts)}W",
+                                text = batteryWatts?.let { "${String.format(java.util.Locale.US, "%.1f", it)}W" } ?: "N/A",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -817,8 +615,8 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = when (thermalStatus) {
-                                    "Overheat", "Emergency", "Critical", "Hot" -> MaterialTheme.colorScheme.error
-                                    "Warm" -> MaterialTheme.colorScheme.tertiary
+                                    "Severe", "Critical", "Emergency", "Shutdown" -> MaterialTheme.colorScheme.error
+                                    "Light", "Moderate" -> MaterialTheme.colorScheme.tertiary
                                     else -> MaterialTheme.colorScheme.primary
                                 }
                             )
@@ -1148,7 +946,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            text = "Memory Breakdown",
+                            text = "Used Memory",
                             style = MaterialTheme.typography.labelSmall,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
@@ -1157,7 +955,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
 
                         if (topProcesses.isEmpty()) {
                             Text(
-                                text = "Analyzing processes...",
+                                text = if (breakdownAvailable) "Reading memory..." else "Breakdown unavailable",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1212,7 +1010,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                                     .background(MaterialTheme.colorScheme.outlineVariant)
                             )
                             Text(
-                                text = "Free RAM",
+                                text = "Available",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1249,7 +1047,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "zRAM Swap",
+                                text = "Swapped",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontSize = 9.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1288,7 +1086,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         }
                     }
 
-                    // Available RAM Chip
+                    // Used RAM share Chip
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = chipBg,
@@ -1299,13 +1097,13 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "Available",
+                                text = "Used",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontSize = 9.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "${availableRamGb}G",
+                                text = "$usedRamPercent%",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -1313,7 +1111,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         }
                     }
 
-                    // LMK Kill Floor Chip
+                    // ActivityManager low-memory threshold Chip
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = chipBg,
@@ -1324,7 +1122,7 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "LMK Kill Floor",
+                                text = "Low-Mem Level",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontSize = 9.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant

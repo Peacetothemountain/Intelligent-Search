@@ -33,22 +33,15 @@ object WidgetDoodles {
     fun previewing(prefs: SharedPreferences): Occasion? =
         prefs.getString(PREVIEW_KEY, null)?.let { name -> Occasion.entries.firstOrNull { it.name == name } }
 
-    /**
-     * Previews the next doodle on the widgets, in calendar order; after the last one the preview ends and the widgets
-     * go back to today's. Returns the doodle now previewed, or null when the preview ended.
-     */
-    fun previewNext(
+    /** Shows [doodle] on the widgets whatever the date, or with null ends the preview so they show today's again. */
+    fun preview(
         context: Context,
+        doodle: Occasion?,
         prefs: SharedPreferences = SearchWidgetProvider.getSafeSharedPreferences(context),
         redraw: () -> Unit = { SearchWidgetProvider.updateAllWidgets(context) }
-    ): Occasion? {
-        val next = when (val shown = previewing(prefs)) {
-            null -> Occasion.entries.first()
-            else -> Occasion.entries.getOrNull(shown.ordinal + 1)
-        }
-        prefs.edit { if (next == null) remove(PREVIEW_KEY) else putString(PREVIEW_KEY, next.name) }
+    ) {
+        prefs.edit { if (doodle == null) remove(PREVIEW_KEY) else putString(PREVIEW_KEY, doodle.name) }
         redraw()
-        return next
     }
 
     /** Arranges the redraw for the next time the doodle changes, replacing any arranged before. */

@@ -50,13 +50,16 @@ class WidgetDoodlesTest {
     }
 
     @Test
-    fun aPreviewShowsEachDoodleInTurnThenEnds() {
+    fun aPreviewShowsAnyDoodleUntilItIsTurnedOff() {
         today("2026-11-01")
         var redraws = 0
-        val shown = generateSequence { WidgetDoodles.previewNext(context, prefs) { redraws++ } }.toList()
+        for (doodle in Occasion.entries) {
+            WidgetDoodles.preview(context, doodle, prefs) { redraws++ }
+            assertEquals(doodle, WidgetDoodles.current(prefs))
+        }
+        WidgetDoodles.preview(context, null, prefs) { redraws++ }
 
-        assertEquals(Occasion.entries, shown)
-        assertEquals(Occasion.entries.size + 1, redraws) // one more for ending the preview
+        assertEquals(Occasion.entries.size + 1, redraws) // the widgets are redrawn every time
         assertNull(WidgetDoodles.previewing(prefs))
         assertNull(WidgetDoodles.current(prefs))
     }
@@ -64,8 +67,8 @@ class WidgetDoodlesTest {
     @Test
     fun aPreviewWinsOverTodaysDoodle() {
         today("2026-10-31")
-        WidgetDoodles.previewNext(context, prefs) {}
-        assertEquals(Occasion.entries.first(), WidgetDoodles.current(prefs))
+        WidgetDoodles.preview(context, Occasion.PI_DAY, prefs) {}
+        assertEquals(Occasion.PI_DAY, WidgetDoodles.current(prefs))
     }
 
     @Test

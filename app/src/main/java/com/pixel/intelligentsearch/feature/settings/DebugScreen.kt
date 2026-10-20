@@ -99,18 +99,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                 showDivider = true
             )
 
-            val resources = androidx.compose.ui.platform.LocalResources.current
-            SettingsRow(
-                title = "Preview Widget Doodles",
-                subtitle = "Shows each day's doodle on the widgets in turn; tap past the last one to go back to today's",
-                icon = Icons.Outlined.Celebration,
-                onClick = {
-                    val shown = com.pixel.intelligentsearch.feature.widget.WidgetDoodles.previewNext(context)
-                    val message = if (shown == null) "Doodle preview off" else "Previewing ${resources.getString(shown.title)}"
-                    android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
-                },
-                showDivider = true
-            )
+            DoodlePreviewRow()
             
             
             
@@ -187,3 +176,54 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
     }
 }
 
+/**
+ * Shows any doodle on the widgets, whatever the date: the switch turns the preview on and off, and tapping the row
+ * picks which doodle from all of them. Off, the widgets show today's doodle (if any) again.
+ */
+@Composable
+private fun DoodlePreviewRow() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val resources = androidx.compose.ui.platform.LocalResources.current
+    val doodles = com.pixel.intelligentsearch.feature.widget.WidgetDoodles
+    val prefs = remember(context) { com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.getSafeSharedPreferences(context) }
+    var shown by remember { mutableStateOf(doodles.previewing(prefs)) }
+    var lastPicked by remember { mutableStateOf(shown ?: com.pixel.intelligentsearch.core.occasion.Occasion.entries.first()) }
+    var picking by remember { mutableStateOf(false) }
+
+    fun show(doodle: com.pixel.intelligentsearch.core.occasion.Occasion?) {
+        doodles.preview(context, doodle, prefs)
+        shown = doodle
+        if (doodle != null) lastPicked = doodle
+    }
+
+    Box {
+        SettingsRowToggle(
+            title = "Preview Widget Doodles",
+            subtitle = shown?.let { "Showing ${resources.getString(it.title)} on Your Widgets. Tap to Pick Another." }
+                ?: "Off. Tap to Pick a Doodle to Show on Your Widgets.",
+            icon = Icons.Outlined.Celebration,
+            isChecked = shown != null,
+            onCheckedChange = { on -> show(if (on) lastPicked else null) },
+            onClick = { picking = true },
+            showDivider = true
+        )
+        DropdownMenu(
+            expanded = picking,
+            onDismissRequest = { picking = false },
+            modifier = Modifier.heightIn(max = 420.dp)
+        ) {
+            com.pixel.intelligentsearch.core.occasion.Occasion.entries.forEach { doodle ->
+                DropdownMenuItem(
+                    text = { Text(resources.getString(doodle.title)) },
+                    trailingIcon = if (doodle == shown) {
+                        { Icon(Icons.Default.Check, contentDescription = "Showing", tint = MaterialTheme.colorScheme.primary) }
+                    } else null,
+                    onClick = {
+                        picking = false
+                        show(doodle)
+                    }
+                )
+            }
+        }
+    }
+}

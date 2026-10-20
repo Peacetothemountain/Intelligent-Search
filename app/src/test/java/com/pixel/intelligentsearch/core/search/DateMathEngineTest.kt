@@ -172,6 +172,40 @@ class DateMathEngineTest {
     }
 
     @Test
+    fun aFirstDateWithoutAYearIsTheLastOneOnOrBeforeASecondDateWithAYear() {
+        val newYearToChristmas = "358 days between Friday, January 1, 2027 and Saturday, December 25, 2027"
+        assertEquals(newYearToChristmas, text("days between jan 1 and dec 25 2027"))
+        assertEquals(newYearToChristmas, text("days between jan 1 and 2027-12-25"))
+        assertEquals(newYearToChristmas, text("how many days from new year's day to the 25th of december, 2027"))
+        // Feb 29 comes from the leap year written with the second date.
+        assertEquals("28 days between Tuesday, February 1, 2028 and Tuesday, February 29, 2028", text("days between feb 1 and feb 29 2028"))
+        assertEquals("1 day between Tuesday, February 29, 2028 and Wednesday, March 1, 2028", text("days between feb 29 and mar 1 2028"))
+        // A year already past works the same way.
+        assertEquals("7 days between Wednesday, December 25, 2019 and Wednesday, January 1, 2020", text("days between christmas and 2020-01-01"))
+    }
+
+    @Test
+    fun theYearWrittenWithEitherDateGivesTheSameAnswer() {
+        // The year moved to the first date: the second, without one, is the first time it comes round after it.
+        assertEquals(text("days between jan 1 and dec 25 2027"), text("days between jan 1 2027 and dec 25"))
+        assertEquals(text("days between jan 1 and 2027-12-25"), text("days between 2027-01-01 and dec 25"))
+        assertEquals(text("days between feb 1 and feb 29 2028"), text("days between feb 1 2028 and feb 29"))
+        // The dates the other way round, either date with the year.
+        assertEquals("7 days between Saturday, December 25, 2027 and Saturday, January 1, 2028", text("days between dec 25 and jan 1 2028"))
+        assertEquals(text("days between dec 25 2027 and jan 1"), text("days between dec 25 and jan 1 2028"))
+        assertEquals("338 days between Tuesday, February 29, 2028 and Thursday, February 1, 2029", text("days between feb 29 2028 and feb 1"))
+        assertEquals(text("days between feb 29 2028 and feb 1"), text("days between feb 29 and feb 1 2029"))
+    }
+
+    @Test
+    fun todayTomorrowAndYesterdayAreNotAWrittenYear() {
+        // Without a written year, a first date without one stays this year's, as it was.
+        assertEquals("292 days between Thursday, January 1, 2026 and Tuesday, October 20, 2026", text("days between jan 1 and today"))
+        assertEquals("65 days between Friday, December 25, 2026 and Wednesday, October 21, 2026", text("days between christmas and tomorrow"))
+        assertEquals("1 day between Friday, January 1, 2027 and Thursday, December 31, 2026", text("days between jan 1 and yesterday", today = "2027-01-01"))
+    }
+
+    @Test
     fun theDayCountAndTheDatesUseTheSameDigits() {
         val arabic = Locale.forLanguageTag("ar-EG")
         val zero = DecimalFormatSymbols.getInstance(arabic).zeroDigit

@@ -8,7 +8,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 
@@ -78,6 +80,25 @@ class CurrencyRateStoreTest {
         assertNull(stored("base=eur\ndate=2026-10-19\nrate.eur=1.0\nrate.km=1.08\n"))
         assertNull(stored("base=eur\ndate=2026-10-19\nrate.eur=2.0\nrate.usd=1.08\n"))
         assertNull(stored("date=2026-10-19\nrate.eur=1.0\nrate.usd=1.08\n"))
+    }
+
+    @Test
+    fun aDateTheEcbCouldNeverHaveSetRatesOnIsRefused() {
+        val today = Clock.fixed(LocalDate.of(2026, 10, 20).atTime(12, 0).toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
+        fun dated(date: String): CurrencyRates? {
+            file.writeText("base=eur\ndate=$date\nrate.eur=1.0\nrate.usd=1.08\n")
+            return CurrencyRateStore(file, today).load()
+        }
+        // From the ECB's first day to two days ahead (time zones and a clock a little behind), as a fetched table may be.
+        for (date in listOf("1999-01-04", "2026-10-19", "2026-10-20", "2026-10-22")) {
+            assertEquals(date, LocalDate.parse(date), dated(date)?.date)
+        }
+        for (date in listOf("9999-12-31", "2027-01-01", "2026-10-23", "1999-01-03", "1970-01-01", "0001-01-01")) {
+            assertNull(date, dated(date))
+        }
+        // Read back on the day it is saved, a table saved through the store is always in range.
+        assertTrue(CurrencyRateStore(file, today).save(rates))
+        assertEquals(rates, CurrencyRateStore(file, today).load())
     }
 
     @Test

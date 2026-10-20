@@ -102,7 +102,7 @@ When you execute a web search or request live autocomplete suggestions:
   * With a passphrase, the key is derived from it using **PBKDF2** (600,000 iterations, random salt), so the backup can be restored on any device.
   * Without a passphrase, the key is created inside this device's Android Keystore and never leaves it, so the backup can only be restored on the same device and installation.
   * Backup files are saved strictly to the storage location or cloud drive chosen by the user via the Android system file creator.
-  * Restoring a backup never switches on contact sharing, clipboard suggestions, web suggestions or live currency rates; those stay as you set them on this phone.
+  * Restoring a backup never switches on contact sharing, clipboard suggestions, web suggestions or the **Live Currency Rates** switch itself; it can only leave them as you set them on this phone or switch them off. It does bring back your **Calculator** and search engine choices, which also decide whether currency rates are downloaded (see Section 3): with Live Currency Rates on, a restore that turns the Calculator on or changes your search engine from Tor to another lets the downloads resume.
   * A passphrase you choose to save on the phone is encrypted with an Android Keystore key that works only while the phone is unlocked and shortly after you authenticate.
 
 ---

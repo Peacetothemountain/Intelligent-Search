@@ -61,8 +61,9 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
 
     /**
      * "days between <date> and <date>". Today, tomorrow and yesterday are always those days. A second date without a
-     * year is the first time it comes round on or after the first date; when neither has a year and only a leap year
-     * has the second (Feb 29), both are that leap year's.
+     * year is the first time it comes round on or after the first date. A first date without a year is this year's,
+     * unless the second has a year written: then it is the last time it came round on or before the second. When
+     * neither has a year and only a leap year has the second (Feb 29), both are that leap year's.
      */
     private fun between(query: String): DateAnswer? {
         val match = BETWEEN_REGEX.matchEntire(query) ?: return null
@@ -71,7 +72,11 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
         val secondWritten = read(match.groupValues[2], today) ?: return null
         var first = when (firstWritten) {
             is Written.Fixed -> firstWritten.date
-            is Written.Yearless -> resolve(firstWritten.monthDay, today, Lean.THIS_YEAR) ?: return null
+            is Written.Yearless -> when {
+                // "jan 1 and dec 25 2027": the year written with the second date is the one meant for both.
+                secondWritten is Written.Fixed && secondWritten.yearWritten -> onOrBefore(firstWritten.monthDay, secondWritten.date)
+                else -> resolve(firstWritten.monthDay, today, Lean.THIS_YEAR)
+            } ?: return null
         }
         val second = when (secondWritten) {
             is Written.Fixed -> secondWritten.date
@@ -132,9 +137,12 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
     /** Which year a date written without one means: the next or last time it comes round, or this year's. */
     private enum class Lean { FORWARD, BACKWARD, THIS_YEAR }
 
-    /** A date as written: a day fixed by its year or by being today, tomorrow or yesterday, or a month and day alone. */
+    /**
+     * A date as written: a day fixed by its year ([Fixed.yearWritten]) or by being today, tomorrow or yesterday, or a
+     * month and day alone.
+     */
     private sealed interface Written {
-        data class Fixed(val date: LocalDate) : Written
+        data class Fixed(val date: LocalDate, val yearWritten: Boolean = true) : Written
         data class Yearless(val monthDay: MonthDay) : Written
     }
 
@@ -146,9 +154,9 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
 
     private fun read(text: String, today: LocalDate): Written? {
         when (text) {
-            "today", "now" -> return Written.Fixed(today)
-            "tomorrow" -> return Written.Fixed(today.plusDays(1))
-            "yesterday" -> return Written.Fixed(today.minusDays(1))
+            "today", "now" -> return Written.Fixed(today, yearWritten = false)
+            "tomorrow" -> return Written.Fixed(today.plusDays(1), yearWritten = false)
+            "yesterday" -> return Written.Fixed(today.minusDays(1), yearWritten = false)
         }
         NAMED_DAYS[text]?.let { return Written.Yearless(it) }
         ISO_DATE_REGEX.matchEntire(text)?.let { match ->

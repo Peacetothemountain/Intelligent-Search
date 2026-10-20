@@ -57,20 +57,20 @@
             <!-- Cherry branch -->
             <group
                 android:name="branch"
-                android:pivotX="48.5"
-                android:pivotY="19"
+                android:pivotX="46.6"
+                android:pivotY="18.5"
                 android:rotation="-1.5">
                 <path
-                    android:pathData="M49,18.6Q44,19.6 39.4,18.8"
+                    android:pathData="M46.6,18.5Q43.4,19.5 39.4,18.8"
                     android:strokeColor="#FF8D5A2B"
                     android:strokeLineCap="round"
                     android:strokeWidth="0.8" />
                 <path
                     android:fillColor="#FF188038"
-                    android:pathData="M41,19.1C39.721,19.516 37.975,18.739 37.509,17.546C38.739,17.217 40.434,18.08 41,19.1Z M45.4,19C45.447,17.655 46.774,16.281 48.054,16.251C47.943,17.519 46.552,18.817 45.4,19Z" />
+                    android:pathData="M41,19.1C39.721,19.516 37.975,18.739 37.509,17.546C38.739,17.217 40.434,18.08 41,19.1Z M43.9,19C43.947,17.655 45.274,16.281 46.554,16.251C46.443,17.519 45.052,18.817 43.9,19Z" />
                 <path
                     android:fillColor="#FF34A853"
-                    android:pathData="M41,19.1C40.496,20.348 38.779,21.185 37.566,20.776C38.104,19.622 39.855,18.878 41,19.1Z M45.4,19C46.679,18.584 48.425,19.361 48.891,20.554C47.661,20.883 45.966,20.02 45.4,19Z" />
+                    android:pathData="M41,19.1C40.496,20.348 38.779,21.185 37.566,20.776C38.104,19.622 39.855,18.878 41,19.1Z M43.9,19C45.179,18.584 46.925,19.361 47.391,20.554C46.161,20.883 44.466,20.02 43.9,19Z" />
                 <group
                     android:name="cherries"
                     android:rotation="10"
@@ -198,7 +198,7 @@
     <target android:name="cherries">
         <aapt:attr name="android:animation">
             <objectAnimator
-                android:duration="1700"
+                android:duration="2400"
                 android:interpolator="@android:interpolator/linear"
                 android:repeatCount="infinite"
                 android:repeatMode="reverse">

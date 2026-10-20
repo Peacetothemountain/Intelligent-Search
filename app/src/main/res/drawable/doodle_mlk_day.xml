@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Martin Luther King Jr. Day: a quiet scene of hope. A dove carrying an olive branch glides gently above the
-     G while the sun rises softly on the right, sending motes of light drifting up, and two small lights glow on the
-     left. See doodle_halloween.xml for the layout. -->
+<!-- Martin Luther King Jr. Day: a quiet scene of hope. A dove carrying an olive branch glides gently over the
+     G toward the sun rising softly on the right, which sends motes of light drifting up. See doodle_halloween.xml for
+     the layout. -->
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt">
     <aapt:attr name="android:drawable">
@@ -15,11 +15,11 @@
             <path
                 android:name="sun_glow"
                 android:fillAlpha="1"
-                android:pathData="M30,45a11,11 0,1 0,22 0a11,11 0,1 0,-22 0Z">
+                android:pathData="M27.6,45a11,11 0,1 0,22 0a11,11 0,1 0,-22 0Z">
                 <aapt:attr name="android:fillColor">
                     <gradient
                         android:type="radial"
-                        android:centerX="41"
+                        android:centerX="38.6"
                         android:centerY="45"
                         android:gradientRadius="11"
                         android:startColor="#99FBBC04"
@@ -28,7 +28,7 @@
             </path>
             <group
                 android:name="sun"
-                android:translateX="41"
+                android:translateX="38.6"
                 android:translateY="46">
                 <group
                     android:name="sun_rays"
@@ -81,26 +81,14 @@
                     android:pathData="M0,-0.9Q0.162,-0.162 0.9,0Q0.162,0.162 0,0.9Q-0.162,0.162 -0.9,0Q-0.162,-0.162 0,-0.9Z" />
             </group>
 
-            <!-- Lights on the left -->
-            <path
-                android:name="light_1"
-                android:fillAlpha="1"
-                android:fillColor="#FFFBBC04"
-                android:pathData="M6,18.9Q6.198,19.802 7.1,20Q6.198,20.198 6,21.1Q5.802,20.198 4.9,20Q5.802,19.802 6,18.9Z" />
-            <path
-                android:name="light_2"
-                android:fillAlpha="0.25"
-                android:fillColor="#FFFBBC04"
-                android:pathData="M9.4,29.6Q9.544,30.256 10.2,30.4Q9.544,30.544 9.4,31.2Q9.256,30.544 8.6,30.4Q9.256,30.256 9.4,29.6Z" />
-
             <!-- Dove -->
             <group
                 android:name="dove"
                 android:rotation="0"
                 android:scaleX="1.15"
                 android:scaleY="1.15"
-                android:translateX="30"
-                android:translateY="8">
+                android:translateX="18.5"
+                android:translateY="7.2">
                 <path
                     android:pathData="M4.9,-0.9Q6,-0.6 6.9,0.4"
                     android:strokeColor="#FF188038"
@@ -154,16 +142,16 @@
                 android:interpolator="@android:interpolator/linear"
                 android:repeatCount="infinite">
                 <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="30" />
-                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="26.5" />
-                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="30" />
+                    <keyframe android:fraction="0" android:value="18.5" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="21.5" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="18.5" />
                 </propertyValuesHolder>
                 <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="8" />
-                    <keyframe android:fraction="0.25" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="6.8" />
-                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="8.4" />
-                    <keyframe android:fraction="0.75" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="7" />
-                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="8" />
+                    <keyframe android:fraction="0" android:value="7.2" />
+                    <keyframe android:fraction="0.25" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="6.2" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="7.6" />
+                    <keyframe android:fraction="0.75" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="6.4" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="7.2" />
                 </propertyValuesHolder>
                 <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
                     <keyframe android:fraction="0" android:value="0" />
@@ -325,33 +313,5 @@
     </target>
 
     <!-- The small lights glow softly in turn. -->
-    <target android:name="light_1">
-        <aapt:attr name="android:animation">
-            <objectAnimator
-                android:duration="2400"
-                android:interpolator="@android:interpolator/linear"
-                android:repeatCount="infinite"
-                android:repeatMode="reverse">
-                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="1" />
-                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.25" />
-                </propertyValuesHolder>
-            </objectAnimator>
-        </aapt:attr>
-    </target>
 
-    <target android:name="light_2">
-        <aapt:attr name="android:animation">
-            <objectAnimator
-                android:duration="2400"
-                android:interpolator="@android:interpolator/linear"
-                android:repeatCount="infinite"
-                android:repeatMode="reverse">
-                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="0.25" />
-                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
-                </propertyValuesHolder>
-            </objectAnimator>
-        </aapt:attr>
-    </target>
 </animated-vector>

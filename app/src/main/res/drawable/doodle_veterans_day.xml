@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Veterans Day: a calm, respectful scene. An arc of gold stars over the G brightens one by one, a red, white
-     and blue ribbon sways gently on the right, and a star medal on a striped ribbon hangs on the left. See
-     doodle_halloween.xml for the layout. -->
+<!--
+    Veterans Day: a proud, respectful scene. The flag flies at full staff on the left of the G, waving in a steady
+    breeze, and a gold service medal on a red, white and blue ribbon hangs on the right, swinging gently on its pin as
+    light runs across its face now and then. Calm motion only.
+
+    Every doodle is a 48dp square drawn around the widget's own 24dp G; see doodle_halloween.xml for the layout.
+-->
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt">
     <aapt:attr name="android:drawable">
@@ -11,263 +15,84 @@
             android:viewportWidth="48"
             android:viewportHeight="48">
 
-            <!-- Stars -->
-            <group
-                android:name="star_1"
-                android:scaleX="1"
-                android:scaleY="1"
-                android:translateX="14.23"
-                android:translateY="12.356">
-                <path
-                    android:fillColor="#FFF29900"
-                    android:pathData="M0,-1.25L0.346,-0.326L1.331,-0.283L0.559,0.332L0.823,1.283L0,0.738L-0.823,1.283L-0.559,0.332L-1.331,-0.283L-0.346,-0.326Z" />
-                <path
-                    android:fillColor="#FFFDD663"
-                    android:pathData="M0,-1.2L0.296,-0.408L1.141,-0.371L0.479,0.156L0.705,0.971L0,0.504L-0.705,0.971L-0.479,0.156L-1.141,-0.371L-0.296,-0.408Z" />
-            </group>
-            <group
-                android:name="star_2"
-                android:scaleX="1"
-                android:scaleY="1"
-                android:translateX="20.066"
-                android:translateY="9.318">
-                <path
-                    android:fillColor="#FFF29900"
-                    android:pathData="M0,-1.25L0.346,-0.326L1.331,-0.283L0.559,0.332L0.823,1.283L0,0.738L-0.823,1.283L-0.559,0.332L-1.331,-0.283L-0.346,-0.326Z" />
-                <path
-                    android:fillColor="#FFFDD663"
-                    android:pathData="M0,-1.2L0.296,-0.408L1.141,-0.371L0.479,0.156L0.705,0.971L0,0.504L-0.705,0.971L-0.479,0.156L-1.141,-0.371L-0.296,-0.408Z" />
-            </group>
-            <group
-                android:name="star_3"
-                android:scaleX="1"
-                android:scaleY="1"
-                android:translateX="26.639"
-                android:translateY="9.031">
-                <path
-                    android:fillColor="#FFF29900"
-                    android:pathData="M0,-1.25L0.346,-0.326L1.331,-0.283L0.559,0.332L0.823,1.283L0,0.738L-0.823,1.283L-0.559,0.332L-1.331,-0.283L-0.346,-0.326Z" />
-                <path
-                    android:fillColor="#FFFDD663"
-                    android:pathData="M0,-1.2L0.296,-0.408L1.141,-0.371L0.479,0.156L0.705,0.971L0,0.504L-0.705,0.971L-0.479,0.156L-1.141,-0.371L-0.296,-0.408Z" />
-            </group>
-            <group
-                android:name="star_4"
-                android:scaleX="1"
-                android:scaleY="1"
-                android:translateX="32.718"
-                android:translateY="11.549">
-                <path
-                    android:fillColor="#FFF29900"
-                    android:pathData="M0,-1.25L0.346,-0.326L1.331,-0.283L0.559,0.332L0.823,1.283L0,0.738L-0.823,1.283L-0.559,0.332L-1.331,-0.283L-0.346,-0.326Z" />
-                <path
-                    android:fillColor="#FFFDD663"
-                    android:pathData="M0,-1.2L0.296,-0.408L1.141,-0.371L0.479,0.156L0.705,0.971L0,0.504L-0.705,0.971L-0.479,0.156L-1.141,-0.371L-0.296,-0.408Z" />
-            </group>
-            <group
-                android:name="star_5"
-                android:scaleX="1"
-                android:scaleY="1"
-                android:translateX="37.164"
-                android:translateY="16.4">
-                <path
-                    android:fillColor="#FFF29900"
-                    android:pathData="M0,-1.25L0.346,-0.326L1.331,-0.283L0.559,0.332L0.823,1.283L0,0.738L-0.823,1.283L-0.559,0.332L-1.331,-0.283L-0.346,-0.326Z" />
-                <path
-                    android:fillColor="#FFFDD663"
-                    android:pathData="M0,-1.2L0.296,-0.408L1.141,-0.371L0.479,0.156L0.705,0.971L0,0.504L-0.705,0.971L-0.479,0.156L-1.141,-0.371L-0.296,-0.408Z" />
-            </group>
-
-            <!-- Ribbon -->
-            <group
-                android:name="ribbon"
-                android:pivotX="41"
-                android:pivotY="29"
-                android:rotation="-3">
-                <path
-                    android:pathData="M38.4,46.6C39.6,40.6 44.6,34.4 43,29.6C41.8,26.4 37.4,26.6 37.6,30C37.8,33.8 43.6,40.6 45.4,46.6"
-                    android:strokeColor="#FF1967D2"
-                    android:strokeLineCap="round"
-                    android:strokeLineJoin="round"
-                    android:strokeWidth="2.7" />
-                <path
-                    android:pathData="M38.4,46.6C39.6,40.6 44.6,34.4 43,29.6C41.8,26.4 37.4,26.6 37.6,30C37.8,33.8 43.6,40.6 45.4,46.6"
-                    android:strokeColor="#FFEA4335"
-                    android:strokeLineCap="round"
-                    android:strokeLineJoin="round"
-                    android:strokeWidth="2.1" />
-                <path
-                    android:pathData="M38.4,46.6C39.6,40.6 44.6,34.4 43,29.6C41.8,26.4 37.4,26.6 37.6,30C37.8,33.8 43.6,40.6 45.4,46.6"
-                    android:strokeColor="#FFFFFFFF"
-                    android:strokeLineCap="round"
-                    android:strokeLineJoin="round"
-                    android:strokeWidth="0.6" />
-            </group>
-
-            <!-- Medal -->
-            <group
-                android:name="medal"
-                android:rotation="-4"
-                android:translateX="6.6"
-                android:translateY="15">
-                <path
-                    android:fillColor="#FF1967D2"
-                    android:pathData="M-2.2,0L2.2,0L2.2,6.2L-2.2,6.2Z" />
-                <path
-                    android:fillColor="#FFFFFFFF"
-                    android:pathData="M-1.3,0L-0.5,0L-0.5,6.2L-1.3,6.2Z M0.5,0L1.3,0L1.3,6.2L0.5,6.2Z" />
-                <path
-                    android:fillColor="#FFEA4335"
-                    android:pathData="M-0.5,0L0.5,0L0.5,6.2L-0.5,6.2Z" />
-                <path
-                    android:fillColor="#FFF29900"
-                    android:pathData="M-0.6,6L0.6,6L0.6,7.4L-0.6,7.4Z" />
-                <path
-                    android:fillColor="#FFF29900"
-                    android:pathData="M-3,10.2a3,3 0,1 0,6 0a3,3 0,1 0,-6 0Z" />
-                <path
-                    android:fillColor="#FFFBBC04"
-                    android:pathData="M-2.75,10a2.75,2.75 0,1 0,5.5 0a2.75,2.75 0,1 0,-5.5 0Z" />
-                <path
-                    android:fillColor="#FFFDE293"
-                    android:pathData="M0,8.3L0.469,9.554L1.807,9.613L0.759,10.447L1.117,11.737L0,10.998L-1.117,11.737L-0.759,10.447L-1.807,9.613L-0.469,9.554Z" />
-                <path
-                    android:fillAlpha="0.7"
-                    android:fillColor="#FFFFFFFF"
-                    android:pathData="M-1.8,8.8a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z" />
+            <!-- The flag on the left, at full staff, waving in a steady breeze -->
+            <path android:pathData="M6.6,5.4L6.6,40" android:strokeColor="#FF9AA0A6" android:strokeWidth="0.75" android:strokeLineCap="round" />
+            <path android:pathData="M6.48,5.8L6.48,39.6" android:strokeColor="#FFDADCE0" android:strokeWidth="0.22" android:strokeLineCap="round" />
+            <path android:fillColor="#FFF9AB00" android:pathData="M5.88,4.85a0.72,0.72 0,1 0,1.44 0a0.72,0.72 0,1 0,-1.44 0Z" />
+            <path android:fillColor="#FFFDD663" android:pathData="M6.12,4.62a0.26,0.26 0,1 0,0.52 0a0.26,0.26 0,1 0,-0.52 0Z" />
+            <path android:fillColor="#FF80868B" android:pathData="M5.4,40.2L7.8,40.2L8.3,41.3L4.9,41.3Z" />
+            <path android:name="flag_field" android:pathData="M6.9,5.7L8.175,5.747L9.45,5.842L10.725,5.888L12,5.802L13.275,5.596L14.55,5.381L15.825,5.315L17.1,5.503L17.1,11.003L15.825,10.815L14.55,10.881L13.275,11.096L12,11.302L10.725,11.388L9.45,11.342L8.175,11.247L6.9,11.2Z" android:fillColor="#FFFFFFFF" />
+            <path android:name="flag_stripes" android:pathData="M6.9,5.7L8.175,5.747L9.45,5.842L10.725,5.888L12,5.802L13.275,5.596L14.55,5.381L15.825,5.315L17.1,5.503L17.1,6.603L15.825,6.415L14.55,6.481L13.275,6.696L12,6.902L10.725,6.988L9.45,6.942L8.175,6.847L6.9,6.8Z M6.9,7.9L8.175,7.947L9.45,8.042L10.725,8.088L12,8.002L13.275,7.796L14.55,7.581L15.825,7.515L17.1,7.703L17.1,8.803L15.825,8.615L14.55,8.681L13.275,8.896L12,9.102L10.725,9.188L9.45,9.142L8.175,9.047L6.9,9Z M6.9,10.1L8.175,10.147L9.45,10.242L10.725,10.288L12,10.202L13.275,9.996L14.55,9.781L15.825,9.715L17.1,9.903L17.1,11.003L15.825,10.815L14.55,10.881L13.275,11.096L12,11.302L10.725,11.388L9.45,11.342L8.175,11.247L6.9,11.2Z" android:fillColor="#FFE53935" />
+            <path android:name="flag_canton" android:pathData="M6.9,5.7L8.396,5.762L9.892,5.869L11.388,5.862L11.388,9.162L9.892,9.169L8.396,9.062L6.9,9Z" android:fillColor="#FF1A5DC8" />
+            <path android:name="flag_stars" android:pathData="M7.528,6.549a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z M8.874,6.645a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z M10.22,6.713a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z M8.201,8.012a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z M9.547,8.109a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z" android:fillColor="#FFFFFFFF" />
+            <path android:name="flag_fold" android:pathData="M9.705,5.859L11.108,5.877L12.51,5.73L13.913,5.48L15.315,5.314L15.315,10.814L13.913,10.98L12.51,11.23L11.108,11.377L9.705,11.359Z" android:fillColor="#FF0B1A3A" android:fillAlpha="0.13" />
+            <!-- A service medal on a red, white and blue ribbon, swinging gently on the right -->
+            <group android:name="medal" android:pivotX="41.8" android:pivotY="23.4" android:rotation="-3">
+                <path android:fillColor="#FFC5221F" android:pathData="M39.3,23.6L40.85,23.6L40.85,30.2L39.3,30.2Z M42.75,23.6L44.3,23.6L44.3,30.2L42.75,30.2Z" />
+                <path android:fillColor="#FFFFFFFF" android:pathData="M40.85,23.6L41.3,23.6L41.3,30.2L40.85,30.2Z M42.3,23.6L42.75,23.6L42.75,30.2L42.3,30.2Z" />
+                <path android:fillColor="#FF1A5DC8" android:pathData="M41.3,23.6L42.3,23.6L42.3,30.2L41.3,30.2Z" />
+                <path android:fillColor="#FF000000" android:fillAlpha="0.16" android:pathData="M39.3,29.3L44.3,29.3L44.3,30.2L39.3,30.2Z" />
+                <path android:fillColor="#FFE8A100" android:pathData="M38.95,22.9L44.65,22.9L44.65,23.95L38.95,23.95Z" />
+                <path android:fillColor="#FFFDD663" android:pathData="M39.1,23.05L44.5,23.05L44.5,23.35L39.1,23.35Z" />
+                <path android:pathData="M41.8,29.8L41.8,30.6" android:strokeColor="#FFE8A100" android:strokeWidth="0.7" android:strokeLineCap="round" />
+                <path android:fillColor="#FFE37400" android:pathData="M38.6,33.6a3.2,3.2 0,1 0,6.4 0a3.2,3.2 0,1 0,-6.4 0Z" />
+                <path android:fillColor="#FFFBBC04" android:pathData="M38.93,33.45a2.75,2.75 0,1 0,5.5 0a2.75,2.75 0,1 0,-5.5 0Z" />
+                <path android:fillColor="#FFE8A100" android:pathData="M41.8,31.67L42.294,33.04L43.75,33.087L42.599,33.98L43.005,35.378L41.8,34.56L40.595,35.378L41.001,33.98L39.85,33.087L41.306,33.04Z" />
+                <path android:fillColor="#FFFDE293" android:pathData="M41.68,31.88L42.08,33.03L43.297,33.055L42.327,33.79L42.679,34.955L41.68,34.26L40.681,34.955L41.033,33.79L40.063,33.055L41.28,33.03Z" />
+                <group>
+                    <clip-path android:pathData="M38.6,33.6a3.2,3.2 0,1 0,6.4 0a3.2,3.2 0,1 0,-6.4 0Z" />
+                    <group android:name="glint" android:translateX="-6">
+                        <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.55" android:pathData="M41.4,29.6L42.1,29.6L41.1,37.6L40.4,37.6Z" />
+                    </group>
+                </group>
             </group>
         </vector>
     </aapt:attr>
 
-    <!-- The stars brighten one by one, then rest together. -->
-    <target android:name="star_1">
+    <target android:name="flag_field">
         <aapt:attr name="android:animation">
-            <objectAnimator
-                android:duration="6000"
-                android:interpolator="@android:interpolator/linear"
-                android:repeatCount="infinite">
-                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="1" />
-                    <keyframe android:fraction="0.1" android:value="1" />
-                    <keyframe android:fraction="0.16" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.3" />
-                    <keyframe android:fraction="0.3" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
-                    <keyframe android:fraction="1" android:value="1" />
-                </propertyValuesHolder>
-                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="1" />
-                    <keyframe android:fraction="0.1" android:value="1" />
-                    <keyframe android:fraction="0.16" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.3" />
-                    <keyframe android:fraction="0.3" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
-                    <keyframe android:fraction="1" android:value="1" />
-                </propertyValuesHolder>
-            </objectAnimator>
+            <objectAnimator android:duration="2600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="pathData" android:repeatCount="infinite" android:repeatMode="reverse"
+                android:valueFrom="M6.9,5.7L8.175,5.747L9.45,5.842L10.725,5.888L12,5.802L13.275,5.596L14.55,5.381L15.825,5.315L17.1,5.503L17.1,11.003L15.825,10.815L14.55,10.881L13.275,11.096L12,11.302L10.725,11.388L9.45,11.342L8.175,11.247L6.9,11.2Z"
+                android:valueTo="M6.9,5.7L8.175,5.65L9.45,5.687L10.725,5.826L12,5.989L13.275,6.052L14.55,5.928L15.825,5.641L17.1,5.337L17.1,10.837L15.825,11.141L14.55,11.428L13.275,11.552L12,11.489L10.725,11.326L9.45,11.187L8.175,11.15L6.9,11.2Z"
+                android:valueType="pathType" />
         </aapt:attr>
     </target>
-
-    <target android:name="star_2">
+    <target android:name="flag_stripes">
         <aapt:attr name="android:animation">
-            <objectAnimator
-                android:duration="6000"
-                android:interpolator="@android:interpolator/linear"
-                android:repeatCount="infinite">
-                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="1" />
-                    <keyframe android:fraction="0.2" android:value="1" />
-                    <keyframe android:fraction="0.26" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.3" />
-                    <keyframe android:fraction="0.4" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
-                    <keyframe android:fraction="1" android:value="1" />
-                </propertyValuesHolder>
-                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="1" />
-                    <keyframe android:fraction="0.2" android:value="1" />
-                    <keyframe android:fraction="0.26" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.3" />
-                    <keyframe android:fraction="0.4" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
-                    <keyframe android:fraction="1" android:value="1" />
-                </propertyValuesHolder>
-            </objectAnimator>
+            <objectAnimator android:duration="2600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="pathData" android:repeatCount="infinite" android:repeatMode="reverse"
+                android:valueFrom="M6.9,5.7L8.175,5.747L9.45,5.842L10.725,5.888L12,5.802L13.275,5.596L14.55,5.381L15.825,5.315L17.1,5.503L17.1,6.603L15.825,6.415L14.55,6.481L13.275,6.696L12,6.902L10.725,6.988L9.45,6.942L8.175,6.847L6.9,6.8Z M6.9,7.9L8.175,7.947L9.45,8.042L10.725,8.088L12,8.002L13.275,7.796L14.55,7.581L15.825,7.515L17.1,7.703L17.1,8.803L15.825,8.615L14.55,8.681L13.275,8.896L12,9.102L10.725,9.188L9.45,9.142L8.175,9.047L6.9,9Z M6.9,10.1L8.175,10.147L9.45,10.242L10.725,10.288L12,10.202L13.275,9.996L14.55,9.781L15.825,9.715L17.1,9.903L17.1,11.003L15.825,10.815L14.55,10.881L13.275,11.096L12,11.302L10.725,11.388L9.45,11.342L8.175,11.247L6.9,11.2Z"
+                android:valueTo="M6.9,5.7L8.175,5.65L9.45,5.687L10.725,5.826L12,5.989L13.275,6.052L14.55,5.928L15.825,5.641L17.1,5.337L17.1,6.437L15.825,6.741L14.55,7.028L13.275,7.152L12,7.089L10.725,6.926L9.45,6.787L8.175,6.75L6.9,6.8Z M6.9,7.9L8.175,7.85L9.45,7.887L10.725,8.026L12,8.189L13.275,8.252L14.55,8.128L15.825,7.841L17.1,7.537L17.1,8.637L15.825,8.941L14.55,9.228L13.275,9.352L12,9.289L10.725,9.126L9.45,8.987L8.175,8.95L6.9,9Z M6.9,10.1L8.175,10.05L9.45,10.087L10.725,10.226L12,10.389L13.275,10.452L14.55,10.328L15.825,10.041L17.1,9.737L17.1,10.837L15.825,11.141L14.55,11.428L13.275,11.552L12,11.489L10.725,11.326L9.45,11.187L8.175,11.15L6.9,11.2Z"
+                android:valueType="pathType" />
         </aapt:attr>
     </target>
-
-    <target android:name="star_3">
+    <target android:name="flag_canton">
         <aapt:attr name="android:animation">
-            <objectAnimator
-                android:duration="6000"
-                android:interpolator="@android:interpolator/linear"
-                android:repeatCount="infinite">
-                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="1" />
-                    <keyframe android:fraction="0.3" android:value="1" />
-                    <keyframe android:fraction="0.36" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.3" />
-                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
-                    <keyframe android:fraction="1" android:value="1" />
-                </propertyValuesHolder>
-                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="1" />
-                    <keyframe android:fraction="0.3" android:value="1" />
-                    <keyframe android:fraction="0.36" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.3" />
-                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
-                    <keyframe android:fraction="1" android:value="1" />
-                </propertyValuesHolder>
-            </objectAnimator>
+            <objectAnimator android:duration="2600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="pathData" android:repeatCount="infinite" android:repeatMode="reverse"
+                android:valueFrom="M6.9,5.7L8.396,5.762L9.892,5.869L11.388,5.862L11.388,9.162L9.892,9.169L8.396,9.062L6.9,9Z"
+                android:valueTo="M6.9,5.7L8.396,5.648L9.892,5.725L11.388,5.915L11.388,9.215L9.892,9.025L8.396,8.948L6.9,9Z"
+                android:valueType="pathType" />
         </aapt:attr>
     </target>
-
-    <target android:name="star_4">
+    <target android:name="flag_stars">
         <aapt:attr name="android:animation">
-            <objectAnimator
-                android:duration="6000"
-                android:interpolator="@android:interpolator/linear"
-                android:repeatCount="infinite">
-                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="1" />
-                    <keyframe android:fraction="0.4" android:value="1" />
-                    <keyframe android:fraction="0.46" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.3" />
-                    <keyframe android:fraction="0.6" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
-                    <keyframe android:fraction="1" android:value="1" />
-                </propertyValuesHolder>
-                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="1" />
-                    <keyframe android:fraction="0.4" android:value="1" />
-                    <keyframe android:fraction="0.46" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.3" />
-                    <keyframe android:fraction="0.6" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
-                    <keyframe android:fraction="1" android:value="1" />
-                </propertyValuesHolder>
-            </objectAnimator>
+            <objectAnimator android:duration="2600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="pathData" android:repeatCount="infinite" android:repeatMode="reverse"
+                android:valueFrom="M7.528,6.549a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z M8.874,6.645a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z M10.22,6.713a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z M8.201,8.012a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z M9.547,8.109a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z"
+                android:valueTo="M7.528,6.483a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z M8.874,6.492a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z M10.22,6.62a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z M8.201,7.892a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z M9.547,7.962a0.27,0.27 0,1 0,0.54 0a0.27,0.27 0,1 0,-0.54 0Z"
+                android:valueType="pathType" />
         </aapt:attr>
     </target>
-
-    <target android:name="star_5">
+    <target android:name="flag_fold">
         <aapt:attr name="android:animation">
-            <objectAnimator
-                android:duration="6000"
-                android:interpolator="@android:interpolator/linear"
-                android:repeatCount="infinite">
-                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="1" />
-                    <keyframe android:fraction="0.5" android:value="1" />
-                    <keyframe android:fraction="0.56" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.3" />
-                    <keyframe android:fraction="0.7" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
-                    <keyframe android:fraction="1" android:value="1" />
-                </propertyValuesHolder>
-                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="1" />
-                    <keyframe android:fraction="0.5" android:value="1" />
-                    <keyframe android:fraction="0.56" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.3" />
-                    <keyframe android:fraction="0.7" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
-                    <keyframe android:fraction="1" android:value="1" />
-                </propertyValuesHolder>
-            </objectAnimator>
+            <objectAnimator android:duration="2600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="pathData" android:repeatCount="infinite" android:repeatMode="reverse"
+                android:valueFrom="M9.705,5.859L11.108,5.877L12.51,5.73L13.913,5.48L15.315,5.314L15.315,10.814L13.913,10.98L12.51,11.23L11.108,11.377L9.705,11.359Z"
+                android:valueTo="M12.51,6.033L13.658,6.036L14.805,5.88L15.953,5.608L17.1,5.337L17.1,10.837L15.953,11.108L14.805,11.38L13.658,11.536L12.51,11.533Z"
+                android:valueType="pathType" />
         </aapt:attr>
     </target>
-
-    <!-- The ribbon sways gently. -->
-    <target android:name="ribbon">
+    <!-- The medal swings slowly on its pin. -->
+    <target android:name="medal">
         <aapt:attr name="android:animation">
-            <objectAnimator
-                android:duration="3800"
-                android:interpolator="@android:interpolator/linear"
-                android:repeatCount="infinite"
-                android:repeatMode="reverse">
+            <objectAnimator android:duration="4200" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite" android:repeatMode="reverse">
                 <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
                     <keyframe android:fraction="0" android:value="-3" />
                     <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="3" />
@@ -275,18 +100,15 @@
             </objectAnimator>
         </aapt:attr>
     </target>
-
-    <!-- The medal swings a little and catches the light. -->
-    <target android:name="medal">
+    <!-- Now and then light runs across its face. -->
+    <target android:name="glint">
         <aapt:attr name="android:animation">
-            <objectAnimator
-                android:duration="3200"
-                android:interpolator="@android:interpolator/linear"
-                android:repeatCount="infinite"
-                android:repeatMode="reverse">
-                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="-4" />
-                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="4" />
+            <objectAnimator android:duration="4800" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-6" />
+                    <keyframe android:fraction="0.55" android:value="-6" />
+                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="6.5" />
+                    <keyframe android:fraction="1" android:value="6.5" />
                 </propertyValuesHolder>
             </objectAnimator>
         </aapt:attr>

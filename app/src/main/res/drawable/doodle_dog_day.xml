@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- International Dog Day: a puppy in a red collar sits beside the G, wagging and panting, and tilts its head at the
-     bone turning above, its floppy ears swinging behind the tilt. Paw prints trotting up the other side fade away
+     bone floating above, its floppy ears swinging behind the tilt. Paw prints trotting up the other side fade away
      and come back one by one. See doodle_halloween.xml for the layout. -->
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt">
@@ -138,11 +138,11 @@
         </aapt:attr>
     </target>
 
-    <!-- The bone turns slowly and bobs. -->
+    <!-- The bone floats: it rocks gently and bobs on a different beat, like a treat the puppy is dreaming of. -->
     <target android:name="bone">
         <aapt:attr name="android:animation">
             <set>
-                <objectAnimator android:duration="7200" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="-14" android:valueTo="346" android:valueType="floatType" />
+                <objectAnimator android:duration="1800" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-14" android:valueTo="8" android:valueType="floatType" />
                 <objectAnimator android:duration="1200" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="9" android:valueTo="7.6" android:valueType="floatType" />
             </set>
         </aapt:attr>

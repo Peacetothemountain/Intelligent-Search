@@ -1,15 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- World Teachers' Day: a shiny apple sits on top of the G with a little worm who ducks inside and pops back out;
-     a pencil writes a red tick beside a stack of books and a gold star sticker pops for the good work, under an
-     "A+". See doodle_halloween.xml for the layout. -->
+     a pencil writes a red tick beside a stack of books and a gold star sticker pops for the good work.
+     See doodle_halloween.xml for the layout. -->
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt">
     <aapt:attr name="android:drawable">
         <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
-
-            <!-- A+ in red marker, left -->
-            <path android:strokeColor="#FFEA4335" android:strokeWidth="0.9" android:strokeLineCap="round" android:strokeLineJoin="round"
-                android:pathData="M4.8,22.2L7,16.2L9.2,22.2 M5.7,20L8.3,20 M11.1,17.9L11.1,20.9 M9.6,19.4L12.6,19.4" />
 
             <!-- Gold star sticker, top right -->
             <group android:name="star" android:translateX="36.6" android:translateY="9.4">

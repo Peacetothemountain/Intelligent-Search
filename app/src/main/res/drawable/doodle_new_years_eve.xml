@@ -24,7 +24,7 @@
                 <path android:fillColor="#FF8AB4F8" android:pathData="M0,-1.2Q0.26,-0.26 1.2,0Q0.26,0.26 0,1.2Q-0.26,0.26 -1.2,0Q-0.26,-0.26 0,-1.2Z" />
             </group>
 
-            <!-- Rocket trails: a short dash that runs up the path and is gone when it bursts -->
+            <!-- Rocket trails: a short streak that races up the path, slowing and shortening as it climbs, and is gone when it bursts -->
             <path android:name="rocket_a" android:strokeColor="#FFF9AB00" android:strokeWidth="0.75" android:strokeLineCap="round" android:trimPathStart="1" android:trimPathEnd="1" android:pathData="M41.5,31Q42.2,19.5 36,10" />
             <path android:name="rocket_b" android:strokeColor="#FF4285F4" android:strokeWidth="0.75" android:strokeLineCap="round" android:trimPathEnd="0" android:pathData="M10.2,31Q8.8,20 14,10.5" />
 
@@ -77,7 +77,7 @@
             </group>
 
             <!-- The clink -->
-            <group android:name="clink" android:scaleX="1" android:scaleY="1" android:translateX="24" android:translateY="36.3">
+            <group android:name="clink" android:scaleX="1" android:scaleY="1" android:translateX="24" android:translateY="37.6">
                 <path android:fillColor="#FFFBBC04" android:pathData="M0,-1.7Q0.31,-0.31 1.7,0Q0.31,0.31 0,1.7Q-0.31,0.31 -1.7,0Q-0.31,-0.31 0,-1.7Z" />
             </group>
         </vector>
@@ -170,15 +170,15 @@
                     <keyframe android:fraction="0.4" android:value="1" />
                     <keyframe android:fraction="0.4" android:value="0" />
                     <keyframe android:fraction="0.72" android:value="0" />
-                    <keyframe android:fraction="0.9" android:interpolator="@android:interpolator/decelerate_cubic" android:value="1" />
+                    <keyframe android:fraction="0.9" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
                     <keyframe android:fraction="1" android:value="1" />
                 </propertyValuesHolder>
                 <propertyValuesHolder android:propertyName="trimPathStart" android:valueType="floatType">
                     <keyframe android:fraction="0" android:value="1" />
                     <keyframe android:fraction="0.4" android:value="1" />
                     <keyframe android:fraction="0.4" android:value="0" />
-                    <keyframe android:fraction="0.76" android:value="0" />
-                    <keyframe android:fraction="0.91" android:interpolator="@android:interpolator/decelerate_cubic" android:value="1" />
+                    <keyframe android:fraction="0.74" android:value="0" />
+                    <keyframe android:fraction="0.92" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
                     <keyframe android:fraction="1" android:value="1" />
                 </propertyValuesHolder>
             </objectAnimator>
@@ -191,15 +191,15 @@
                 <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
                     <keyframe android:fraction="0" android:value="0" />
                     <keyframe android:fraction="0.22" android:value="0" />
-                    <keyframe android:fraction="0.4" android:interpolator="@android:interpolator/decelerate_cubic" android:value="1" />
+                    <keyframe android:fraction="0.4" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
                     <keyframe android:fraction="0.9" android:value="1" />
                     <keyframe android:fraction="0.9" android:value="0" />
                     <keyframe android:fraction="1" android:value="0" />
                 </propertyValuesHolder>
                 <propertyValuesHolder android:propertyName="trimPathStart" android:valueType="floatType">
                     <keyframe android:fraction="0" android:value="0" />
-                    <keyframe android:fraction="0.26" android:value="0" />
-                    <keyframe android:fraction="0.41" android:interpolator="@android:interpolator/decelerate_cubic" android:value="1" />
+                    <keyframe android:fraction="0.24" android:value="0" />
+                    <keyframe android:fraction="0.42" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
                     <keyframe android:fraction="0.9" android:value="1" />
                     <keyframe android:fraction="0.9" android:value="0" />
                     <keyframe android:fraction="1" android:value="0" />

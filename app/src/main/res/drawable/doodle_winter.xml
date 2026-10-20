@@ -30,7 +30,7 @@
                         <path android:strokeColor="#FF7CACF8" android:strokeWidth="0.45" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M0,0L0,-1.7M-0.5,-1.45L0,-1L0.5,-1.45M0,0L1.47,-0.85M1.01,-1.16L0.87,-0.5L1.51,-0.29M0,0L1.47,0.85M1.51,0.29L0.87,0.5L1.01,1.16M0,0L0,1.7M0.5,1.45L0,1L-0.5,1.45M0,0L-1.47,0.85M-1.01,1.16L-0.87,0.5L-1.51,0.29M0,0L-1.47,-0.85M-1.51,-0.29L-0.87,-0.5L-1.01,-1.16" />
                     </group>
                 </group>
-                <group android:name="flake_4" android:translateX="45.5" android:translateY="26.7">
+                <group android:name="flake_4" android:translateX="44.2" android:translateY="26.7">
                     <group android:name="flake_4_drift" android:scaleX="1" android:scaleY="1">
                         <path android:strokeColor="#FF7CACF8" android:strokeWidth="0.45" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M0,0L0,-1.7M-0.5,-1.45L0,-1L0.5,-1.45M0,0L1.47,-0.85M1.01,-1.16L0.87,-0.5L1.51,-0.29M0,0L1.47,0.85M1.51,0.29L0.87,0.5L1.01,1.16M0,0L0,1.7M0.5,1.45L0,1L-0.5,1.45M0,0L-1.47,0.85M-1.01,1.16L-0.87,0.5L-1.51,0.29M0,0L-1.47,-0.85M-1.51,-0.29L-0.87,-0.5L-1.01,-1.16" />
                     </group>
@@ -55,7 +55,7 @@
             </group>
 
             <!-- Snowman, drawn up from its base -->
-            <group android:name="snowman" android:translateX="40.6" android:translateY="46.4">
+            <group android:name="snowman" android:translateX="40" android:translateY="46.4">
                 <path android:strokeColor="#FF8D6552" android:strokeWidth="0.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-3.2,-5L-6.3,-7.4M-5.4,-6.7L-5.6,-8M-5.4,-6.7L-6.8,-6.5" />
                 <group android:name="arm" android:pivotX="3.2" android:pivotY="-5">
                     <path android:strokeColor="#FF8D6552" android:strokeWidth="0.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M3.2,-5L6.2,-7.8M5.3,-7L5.4,-8.4M5.3,-7L6.7,-6.9" />

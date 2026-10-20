@@ -565,6 +565,9 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     "conversion" -> {
                         ConversionOneBox(conversionText = instantAnswer.title)
                     }
+                    "currency" -> {
+                        ConversionOneBox(conversionText = instantAnswer.title, ratesLabel = instantAnswer.subtitle)
+                    }
                     "dictionary" -> {
                         DictionaryOneBox(
                             word = instantAnswer.title,
@@ -579,6 +582,14 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                 hasStartedTyping = false
                                 openWebAddress(instantAnswer.title)
                             }
+                        )
+                    }
+                    "date" -> {
+                        TimeWeatherOneBox(
+                            title = instantAnswer.title,
+                            subtitle = instantAnswer.subtitle,
+                            iconType = instantAnswer.iconType,
+                            onClick = { launchWebSearch(uiState.query) }
                         )
                     }
                     "weather", "time" -> {

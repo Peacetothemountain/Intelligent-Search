@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Contacts
+import androidx.compose.material.icons.outlined.CurrencyExchange
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Language
@@ -276,6 +277,15 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             icon = Icons.Outlined.Calculate,
                             isChecked = searchCalc,
                             onCheckedChange = { searchCalc = it },
+                            showDivider = true
+                        )
+                        var liveCurrencyRates by rememberSetting(SettingsManager.LIVE_CURRENCY_RATES)
+                        SettingsRowToggle(
+                            title = "Live Currency Rates",
+                            subtitle = "Update Currency Rates Daily From the European Central Bank.",
+                            icon = Icons.Outlined.CurrencyExchange,
+                            isChecked = liveCurrencyRates,
+                            onCheckedChange = { liveCurrencyRates = it },
                             showDivider = true
                         )
                         var searchCalendar by rememberSetting(SettingsManager.SEARCH_CALENDAR)

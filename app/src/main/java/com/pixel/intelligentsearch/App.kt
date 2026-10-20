@@ -39,6 +39,9 @@ class App : Application() {
     lateinit var widgetUpdater: WidgetUpdater
 
     @Inject
+    lateinit var currencyRates: dagger.Lazy<com.pixel.intelligentsearch.core.currency.CurrencyRateRepository>
+
+    @Inject
     @ApplicationScope
     lateinit var appScope: CoroutineScope
 
@@ -127,6 +130,8 @@ class App : Application() {
                 )
                 // Redraw the widgets when the day's doodle next changes (a doodle day starts or ends at midnight).
                 com.pixel.intelligentsearch.feature.widget.WidgetDoodles.scheduleNextChange(this@App)
+                // Keep the daily currency refresh only while Live Currency Rates is on and Tor isn't the engine.
+                currencyRates.get().syncSchedule()
                 // Built lazily: a process started only for a widget or the boot receiver shouldn't pay for
                 // camera, network and profile registration on the main thread.
                 systemToggleManager.get().clearLegacyAppNightModeOverride()

@@ -654,8 +654,15 @@ class SearchViewModel @Inject constructor(
 
             val q = newQuery.lowercase().trim()
             val unitConv = mathResult as? com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.UnitConversion
+            // Date arithmetic is calculation too, so it follows the Calculator switch.
+            val dateAnswer = unifiedResults.dateAnswer.takeIf { settings.searchCalculator }
             val localInstantAnswer = if (unitConv != null) {
-                InstantAnswer(unitConv.formatted, "Unit Conversion", "conversion")
+                // A currency answer says where its rates come from: "Rates from Oct 19, 2026" or "Built-in rates".
+                val rates = unitConv.currencyRates
+                if (rates != null) InstantAnswer(unitConv.formatted, rates.sourceLabel(), "currency")
+                else InstantAnswer(unitConv.formatted, "Unit Conversion", "conversion")
+            } else if (dateAnswer != null) {
+                InstantAnswer(dateAnswer.title, dateAnswer.subtitle, "date")
             } else if (q == "time" || q.startsWith("time in ")) {
                 buildTimeAnswer(q.removePrefix("time").removePrefix(" in ").trim())
             } else if (q == "weather" || q.startsWith("weather in ")) {

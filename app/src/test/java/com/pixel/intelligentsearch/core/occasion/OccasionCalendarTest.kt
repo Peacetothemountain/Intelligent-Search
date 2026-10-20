@@ -16,7 +16,7 @@ class OccasionCalendarTest {
     private val london = ZoneId.of("Europe/London")
     private val sydney = ZoneId.of("Australia/Sydney")
 
-    private fun on(date: String, zone: ZoneId = newYork) = OccasionCalendar.on(LocalDate.parse(date), zone)
+    private fun on(date: String, zone: ZoneId = newYork, region: String = "") = OccasionCalendar.on(LocalDate.parse(date), zone, region)
 
     @Test
     fun fixedDaysAreTheSameEverywhere() {
@@ -108,6 +108,73 @@ class OccasionCalendarTest {
         // Christmas Eve and Day share a doodle, so it doesn't change in between.
         assertEquals("2026-12-26T00:00-05:00[America/New_York]", next("2026-12-24"))
         assertEquals("2027-01-02T00:00-05:00[America/New_York]", next("2027-01-01"))
+    }
+
+    @Test
+    fun funDaysAreTheSameEverywhere() {
+        for (region in listOf("US", "GB", "JP", "")) {
+            assertEquals(Occasion.WOMENS_DAY, on("2027-03-08", region = region))
+            assertEquals(Occasion.PI_DAY, on("2027-03-14", region = region))
+            assertEquals(Occasion.ST_PATRICKS_DAY, on("2027-03-17", region = region))
+            assertEquals(Occasion.APRIL_FOOLS_DAY, on("2027-04-01", region = region))
+            assertEquals(Occasion.BEE_DAY, on("2027-05-20", region = region))
+            assertEquals(Occasion.OCEANS_DAY, on("2027-06-08", region = region))
+            assertEquals(Occasion.CHOCOLATE_DAY, on("2027-07-07", region = region))
+            assertEquals(Occasion.EMOJI_DAY, on("2027-07-17", region = region))
+            assertEquals(Occasion.MOON_DAY, on("2027-07-20", region = region))
+            assertEquals(Occasion.CAT_DAY, on("2027-08-08", region = region))
+            assertEquals(Occasion.DOG_DAY, on("2027-08-26", region = region))
+            assertEquals(Occasion.PIRATE_DAY, on("2027-09-19", region = region))
+            assertEquals(Occasion.COFFEE_DAY, on("2027-10-01", region = region))
+            assertEquals(Occasion.TEACHERS_DAY, on("2027-10-05", region = region))
+            assertEquals(Occasion.KINDNESS_DAY, on("2027-11-13", region = region))
+        }
+    }
+
+    @Test
+    fun easterFollowsTheComputus() {
+        mapOf(2026 to "2026-04-05", 2027 to "2027-03-28", 2028 to "2028-04-16", 2029 to "2029-04-01", 2030 to "2030-04-21",
+            2038 to "2038-04-25", 2285 to "2285-03-22")
+            .forEach { (year, date) -> assertEquals(LocalDate.parse(date), OccasionCalendar.easter(year)) }
+        assertEquals(Occasion.EASTER, on("2026-04-05"))
+        // Easter on April 1 2029 wins over April Fools' Day.
+        assertEquals(Occasion.EASTER, on("2029-04-01"))
+    }
+
+    @Test
+    fun lunarNewYearComesFromItsTable() {
+        assertEquals(Occasion.LUNAR_NEW_YEAR, on("2027-02-06"))
+        assertEquals(Occasion.LUNAR_NEW_YEAR, on("2028-01-26"))
+        assertNull(on("2027-02-07"))
+    }
+
+    @Test
+    fun regionalDaysOnlyWhereTheyreCelebrated() {
+        assertEquals(Occasion.INDEPENDENCE_DAY, on("2027-07-04", region = "US"))
+        assertNull(on("2027-07-04", region = "GB"))
+        assertEquals(Occasion.CANADA_DAY, on("2027-07-01", region = "CA"))
+        assertNull(on("2027-07-01", region = "US"))
+        assertEquals(Occasion.GROUNDHOG_DAY, on("2027-02-02", region = "US"))
+        assertEquals(Occasion.GROUNDHOG_DAY, on("2027-02-02", region = "CA"))
+        assertNull(on("2027-02-02", region = "FR"))
+    }
+
+    @Test
+    fun familyAndHarvestDaysFollowTheRegionsCalendar() {
+        // Thanksgiving: the fourth Thursday of November in the US, the second Monday of October in Canada.
+        assertEquals(Occasion.THANKSGIVING, on("2026-11-26", region = "US"))
+        assertEquals(Occasion.THANKSGIVING, on("2026-10-12", region = "CA"))
+        assertNull(on("2026-11-26", region = "CA"))
+        // Mother's Day: the second Sunday of May, or Mothering Sunday (three weeks before Easter) in the UK.
+        assertEquals(Occasion.MOTHERS_DAY, on("2026-05-10", region = "US"))
+        assertEquals(Occasion.MOTHERS_DAY, on("2026-03-15", region = "GB"))
+        assertNull(on("2026-05-10", region = "GB"))
+        assertNull(on("2026-05-10", region = "FR")) // France keeps it on another day
+        // Father's Day: the third Sunday of June, or the first Sunday of September in Australia. In 2026 it's also
+        // the June solstice; Father's Day wins.
+        assertEquals(Occasion.FATHERS_DAY, on("2026-06-21", region = "US"))
+        assertEquals(Occasion.FATHERS_DAY, on("2026-09-06", zone = sydney, region = "AU"))
+        assertEquals(Occasion.FIRST_DAY_OF_SUMMER, on("2026-06-21", region = "XX"))
     }
 
     @Test

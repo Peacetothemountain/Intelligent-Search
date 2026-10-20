@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pi Day: a π writes itself above the G's shoulder while a fresh pie steams beside it.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <!-- π: the bar, then each leg -->
+            <path
+                android:name="pi"
+                android:pathData="M32.5,5.5C35,4.8 41,4.8 45.5,5 M36,5.2C36,9 35.4,12 33.6,13.6 M41.6,5.2C41.4,9 41.4,12 42.6,13 C43.4,13.6 44.4,13.2 45,12.2"
+                android:strokeColor="#FF4285F4"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                android:strokeWidth="1.5" />
+
+            <!-- Steam -->
+            <group android:name="steam_1_rise">
+                <path android:name="steam_1" android:pathData="M39,36C38,34.6 40,33.6 39,32" android:strokeAlpha="0.8" android:strokeColor="#FF9AA0A6" android:strokeLineCap="round" android:strokeWidth="0.6" />
+            </group>
+            <group android:name="steam_2_rise">
+                <path android:name="steam_2" android:pathData="M42.6,36C41.6,34.6 43.6,33.6 42.6,32" android:strokeAlpha="0" android:strokeColor="#FF9AA0A6" android:strokeLineCap="round" android:strokeWidth="0.6" />
+            </group>
+
+            <!-- Pie: dish, top crust, lattice -->
+            <path android:fillColor="#FFE37400" android:pathData="M35,40.6L47,40.6L45.4,44.6L36.6,44.6Z" />
+            <path android:fillColor="#FFF9AB00" android:pathData="M35,40.6a6,1.9 0,1 0,12 0a6,1.9 0,1 0,-12 0Z" />
+            <path android:pathData="M37.2,39.4L39.6,42.2 M40,38.8L43,42.4 M43.2,39L45.2,41.4 M36.6,41.6L38.8,38.9 M39.6,42.4L42.4,38.8 M43,42.2L45.4,39.4" android:strokeColor="#FFFDD663" android:strokeLineCap="round" android:strokeWidth="0.45" />
+        </vector>
+    </aapt:attr>
+
+    <!-- 3.6s: write the π, hold it, unwrite it. -->
+    <target android:name="pi">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="3600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.7" android:value="1" />
+                    <keyframe android:fraction="0.8" android:value="0" />
+                    <keyframe android:fraction="0.82" android:value="0" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- Wisps rise and fade, one after the other. -->
+    <target android:name="steam_1_rise">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1800" android:interpolator="@android:interpolator/linear" android:propertyName="translateY" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="-3" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="steam_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1800" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.3" android:value="0.8" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="steam_2_rise">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1800" android:interpolator="@android:interpolator/linear" android:propertyName="translateY" android:repeatCount="infinite" android:startOffset="900" android:valueFrom="0" android:valueTo="-3" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="steam_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1800" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite" android:startOffset="900">
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.3" android:value="0.8" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

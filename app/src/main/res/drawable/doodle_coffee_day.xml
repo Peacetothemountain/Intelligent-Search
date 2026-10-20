@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- International Coffee Day: a mug steams beside the G and coffee beans hop on the other side.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <!-- Steam: three wisps rising and fading in turn -->
+            <group android:name="steam_1_rise">
+                <path android:name="steam_1" android:pathData="M38.6,35C37.6,33.4 39.6,32.4 38.6,30.6" android:strokeAlpha="0.8" android:strokeColor="#FF9AA0A6" android:strokeLineCap="round" android:strokeWidth="0.6" />
+            </group>
+            <group android:name="steam_2_rise">
+                <path android:name="steam_2" android:pathData="M40.8,35C39.8,33.4 41.8,32.4 40.8,30.6" android:strokeAlpha="0" android:strokeColor="#FF9AA0A6" android:strokeLineCap="round" android:strokeWidth="0.6" />
+            </group>
+            <group android:name="steam_3_rise">
+                <path android:name="steam_3" android:pathData="M43,35C42,33.4 44,32.4 43,30.6" android:strokeAlpha="0" android:strokeColor="#FF9AA0A6" android:strokeLineCap="round" android:strokeWidth="0.6" />
+            </group>
+
+            <!-- Mug -->
+            <path android:pathData="M45.4,38.4C47.8,38.4 47.8,42.4 44.8,42.4" android:strokeColor="#FF4285F4" android:strokeWidth="1.1" />
+            <path android:fillColor="#FF4285F4" android:pathData="M36.4,36.6L45.6,36.6L44.9,44C44.8,44.9 44.2,45.4 43.4,45.4L38.6,45.4C37.8,45.4 37.2,44.9 37.1,44Z" />
+            <path android:fillColor="#FF6D4C41" android:pathData="M36.6,36.8a4.4,0.9 0,1 0,8.8 0a4.4,0.9 0,1 0,-8.8 0Z" />
+            <path android:fillColor="#FFFFFFFF" android:pathData="M39.6,41.2C39.6,40.2 40.4,39.8 41,40.4C41.6,39.8 42.4,40.2 42.4,41.2C42.4,42 41,42.8 41,42.8C41,42.8 39.6,42 39.6,41.2Z" />
+
+            <!-- Beans -->
+            <group android:name="bean_1" android:rotation="-30" android:translateX="8" android:translateY="31">
+                <path android:fillColor="#FF8D6E63" android:pathData="M-1.4,0a1.4,2 0,1 0,2.8 0a1.4,2 0,1 0,-2.8 0Z" />
+                <path android:pathData="M0,-1.6C-0.6,-0.6 0.6,0.6 0,1.6" android:strokeColor="#FF4E342E" android:strokeWidth="0.35" />
+            </group>
+            <group android:name="bean_2" android:rotation="25" android:translateX="10.5" android:translateY="38">
+                <path android:fillColor="#FF6D4C41" android:pathData="M-1.4,0a1.4,2 0,1 0,2.8 0a1.4,2 0,1 0,-2.8 0Z" />
+                <path android:pathData="M0,-1.6C-0.6,-0.6 0.6,0.6 0,1.6" android:strokeColor="#FF3E2723" android:strokeWidth="0.35" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="steam_1_rise">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2100" android:interpolator="@android:interpolator/linear" android:propertyName="translateY" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="-3.5" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="steam_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2100" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.3" android:value="0.8" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="steam_2_rise">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2100" android:interpolator="@android:interpolator/linear" android:propertyName="translateY" android:repeatCount="infinite" android:startOffset="700" android:valueFrom="0" android:valueTo="-3.5" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="steam_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2100" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite" android:startOffset="700">
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.3" android:value="0.8" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="steam_3_rise">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2100" android:interpolator="@android:interpolator/linear" android:propertyName="translateY" android:repeatCount="infinite" android:startOffset="1400" android:valueFrom="0" android:valueTo="-3.5" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="steam_3">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2100" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite" android:startOffset="1400">
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.3" android:value="0.8" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="bean_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="31" />
+                    <keyframe android:fraction="0.5" android:value="31" />
+                    <keyframe android:fraction="0.65" android:interpolator="@android:interpolator/decelerate_quad" android:value="28.6" />
+                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/accelerate_quad" android:value="31" />
+                    <keyframe android:fraction="1" android:value="31" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-30" />
+                    <keyframe android:fraction="0.5" android:value="-30" />
+                    <keyframe android:fraction="0.8" android:value="150" />
+                    <keyframe android:fraction="1" android:value="150" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="bean_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="38" />
+                    <keyframe android:fraction="0.1" android:interpolator="@android:interpolator/decelerate_quad" android:value="35.8" />
+                    <keyframe android:fraction="0.25" android:interpolator="@android:interpolator/accelerate_quad" android:value="38" />
+                    <keyframe android:fraction="1" android:value="38" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="25" />
+                    <keyframe android:fraction="0.25" android:value="205" />
+                    <keyframe android:fraction="1" android:value="205" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

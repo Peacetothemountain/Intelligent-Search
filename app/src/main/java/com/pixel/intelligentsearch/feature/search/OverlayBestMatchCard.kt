@@ -116,7 +116,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
             Spacer(modifier = Modifier.height(12.dp))
 
             when (val match = bestMatch) {
-                is ContactItem -> {
+                is ContactItem -> Column {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -175,6 +175,13 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )
+                    }
+                    val contactActions = remember(match, s.contactActionTargets, settingsState.contactActions) {
+                        ContactActions.forContact(match, s.contactActionTargets, settingsState.contactActions)
+                    }
+                    if (contactActions.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        ContactActionChips(contactActions, settingsState.activeIconPack) { hasStartedTyping = false }
                     }
                 }
                 is AppItem -> {

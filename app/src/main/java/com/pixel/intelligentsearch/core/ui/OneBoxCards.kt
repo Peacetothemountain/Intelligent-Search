@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Language
@@ -424,10 +425,12 @@ fun MathResultOneBox(
     }
 }
 
+/** A unit or currency conversion. [ratesLabel], for currencies, says where the rates come from. */
 @Composable
 fun ConversionOneBox(
     conversionText: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    ratesLabel: String? = null
 ) {
     ExpressiveOneBoxCard(
         modifier = modifier
@@ -482,6 +485,18 @@ fun ConversionOneBox(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+
+            if (ratesLabel != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = ratesLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = GoogleSansFlex,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -685,6 +700,8 @@ fun TimeWeatherOneBox(
 ) {
     val isWeather = iconType == "weather"
     val isTime = iconType == "time"
+    // A date answer's title is a full date ("Sunday, January 17, 2027"), which needs room for two lines.
+    val isDate = iconType == "date"
 
     val categoryConfig = remember(iconType) {
         when {
@@ -697,6 +714,11 @@ fun TimeWeatherOneBox(
                 icon = Icons.Default.AccessTime,
                 containerType = OneBoxThemeContainer.Secondary,
                 label = "WORLD CLOCK & TIME"
+            )
+            isDate -> OneBoxCategoryConfig(
+                icon = Icons.Default.CalendarMonth,
+                containerType = OneBoxThemeContainer.Secondary,
+                label = "DATE CALCULATOR"
             )
             else -> OneBoxCategoryConfig(
                 icon = Icons.Outlined.Info,
@@ -776,7 +798,7 @@ fun TimeWeatherOneBox(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontFamily = GoogleSansFlex,
-                    maxLines = 1,
+                    maxLines = if (isDate) 2 else 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(

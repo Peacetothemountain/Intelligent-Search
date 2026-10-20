@@ -26,9 +26,11 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Contacts
+import androidx.compose.material.icons.outlined.CurrencyExchange
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -277,6 +279,15 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             onCheckedChange = { searchCalc = it },
                             showDivider = true
                         )
+                        var liveCurrencyRates by rememberSetting(SettingsManager.LIVE_CURRENCY_RATES)
+                        SettingsRowToggle(
+                            title = "Live Currency Rates",
+                            subtitle = "Update Currency Rates Daily From the European Central Bank.",
+                            icon = Icons.Outlined.CurrencyExchange,
+                            isChecked = liveCurrencyRates,
+                            onCheckedChange = { liveCurrencyRates = it },
+                            showDivider = true
+                        )
                         var searchCalendar by rememberSetting(SettingsManager.SEARCH_CALENDAR)
                         val calendarPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
                             // An empty result (a request already in flight) is not a grant.
@@ -309,6 +320,15 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                                     searchCalendar = false
                                 }
                             },
+                            showDivider = true
+                        )
+                        var searchAndroidSettings by rememberSetting(SettingsManager.SEARCH_ANDROID_SETTINGS)
+                        SettingsRowToggle(
+                            title = "Android Settings",
+                            subtitle = "Open Settings Pages Such as Battery & Wi-Fi Directly.",
+                            icon = Icons.Outlined.Settings,
+                            isChecked = searchAndroidSettings,
+                            onCheckedChange = { searchAndroidSettings = it },
                             showDivider = false
                         )
                     }

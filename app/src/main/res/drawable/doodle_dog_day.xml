@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- International Dog Day: a puppy beside the G pants happily and flaps its ears while a bone spins above.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <!-- Bone -->
+            <group android:name="bone" android:translateX="40" android:translateY="9">
+                <path android:fillColor="#FFF8F9FA" android:pathData="M-2.6,-0.7L2.6,-0.7C2.6,-2.2 4.4,-2.2 4.4,-1.1C5.4,-1 5.4,1 4.4,1.1C4.4,2.2 2.6,2.2 2.6,0.7L-2.6,0.7C-2.6,2.2 -4.4,2.2 -4.4,1.1C-5.4,1 -5.4,-1 -4.4,-1.1C-4.4,-2.2 -2.6,-2.2 -2.6,-0.7Z" android:strokeColor="#FFBDC1C6" android:strokeWidth="0.45" />
+            </group>
+
+            <!-- Puppy's head -->
+            <group android:name="puppy" android:translateX="41" android:translateY="40">
+                <group android:name="ear_left" android:pivotX="-2.6" android:pivotY="-2.4">
+                    <path android:fillColor="#FF8D5524" android:pathData="M-2.6,-2.4C-4.6,-2.6 -5.6,0.4 -4.6,2.6C-3.6,2.8 -2.6,1 -2.2,-0.6Z" />
+                </group>
+                <group android:name="ear_right" android:pivotX="2.6" android:pivotY="-2.4">
+                    <path android:fillColor="#FF8D5524" android:pathData="M2.6,-2.4C4.6,-2.6 5.6,0.4 4.6,2.6C3.6,2.8 2.6,1 2.2,-0.6Z" />
+                </group>
+                <path android:fillColor="#FFD7A26B" android:pathData="M-3.4,0a3.4,3.4 0,1 0,6.8 0a3.4,3.4 0,1 0,-6.8 0Z" />
+                <path android:fillColor="#FFF3D9B1" android:pathData="M-2,1.4a2,1.5 0,1 0,4 0a2,1.5 0,1 0,-4 0Z" />
+                <group android:name="tongue" android:pivotY="2.4">
+                    <path android:fillColor="#FFF28B82" android:pathData="M-0.8,2.4L0.8,2.4L0.8,3.6C0.8,4.5 -0.8,4.5 -0.8,3.6Z" />
+                </group>
+                <path android:fillColor="#FF202124" android:pathData="M-0.7,0.6a0.7,0.5 0,1 0,1.4 0a0.7,0.5 0,1 0,-1.4 0Z M-1.65,-0.9a0.45,0.45 0,1 0,0.9 0a0.45,0.45 0,1 0,-0.9 0Z M0.75,-0.9a0.45,0.45 0,1 0,0.9 0a0.45,0.45 0,1 0,-0.9 0Z" />
+                <path android:pathData="M-1,1.6Q0,2.4 1,1.6" android:strokeColor="#FF5F3B00" android:strokeLineCap="round" android:strokeWidth="0.35" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="bone">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="2400" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="360" android:valueType="floatType" />
+                <objectAnimator android:duration="1200" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="9" android:valueTo="7.4" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="puppy">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="300" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="40" android:valueTo="39.4" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="tongue">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="300" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="1.4" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="ear_left">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0" android:valueTo="18" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="ear_right">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0" android:valueTo="-18" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

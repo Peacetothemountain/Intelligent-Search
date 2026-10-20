@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fourth of July: red and blue fireworks burst around the G in turn while gold stars twinkle.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <group android:name="star_1" android:translateX="46" android:translateY="20">
+                <path android:fillColor="#FFFBBC04" android:pathData="M0,-2L0.6,-0.6L2,-0.6L0.9,0.3L1.3,1.7L0,0.9L-1.3,1.7L-0.9,0.3L-2,-0.6L-0.6,-0.6Z" />
+            </group>
+            <group android:name="star_2" android:scaleX="0.8" android:scaleY="0.8" android:translateX="19" android:translateY="5">
+                <path android:fillColor="#FFFBBC04" android:pathData="M0,-2L0.6,-0.6L2,-0.6L0.9,0.3L1.3,1.7L0,0.9L-1.3,1.7L-0.9,0.3L-2,-0.6L-0.6,-0.6Z" />
+            </group>
+            <group android:name="star_3" android:scaleX="0.9" android:scaleY="0.9" android:translateX="32" android:translateY="43">
+                <path android:fillColor="#FFFBBC04" android:pathData="M0,-2L0.6,-0.6L2,-0.6L0.9,0.3L1.3,1.7L0,0.9L-1.3,1.7L-0.9,0.3L-2,-0.6L-0.6,-0.6Z" />
+            </group>
+
+            <group android:name="burst_1" android:translateX="38" android:translateY="9">
+                <path android:name="burst_1_sparks" android:pathData="M0,-1.6L0,-4.2 M0,1.6L0,4.2 M-1.6,0L-4.2,0 M1.6,0L4.2,0 M1.13,-1.13L2.97,-2.97 M-1.13,-1.13L-2.97,-2.97 M1.13,1.13L2.97,2.97 M-1.13,1.13L-2.97,2.97" android:strokeColor="#FFEA4335" android:strokeLineCap="round" android:strokeWidth="1" />
+            </group>
+            <group android:name="burst_2" android:scaleX="0.6" android:scaleY="0.6" android:translateX="42" android:translateY="33">
+                <path android:name="burst_2_sparks" android:pathData="M0,-1.6L0,-4.2 M0,1.6L0,4.2 M-1.6,0L-4.2,0 M1.6,0L4.2,0 M1.13,-1.13L2.97,-2.97 M-1.13,-1.13L-2.97,-2.97 M1.13,1.13L2.97,2.97 M-1.13,1.13L-2.97,2.97" android:strokeColor="#FF4285F4" android:strokeLineCap="round" android:strokeWidth="1" />
+            </group>
+            <group android:name="burst_3" android:scaleX="0.4" android:scaleY="0.4" android:translateX="9" android:translateY="14">
+                <path android:name="burst_3_sparks" android:pathData="M0,-1.6L0,-4.2 M0,1.6L0,4.2 M-1.6,0L-4.2,0 M1.6,0L4.2,0 M1.13,-1.13L2.97,-2.97 M-1.13,-1.13L-2.97,-2.97 M1.13,1.13L2.97,2.97 M-1.13,1.13L-2.97,2.97" android:strokeColor="#FFEA4335" android:strokeLineCap="round" android:strokeWidth="1" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="star_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="800" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-15" android:valueTo="15" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="star_2">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1000" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0.8" android:valueTo="0.3" android:valueType="floatType" />
+                <objectAnimator android:duration="1000" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0.8" android:valueTo="0.3" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="star_3">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1300" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0.4" android:valueTo="0.9" android:valueType="floatType" />
+                <objectAnimator android:duration="1300" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0.4" android:valueTo="0.9" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+
+    <!-- Each burst: 2.7s, opening fast then drifting outward as its sparks fade; the three take turns. -->
+    <target android:name="burst_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2700" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.15" />
+                    <keyframe android:fraction="0.3" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1.25" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.15" />
+                    <keyframe android:fraction="0.3" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1.25" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="burst_1_sparks">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2700" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.45" android:value="1" />
+                    <keyframe android:fraction="0.85" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="burst_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2700" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite" android:startOffset="900">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.15" />
+                    <keyframe android:fraction="0.3" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1.25" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.15" />
+                    <keyframe android:fraction="0.3" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1.25" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="burst_2_sparks">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2700" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite" android:startOffset="900">
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.45" android:value="1" />
+                    <keyframe android:fraction="0.85" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="burst_3">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2700" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite" android:startOffset="1800">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.15" />
+                    <keyframe android:fraction="0.3" android:interpolator="@android:interpolator/decelerate_quad" android:value="0.8" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.15" />
+                    <keyframe android:fraction="0.3" android:interpolator="@android:interpolator/decelerate_quad" android:value="0.8" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="burst_3_sparks">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2700" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite" android:startOffset="1800">
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.45" android:value="1" />
+                    <keyframe android:fraction="0.85" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

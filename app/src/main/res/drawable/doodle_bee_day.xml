@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- World Bee Day: a bee buzzes down past the G to a flower, sips, and flies back up.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <!-- Flower -->
+            <path android:pathData="M42,47L42,41" android:strokeColor="#FF34A853" android:strokeLineCap="round" android:strokeWidth="0.8" />
+            <path android:fillColor="#FFF06292" android:pathData="M40.6,38a1.4,1.4 0,1 0,2.8 0a1.4,1.4 0,1 0,-2.8 0Z M42.2,39.6a1.4,1.4 0,1 0,2.8 0a1.4,1.4 0,1 0,-2.8 0Z M40.6,41.2a1.4,1.4 0,1 0,2.8 0a1.4,1.4 0,1 0,-2.8 0Z M39,39.6a1.4,1.4 0,1 0,2.8 0a1.4,1.4 0,1 0,-2.8 0Z" />
+            <path android:fillColor="#FFFBBC04" android:pathData="M41.1,39.6a0.9,0.9 0,1 0,1.8 0a0.9,0.9 0,1 0,-1.8 0Z" />
+
+            <!-- Bee, facing right -->
+            <group android:name="bee" android:translateX="39" android:translateY="9">
+                <group android:name="bee_wings" android:pivotY="-1">
+                    <path android:fillAlpha="0.85" android:fillColor="#FFE8F0FE" android:pathData="M-1.8,-1C-2.6,-3.4 -0.4,-3.8 0,-1.4Z M0.2,-1.2C0.4,-3.6 2.4,-3.2 1.6,-0.9Z" android:strokeColor="#FF8AB4F8" android:strokeWidth="0.3" />
+                </group>
+                <path android:fillColor="#FFFBBC04" android:pathData="M-2.6,0a2.6,1.8 0,1 0,5.2 0a2.6,1.8 0,1 0,-5.2 0Z" />
+                <path android:fillColor="#FF202124" android:pathData="M-1.2,-1.6L-0.4,-1.75L-0.4,1.75L-1.2,1.6Z M0.4,-1.75L1.2,-1.6L1.2,1.6L0.4,1.75Z M-2.6,-0.25L-3.4,0L-2.6,0.25Z" />
+                <path android:fillColor="#FF202124" android:pathData="M1.75,-0.45a0.3,0.3 0,1 0,0.6 0a0.3,0.3 0,1 0,-0.6 0Z" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <!-- 4.4s: hover, buzz down to the flower, sip, buzz back up. -->
+    <target android:name="bee">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4400" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="39" />
+                    <keyframe android:fraction="0.1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="42" />
+                    <keyframe android:fraction="0.25" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="45.5" />
+                    <keyframe android:fraction="0.4" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="40" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="42" />
+                    <keyframe android:fraction="0.65" android:value="42" />
+                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="38" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="39" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="9" />
+                    <keyframe android:fraction="0.1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="7.5" />
+                    <keyframe android:fraction="0.25" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="18" />
+                    <keyframe android:fraction="0.4" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="27" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="35.2" />
+                    <keyframe android:fraction="0.65" android:value="35.2" />
+                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="20" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="9" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.25" android:value="20" />
+                    <keyframe android:fraction="0.4" android:value="-10" />
+                    <keyframe android:fraction="0.5" android:value="0" />
+                    <keyframe android:fraction="0.65" android:value="0" />
+                    <keyframe android:fraction="0.8" android:value="-20" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="bee_wings">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="70" android:interpolator="@android:interpolator/linear" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.35" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

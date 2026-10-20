@@ -18,10 +18,10 @@
                 android:translateX="6"
                 android:translateY="21">
                 <path
-                    android:fillColor="#FFDADCE0"
+                    android:fillColor="#FFAECBFA"
                     android:pathData="M-3.2,1.65Q-4.6,1.65 -4.6,0.35Q-4.6,-0.95 -3.1,-0.85Q-2.7,-2.65 -0.8,-2.55Q0.6,-3.45 2,-2.15Q3.9,-2.25 4.2,-0.45Q5,0.75 3.7,1.65Z" />
                 <path
-                    android:fillColor="#FFFFFFFF"
+                    android:fillColor="#FFD2E3FC"
                     android:pathData="M-3.2,1.2Q-4.6,1.2 -4.6,-0.1Q-4.6,-1.4 -3.1,-1.3Q-2.7,-3.1 -0.8,-3Q0.6,-3.9 2,-2.6Q3.9,-2.7 4.2,-0.9Q5,0.3 3.7,1.2Z" />
             </group>
             <group
@@ -31,10 +31,10 @@
                 android:translateX="17"
                 android:translateY="42.5">
                 <path
-                    android:fillColor="#FFDADCE0"
+                    android:fillColor="#FFAECBFA"
                     android:pathData="M-3.2,1.65Q-4.6,1.65 -4.6,0.35Q-4.6,-0.95 -3.1,-0.85Q-2.7,-2.65 -0.8,-2.55Q0.6,-3.45 2,-2.15Q3.9,-2.25 4.2,-0.45Q5,0.75 3.7,1.65Z" />
                 <path
-                    android:fillColor="#FFFFFFFF"
+                    android:fillColor="#FFD2E3FC"
                     android:pathData="M-3.2,1.2Q-4.6,1.2 -4.6,-0.1Q-4.6,-1.4 -3.1,-1.3Q-2.7,-3.1 -0.8,-3Q0.6,-3.9 2,-2.6Q3.9,-2.7 4.2,-0.9Q5,0.3 3.7,1.2Z" />
             </group>
 
@@ -49,11 +49,11 @@
             <!-- Carp streamers, mouths tied to the pole -->
             <group
                 android:name="carp_big"
-                android:rotation="-2"
-                android:scaleX="1.15"
-                android:scaleY="1.15"
-                android:translateX="45"
-                android:translateY="6.6">
+                android:rotation="1"
+                android:scaleX="1.35"
+                android:scaleY="1.35"
+                android:translateX="45.2"
+                android:translateY="5.8">
                 <group
                     android:name="carp_big_tail"
                     android:rotation="-14"
@@ -85,11 +85,11 @@
             </group>
             <group
                 android:name="carp_middle"
-                android:rotation="1.6"
-                android:scaleX="1"
-                android:scaleY="1"
-                android:translateX="45"
-                android:translateY="12.6">
+                android:rotation="5"
+                android:scaleX="1.15"
+                android:scaleY="1.15"
+                android:translateX="45.2"
+                android:translateY="11.8">
                 <group
                     android:name="carp_middle_tail"
                     android:rotation="-14"
@@ -121,11 +121,11 @@
             </group>
             <group
                 android:name="carp_small"
-                android:rotation="-2.4"
-                android:scaleX="0.85"
-                android:scaleY="0.85"
-                android:translateX="45"
-                android:translateY="18.4">
+                android:rotation="8"
+                android:scaleX="0.8"
+                android:scaleY="0.8"
+                android:translateX="45.2"
+                android:translateY="17.2">
                 <group
                     android:name="carp_small_tail"
                     android:rotation="-14"
@@ -160,8 +160,10 @@
             <group
                 android:name="wheel"
                 android:rotation="0"
+                android:scaleX="0.85"
+                android:scaleY="0.85"
                 android:translateX="45.45"
-                android:translateY="3.6">
+                android:translateY="3.2">
                 <path
                     android:fillColor="#FFEA4335"
                     android:pathData="M0,0L-0.55,-2.3Q0,-2.6 0.55,-2.3Z M0,0L0.55,2.3Q0,2.6 -0.55,2.3Z" />
@@ -201,7 +203,7 @@
         </aapt:attr>
     </target>
 
-    <!-- Each carp rides the wind on its own rhythm, and its tail flicks twice as fast. -->
+    <!-- Each carp rides the wind on its own rhythm, billowing as it rises, and its tail flicks twice as fast. -->
     <target android:name="carp_big">
         <aapt:attr name="android:animation">
             <objectAnimator
@@ -210,8 +212,13 @@
                 android:repeatCount="infinite"
                 android:repeatMode="reverse">
                 <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="-2" />
-                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="5" />
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="7" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1.35" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.134" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.35" />
                 </propertyValuesHolder>
             </objectAnimator>
         </aapt:attr>
@@ -240,8 +247,13 @@
                 android:repeatCount="infinite"
                 android:repeatMode="reverse">
                 <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="1.6" />
-                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-4" />
+                    <keyframe android:fraction="0" android:value="5" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="10" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1.15" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.966" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.15" />
                 </propertyValuesHolder>
             </objectAnimator>
         </aapt:attr>
@@ -270,8 +282,13 @@
                 android:repeatCount="infinite"
                 android:repeatMode="reverse">
                 <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="-2.4" />
-                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="6" />
+                    <keyframe android:fraction="0" android:value="8" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="14" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.8" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.672" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.8" />
                 </propertyValuesHolder>
             </objectAnimator>
         </aapt:attr>

@@ -97,23 +97,29 @@
                     android:pathData="M-0.55,15.4a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z" />
             </group>
 
-            <!-- Mooncake -->
+            <!-- Mooncake: a deep golden cake with a scalloped rim and a pressed flower on top -->
             <path
                 android:fillColor="#FFB06000"
-                android:pathData="M36.6,40.6L45.4,40.6L45.4,42.6A4.4,1.6 0,0 1,36.6 42.6Z" />
+                android:pathData="M36.4,40.4L45.6,40.4L45.6,42.6A4.6,2.2 0,0 1,36.4 42.6Z" />
             <path
-                android:fillColor="#FFE37400"
-                android:pathData="M36.6,40.6L42.6,40.6L42.6,44.1A4.4,1.6 0,0 1,36.6 42.6Z" />
+                android:fillColor="#FFD56E00"
+                android:pathData="M36.4,40.4L42.2,40.4L42.2,44.75A4.6,2.2 0,0 1,36.4 42.6Z" />
             <path
                 android:fillColor="#FFF29900"
-                android:pathData="M36.6,40.6a4.4,1.6 0,1 0,8.8 0a4.4,1.6 0,1 0,-8.8 0Z" />
+                android:pathData="M36.4,40.4a4.6,2.2 0,1 0,9.2 0a4.6,2.2 0,1 0,-9.2 0Z" />
             <path
-                android:pathData="M37.7,40.6a3.3,1.1 0,1 0,6.6 0a3.3,1.1 0,1 0,-6.6 0Z M39.7,40.6a1.3,0.45 0,1 0,2.6 0a1.3,0.45 0,1 0,-2.6 0Z"
-                android:strokeColor="#FFE37400"
-                android:strokeWidth="0.35" />
+                android:fillColor="#FFFBBC04"
+                android:pathData="M37.3,40.4a3.7,1.65 0,1 0,7.4 0a3.7,1.65 0,1 0,-7.4 0Z" />
             <path
-                android:fillColor="#FFFDD663"
-                android:pathData="M38.6,40.1a1,0.3 0,1 0,2 0a1,0.3 0,1 0,-2 0Z" />
+                android:fillColor="#FFE37400"
+                android:pathData="M41,39.05Q41.6,39.6 41,40.4Q40.4,39.6 41,39.05Z M41,41.75Q40.4,41.2 41,40.4Q41.6,41.2 41,41.75Z M38.9,40.4Q40,39.85 41,40.4Q40,40.95 38.9,40.4Z M43.1,40.4Q42,40.95 41,40.4Q42,39.85 43.1,40.4Z" />
+            <path
+                android:fillColor="#FFE37400"
+                android:pathData="M37.1,41.2a0.3,0.22 0,1 0,0.6 0a0.3,0.22 0,1 0,-0.6 0Z M44.3,41.2a0.3,0.22 0,1 0,0.6 0a0.3,0.22 0,1 0,-0.6 0Z M37.1,39.6a0.3,0.22 0,1 0,0.6 0a0.3,0.22 0,1 0,-0.6 0Z M44.3,39.6a0.3,0.22 0,1 0,0.6 0a0.3,0.22 0,1 0,-0.6 0Z M40.7,38.95a0.3,0.2 0,1 0,0.6 0a0.3,0.2 0,1 0,-0.6 0Z M40.7,41.85a0.3,0.2 0,1 0,0.6 0a0.3,0.2 0,1 0,-0.6 0Z" />
+            <path
+                android:fillAlpha="0.85"
+                android:fillColor="#FFFDE293"
+                android:pathData="M37.9,39.7a1.1,0.35 0,1 0,2.2 0a1.1,0.35 0,1 0,-2.2 0Z" />
 
             <!-- Rabbit -->
             <group
@@ -123,7 +129,7 @@
                 android:translateX="14.5"
                 android:translateY="44.6">
                 <path
-                    android:fillColor="#FFDADCE0"
+                    android:fillColor="#FFBDC1C6"
                     android:pathData="M-3.5,-2.3a3.5,2.5 0,1 0,7 0a3.5,2.5 0,1 0,-7 0Z M-4.1,-2.2a1,1 0,1 0,2 0a1,1 0,1 0,-2 0Z" />
                 <path
                     android:fillColor="#FFF8F9FA"
@@ -134,7 +140,7 @@
                     android:translateX="2.6"
                     android:translateY="-5.6">
                     <path
-                        android:fillColor="#FFDADCE0"
+                        android:fillColor="#FFBDC1C6"
                         android:pathData="M-0.5,0C-1.505,-0.4 -2.143,-2.922 -1.527,-3.871C-0.599,-3.353 0.018,-0.928 -0.5,0Z M0.6,0C-0.071,-0.849 0.638,-3.352 1.646,-3.866C2.19,-2.953 1.513,-0.545 0.6,0Z" />
                     <path
                         android:fillColor="#FFF8F9FA"
@@ -144,7 +150,7 @@
                         android:pathData="M-0.583,-0.391C-1.176,-0.776 -1.62,-2.624 -1.354,-3.295C-0.789,-2.801 -0.345,-0.953 -0.583,-0.391Z M0.724,-0.38C0.403,-1.01 0.942,-2.833 1.508,-3.28C1.751,-2.57 1.211,-0.748 0.724,-0.38Z" />
                 </group>
                 <path
-                    android:fillColor="#FFDADCE0"
+                    android:fillColor="#FFBDC1C6"
                     android:pathData="M0.8,-4.5a2,2 0,1 0,4 0a2,2 0,1 0,-4 0Z" />
                 <path
                     android:fillColor="#FFF8F9FA"

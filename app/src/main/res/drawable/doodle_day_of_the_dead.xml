@@ -139,10 +139,10 @@
 
             <!-- Candles -->
             <path
-                android:fillColor="#FFFBBC04"
+                android:fillColor="#FFF29900"
                 android:pathData="M4.5,27.4L6.699999999999999,27.4L6.699999999999999,33.8L4.5,33.8Z" />
             <path
-                android:fillColor="#FFFEEFC3"
+                android:fillColor="#FFFDD663"
                 android:pathData="M4.5,27.4L5.8999999999999995,27.4L5.8999999999999995,33.8L4.5,33.8Z M4.5,27.4L6.699999999999999,27.4L6.699999999999999,28Q6.199999999999999,28 6.1,29Q5.8,28 4.5,28Z" />
             <path
                 android:pathData="M5.6,27.4L5.6,26.799999999999997"
@@ -162,10 +162,10 @@
                     android:pathData="M0,-0.1C-0.5,-0.1 -0.55,-0.7 -0.3,-1.1C-0.1,-1.4 0,-1.6 0,-1.9C0.3,-1.5 0.55,-1.1 0.5,-0.6C0.45,-0.25 0.3,-0.1 0,-0.1Z" />
             </group>
             <path
-                android:fillColor="#FFFBBC04"
+                android:fillColor="#FFF29900"
                 android:pathData="M9.3,33L11.5,33L11.5,37.4L9.3,37.4Z" />
             <path
-                android:fillColor="#FFFEEFC3"
+                android:fillColor="#FFFDD663"
                 android:pathData="M9.3,33L10.700000000000001,33L10.700000000000001,37.4L9.3,37.4Z M9.3,33L11.5,33L11.5,33.6Q11,33.6 10.9,34.6Q10.6,33.6 9.3,33.6Z" />
             <path
                 android:pathData="M10.4,33L10.4,32.4"

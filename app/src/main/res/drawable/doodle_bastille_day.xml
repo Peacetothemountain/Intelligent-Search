@@ -54,9 +54,9 @@
             <path
                 android:name="trail_white_rim"
                 android:pathData="M2,14L54,-3.333"
-                android:strokeColor="#FFBDC1C6"
+                android:strokeColor="#FF9AA0A6"
                 android:strokeLineCap="round"
-                android:strokeWidth="1.6"
+                android:strokeWidth="1.7"
                 android:trimPathEnd="0.462"
                 android:trimPathStart="0" />
             <path

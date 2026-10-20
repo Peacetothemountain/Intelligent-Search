@@ -46,8 +46,9 @@
                 </group>
             </group>
 
-            <!-- Painted eggs in the grass, each rocking on its base -->
-            <group>
+            <!-- Painted eggs in the grass, each rocking on its base; the nest is scaled up from the bottom edge so the eggs
+                 read at widget size -->
+            <group android:pivotX="40" android:pivotY="48.4" android:scaleX="1.2" android:scaleY="1.2">
                 <path android:fillColor="#FF1E8E3E" android:pathData="M32.9,48.4Q33.14,46.08 32.8,44.8Q33.56,46.4 34.3,48.4ZM37.3,48.4Q38.1,45.6 38.6,44Q38.52,46 38.7,48.4ZM41.7,48.4Q42.02,45.84 41.8,44.4Q42.44,46.2 43.1,48.4ZM45.6,48.4Q46.32,46.44 46.8,45.4Q46.68,46.7 46.8,48.4Z" />
                 <group android:name="egg_1" android:scaleX="0.75" android:scaleY="0.75" android:translateX="35.6" android:translateY="47.4">
                     <path android:fillColor="#FFFDD663" android:pathData="M0,0C-2.4,0 -3,-2.2 -2.6,-3.6C-2.2,-5.2 -1,-6.2 0,-6.2C1,-6.2 2.2,-5.2 2.6,-3.6C3,-2.2 2.4,0 0,0Z" />

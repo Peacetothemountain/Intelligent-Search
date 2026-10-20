@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- World Oceans Day: waves roll under the G; a whale bobs on the right and blows a spout, a clownfish leaps out
-     on the left and dives back in with a splash and a trail of bubbles, and a gull drifts over the top.
+     on the left and dives back in with a splash and a trail of bubbles, and a gull hangs in the breeze over the top.
      See doodle_halloween.xml for the layout. -->
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt">
     <aapt:attr name="android:drawable">
         <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
-            <!-- Gull, flapping now and then -->
-            <group android:name="gull" android:translateX="23" android:translateY="6">
-                <group android:name="gull_turn">
+            <!-- Gull hanging in the sea breeze, flapping now and then -->
+            <group android:name="gull" android:translateX="22" android:translateY="6">
+                <group>
                     <group android:name="gull_wings">
-                        <path android:fillColor="#FFBDC1C6" android:strokeColor="#FF80868B" android:strokeWidth="0.35" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-0.6,-0.2C-1.4,-1.9 -2.6,-2.4 -3.6,-1.6C-2.6,-1.4 -1.6,-0.8 -1.2,0.2Z M0.6,-0.2C1.4,-1.9 2.6,-2.4 3.6,-1.6C2.6,-1.4 1.6,-0.8 1.2,0.2Z" />
+                        <path android:fillColor="#FFA9AFB7" android:strokeColor="#FF70757A" android:strokeWidth="0.35" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-0.6,-0.2C-1.4,-1.9 -2.6,-2.4 -3.6,-1.6C-2.6,-1.4 -1.6,-0.8 -1.2,0.2Z M0.6,-0.2C1.4,-1.9 2.6,-2.4 3.6,-1.6C2.6,-1.4 1.6,-0.8 1.2,0.2Z" />
                         <path android:fillColor="#FF5F6368" android:pathData="M-3.6,-1.6C-3.2,-2.1 -2.7,-2.3 -2.4,-2.2C-2.8,-1.8 -3.1,-1.6 -3.6,-1.6Z M3.6,-1.6C3.2,-2.1 2.7,-2.3 2.4,-2.2C2.8,-1.8 3.1,-1.6 3.6,-1.6Z" />
                     </group>
-                    <path android:fillColor="#FFFFFFFF" android:strokeColor="#FF9AA0A6" android:strokeWidth="0.35" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-1.9,0.1C-1.2,-0.7 1,-0.8 1.9,-0.3C2.3,-0.2 2.3,0.3 1.9,0.4C0.8,0.9 -1.2,0.8 -1.9,0.1Z" />
+                    <path android:fillColor="#FFFFFFFF" android:strokeColor="#FF80868B" android:strokeWidth="0.35" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-1.9,0.1C-1.2,-0.7 1,-0.8 1.9,-0.3C2.3,-0.2 2.3,0.3 1.9,0.4C0.8,0.9 -1.2,0.8 -1.9,0.1Z" />
                     <path android:fillColor="#FFFBBC04" android:pathData="M2.15,-0.15L3,0.1L2.15,0.3Z" />
                 </group>
             </group>
@@ -338,16 +338,14 @@
         </aapt:attr>
     </target>
 
-    <!-- The gull drifts back and forth over the top, turning at each end. -->
+    <!-- The gull hangs in the breeze, pushed back and gliding forward again, bobbing as it goes. -->
     <target android:name="gull">
         <aapt:attr name="android:animation">
             <objectAnimator android:duration="9000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
                 <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="23" />
-                    <keyframe android:fraction="0.42" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="33" />
-                    <keyframe android:fraction="0.5" android:value="33" />
-                    <keyframe android:fraction="0.92" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="23" />
-                    <keyframe android:fraction="1" android:value="23" />
+                    <keyframe android:fraction="0" android:value="22" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="28" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="22" />
                 </propertyValuesHolder>
                 <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
                     <keyframe android:fraction="0" android:value="6" />
@@ -367,21 +365,6 @@
                     <keyframe android:fraction="0.875" android:value="4.8" />
                     <keyframe android:fraction="0.9375" android:value="5.15" />
                     <keyframe android:fraction="1" android:value="6" />
-                </propertyValuesHolder>
-            </objectAnimator>
-        </aapt:attr>
-    </target>
-
-    <target android:name="gull_turn">
-        <aapt:attr name="android:animation">
-            <objectAnimator android:duration="9000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
-                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="1" />
-                    <keyframe android:fraction="0.43" android:value="1" />
-                    <keyframe android:fraction="0.48" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-1" />
-                    <keyframe android:fraction="0.93" android:value="-1" />
-                    <keyframe android:fraction="0.98" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
-                    <keyframe android:fraction="1" android:value="1" />
                 </propertyValuesHolder>
             </objectAnimator>
         </aapt:attr>

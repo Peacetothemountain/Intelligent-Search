@@ -109,9 +109,9 @@ class SelectedTextSearchActivity : Activity() {
         /**
          * [raw] as a one-line query: line breaks, tabs and other spacing become single spaces; control characters,
          * invisible formatting characters (zero-width spaces, soft hyphens, tag characters, bidirectional overrides)
-         * and unpaired surrogates are dropped, keeping the joiners emoji sequences and some scripts need; and the
-         * result is trimmed and cut to [MAX_QUERY_LENGTH] without splitting a surrogate pair. Spans and styling are
-         * discarded.
+         * and unpaired surrogates are dropped, keeping the joiners emoji sequences and some scripts need inside the
+         * text; and the result is trimmed of spacing and joiners at both ends and cut to [MAX_QUERY_LENGTH] without
+         * splitting a surrogate pair. Spans and styling are discarded.
          */
         fun sanitize(raw: CharSequence?): String {
             if (raw == null) return ""
@@ -134,6 +134,8 @@ class SelectedTextSearchActivity : Activity() {
                 when {
                     Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint) -> pendingSpace = out.isNotEmpty()
                     isInvisible(codePoint) -> Unit
+                    // A joiner at the start joins nothing.
+                    isJoiner(codePoint) && out.isEmpty() -> Unit
                     else -> {
                         if (pendingSpace) out.append(' ')
                         pendingSpace = false
@@ -145,8 +147,11 @@ class SelectedTextSearchActivity : Activity() {
             }
             var end = minOf(out.length, MAX_QUERY_LENGTH)
             if (end < out.length && Character.isHighSurrogate(out[end - 1])) end--
-            return out.substring(0, end).trimEnd()
+            // Nor does one at the end, so text of only joiners and spacing is empty.
+            return out.substring(0, end).trimEnd { it.isWhitespace() || isJoiner(it.code) }
         }
+
+        private fun isJoiner(codePoint: Int): Boolean = codePoint == ZERO_WIDTH_JOINER || codePoint == ZERO_WIDTH_NON_JOINER
 
         /**
          * Control characters, and formatting characters that draw nothing: they could hide text in the query or, like

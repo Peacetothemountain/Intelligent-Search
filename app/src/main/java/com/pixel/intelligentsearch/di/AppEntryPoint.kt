@@ -30,6 +30,7 @@ interface AppEntryPoint {
     fun biometricSearchGate(): BiometricSearchGate
     fun strongBoxSecurityManager(): StrongBoxSecurityManager
     fun backupManager(): com.pixel.intelligentsearch.core.backup.BackupManager
+    fun currencyRateRepository(): com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
 
     @ApplicationScope
     fun applicationScope(): CoroutineScope

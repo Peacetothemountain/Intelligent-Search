@@ -9,6 +9,7 @@ import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.AppShortcutItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
+import com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -28,6 +29,7 @@ import javax.inject.Singleton
  * 5. Direct Scientific Math & Unit Expression Evaluator
  * 6. Natural Language Date/Time & Intent Parser
  * 7. System Actions & Live Volume Slider Router
+ * 8. Date Arithmetic Answers ("days until Dec 25", "90 days from now")
  *
  * Guarantees sub-5ms local search response across thousands of indexed entities.
  */
@@ -36,8 +38,19 @@ class UnifiedSearchCoordinator @Inject constructor(
     @param:ApplicationContext private val context: Context,
     val systemActionRouter: SystemActionRouter,
     private val multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager,
-    settingsManager: SettingsManager
+    settingsManager: SettingsManager,
+    private val currencyRates: CurrencyRateRepository
 ) {
+    /** Outside Hilt (tests): currency answers use the saved or built-in rates from a repository of its own. */
+    constructor(
+        context: Context,
+        systemActionRouter: SystemActionRouter,
+        multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager,
+        settingsManager: SettingsManager
+    ) : this(context, systemActionRouter, multiProfileManager, settingsManager, CurrencyRateRepository(context, settingsManager))
+
+    private val dateMath = DateMathEngine()
+
     data class RankedSearchResult(
         val item: SearchItem,
         val scoreBreakdown: SearchScoringEngine.ScoreBreakdown
@@ -77,6 +90,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         val query: String,
         val mathResult: MathematicalExpressionEngine.MathEvaluationResult? = null,
         val parsedIntent: NaturalLanguageIntentParser.ParsedIntent? = null,
+        val dateAnswer: DateMathEngine.DateAnswer? = null,
         val systemAction: SystemActionRouter.ActionResult? = null,
         val apps: List<AppItem> = emptyList(),
         val contacts: List<ContactItem> = emptyList(),
@@ -130,6 +144,14 @@ class UnifiedSearchCoordinator @Inject constructor(
 
     /** A priority weight of 50 is neutral (x1). */
     private fun weightMultiplier(weight: Int): Float = (weight / 50f).coerceAtLeast(0.01f)
+
+    /** The calculator and converter answer, with the current currency rates; a currency answer may start a fetch. */
+    private fun evaluateMath(query: String): MathematicalExpressionEngine.MathEvaluationResult? {
+        val result = MathematicalExpressionEngine.evaluate(query, currencyRates::current)
+        (result as? MathematicalExpressionEngine.MathEvaluationResult.UnitConversion)?.currencyRates
+            ?.let(currencyRates::onCurrencyConverted)
+        return result
+    }
 
     // ---------------------------------------------------------------------------------------------
     // INGESTION & INDEXING API
@@ -447,7 +469,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         val systemAction = systemActionRouter.matchAction(query)
 
         // 2. Instant Math, Scientific, & Unit Evaluator
-        val mathResult = MathematicalExpressionEngine.evaluate(query)
+        val mathResult = evaluateMath(query)
 
         // 3. Fast Radix prefix search for apps only
         val candidates = mutableSetOf<SearchItem>()
@@ -729,7 +751,8 @@ class UnifiedSearchCoordinator @Inject constructor(
         val systemAction = systemActionRouter.matchAction(query)
 
         // 2. Instant Math, Scientific, & Unit Evaluator
-        val mathResult = MathematicalExpressionEngine.evaluate(query)
+        val mathResult = evaluateMath(query)
+        val dateAnswer = dateMath.evaluate(query)
 
         // 3. Natural Language Intent Parser
         // "Call X" / "Message X" only resolve names from contacts when contact search is turned on.
@@ -869,6 +892,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             query = query,
             mathResult = mathResult,
             parsedIntent = parsedIntent,
+            dateAnswer = dateAnswer,
             systemAction = systemAction,
             apps = matchedApps,
             contacts = matchedContacts,

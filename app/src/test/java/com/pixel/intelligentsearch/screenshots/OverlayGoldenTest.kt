@@ -24,7 +24,8 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * Golden images of the search overlay in states that don't depend on which apps are installed: the first-run
- * tutorial, empty, a calculator answer, a web-address answer and a timer action. See [SettingsGoldenTest] for recording.
+ * tutorial, empty, a calculator answer, a web-address answer, a timer action, a currency conversion and a date answer.
+ * See [SettingsGoldenTest] for recording.
  */
 @HiltAndroidTest
 @RunWith(ParameterizedRobolectricTestRunner::class)
@@ -81,7 +82,11 @@ class OverlayGoldenTest(private val state: String, private val query: String, pr
             "empty" to "",
             "math" to "12*4+7",
             "url" to "example.com",
-            "timer" to "timer 5m"
+            "timer" to "timer 5m",
+            // Nothing is ever fetched in tests, so the card shows the built-in rates and says so.
+            "currency" to "100 usd to eur",
+            // Two dates with years, so the answer doesn't depend on the day the test runs.
+            "date" to "days between 2026-03-01 and 2026-06-30"
         ).flatMap { (state, query) -> listOf(arrayOf<Any>(state, query, false), arrayOf<Any>(state, query, true)) }
     }
 }

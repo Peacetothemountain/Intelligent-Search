@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- International Cat Day: a ginger cat sits beside the G swishing its tail and blinking, and a ball of yarn rolls
+     to and fro on the other side. See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <!-- Yarn -->
+            <group android:name="yarn" android:translateX="8" android:translateY="40">
+                <path android:fillColor="#FF8AB4F8" android:pathData="M-2.6,0a2.6,2.6 0,1 0,5.2 0a2.6,2.6 0,1 0,-5.2 0Z" />
+                <path android:pathData="M-2,-1.4C-0.6,-0.4 0.6,-0.4 2,-1.4 M-2.5,0.6C-0.8,1.6 0.8,1.6 2.5,0.6 M-0.8,-2.4C0.4,-1 0.4,1 -0.8,2.4" android:strokeColor="#FF4285F4" android:strokeWidth="0.4" />
+            </group>
+
+            <!-- Cat, sitting and facing out -->
+            <group android:translateX="40.5" android:translateY="41">
+                <group android:name="tail" android:pivotX="2.8" android:pivotY="4.6">
+                    <path android:pathData="M2.8,4.6C5.6,4.6 6.2,1.4 5.2,-0.8" android:strokeColor="#FFE8710A" android:strokeLineCap="round" android:strokeWidth="1.2" />
+                </group>
+                <path android:fillColor="#FFFA7B17" android:pathData="M-3.4,2a3.4,3.6 0,1 0,6.8 0a3.4,3.6 0,1 0,-6.8 0Z M-2.8,-3a2.8,2.7 0,1 0,5.6 0a2.8,2.7 0,1 0,-5.6 0Z M-2.7,-4.4L-2.3,-7.2L-0.6,-5.6Z M2.7,-4.4L2.3,-7.2L0.6,-5.6Z" />
+                <path android:fillColor="#FFF8BBD0" android:pathData="M-2.2,-5L-2,-6.4L-1.2,-5.6Z M2.2,-5L2,-6.4L1.2,-5.6Z" />
+                <path android:pathData="M-1.4,1L-2.6,2.2 M1.4,1L2.6,2.2 M-0.8,-5.4L-0.6,-4.6 M0.8,-5.4L0.6,-4.6" android:strokeColor="#FFE8710A" android:strokeLineCap="round" android:strokeWidth="0.45" />
+                <path android:fillColor="#FFFFE0B2" android:pathData="M-1.7,2.6a1.7,2.2 0,1 0,3.4 0a1.7,2.2 0,1 0,-3.4 0Z" />
+                <group android:name="eyes" android:pivotY="-3.2">
+                    <path android:fillColor="#FF202124" android:pathData="M-1.5,-3.2a0.45,0.7 0,1 0,0.9 0a0.45,0.7 0,1 0,-0.9 0Z M0.6,-3.2a0.45,0.7 0,1 0,0.9 0a0.45,0.7 0,1 0,-0.9 0Z" />
+                </group>
+                <path android:fillColor="#FFF28B82" android:pathData="M-0.4,-2.1L0.4,-2.1L0,-1.6Z" />
+                <path android:pathData="M-1.1,-1.7L-3.4,-2.1 M-1.1,-1.4L-3.4,-1.2 M1.1,-1.7L3.4,-2.1 M1.1,-1.4L3.4,-1.2" android:strokeColor="#FF5F6368" android:strokeWidth="0.2" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="tail">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="900" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-12" android:valueTo="18" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="eyes">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="3000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.8" android:value="1" />
+                    <keyframe android:fraction="0.83" android:value="0.1" />
+                    <keyframe android:fraction="0.87" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="yarn">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="6.5" android:valueTo="10" android:valueType="floatType" />
+                <objectAnimator android:duration="1600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-40" android:valueTo="40" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+</animated-vector>

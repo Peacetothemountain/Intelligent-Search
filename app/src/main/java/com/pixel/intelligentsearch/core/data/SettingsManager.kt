@@ -42,6 +42,7 @@ data class IntelligentSearchSettings(
     val searchCalculator: Boolean = SettingsManager.SEARCH_CALCULATOR.default,
     val searchCalendar: Boolean = SettingsManager.SEARCH_CALENDAR.default,
     val searchShortcuts: Boolean = SettingsManager.SEARCH_SHORTCUTS.default,
+    val searchAndroidSettings: Boolean = SettingsManager.SEARCH_ANDROID_SETTINGS.default,
     val backgroundBlur: Int = SettingsManager.BACKGROUND_BLUR.default,
     val showWallpaper: Boolean = SettingsManager.SHOW_WALLPAPER.default,
     val backgroundTransparency: Int = SettingsManager.BACKGROUND_TRANSPARENCY.default,
@@ -68,6 +69,7 @@ data class IntelligentSearchSettings(
     val hiddenApps: Set<String> = SettingsManager.HIDDEN_APPS.default,
     val appQuickLaunch: Boolean = SettingsManager.APP_QUICK_LAUNCH.default,
     val contactDirectCall: Boolean = SettingsManager.CONTACT_DIRECT_CALL.default,
+    val contactActions: Boolean = SettingsManager.CONTACT_ACTIONS.default,
     val shortcutInline: Boolean = SettingsManager.SHORTCUT_INLINE.default,
     val appFuzzySearch: Boolean = SettingsManager.APP_FUZZY_SEARCH.default,
     val quickSearchHorizontal: Boolean = SettingsManager.QUICK_SEARCH_HORIZONTAL.default,
@@ -121,8 +123,12 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val SEARCH_WEB_SUGGESTIONS = BooleanSetting("search.web.suggestions", true)
         val SEARCH_PREVIOUS_SEARCHES = BooleanSetting("search_previous_searches", true)
         val SEARCH_CALCULATOR = BooleanSetting("search.calculator", true, "search_calculator")
+        /** Fetches the European Central Bank's rates for currency answers once a day; off, nothing is fetched. */
+        val LIVE_CURRENCY_RATES = BooleanSetting("live_currency_rates", true)
         val SEARCH_CALENDAR = BooleanSetting("search.calendar", true, "search_calendar")
         val SEARCH_SHORTCUTS = BooleanSetting("search.shortcuts", true, "search_shortcuts")
+        /** Offers Android Settings pages ("battery", "app info chrome") among the results. */
+        val SEARCH_ANDROID_SETTINGS = BooleanSetting("search.android.settings", true)
         val BACKGROUND_BLUR = IntSetting("search.background.blur", 50, 0..100, "background.blur")
         val SHOW_WALLPAPER = BooleanSetting("search.background.show.wall", true, "show_wallpaper", "show.wallpaper")
         val BACKGROUND_TRANSPARENCY = IntSetting("search.background.transparency", 50, 0..100, "background.transparency")
@@ -151,6 +157,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val HIDDEN_APPS = StringSetSetting("hidden_apps", emptySet())
         val APP_QUICK_LAUNCH = BooleanSetting("app_quick_launch", false)
         val CONTACT_DIRECT_CALL = BooleanSetting("contact_direct_call", false, "contact.direct.call")
+        /** Call, Message, Email and chat-app buttons on contact results. */
+        val CONTACT_ACTIONS = BooleanSetting("contact_actions", true)
         val SHORTCUT_INLINE = BooleanSetting("shortcut.inline", true, "shortcut_inline")
         val SHORTCUT_RECENT = BooleanSetting("shortcut.recent", true)
         val APP_FUZZY_SEARCH = BooleanSetting("app.fuzzy.search", true, "app_fuzzy_search")
@@ -167,6 +175,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val SMART_CLIPBOARD_SUGGESTIONS = BooleanSetting("smart_clipboard_suggestions", false)
         /** The assistant gesture starts listening; off, it opens search with the keyboard ready instead. */
         val ASSISTANT_STARTS_WITH_VOICE = BooleanSetting("assistant_starts_with_voice", false)
+        /** "Intelligent Search" in other apps' text selection menu and share sheet; off disables that entry. */
+        val SEARCH_FROM_SELECTED_TEXT = BooleanSetting("search_from_selected_text", true)
         val ACTIVE_ICON_PACK = StringSetting("active_icon_pack", "system_default")
         val SEARCH_OVERLAY_ENABLED = BooleanSetting("search_overlay_enabled", true)
         val CUSTOM_ICON_PILLS = StringSetting("custom_icon_pills", "", "custom_icon_packs_order")
@@ -195,16 +205,17 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** Every declared setting, for migration, backup validation and change filtering. */
         val ALL: List<SettingKey<*>> = listOf(
             THEME, SEARCH_APPS, SEARCH_CONTACTS, SEARCH_FILES, SEARCH_WEB, SEARCH_WEB_SUGGESTIONS,
-            SEARCH_PREVIOUS_SEARCHES, SEARCH_CALCULATOR, SEARCH_CALENDAR, SEARCH_SHORTCUTS, BACKGROUND_BLUR,
+            SEARCH_PREVIOUS_SEARCHES, SEARCH_CALCULATOR, LIVE_CURRENCY_RATES, SEARCH_CALENDAR, SEARCH_SHORTCUTS, SEARCH_ANDROID_SETTINGS, BACKGROUND_BLUR,
             SHOW_WALLPAPER, BACKGROUND_TRANSPARENCY, PILL_OPACITY, SEARCH_ENGINE, CUSTOM_SEARCH_ENGINE_URL,
             CUSTOM_SEARCH_ENGINE_NAME, FILES_HIDDEN_FILES, FILES_THUMBNAILS, APP_ANIMATIONS, MORPH_ANIMATION_ENABLED,
             BOTTOM_SEARCH, BOTTOM_SEARCH_RESULT, TUTORIAL_COMPLETED, FORCE_TUTORIAL, TUTORIAL_STEP, G_ICON_ENABLED,
             WIDGET_SHOW_VOICE, WIDGET_SHOW_GEMINI, QUICK_SEARCH_YOUTUBE, QUICK_SEARCH_WIKIPEDIA,
             QUICK_SEARCH_PLAY_STORE, QUICK_SEARCH_MAPS, SEARCH_PILLS, WIDGET_THEME_STYLE, HIDDEN_APPS,
-            APP_QUICK_LAUNCH, CONTACT_DIRECT_CALL, SHORTCUT_INLINE, SHORTCUT_RECENT, APP_FUZZY_SEARCH,
+            APP_QUICK_LAUNCH, CONTACT_DIRECT_CALL, CONTACT_ACTIONS, SHORTCUT_INLINE, SHORTCUT_RECENT, APP_FUZZY_SEARCH,
             QUICK_SEARCH_HORIZONTAL, WEB_RESULTS_COUNT, CONTACT_RESULTS_COUNT, FILE_RESULTS_COUNT,
             SHORTCUT_RESULTS_COUNT, SEARCH_WEIGHT_APPS, SEARCH_WEIGHT_CONTACTS, SEARCH_WEIGHT_FILES,
-            SEARCH_WEIGHT_WEB, CONTEXT_AWARE_QUICK_APPS, SMART_CLIPBOARD_SUGGESTIONS, ASSISTANT_STARTS_WITH_VOICE, ACTIVE_ICON_PACK,
+            SEARCH_WEIGHT_WEB, CONTEXT_AWARE_QUICK_APPS, SMART_CLIPBOARD_SUGGESTIONS, ASSISTANT_STARTS_WITH_VOICE,
+            SEARCH_FROM_SELECTED_TEXT, ACTIVE_ICON_PACK,
             SEARCH_OVERLAY_ENABLED, CUSTOM_ICON_PILLS, NEVER_SHOW_ICON_PACK_WARNING, CUSTOM_BANGS_JSON,
             WEB_SHORTCUT_TRIGGER_SYMBOL, SEARCH_QUICK_SHORTCUTS, SHOW_AVAILABLE_DIRECT_SHORTCUTS,
             ADAPTIVE_ICON_SHAPE, DYNAMIC_ICON_MASKING, DIAGNOSTICS_OVERLAY_ENABLED, MATRIX_ANIMATION_ENABLED,
@@ -274,6 +285,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         searchCalculator = sp[SEARCH_CALCULATOR],
         searchCalendar = sp[SEARCH_CALENDAR],
         searchShortcuts = sp[SEARCH_SHORTCUTS],
+        searchAndroidSettings = sp[SEARCH_ANDROID_SETTINGS],
         backgroundBlur = sp[BACKGROUND_BLUR],
         showWallpaper = sp[SHOW_WALLPAPER],
         backgroundTransparency = sp[BACKGROUND_TRANSPARENCY],
@@ -300,6 +312,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         hiddenApps = sp[HIDDEN_APPS],
         appQuickLaunch = sp[APP_QUICK_LAUNCH],
         contactDirectCall = sp[CONTACT_DIRECT_CALL],
+        contactActions = sp[CONTACT_ACTIONS],
         shortcutInline = sp[SHORTCUT_INLINE],
         appFuzzySearch = sp[APP_FUZZY_SEARCH],
         quickSearchHorizontal = sp[QUICK_SEARCH_HORIZONTAL],

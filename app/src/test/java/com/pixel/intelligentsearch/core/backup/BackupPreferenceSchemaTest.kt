@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.backup
 
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -40,6 +41,23 @@ class BackupPreferenceSchemaTest {
         assertEquals("STRING", BackupPreferenceSchema.expectedType("widget_system_shortcut_1"))
         assertEquals("STRING_SET", BackupPreferenceSchema.expectedType("hidden_apps"))
         assertNull(BackupPreferenceSchema.expectedType("some_future_key"))
+    }
+
+    @Test
+    fun androidSettingsSourceIsRegisteredAsABoolean() {
+        assertEquals("BOOLEAN", BackupPreferenceSchema.expectedType(SettingsManager.SEARCH_ANDROID_SETTINGS.name))
+        assertEquals("search.android.settings", SettingsManager.SEARCH_ANDROID_SETTINGS.name)
+        assertTrue(SettingsManager.SEARCH_ANDROID_SETTINGS.default)
+        assertTrue(SettingsManager.SEARCH_ANDROID_SETTINGS in SettingsManager.ALL)
+    }
+
+    @Test
+    fun searchFromSelectedTextIsBackedUpAsABoolean() {
+        val key = SettingsManager.SEARCH_FROM_SELECTED_TEXT
+        assertEquals("BOOLEAN", BackupPreferenceSchema.expectedType(key.name))
+        assertTrue(key in SettingsManager.ALL)
+        assertEquals(key, SettingsManager.keyFor("search_from_selected_text"))
+        assertTrue(key.default)
     }
 
     @Test

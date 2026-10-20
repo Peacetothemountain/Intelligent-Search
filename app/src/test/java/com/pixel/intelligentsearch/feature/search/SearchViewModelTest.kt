@@ -151,6 +151,27 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun aCurrencyAnswerSaysWhereItsRatesComeFrom() {
+        start()
+        viewModel.onQueryChanged("100 usd to eur")
+        // Nothing has been fetched here, so the built-in rates answer and the card says so.
+        val answer = await("currency answer") { it.instantAnswer != null }.instantAnswer!!
+        assertEquals("currency", answer.iconType)
+        assertEquals("100 USD ≈ 92 EUR", answer.title)
+        assertEquals("Built-in rates", answer.subtitle)
+    }
+
+    @Test
+    fun aDateQuestionIsAnsweredInline() {
+        start()
+        viewModel.onQueryChanged("how many days between 2026-03-01 and 2026-06-30")
+        val answer = await("date answer") { it.instantAnswer != null }.instantAnswer!!
+        assertEquals("date", answer.iconType)
+        assertEquals("121 days", answer.title)
+        assertEquals("Between Sunday, March 1, 2026 and Tuesday, June 30, 2026", answer.subtitle)
+    }
+
+    @Test
     fun searchHistoryIsRememberedAndCanBeRemoved() {
         start()
         viewModel.addSearchHistory("first")
@@ -158,5 +179,39 @@ class SearchViewModelTest {
         assertEquals(listOf("second", "first"), await("history") { it.recentSearches.size == 2 }.recentSearches)
         viewModel.removeSearchHistory("second")
         assertEquals(listOf("first"), await("removal") { it.recentSearches.size == 1 }.recentSearches)
+    }
+
+    /** Makes the Battery page open, as the Settings app would on a phone. */
+    private fun batteryPageResolves() {
+        val info = android.content.pm.ResolveInfo().apply {
+            activityInfo = android.content.pm.ActivityInfo().apply {
+                packageName = "com.android.settings"
+                name = "com.android.settings.SubSettings"
+            }
+        }
+        shadowOf(ApplicationProvider.getApplicationContext<Context>().packageManager)
+            .addResolveInfoForIntent(android.content.Intent(android.content.Intent.ACTION_POWER_USAGE_SUMMARY), info)
+    }
+
+    @Test
+    fun aSettingsPageIsOfferedAlongsideTheQuickToggle() {
+        batteryPageResolves()
+        start()
+        viewModel.onQueryChanged("battery")
+        val state = await("settings results") { it.androidSettings.isNotEmpty() }
+        assertEquals("Battery", state.androidSettings.first().title)
+        // The Battery Saver quick toggle is still there: settings pages complement it.
+        assertEquals("battery", state.systemToggle?.id)
+    }
+
+    @Test
+    fun turningTheAndroidSettingsSourceOffHidesSettingsPages() {
+        batteryPageResolves()
+        prefs.edit().put(SettingsManager.SEARCH_ANDROID_SETTINGS, false).commit()
+        start()
+        viewModel.onQueryChanged("battery")
+        kotlinx.coroutines.runBlocking { viewModel.awaitSearch() }
+        val state = await("local results") { it.systemToggle?.id == "battery" }
+        assertEquals(emptyList<Any>(), state.androidSettings)
     }
 }

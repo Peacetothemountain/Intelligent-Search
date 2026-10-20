@@ -79,6 +79,8 @@ data class SearchUiState(
     val files: List<FileItem> = emptyList(),
     val webSuggestions: List<String> = emptyList(),
     val shortcuts: List<AppShortcutItem> = emptyList(),
+    /** Android Settings pages (and App Info pages) matching the query, shown after the apps. */
+    val androidSettings: List<com.pixel.intelligentsearch.core.search.AndroidSettingResult> = emptyList(),
     val mathResult: String? = null,
     val instantAnswer: InstantAnswer? = null,
     val systemToggle: com.pixel.intelligentsearch.core.ui.SystemToggleUiState? = null,
@@ -114,7 +116,8 @@ class SearchViewModel @Inject constructor(
     private val multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager,
     private val privateSpaceManager: com.pixel.intelligentsearch.core.data.PrivateSpaceManager,
     private val systemToggleManager: com.pixel.intelligentsearch.core.system.SystemToggleManager,
-    private val directBootManager: com.pixel.intelligentsearch.core.system.DirectBootManager
+    private val directBootManager: com.pixel.intelligentsearch.core.system.DirectBootManager,
+    private val androidSettingsSearch: com.pixel.intelligentsearch.core.search.AndroidSettingsSearch
 ) : ViewModel() {
     
     private val settingsState = settingsManager.settingsFlow
@@ -447,6 +450,7 @@ class SearchViewModel @Inject constructor(
                 files = emptyList(),
                 webSuggestions = emptyList(),
                 shortcuts = emptyList(),
+                androidSettings = emptyList(),
                 directActions = if (settingsState.value.smartClipboardSuggestions) initialClipboardActions else emptyList(),
                 mathResult = null,
                 instantAnswer = null,
@@ -634,6 +638,14 @@ class SearchViewModel @Inject constructor(
                 unifiedResults.shortcuts.filter { it.packageName !in settings.hiddenApps }.take(settings.shortcutResultsCount)
             } else emptyList()
 
+            // Settings pages complement the quick toggles above ("wifi" offers both). App Info looks apps up
+            // through the same app index, leaving out hidden apps.
+            val androidSettings = if (settings.searchAndroidSettings) {
+                androidSettingsSearch.search(newQuery) { name ->
+                    unifiedSearchCoordinator.searchApps(name, limit = 3).filter { it.packageName !in settings.hiddenApps }
+                }
+            } else emptyList()
+
             val suggestionsEnabled = settings.searchWeb && customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
@@ -683,6 +695,7 @@ class SearchViewModel @Inject constructor(
                     contacts = shownContacts,
                     files = shownFiles,
                     shortcuts = localShortcuts,
+                    androidSettings = androidSettings,
                     webSuggestions = resolvedSuggestions,
                     mathResult = mathStr,
                     instantAnswer = localInstantAnswer,

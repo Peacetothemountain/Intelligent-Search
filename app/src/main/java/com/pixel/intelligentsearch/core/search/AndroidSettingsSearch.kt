@@ -75,9 +75,10 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
      * name; it should leave out apps the user hid, and find nothing while the Apps source is off. [peopleNames] are
      * the contacts shown for the query.
      *
-     * Besides "app info <app>", a query that is exactly an installed app's name ("chrome", "camera settings")
-     * answers that app's App Info rather than pages that merely share a word with it, and a query that only starts
-     * an app's or a contact's name ("insta", "carrie") is left to them: only a page it names outright is offered.
+     * App Info is offered only when asked for: "app info <app>", "<app> app info", "<app> settings" and the like. A
+     * query that is exactly an installed app's name ("chrome") is left to the app: no App Info row, and no page that
+     * merely shares a word with it. A query that only starts an app's or a contact's name ("insta", "carrie") is left
+     * to them too: only a page it names outright is offered.
      */
     fun search(rawQuery: String, findApps: (String) -> List<AppItem> = { emptyList() }): List<AndroidSettingResult> =
         search(rawQuery, emptyList(), findApps)
@@ -96,8 +97,11 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
 
         val apps = findApps(query)
         val namedApps = apps.filter { QueryNormalizer.normalize(it.name) == query }
-        // "chrome settings" asks for the app's settings outright; a bare "chrome" is mostly the app itself.
-        if (namedApps.isNotEmpty()) return appInfoResults(namedApps, isStrongMatch = query != normalized)
+        // "chrome settings" asks for the app's settings outright. A bare "chrome" is the app itself, which the apps
+        // already show: it gets no App Info row, and no page that merely shares a word with it ("chrome" is not Cast).
+        if (namedApps.isNotEmpty()) {
+            return if (query != normalized) appInfoResults(namedApps, isStrongMatch = true) else emptyList()
+        }
         val pages = pageResults(query)
         val startsAName = apps.any { QueryNormalizer.normalize(it.name).startsWith(query) } ||
             peopleNames.any { name -> QueryNormalizer.normalize(name).let { it.startsWith(query) || it.split(' ').any { word -> word.startsWith(query) } } }
@@ -105,7 +109,7 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
     }
 
     private fun pageResults(query: String): List<AndroidSettingResult> {
-        if (query in unlisted) return emptyList()
+        if (query in unlisted || query in TOO_GENERIC) return emptyList()
         val queryWords = query.split(' ')
         val queryMetaphone = DoubleMetaphone.encode(query)
         return index
@@ -123,12 +127,19 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
                     subtitle = SUBTITLE,
                     iconType = page.iconType,
                     intent = Intent(page.action),
-                    // Named outright: the query is the page's title or one of its keywords.
-                    isStrongMatch = indexed.terms.any { it.text == query }
+                    isStrongMatch = indexed.terms.any { namesOutright(query, it) }
                 )
             }
             .toList()
     }
+
+    /**
+     * Whether [query] names the page of [term] outright: it is the page's title, a keyword of several words ("dark
+     * mode"), or a settings word nobody types for anything else ("wifi", "hotspot"). A one-word keyword that is also
+     * an everyday word ("time", "pin", "print") is only a weak match, shown below the web and contacts.
+     */
+    private fun namesOutright(query: String, term: Term): Boolean =
+        term.text == query && (term.isTitle || term.words.size > 1 || query in UNAMBIGUOUS_KEYWORDS)
 
     /** The page's best score over its title and keywords, or null when nothing matches well enough. */
     private fun score(query: String, queryWords: List<String>, queryMetaphone: DoubleMetaphone.MetaphoneResult, indexed: IndexedPage): Float? {
@@ -161,7 +172,8 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
      * - a multi-word query must match the term word for word, so "system update" isn't "system language" for
      *   sharing its first word, and a slip or sound-alike counts only within its own word;
      * - a single word gets typos and sound-alikes against titles from five letters, but against keywords, which are
-     *   everyday words, only one slip in seven letters or more ("hotpsot") and no sound-alikes.
+     *   often everyday words, only one slip in seven letters or more ("hotpsot"), or in five for a settings word
+     *   nobody types for anything else ("wifii"), and no sound-alikes.
      */
     private fun isPlausible(query: String, queryWords: List<String>, term: Term): Boolean {
         if (term.text == query) return true
@@ -185,12 +197,15 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
 
     /**
      * Whether [typed] is a typo of [word], or sounds like it when [wordMetaphone] is given; both need the right first
-     * letter. [strict] is for keywords: seven letters and a single slip, and no sound-alikes.
+     * letter. [strict] is for keywords: seven letters (five for [UNAMBIGUOUS_KEYWORDS]) and a single slip, and no
+     * sound-alikes.
      */
     private fun isSlipOf(typed: String, word: String, wordMetaphone: DoubleMetaphone.MetaphoneResult?, strict: Boolean): Boolean {
         if (word.isEmpty() || typed[0] != word[0]) return false
         if (strict) {
-            return typed.length >= MIN_KEYWORD_TYPO_QUERY &&
+            // A settings word nobody types for anything else may be slipped on from five letters ("wifii").
+            val minLength = if (word in UNAMBIGUOUS_KEYWORDS) MIN_TYPO_QUERY else MIN_KEYWORD_TYPO_QUERY
+            return typed.length >= minLength &&
                 LevenshteinDistance.computeDistance(typed, word, maxDistance = 1) <= 1
         }
         if (typed.length < MIN_TYPO_QUERY || word.length < MIN_TYPO_QUERY) return false
@@ -244,6 +259,21 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
         internal const val APP_INFO_ID = "app_info"
 
         private val SETTINGS_WORDS = setOf("settings", "setting")
+
+        /**
+         * One-word keywords that mean the setting whatever else is around, so typing one names its page outright
+         * (a strong match). Other one-word keywords are everyday words too ("time", "pin", "print", "power") and only
+         * match weakly; a page's own title is always strong.
+         */
+        internal val UNAMBIGUOUS_KEYWORDS = setOf(
+            "wifi", "wlan", "bluetooth", "bt", "hotspot", "tethering", "nfc", "vpn", "apn", "airplane", "battery",
+            "brightness", "ringtone", "vibration", "haptics", "dnd", "storage", "display", "sound", "wallpaper",
+            "wallpapers", "screensaver", "autorotate", "notifications", "gps", "fingerprint", "biometrics", "a11y",
+            "talkback", "tts", "adb", "imei", "timezone"
+        )
+
+        /** Words that alone name no page, but are part of many ("mode", "data"): alone they match nothing. */
+        private val TOO_GENERIC = setOf("mode", "data")
         private val SETTINGS_METADATA = SearchScoringEngine.ScoringMetadata(domain = SearchScoringEngine.EntityDomain.SYSTEM_TOGGLE)
         private val APP_INFO_PREFIXES = listOf("app info for ", "app info of ", "app info ", "app details ", "app settings ", "application info ")
         private val APP_INFO_SUFFIXES = listOf(" app info", " app details", " app settings")

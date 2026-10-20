@@ -300,8 +300,8 @@ class SearchViewModelTest {
     fun appInfoNeedsTheAppsSourceToo() {
         appDetailsOpens()
         start()
-        // With both sources on, an app's name finds its App Info.
-        viewModel.onQueryChanged("calendar")
+        // With both sources on, asking for an app's settings finds its App Info.
+        viewModel.onQueryChanged("calendar settings")
         assertEquals(listOf("Calendar App Info"), appInfoTitles(await("calendar app info") { appInfoTitles(it).isNotEmpty() }))
 
         prefs.edit().put(SettingsManager.SEARCH_APPS, false).commit()

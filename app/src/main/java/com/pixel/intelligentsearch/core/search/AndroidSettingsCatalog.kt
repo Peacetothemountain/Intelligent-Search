@@ -39,19 +39,19 @@ object AndroidSettingsCatalog {
         add(page("wifi", "Wi-Fi", Settings.ACTION_WIFI_SETTINGS, "wifi",
             "wifi", "wi fi", "wireless", "wlan", "networks", "wifi networks"))
         add(page("network", "Network & Internet", Settings.ACTION_WIRELESS_SETTINGS, "network",
-            "network", "internet", "hotspot", "tethering", "wifi hotspot", "portable hotspot", "mobile hotspot", "data saver",
-            "private dns"))
+            "network", "internet", "hotspot", "tethering", "wifi hotspot", "portable hotspot", "mobile hotspot", "hot spot",
+            "data saver", "private dns"))
         add(page("mobile_network", "Mobile Network", Settings.ACTION_DATA_ROAMING_SETTINGS, "mobile_network",
             "mobile network", "mobile data", "cellular", "cellular data", "roaming", "sim", "carrier", "apn"))
         add(page("data_usage", "Data Usage", Settings.ACTION_DATA_USAGE_SETTINGS, "data_usage",
             "data usage", "data use", "mobile data usage", "data limit", "data warning"))
         add(page("airplane", "Airplane Mode", Settings.ACTION_AIRPLANE_MODE_SETTINGS, "airplane",
-            "airplane mode", "airplane", "aeroplane mode", "flight mode"))
+            "airplane mode", "airplane", "air plane mode", "aeroplane mode", "flight mode"))
         add(page("bluetooth", "Bluetooth", Settings.ACTION_BLUETOOTH_SETTINGS, "bluetooth",
             "bluetooth", "bt", "blue tooth", "pairing", "pair new device", "connected devices", "headphones", "earbuds"))
         add(page("nfc", "NFC", Settings.ACTION_NFC_SETTINGS, "nfc", "nfc", "near field communication"))
         add(page("contactless", "Contactless Payments", Settings.ACTION_NFC_PAYMENT_SETTINGS, "contactless",
-            "contactless payments", "tap and pay", "nfc payment", "default payment app"))
+            "contactless payments", "tap and pay", "tap to pay", "nfc payment", "default payment app"))
         add(page("cast", "Cast", Settings.ACTION_CAST_SETTINGS, "cast",
             "cast", "screen cast", "screen mirroring", "mirror screen"))
         add(page("vpn", "VPN", Settings.ACTION_VPN_SETTINGS, "vpn", "vpn", "virtual private network"))
@@ -66,7 +66,7 @@ object AndroidSettingsCatalog {
 
         // Display & sound
         add(page("display", "Display", Settings.ACTION_DISPLAY_SETTINGS, "display",
-            "display", "screen", "brightness", "adaptive brightness", "dark mode", "dark theme", "light mode",
+            "display", "screen", "brightness", "screen brightness", "adaptive brightness", "dark mode", "dark theme", "light mode",
             "screen timeout", "font size", "text size", "display size", "refresh rate", "smooth display"))
         add(page("night_light", "Night Light", Settings.ACTION_NIGHT_DISPLAY_SETTINGS, "night_light",
             "night light", "blue light", "eye comfort", "night mode", "warm screen"))
@@ -77,9 +77,9 @@ object AndroidSettingsCatalog {
         add(page("screen_saver", "Screen Saver", Settings.ACTION_DREAM_SETTINGS, "screen_saver",
             "screen saver", "screensaver", "daydream"))
         add(page("sound", "Sound & Vibration", Settings.ACTION_SOUND_SETTINGS, "sound",
-            "sound", "vibration", "vibrate", "haptics", "volume", "ringtone", "notification sound", "alarm sound"))
+            "sound", "vibration", "vibrate", "haptics", "volume", "ringtone", "ring tone", "notification sound", "alarm sound"))
         add(page("dnd", "Do Not Disturb", Settings.ACTION_ZEN_MODE_PRIORITY_SETTINGS, "dnd",
-            "do not disturb", "dnd", "silence", "priority mode", "modes"))
+            "do not disturb", "do not disturb mode", "dnd", "silence", "silent", "silent mode", "priority mode", "modes"))
 
         // Notifications & apps
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -156,7 +156,7 @@ object AndroidSettingsCatalog {
             "developer options", "developer", "usb debugging", "adb", "wireless debugging", "dev options"))
         add(page("about", "About Phone", Settings.ACTION_DEVICE_INFO_SETTINGS, "about",
             "about phone", "about device", "build number", "android version", "device name", "imei", "model number",
-            "phone model"))
+            "phone model", "phone number"))
         add(page("system_update", "System Update", SYSTEM_UPDATE_SETTINGS, "system_update",
             "system update", "software update", "android update", "security update"))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {

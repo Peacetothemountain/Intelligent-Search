@@ -256,14 +256,11 @@ class AndroidSettingsSearchTest {
     fun everydayWordsAppNamesAndPeopleDoNotBecomeSettingsPages() {
         val search = everyPageResolves()
         fun results(query: String) = search.search(query, people, findPixelApps).map { it.title }
-        // A query that is an app's name is that app's App Info, not a page that merely shares a word with it.
-        val appInfo = mapOf(
-            "chrome" to "Chrome App Info", "chrome settings" to "Chrome App Info", "camera" to "Camera App Info",
-            "phone" to "Phone App Info", "google" to "Google App Info", "files" to "Files App Info",
-            "clock" to "Clock App Info", "wallet" to "Wallet App Info", "home" to "Home App Info", "patreon" to "Patreon App Info"
-        )
-        for ((query, title) in appInfo) {
-            assertEquals("results for \"$query\"", listOf(title), results(query))
+        // A query that is an app's name is that app's, which the apps already show: no App Info row (only asked
+        // for, as in "chrome settings"), and no page that merely shares a word with it.
+        assertEquals(listOf("Chrome App Info"), results("chrome settings"))
+        for (query in listOf("chrome", "camera", "phone", "google", "files", "clock", "wallet", "home", "patreon")) {
+            assertEquals("results for \"$query\"", emptyList<String>(), results(query))
         }
         // The start of an app's or a person's name, and short words, are theirs.
         for (query in listOf("chr", "cam", "file", "insta", "pay", "tim", "pat", "sid", "carrie")) {
@@ -351,5 +348,102 @@ class AndroidSettingsSearchTest {
         // A weak "batt" Battery is not the strong "battery" one.
         assertTrue(first != search.search("batt").first())
         assertEquals(search.search("app info chrome", findPixelApps), search.search("app info chrome", findPixelApps))
+    }
+
+    private val everydayApps = listOf("Maps", "YouTube", "Gmail", "Chrome", "Pinterest").map { app(it, "com.example.${it.lowercase()}") }
+    private val findEverydayApps: (String) -> List<AppItem> = { query ->
+        everydayApps.filter { QueryNormalizer.normalize(it.name).startsWith(query) }
+    }
+
+    @Test
+    fun appInfoIsOfferedOnlyWhenAskedFor() {
+        val search = everyPageResolves()
+        fun results(query: String) = search.search(query, emptyList(), findEverydayApps)
+        // Typing an app's name shows the app; App Info is not added to it, nor is a page sharing a word ("chrome" is not Cast).
+        for (query in listOf("maps", "youtube", "gmail", "chrome", "Chrome", "pinterest")) {
+            assertEquals("results for \"$query\"", emptyList<AndroidSettingResult>(), results(query))
+        }
+        // Asked for in so many words, it is the first result and names its page outright.
+        for (query in listOf("app info maps", "maps app info", "maps settings", "settings maps", "app settings maps",
+            "app details maps", "application info maps", "maps app details", "app info for maps")) {
+            val first = results(query).firstOrNull()
+            assertEquals("first result for \"$query\"", "Maps App Info", first?.title)
+            assertTrue("\"$query\" asks for App Info", first!!.isStrongMatch)
+        }
+        assertEquals("YouTube App Info", results("youtube settings").first().title)
+        assertEquals("Gmail App Info", results("gmail app info").first().title)
+    }
+
+    @Test
+    fun everydayWordsAreOnlyWeakMatches() {
+        val search = everyPageResolves()
+        val everyday = listOf(
+            "dictionary", "time", "date", "space", "memory", "disk", "background", "power", "pin", "pattern", "password",
+            "sync", "silence", "print", "sim", "carrier", "region", "launcher"
+        )
+        for (query in everyday) {
+            val results = search.search(query)
+            // Still offered, below the web and the contacts.
+            assertTrue("\"$query\" still finds a page", results.isNotEmpty())
+            assertTrue("\"$query\" is an everyday word: $results", results.none { it.isStrongMatch })
+        }
+        // A weak match gives way to an app the query starts: "pin" is Pinterest's.
+        assertEquals(emptyList<AndroidSettingResult>(), search.search("pin", emptyList(), findEverydayApps))
+        assertEquals(emptyList<AndroidSettingResult>(), search.search("pin", listOf("Pinky Tuscadero")) { emptyList() })
+    }
+
+    @Test
+    fun settingsWordsAndTitlesStayStrongMatches() {
+        val search = everyPageResolves()
+        val expected = mapOf(
+            "battery" to "Battery", "wifi" to "Wi-Fi", "bluetooth" to "Bluetooth", "hotspot" to "Network & Internet",
+            "dnd" to "Do Not Disturb", "vpn" to "VPN", "storage" to "Storage", "display" to "Display",
+            "sound" to "Sound & Vibration", "wallpaper" to "Wallpaper & Style", "dark mode" to "Display",
+            "brightness" to "Display", "ringtone" to "Sound & Vibration", "nfc" to "NFC", "airplane" to "Airplane Mode",
+            "location" to "Location", "printing" to "Printing", "date and time" to "Date & Time"
+        )
+        for ((query, title) in expected) {
+            val first = search.search(query, emptyList(), findEverydayApps).firstOrNull()
+            assertEquals("first result for \"$query\"", title, first?.title)
+            assertTrue("\"$query\" names its page", first!!.isStrongMatch)
+        }
+        // Every word on the list is a keyword some page has.
+        val keywords = AndroidSettingsCatalog.pages.flatMap { it.keywords }.map(QueryNormalizer::normalize).toSet()
+        assertEquals(emptySet<String>(), AndroidSettingsSearch.UNAMBIGUOUS_KEYWORDS - keywords)
+    }
+
+    @Test
+    fun wordsInManyPagesAloneMatchNothing() {
+        val search = everyPageResolves()
+        assertEquals(emptyList<String>(), titles(search, "mode"))
+        assertEquals(emptyList<String>(), titles(search, "data"))
+        // With more to go on they find their page.
+        assertEquals("Airplane Mode", titles(search, "airplane mode").first())
+        assertEquals("Data Usage", titles(search, "data usage").first())
+        assertEquals("Do Not Disturb", titles(search, "modes").first())
+    }
+
+    @Test
+    fun restoredKeywordsAndSpellingVariantsFindTheirPage() {
+        val search = everyPageResolves()
+        val strong = mapOf(
+            "tap to pay" to "Contactless Payments", "phone number" to "About Phone", "ring tone" to "Sound & Vibration",
+            "hot spot" to "Network & Internet", "air plane mode" to "Airplane Mode", "screen brightness" to "Display",
+            "silent mode" to "Do Not Disturb", "do not disturb mode" to "Do Not Disturb"
+        )
+        for ((query, title) in strong) {
+            val first = search.search(query).firstOrNull()
+            assertEquals("first result for \"$query\"", title, first?.title)
+            assertTrue("\"$query\" names its page", first!!.isStrongMatch)
+        }
+        // "silent" is an everyday word, and "wifii" a slip: they find the page, as weak matches.
+        for ((query, title) in mapOf("silent" to "Do Not Disturb", "wifii" to "Wi-Fi")) {
+            val first = search.search(query).firstOrNull()
+            assertEquals("first result for \"$query\"", title, first?.title)
+            assertTrue("\"$query\" is a weak match", !first!!.isStrongMatch)
+        }
+        // "pay" and "phone" alone still don't reach for them.
+        assertEquals(emptyList<String>(), titles(search, "pay"))
+        assertTrue("Contactless Payments" !in titles(search, "phone"))
     }
 }

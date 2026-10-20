@@ -5,6 +5,7 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.SharedPreferences
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
+import com.pixel.intelligentsearch.di.appEntryPoint
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -47,7 +48,10 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             SettingsCard {
-                var searchEngine by rememberSetting(SettingsManager.SEARCH_ENGINE)
+                // Tor stops the daily currency rates download (the request would leave Tor); another engine may allow it.
+                var searchEngine by rememberSetting(SettingsManager.SEARCH_ENGINE) {
+                    context.appEntryPoint.currencyRateRepository().syncSchedule()
+                }
                 var customEngineName by rememberSetting(SettingsManager.CUSTOM_SEARCH_ENGINE_NAME)
                 val effectiveSearchEngineName = if (searchEngine == "Custom") customEngineName else searchEngine
                 var showTorDialog by remember { mutableStateOf(false) }

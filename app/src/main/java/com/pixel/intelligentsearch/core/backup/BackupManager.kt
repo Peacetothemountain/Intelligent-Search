@@ -9,6 +9,7 @@ import com.pixel.intelligentsearch.core.data.settings.SettingKey
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
 import com.pixel.intelligentsearch.core.data.HistoryDao
 import com.pixel.intelligentsearch.core.data.HistoryEntity
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -28,8 +29,17 @@ class BackupManager @Inject constructor(
     private val settingsManager: SettingsManager,
     private val historyDao: HistoryDao,
     private val strongBoxSecurityManager: StrongBoxSecurityManager,
-    private val widgetUpdater: WidgetUpdater
+    private val widgetUpdater: WidgetUpdater,
+    private val currencyRates: CurrencyRateRepository
 ) {
+    /** Outside Hilt (tests): the currency schedule is kept by a repository of its own. */
+    constructor(
+        context: Context,
+        settingsManager: SettingsManager,
+        historyDao: HistoryDao,
+        strongBoxSecurityManager: StrongBoxSecurityManager,
+        widgetUpdater: WidgetUpdater
+    ) : this(context, settingsManager, historyDao, strongBoxSecurityManager, widgetUpdater, CurrencyRateRepository(context, settingsManager))
 
     companion object {
         private const val HARWARE_BACKUP_KEY_ALIAS = "com.pixel.intelligentsearch.hardware_backup_kek"
@@ -580,6 +590,13 @@ class BackupManager @Inject constructor(
         settingsManager.updateSetting(SettingsManager.HIDDEN_APPS, payload.hiddenApps.toSet())
         restoredCount += payload.hiddenApps.size
 
+        // Settings that switch a component on or off live outside the settings file; apply the restored value now
+        // the settings are in, so a failure restoring the history below can't leave it out of step.
+        com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity.syncWithSetting(context)
+        // Scheduled work lives outside the settings file too: a restored Calculator, Live Currency Rates or search
+        // engine setting (Tor) can mean the daily rates download must stop.
+        currencyRates.syncSchedule()
+
         // 4. Restore Search History
         if (payload.searchHistory.isNotEmpty()) {
             val now = System.currentTimeMillis()
@@ -590,11 +607,6 @@ class BackupManager @Inject constructor(
             historyDao.pruneHistory(HISTORY_LIMIT)
             restoredCount += entities.size
         }
-
-        // Settings that switch a component on or off live outside the settings file; apply the restored value.
-        com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity.setEnabled(
-            context, settingsManager[SettingsManager.SEARCH_FROM_SELECTED_TEXT]
-        )
 
         // 5. Update Home Screen Widgets immediately
         try {

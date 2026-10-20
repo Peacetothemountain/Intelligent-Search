@@ -19,7 +19,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
+import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneOffset
+import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
 
 /**
@@ -158,6 +161,102 @@ class CurrencyRateRepositoryTest {
 
         assertEquals(WorkInfo.State.CANCELLED, uniqueWork(CurrencyRateWork.DAILY_WORK).single().state)
         assertEquals(WorkInfo.State.CANCELLED, uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).single().state)
+    }
+
+    /** A repository whose today is [today], reading on the main thread when [onMainThread] says so, on [loader]. */
+    private fun repositoryAt(
+        today: String = "2026-10-20",
+        onMainThread: () -> Boolean = { false },
+        loader: Executor = Executor { it.run() }
+    ) = CurrencyRateRepository(
+        context, settings, CurrencyRateStore(file),
+        RatesHttpClient { url, _ -> requested += url; EcbRatesParserTest.ecbFile().toByteArray() },
+        clock = Clock.fixed(LocalDate.parse(today).atTime(12, 0).toInstant(ZoneOffset.UTC), ZoneOffset.UTC),
+        onMainThread = onMainThread,
+        loader = loader
+    )
+
+    @Test
+    fun nothingIsFetchedOrScheduledWithTheCalculatorOff() = runBlocking {
+        settings.set(SettingsManager.SEARCH_CALCULATOR, false)
+        assertEquals(RefreshResult.SKIPPED_OFF, repository().refresh())
+        repository().onCurrencyConverted(CurrencyRates.BUILT_IN)
+        assertTrue(requested.isEmpty())
+        assertTrue(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).isEmpty())
+        assertTrue(uniqueWork(CurrencyRateWork.DAILY_WORK).isEmpty())
+    }
+
+    @Test
+    fun switchingFetchingOffCancelsTheWorkAndOnAgainArrangesItAgain() {
+        val switches = listOf<Pair<() -> Unit, () -> Unit>>(
+            { settings.set(SettingsManager.SEARCH_CALCULATOR, false) } to { settings.set(SettingsManager.SEARCH_CALCULATOR, true) },
+            { settings.set(SettingsManager.LIVE_CURRENCY_RATES, false) } to { settings.set(SettingsManager.LIVE_CURRENCY_RATES, true) },
+            { settings.set(SettingsManager.SEARCH_ENGINE, "Tor Browser") } to { settings.set(SettingsManager.SEARCH_ENGINE, "Google") }
+        )
+        // One repository throughout, as in the app, so what it remembers having arranged must be forgotten too.
+        val repository = repository()
+        for ((off, on) in switches) {
+            repository.onCurrencyConverted(repository.current())
+            assertTrue(uniqueWork(CurrencyRateWork.DAILY_WORK).any { it.state == WorkInfo.State.ENQUEUED })
+            assertTrue(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).any { it.state == WorkInfo.State.ENQUEUED })
+
+            off()
+            repository.syncSchedule()
+            assertTrue(uniqueWork(CurrencyRateWork.DAILY_WORK).all { it.state == WorkInfo.State.CANCELLED })
+            assertTrue(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).all { it.state == WorkInfo.State.CANCELLED })
+            on()
+            repository.syncSchedule()
+        }
+        repository.onCurrencyConverted(repository.current())
+        assertTrue(uniqueWork(CurrencyRateWork.DAILY_WORK).any { it.state == WorkInfo.State.ENQUEUED })
+    }
+
+    @Test
+    fun aFetchedTableDatedFarAheadIsRefused() = runBlocking {
+        // The test file is dated Oct 19: three days ahead of Oct 16.
+        assertEquals(RefreshResult.FAILED, repositoryAt(today = "2026-10-16").refresh())
+        assertFalse(file.exists())
+        assertEquals(RefreshResult.UPDATED, repositoryAt(today = "2026-10-17").refresh())
+    }
+
+    @Test
+    fun aSavedTableDatedFarAheadNeverHoldsOffUpdates() = runBlocking {
+        val future = CurrencyRates("eur", mapOf("eur" to 1.0, "usd" to 2.0), LocalDate.of(2030, 1, 1))
+        assertTrue(CurrencyRateStore(file).save(future))
+        val repository = repositoryAt(today = "2026-10-20")
+        assertEquals(RefreshResult.UPDATED, repository.refresh())
+        assertEquals(LocalDate.of(2026, 10, 19), repository.current().date)
+        // A saved table only a day ahead (a time zone away) still counts.
+        CurrencyRateStore(file).save(future.copy(date = LocalDate.of(2026, 10, 21)))
+        assertEquals(RefreshResult.UNCHANGED, repositoryAt(today = "2026-10-20").refresh())
+    }
+
+    @Test
+    fun theFirstAnswerOnTheMainThreadReadsTheSavedRatesInTheBackground() = runBlocking {
+        repository().refresh()
+        val queued = mutableListOf<Runnable>()
+        val repository = repositoryAt(onMainThread = { true }, loader = { queued += it })
+
+        // The file isn't read on the main thread: the built-in rates answer while it is read elsewhere, once.
+        assertSame(CurrencyRates.BUILT_IN, repository.current())
+        assertSame(CurrencyRates.BUILT_IN, repository.current())
+        assertEquals(1, queued.size)
+        // Not knowing yet whether rates were ever fetched, it asks for no first fetch.
+        repository.onCurrencyConverted(CurrencyRates.BUILT_IN)
+        assertTrue(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).isEmpty())
+
+        queued.single().run()
+        assertEquals(LocalDate.of(2026, 10, 19), repository.current().date)
+        assertEquals(1, queued.size)
+    }
+
+    @Test
+    fun aCurrencyTheLiveRatesLackAsksForNoFirstFetchOnceRatesAreSaved() = runBlocking {
+        repository().refresh()
+        // AED isn't in the ECB's table, so its answer used the built-in rates.
+        repository().onCurrencyConverted(CurrencyRates.BUILT_IN)
+        assertTrue(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).isEmpty())
+        assertEquals(1, uniqueWork(CurrencyRateWork.DAILY_WORK).size)
     }
 
     @Test

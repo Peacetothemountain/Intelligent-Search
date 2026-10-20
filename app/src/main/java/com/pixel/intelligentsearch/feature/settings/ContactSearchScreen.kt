@@ -90,7 +90,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var contactActions by rememberSetting(SettingsManager.CONTACT_ACTIONS)
                 SettingsRowToggle(
                     title = "Contact Actions",
-                    subtitle = "Show Call, Message and Chat Buttons on Contacts.",
+                    subtitle = "Show Call, Message, Email and Chat Buttons on Contacts.",
                     icon = Icons.Outlined.Forum,
                     isChecked = contactActions,
                     onCheckedChange = { contactActions = it },

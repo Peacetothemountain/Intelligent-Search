@@ -81,7 +81,12 @@ data class ContactItem(
     val phoneNumber: String,
     val lookupUri: String,
     /** The contact's default email address (else its first), blank when it has none. */
-    val email: String = ""
+    val email: String = "",
+    /**
+     * The number the chat buttons use: the contact's default number, else a mobile one, else [phoneNumber]. Blank
+     * means [phoneNumber]. [phoneNumber] itself stays the one search found, so matching and ranking don't change.
+     */
+    val chatNumber: String = ""
 )
 
 @Immutable
@@ -308,7 +313,11 @@ object SystemDataProvider {
         events
     }
 
-    suspend fun getContacts(context: Context, query: String): List<ContactItem> = withContext(Dispatchers.IO) {
+    /**
+     * Contacts whose name or number matches [query]. [forActions] also reads what the contact buttons need, their
+     * email addresses and chat numbers; callers that only want names and numbers skip those queries.
+     */
+    suspend fun getContacts(context: Context, query: String, forActions: Boolean = true): List<ContactItem> = withContext(Dispatchers.IO) {
         val contacts = mutableListOf<ContactItem>()
         val contactIds = mutableListOf<Long>()
         if (query.isEmpty() || context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
@@ -354,8 +363,91 @@ object SystemDataProvider {
             }
         } catch (_: Throwable) {}
 
-        withEmails(context, contacts, contactIds, onlyThese = true)
-            .distinctBy { it.lookupUri.ifEmpty { "${it.name}:${it.phoneNumber}" } }
+        val found = if (forActions) {
+            withEmails(context, withChatNumbers(context, contacts, contactIds), contactIds, onlyThese = true)
+        } else contacts
+        found.distinctBy { it.lookupUri.ifEmpty { "${it.name}:${it.phoneNumber}" } }
+    }
+
+    /** The most phone rows [withChatNumbers] reads, however many numbers the found contacts have saved. */
+    private const val CHAT_NUMBER_ROWS = 300
+
+    /**
+     * [contacts] with each one's chat number, matched by [contactIds] (same order). All of those contacts' phone rows
+     * are read in a query of their own, so a mobile beyond the search's 15-row cut-off still counts, and the search's
+     * own query (which contacts it finds, their order, the number shown) stays as it was.
+     */
+    private fun withChatNumbers(context: Context, contacts: List<ContactItem>, contactIds: List<Long>): List<ContactItem> {
+        if (contacts.isEmpty()) return contacts
+        val chatNumbers = ChatNumbers()
+        val wanted = contactIds.distinct()
+        try {
+            context.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI.buildUpon()
+                    .appendQueryParameter(ContactsContract.LIMIT_PARAM_KEY, CHAT_NUMBER_ROWS.toString())
+                    .build(),
+                arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
+                    ContactsContract.CommonDataKinds.Phone.NUMBER,
+                    *ChatNumbers.COLUMNS
+                ),
+                "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} IN (${wanted.joinToString(",") { "?" }})",
+                wanted.map { it.toString() }.toTypedArray(),
+                // The numbers marked as default come first, so the row cap never drops them.
+                "${ContactsContract.CommonDataKinds.Phone.IS_SUPER_PRIMARY} DESC, ${ContactsContract.CommonDataKinds.Phone.IS_PRIMARY} DESC"
+            )?.use { cursor ->
+                val idIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
+                val numberIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                val chatColumns = ChatNumbers.columnsOf(cursor)
+                var rows = 0
+                while (rows++ < CHAT_NUMBER_ROWS && cursor.moveToNext()) {
+                    chatNumbers.offer(cursor, chatColumns, cursor.getLong(idIndex), cursor.getString(numberIndex).orEmpty())
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("IntelligentSearch", "Contact chat numbers unreadable", e)
+        }
+        return chatNumbers.applyTo(contacts, contactIds)
+    }
+
+    /**
+     * Each contact's number for the chat buttons, picked from its phone rows as they are read: the number marked as
+     * default first, then a mobile, then the first. Only [ContactItem.chatNumber] comes from it; which contacts are
+     * found, their order and the number shown stay as the rows came.
+     */
+    private class ChatNumbers {
+        private val best = HashMap<Long, Pair<Int, String>>()
+
+        fun offer(cursor: android.database.Cursor, columns: IntArray, contactId: Long, number: String) {
+            if (number.isBlank()) return
+            fun int(i: Int) = if (columns[i] >= 0) cursor.getInt(columns[i]) else 0
+            val type = int(2)
+            val rank = when {
+                int(0) != 0 -> 3 // IS_SUPER_PRIMARY: the default the user picked
+                int(1) != 0 -> 2 // IS_PRIMARY
+                type == ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE ||
+                    type == ContactsContract.CommonDataKinds.Phone.TYPE_WORK_MOBILE -> 1
+                else -> 0
+            }
+            val current = best[contactId]
+            if (current == null || rank > current.first) best[contactId] = rank to number
+        }
+
+        fun applyTo(contacts: List<ContactItem>, contactIds: List<Long>): List<ContactItem> = contacts.mapIndexed { i, contact ->
+            val chat = best[contactIds[i]]?.second
+            if (chat != null && chat != contact.phoneNumber) contact.copy(chatNumber = chat) else contact
+        }
+
+        companion object {
+            val COLUMNS = arrayOf(
+                ContactsContract.CommonDataKinds.Phone.IS_SUPER_PRIMARY,
+                ContactsContract.CommonDataKinds.Phone.IS_PRIMARY,
+                ContactsContract.CommonDataKinds.Phone.TYPE
+            )
+
+            /** Where [COLUMNS] are in [cursor] (-1 when missing). */
+            fun columnsOf(cursor: android.database.Cursor): IntArray = IntArray(COLUMNS.size) { cursor.getColumnIndex(COLUMNS[it]) }
+        }
     }
 
     /**
@@ -395,6 +487,7 @@ object SystemDataProvider {
     suspend fun getAllContacts(context: Context): List<ContactItem> = withContext(Dispatchers.IO) {
         val contacts = mutableListOf<ContactItem>()
         val contactIds = mutableListOf<Long>()
+        val chatNumbers = ChatNumbers()
         if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
             return@withContext contacts
         }
@@ -403,7 +496,8 @@ object SystemDataProvider {
             ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
             ContactsContract.CommonDataKinds.Phone.NUMBER,
             ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
-            ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY
+            ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY,
+            *ChatNumbers.COLUMNS
         )
 
         try {
@@ -418,6 +512,7 @@ object SystemDataProvider {
                 val numberIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
                 val lookupKeyIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY)
                 val idIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
+                val chatColumns = ChatNumbers.columnsOf(cursor)
 
                 while (cursor.moveToNext()) {
                     val name = cursor.getString(nameIndex) ?: continue
@@ -428,12 +523,13 @@ object SystemDataProvider {
                     val lookupUri = ContactsContract.Contacts.getLookupUri(id, lookupKey)?.toString() ?: ""
                     contacts.add(ContactItem(name, number, lookupUri))
                     contactIds.add(id)
+                    chatNumbers.offer(cursor, chatColumns, id, number)
                 }
             }
         } catch (e: Exception) {
             android.util.Log.w("IntelligentSearch", "Unexpected error", e)
         }
-        withEmails(context, contacts, contactIds, onlyThese = false)
+        withEmails(context, chatNumbers.applyTo(contacts, contactIds), contactIds, onlyThese = false)
             .distinctBy { it.lookupUri.ifEmpty { "${it.name}:${it.phoneNumber}" } }
     }
 

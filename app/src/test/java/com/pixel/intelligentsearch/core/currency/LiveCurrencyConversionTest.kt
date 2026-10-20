@@ -64,4 +64,32 @@ class LiveCurrencyConversionTest {
         assertEquals("Rates from Oct 19, 2026", live.sourceLabel(Locale.US))
         assertEquals("Built-in rates", CurrencyRates.BUILT_IN.sourceLabel(Locale.US))
     }
+
+    @Test
+    fun theCardNeverMixesDigitsInALocaleWithItsOwn() {
+        assertTrue("this test needs a locale with its own digits", java.text.DecimalFormatSymbols.getInstance(Locale.forLanguageTag("ar-EG")).zeroDigit != '0')
+        val conversion = convert("1234.5 usd to eur")!!.formatted
+        for (tag in listOf("ar-EG", "fa-IR", "hi-IN-u-nu-deva", "ar-SA-u-nu-arab", "bn-BD", "dz-BT")) {
+            val locale = Locale.forLanguageTag(tag)
+            val label = live.sourceLabel(locale)
+            assertOneKindOfDigits("$conversion / $label in $tag", conversion + label)
+            assertTrue("$label in $tag gives the day and year", label.contains("19") && label.contains("2026"))
+        }
+    }
+
+    @Test
+    fun everyLocaleWritesTheCardInOneKindOfDigits() {
+        val conversion = convert("1234.5 usd to eur")!!.formatted
+        for (locale in Locale.getAvailableLocales()) {
+            val label = live.sourceLabel(locale)
+            assertTrue("$label in $locale", label.startsWith("Rates from "))
+            assertOneKindOfDigits("$conversion / $label in $locale", conversion + label)
+        }
+    }
+
+    /** Every digit in [text] is from one set of ten: all 0 to 9, or all of one script's own. */
+    private fun assertOneKindOfDigits(message: String, text: String) {
+        val zeros = text.filter(Char::isDigit).map { it - Character.getNumericValue(it) }.toSet()
+        assertEquals(message, 1, zeros.size)
+    }
 }

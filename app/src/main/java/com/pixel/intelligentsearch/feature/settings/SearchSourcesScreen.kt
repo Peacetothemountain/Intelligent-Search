@@ -13,6 +13,7 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,6 +58,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.navigation.Route
+import com.pixel.intelligentsearch.di.appEntryPoint
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -270,7 +272,9 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             },
                             showDivider = true
                         )
-                        var searchCalc by rememberSetting(SettingsManager.SEARCH_CALCULATOR)
+                        // Either switch can stop or allow the daily rates download; bring it in line at once.
+                        val syncCurrencyRates = { context.appEntryPoint.currencyRateRepository().syncSchedule() }
+                        var searchCalc by rememberSetting(SettingsManager.SEARCH_CALCULATOR, onChanged = syncCurrencyRates)
                         SettingsRowToggle(
                             title = "Calculator",
                             subtitle = "Calculate Mathematical Equations Inside Search Bar.",
@@ -279,15 +283,18 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             onCheckedChange = { searchCalc = it },
                             showDivider = true
                         )
-                        var liveCurrencyRates by rememberSetting(SettingsManager.LIVE_CURRENCY_RATES)
-                        SettingsRowToggle(
-                            title = "Live Currency Rates",
-                            subtitle = "Update Currency Rates Daily From the European Central Bank.",
-                            icon = Icons.Outlined.CurrencyExchange,
-                            isChecked = liveCurrencyRates,
-                            onCheckedChange = { liveCurrencyRates = it },
-                            showDivider = true
-                        )
+                        // Currency answers come from the Calculator, so their rates only matter while it is on.
+                        AnimatedVisibility(visible = searchCalc) {
+                            var liveCurrencyRates by rememberSetting(SettingsManager.LIVE_CURRENCY_RATES, onChanged = syncCurrencyRates)
+                            SettingsRowToggle(
+                                title = "Live Currency Rates",
+                                subtitle = "Update Currency Rates Daily from the European Central Bank.",
+                                icon = Icons.Outlined.CurrencyExchange,
+                                isChecked = liveCurrencyRates,
+                                onCheckedChange = { liveCurrencyRates = it },
+                                showDivider = true
+                            )
+                        }
                         var searchCalendar by rememberSetting(SettingsManager.SEARCH_CALENDAR)
                         val calendarPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
                             // An empty result (a request already in flight) is not a grant.

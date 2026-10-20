@@ -79,7 +79,7 @@ data class SearchUiState(
     val files: List<FileItem> = emptyList(),
     val webSuggestions: List<String> = emptyList(),
     val shortcuts: List<AppShortcutItem> = emptyList(),
-    /** Android Settings pages (and App Info pages) matching the query, shown after the apps. */
+    /** Android Settings pages (and App Info pages) matching the query; see [resultSectionOrder] for where they show. */
     val androidSettings: List<com.pixel.intelligentsearch.core.search.AndroidSettingResult> = emptyList(),
     val mathResult: String? = null,
     val instantAnswer: InstantAnswer? = null,
@@ -95,6 +95,20 @@ data class SearchUiState(
     /** The query with an obvious typo fixed, offered as "Did you mean"; null when nothing is misspelled. */
     val spellingSuggestion: String? = null
 )
+
+/**
+ * This state without anything from the Private Space: its apps, and the App Info rows for them in the settings
+ * results. What stays on screen once the Private Space locks, until the next search.
+ */
+internal fun SearchUiState.withoutPrivateProfile(): SearchUiState {
+    fun AppItem.isPrivate() = isPrivateProfile || profileType == ProfileType.PRIVATE
+    return copy(
+        allApps = allApps.filterNot { it.isPrivate() },
+        recentApps = recentApps.filterNot { it.isPrivate() },
+        filteredApps = filteredApps.filterNot { it.isPrivate() },
+        androidSettings = androidSettings.filterNot { it.app?.isPrivate() == true }
+    )
+}
 
 /** How long typing must pause before a query is spell checked for "Did you mean". */
 private const val SPELLING_PAUSE_MS = 450L
@@ -216,14 +230,7 @@ class SearchViewModel @Inject constructor(
                 val hasLocked = profiles.any { it.profileType == ProfileType.PRIVATE && it.isLocked }
                 if (hasLocked) {
                     unifiedSearchCoordinator.purgePrivateProfileItems()
-                    _uiState.update { current ->
-                        current.copy(
-                            hasLockedPrivateSpace = true,
-                            allApps = current.allApps.filterNot { it.isPrivateProfile || it.profileType == ProfileType.PRIVATE },
-                            recentApps = current.recentApps.filterNot { it.isPrivateProfile || it.profileType == ProfileType.PRIVATE },
-                            filteredApps = current.filteredApps.filterNot { it.isPrivateProfile || it.profileType == ProfileType.PRIVATE }
-                        )
-                    }
+                    _uiState.update { it.withoutPrivateProfile().copy(hasLockedPrivateSpace = true) }
                     if (!previousLocked) {
                         corpusIndexManager.reindexApps(forceRefresh = true)
                         corpusIndexManager.reindexShortcuts()
@@ -639,11 +646,18 @@ class SearchViewModel @Inject constructor(
             } else emptyList()
 
             // Settings pages complement the quick toggles above ("wifi" offers both). App Info looks apps up
-            // through the same app index, leaving out hidden apps.
+            // through the same app index, leaving out hidden apps; it is an app result too, so it also needs the
+            // Apps source. The contacts shown keep a name ("carrie") from turning into a setting ("carrier").
             val androidSettings = if (settings.searchAndroidSettings) {
-                androidSettingsSearch.search(newQuery) { name ->
-                    unifiedSearchCoordinator.searchApps(name, limit = 3).filter { it.packageName !in settings.hiddenApps }
-                }
+                androidSettingsSearch.search(
+                    newQuery,
+                    findApps = { name ->
+                        if (settings.searchApps) {
+                            unifiedSearchCoordinator.searchApps(name, limit = 3).filter { it.packageName !in settings.hiddenApps }
+                        } else emptyList()
+                    },
+                    peopleNames = localContacts.map { it.name }
+                )
             } else emptyList()
 
             val suggestionsEnabled = settings.searchWeb && customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]

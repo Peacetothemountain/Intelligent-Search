@@ -49,14 +49,14 @@ class SearchFromSelectedTextSettingTest {
         assertEquals(true, prefs[SettingsManager.SEARCH_FROM_SELECTED_TEXT])
         assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, entryState)
 
-        compose.onNodeWithText("Search From Selected Text").performClick()
+        compose.onNodeWithText("Search from Selected Text").performClick()
         compose.waitForIdle()
         assertEquals(false, prefs[SettingsManager.SEARCH_FROM_SELECTED_TEXT])
         assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DISABLED, entryState)
 
         // Taps closer together than the row's debounce count once; let the debounce pass.
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(500))
-        compose.onNodeWithText("Search From Selected Text").performClick()
+        compose.onNodeWithText("Search from Selected Text").performClick()
         compose.waitForIdle()
         assertEquals(true, prefs[SettingsManager.SEARCH_FROM_SELECTED_TEXT])
         assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, entryState)

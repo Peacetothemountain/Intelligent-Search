@@ -68,7 +68,21 @@ import com.pixel.intelligentsearch.core.ui.UrlNavigationOneBox
 import com.pixel.intelligentsearch.core.ui.TimeWeatherOneBox
 import androidx.compose.ui.graphics.Brush
 
-/** The overlay's results list: suggested actions, best match, recents, calendar, shortcuts, one-boxes, and the app, web, people and file sections. */
+/**
+ * The result sections in display order: heaviest user weight first (apps, web, contacts, files on a tie), with
+ * Android Settings pages straight after the apps, so a settings page never sits above an app, whatever the weights.
+ */
+internal fun resultSectionOrder(appWeight: Int, webWeight: Int, contactWeight: Int, fileWeight: Int): List<String> =
+    listOf(
+        "apps" to appWeight,
+        "web" to webWeight,
+        "contacts" to contactWeight,
+        "files" to fileWeight
+    ).sortedByDescending { it.second }.flatMap { (section, _) ->
+        if (section == "apps") listOf("apps", "android_settings") else listOf(section)
+    }
+
+/** The overlay's results list: suggested actions, best match, recents, calendar, shortcuts, one-boxes, and the app, Android Settings, web, people and file sections. */
 @Composable
 internal fun OverlaySearchResults(s: OverlayScope) {
     val onOpenSettings = s.onOpenSettings
@@ -107,12 +121,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     // These are plain values from the scope, not snapshot state, so they are keyed rather than derived: a
     // derivedStateOf over them would compute once and never again.
     val sortedResultSections = remember(appWeight, webWeight, contactWeight, fileWeight) {
-        listOf(
-            "apps" to appWeight,
-            "web" to webWeight,
-            "contacts" to contactWeight,
-            "files" to fileWeight
-        ).sortedByDescending { it.second }.map { it.first }
+        resultSectionOrder(appWeight, webWeight, contactWeight, fileWeight)
     }
     val matchingRecent = remember(uiState.query, uiState.recentSearches, settingsState.searchPreviousSearches) {
         val trimmed = uiState.query.trim()
@@ -620,6 +629,19 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                 uniqueItems(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }, contentType = { "app_item" }) { app ->
                                     AppGridItem(app) { performAppLaunch(app) }
                                 }
+                            }
+                        }
+                    }
+                }
+                "android_settings" -> {
+                    if (settingsState.searchAndroidSettings && uiState.query.isNotEmpty() && uiState.androidSettings.isNotEmpty()) {
+                        item(key = "android_settings_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                        uniqueItems(uiState.androidSettings, key = { setting -> "android_setting_${setting.id}" }, contentType = { "android_setting" }) { setting ->
+                            AndroidSettingRow(setting) {
+                                hasStartedTyping = false
+                                focusManager.clearFocus(force = true)
+                                keyboardController?.hide()
+                                openAndroidSetting(context, setting)
                             }
                         }
                     }

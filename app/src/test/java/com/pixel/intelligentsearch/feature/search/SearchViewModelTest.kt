@@ -159,4 +159,38 @@ class SearchViewModelTest {
         viewModel.removeSearchHistory("second")
         assertEquals(listOf("first"), await("removal") { it.recentSearches.size == 1 }.recentSearches)
     }
+
+    /** Makes the Battery page open, as the Settings app would on a phone. */
+    private fun batteryPageResolves() {
+        val info = android.content.pm.ResolveInfo().apply {
+            activityInfo = android.content.pm.ActivityInfo().apply {
+                packageName = "com.android.settings"
+                name = "com.android.settings.SubSettings"
+            }
+        }
+        shadowOf(ApplicationProvider.getApplicationContext<Context>().packageManager)
+            .addResolveInfoForIntent(android.content.Intent(android.content.Intent.ACTION_POWER_USAGE_SUMMARY), info)
+    }
+
+    @Test
+    fun aSettingsPageIsOfferedAlongsideTheQuickToggle() {
+        batteryPageResolves()
+        start()
+        viewModel.onQueryChanged("battery")
+        val state = await("settings results") { it.androidSettings.isNotEmpty() }
+        assertEquals("Battery", state.androidSettings.first().title)
+        // The Battery Saver quick toggle is still there: settings pages complement it.
+        assertEquals("battery", state.systemToggle?.id)
+    }
+
+    @Test
+    fun turningTheAndroidSettingsSourceOffHidesSettingsPages() {
+        batteryPageResolves()
+        prefs.edit().put(SettingsManager.SEARCH_ANDROID_SETTINGS, false).commit()
+        start()
+        viewModel.onQueryChanged("battery")
+        kotlinx.coroutines.runBlocking { viewModel.awaitSearch() }
+        val state = await("local results") { it.systemToggle?.id == "battery" }
+        assertEquals(emptyList<Any>(), state.androidSettings)
+    }
 }

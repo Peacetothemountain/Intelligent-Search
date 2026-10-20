@@ -21,7 +21,7 @@ internal object BackupPreferenceSchema {
             "diagnostics_overlay_enabled", "dynamic_icon_masking", "force_tutorial", "g_icon_enabled",
             "matrix_animation_enabled", "never_show_icon_pack_warning", "quick.search.horizontal",
             "quick_search_horizontal", "quick_search_maps", "quick_search_play_store", "quick_search_wikipedia",
-            "quick_search_youtube", "search.apps", "search.background.show.wall", "search.calculator",
+            "quick_search_youtube", "search.android.settings", "search.apps", "search.background.show.wall", "search.calculator",
             "search.calendar", "search.contacts", "search.files", "search.files.hidden.files",
             "search.files.thumbnails", "search.shortcuts", "search.web", "search.web.suggestions", "search_apps",
             "search_calculator", "search_calendar", "search_contacts", "search_files", "search_files_hidden_files",

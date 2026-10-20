@@ -42,6 +42,7 @@ data class IntelligentSearchSettings(
     val searchCalculator: Boolean = SettingsManager.SEARCH_CALCULATOR.default,
     val searchCalendar: Boolean = SettingsManager.SEARCH_CALENDAR.default,
     val searchShortcuts: Boolean = SettingsManager.SEARCH_SHORTCUTS.default,
+    val searchAndroidSettings: Boolean = SettingsManager.SEARCH_ANDROID_SETTINGS.default,
     val backgroundBlur: Int = SettingsManager.BACKGROUND_BLUR.default,
     val showWallpaper: Boolean = SettingsManager.SHOW_WALLPAPER.default,
     val backgroundTransparency: Int = SettingsManager.BACKGROUND_TRANSPARENCY.default,
@@ -124,6 +125,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val SEARCH_CALCULATOR = BooleanSetting("search.calculator", true, "search_calculator")
         val SEARCH_CALENDAR = BooleanSetting("search.calendar", true, "search_calendar")
         val SEARCH_SHORTCUTS = BooleanSetting("search.shortcuts", true, "search_shortcuts")
+        /** Offers Android Settings pages ("battery", "app info chrome") among the results. */
+        val SEARCH_ANDROID_SETTINGS = BooleanSetting("search.android.settings", true)
         val BACKGROUND_BLUR = IntSetting("search.background.blur", 50, 0..100, "background.blur")
         val SHOW_WALLPAPER = BooleanSetting("search.background.show.wall", true, "show_wallpaper", "show.wallpaper")
         val BACKGROUND_TRANSPARENCY = IntSetting("search.background.transparency", 50, 0..100, "background.transparency")
@@ -198,7 +201,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** Every declared setting, for migration, backup validation and change filtering. */
         val ALL: List<SettingKey<*>> = listOf(
             THEME, SEARCH_APPS, SEARCH_CONTACTS, SEARCH_FILES, SEARCH_WEB, SEARCH_WEB_SUGGESTIONS,
-            SEARCH_PREVIOUS_SEARCHES, SEARCH_CALCULATOR, SEARCH_CALENDAR, SEARCH_SHORTCUTS, BACKGROUND_BLUR,
+            SEARCH_PREVIOUS_SEARCHES, SEARCH_CALCULATOR, SEARCH_CALENDAR, SEARCH_SHORTCUTS, SEARCH_ANDROID_SETTINGS, BACKGROUND_BLUR,
             SHOW_WALLPAPER, BACKGROUND_TRANSPARENCY, PILL_OPACITY, SEARCH_ENGINE, CUSTOM_SEARCH_ENGINE_URL,
             CUSTOM_SEARCH_ENGINE_NAME, FILES_HIDDEN_FILES, FILES_THUMBNAILS, APP_ANIMATIONS, MORPH_ANIMATION_ENABLED,
             BOTTOM_SEARCH, BOTTOM_SEARCH_RESULT, TUTORIAL_COMPLETED, FORCE_TUTORIAL, TUTORIAL_STEP, G_ICON_ENABLED,
@@ -277,6 +280,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         searchCalculator = sp[SEARCH_CALCULATOR],
         searchCalendar = sp[SEARCH_CALENDAR],
         searchShortcuts = sp[SEARCH_SHORTCUTS],
+        searchAndroidSettings = sp[SEARCH_ANDROID_SETTINGS],
         backgroundBlur = sp[BACKGROUND_BLUR],
         showWallpaper = sp[SHOW_WALLPAPER],
         backgroundTransparency = sp[BACKGROUND_TRANSPARENCY],

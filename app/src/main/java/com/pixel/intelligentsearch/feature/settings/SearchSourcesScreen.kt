@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -309,6 +310,15 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                                     searchCalendar = false
                                 }
                             },
+                            showDivider = true
+                        )
+                        var searchAndroidSettings by rememberSetting(SettingsManager.SEARCH_ANDROID_SETTINGS)
+                        SettingsRowToggle(
+                            title = "Android Settings",
+                            subtitle = "Open Settings Pages Such as Battery & Wi-Fi Directly.",
+                            icon = Icons.Outlined.Settings,
+                            isChecked = searchAndroidSettings,
+                            onCheckedChange = { searchAndroidSettings = it },
                             showDivider = false
                         )
                     }

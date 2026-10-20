@@ -98,6 +98,8 @@ android {
           if (project.hasProperty("skipScreenshots")) test.exclude("**/screenshots/**")
           // The layout audit renders every screen at many device sizes and text sizes; it runs only on request
           // (-PlayoutAudit) and writes its report and captures to build/layout-audit.
+          // Gradle's default 512 MB isn't enough for this many Robolectric and screenshot tests in one worker.
+          test.maxHeapSize = "2g"
           // Widget doodles follow the date; an ordinary day keeps screenshots from changing on holidays.
           test.systemProperty("intelligentsearch.doodleDate", "2026-03-03")
           test.systemProperty("layoutAudit", if (project.hasProperty("layoutAudit")) "true" else "false")

@@ -20,6 +20,7 @@ import dagger.hilt.components.SingletonComponent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -28,6 +29,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowChoreographer
 import javax.inject.Singleton
 
 /** Text selected or shared in another app arrives in the search overlay's field, both on a fresh open and an open one. */
@@ -53,7 +55,14 @@ class SelectedTextOverlayTest {
     fun setUp() {
         hilt.inject()
         context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
+        // The overlay runs endless animations. Robolectric moves its clock on every frame and each frame asks for the
+        // next, so the looper would never go idle; these tests check what is opened and typed, not what is drawn, so
+        // frames run only when asked for.
+        ShadowChoreographer.setPaused(true)
     }
+
+    @After
+    fun resumeFrames() = ShadowChoreographer.setPaused(false)
 
     /** What the selection entry starts for [intent], as the overlay receives it. */
     private fun forwarded(intent: Intent): Intent {
@@ -131,14 +140,17 @@ class SelectedTextOverlayTest {
     fun anOverlayRestoredAfterTheOverlayIsTurnedOffNeverWebSearchesItsOldQuery() {
         val selection = Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain").putExtra(Intent.EXTRA_PROCESS_TEXT, "private note")
         val launch = forwarded(selection)
-        val first = Robolectric.buildActivity(WidgetActivity::class.java, launch).setup()
         val state = android.os.Bundle()
-        first.pause().saveInstanceState(state).stop()
+        // The process is killed while the overlay is in the background: the first instance is gone when Android
+        // restores it. (Left alive, its running animations would also keep Robolectric's looper busy forever.)
+        Robolectric.buildActivity(WidgetActivity::class.java, launch).setup()
+            .pause().saveInstanceState(state).stop().destroy()
 
         // Android restores the activity from its original launch intent, which still holds the query.
         turnOverlayOff()
-        val restored = Robolectric.buildActivity(WidgetActivity::class.java, launch).create(state).get()
-        val started = startedBy(restored)
+        val restored = Robolectric.buildActivity(WidgetActivity::class.java, launch).create(state)
+        val started = startedBy(restored.get())
+        restored.destroy()
         assertTrue(started.none { it.action == Intent.ACTION_WEB_SEARCH && it.hasExtra(SearchManager.QUERY) })
         assertTrue(started.none { carries(it, "private note") })
     }

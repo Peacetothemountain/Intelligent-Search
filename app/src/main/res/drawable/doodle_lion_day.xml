@@ -13,7 +13,7 @@
                 <path android:fillColor="#FF188038" android:pathData="M4.3,37.3a3.3,1.2 0,1 0,6.6 0a3.3,1.2 0,1 0,-6.6 0ZM9,37.9a2.6,1 0,1 0,5.2 0a2.6,1 0,1 0,-5.2 0Z" />
                 <path android:fillColor="#FF34A853" android:pathData="M4.4,36.9a3.2,1.1 0,1 0,6.4 0a3.2,1.1 0,1 0,-6.4 0ZM9.1,37.5a2.5,0.95 0,1 0,5 0a2.5,0.95 0,1 0,-5 0Z" />
             </group>
-            <path android:strokeColor="#FF34A853" android:strokeWidth="0.4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M6.2,44.4L6.8,43.2L7.4,44.4M11.8,44.4L12.4,43.4L13,44.4" />
+            <path android:strokeColor="#FF34A853" android:strokeWidth="0.4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M8,44L8.6,42.8L9.2,44M11.8,44.4L12.4,43.4L13,44.4" />
 
             <!-- Butterfly -->
             <group android:name="butterfly" android:translateX="7" android:translateY="27" android:rotation="10">

@@ -56,7 +56,7 @@ class DoodleArtGoldenTest(private val occasion: Occasion) {
      * Puts every animator of a doodle at one moment of the loop as a phone would show it. Robolectric can't run them
      * itself: it plays "infinite" animations once and its frame clock skips ahead.
      */
-    private class Timeline(drawable: AnimatedVectorDrawable) {
+    internal class Timeline(drawable: AnimatedVectorDrawable) {
         private val animators: List<ValueAnimator>
 
         init {

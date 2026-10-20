@@ -4,6 +4,8 @@ import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -32,37 +34,53 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.pixel.intelligentsearch.core.haptics.rememberTactileSonicEngine
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
 import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
-import com.pixel.intelligentsearch.feature.settings.performClickHaptic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
  * The Best Match card's contact buttons: labelled chips like an app's quick actions, so WhatsApp and WhatsApp
- * Business stay told apart. TalkBack reads each chip's full description ("Message Alex on WhatsApp").
+ * Business stay told apart. TalkBack reads each chip's full description ("Message Alex on WhatsApp"). They feel and
+ * act like the card's own contact row: a tick on press, a click on release, and the keyboard put away.
  */
 @Composable
 internal fun ContactActionChips(actions: List<ContactAction>, activeIconPack: String, onLaunched: () -> Unit) {
     val context = LocalContext.current
+    val view = LocalView.current
+    val sensoryEngine = rememberTactileSonicEngine()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     Row(
         modifier = Modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         actions.forEach { action ->
+            val interactionSource = remember { MutableInteractionSource() }
+            val isPressed by interactionSource.collectIsPressedAsState()
+            LaunchedEffect(isPressed) {
+                if (isPressed) sensoryEngine.tick(view)
+            }
             AssistChip(
                 onClick = {
-                    performClickHaptic(context)
+                    sensoryEngine.click(view)
                     onLaunched()
+                    focusManager.clearFocus(force = true)
+                    keyboardController?.hide()
                     launchSafeIntent(context, Intent(action.intent))
                 },
+                interactionSource = interactionSource,
                 label = {
                     Text(
                         action.kind.label,

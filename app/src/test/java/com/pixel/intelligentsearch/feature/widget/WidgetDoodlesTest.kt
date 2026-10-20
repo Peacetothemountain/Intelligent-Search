@@ -3,6 +3,10 @@ package com.pixel.intelligentsearch.feature.widget
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.pm.ResolveInfo
+import androidx.core.net.toUri
+import org.robolectric.Shadows.shadowOf
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -79,24 +83,35 @@ class WidgetDoodlesTest {
     }
 
     @Test
-    fun tappingADoodleSearchesForTheDayInTheSearchOverlay() {
-        prefs.edit().put(SettingsManager.SEARCH_OVERLAY_ENABLED, true).commit()
+    fun tappingADoodleOpensTheDaysWebSearchStraightAway() {
+        prefs.edit().put(SettingsManager.SEARCH_ENGINE, "Google").commit()
         val intent = SearchWidgetProvider.doodleSearchIntent(context, prefs, appWidgetId = 7, doodle = Occasion.HALLOWEEN)
 
-        assertEquals(WidgetActivity::class.java.name, intent.component?.className)
+        // No Google app here, so the system's own web search answers it.
+        assertEquals(Intent.ACTION_WEB_SEARCH, intent.action)
         assertEquals("Halloween", intent.getStringExtra(SearchManager.QUERY))
-        // A different intent from the search bar's own, so neither tap replaces the other.
-        val bar = SearchWidgetProvider.mainSearchIntent(context, prefs, appWidgetId = 7)
-        assertNull(bar.getStringExtra(SearchManager.QUERY))
-        assertEquals(false, bar.filterEquals(intent))
     }
 
     @Test
-    fun withTheOverlayOffADoodleSearchesTheWeb() {
-        prefs.edit().put(SettingsManager.SEARCH_OVERLAY_ENABLED, false).commit()
+    fun aDoodleSearchesWithTheChosenEngine() {
+        prefs.edit().put(SettingsManager.SEARCH_ENGINE, "DuckDuckGo").commit()
+        shadowOf(context.packageManager).addResolveInfoForIntent(
+            Intent(Intent.ACTION_VIEW, "https://duckduckgo.com/?q=Pi%20Day".toUri()),
+            ResolveInfo().apply { activityInfo = ActivityInfo().apply { packageName = "browser"; name = "Browser" } }
+        )
+        val intent = SearchWidgetProvider.doodleSearchIntent(context, prefs, appWidgetId = 7, doodle = Occasion.PI_DAY)
+
+        assertEquals(Intent.ACTION_VIEW, intent.action)
+        assertEquals("https://duckduckgo.com/?q=Pi%20Day", intent.dataString)
+    }
+
+    @Test
+    fun withTorButNoTorBrowserADoodleOpensTheSearchBarInstead() {
+        prefs.edit().put(SettingsManager.SEARCH_ENGINE, "Tor Browser").put(SettingsManager.SEARCH_OVERLAY_ENABLED, true).commit()
         val intent = SearchWidgetProvider.doodleSearchIntent(context, prefs, appWidgetId = 7, doodle = Occasion.FIRST_DAY_OF_SPRING)
 
-        assertEquals(Intent.ACTION_WEB_SEARCH, intent.action)
+        // Never a normal browser for a Tor user: the day is typed into the search bar.
+        assertEquals(WidgetActivity::class.java.name, intent.component?.className)
         assertEquals("First Day of Spring", intent.getStringExtra(SearchManager.QUERY))
     }
 }

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mother's Day: a bunch of tulips sways beside the G and a heart beats above it.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <group android:name="heart" android:translateX="39.5" android:translateY="9">
+                <path android:fillColor="#FFE52592" android:pathData="M0,3C-1,2.2 -3.3,0.7 -3.3,-1C-3.3,-2.2 -2.4,-3 -1.5,-3C-0.8,-3 -0.25,-2.6 0,-2C0.25,-2.6 0.8,-3 1.5,-3C2.4,-3 3.3,-2.2 3.3,-1C3.3,0.7 1,2.2 0,3Z" />
+            </group>
+
+            <!-- Tulips tied at the bottom right -->
+            <group android:name="bunch" android:pivotX="41.5" android:pivotY="47">
+                <path android:pathData="M41.5,47Q40,42 37,36.6 M41.5,47L41.5,34.6 M41.5,47Q43.4,42 46,37.6" android:strokeColor="#FF34A853" android:strokeLineCap="round" android:strokeWidth="0.7" />
+                <path android:fillColor="#FF5BB974" android:pathData="M40.8,45C39,44.6 38,43 38.2,41.8C39.8,42.2 40.8,43.4 40.8,45Z M42.2,44.4C43.8,44 44.8,42.6 44.6,41.4C43.2,41.8 42.2,43 42.2,44.4Z" />
+                <path android:fillColor="#FFF06292" android:pathData="M35.2,35.6L35.2,37.6C35.2,38.8 38.8,38.8 38.8,37.6L38.8,35.6L38,36.4L37,35L36,36.4Z" />
+                <path android:fillColor="#FFEA4335" android:pathData="M39.7,33.6L39.7,35.6C39.7,36.8 43.3,36.8 43.3,35.6L43.3,33.6L42.5,34.4L41.5,33L40.5,34.4Z" />
+                <path android:fillColor="#FFA142F4" android:pathData="M44.2,36.6L44.2,38.6C44.2,39.8 47.8,39.8 47.8,38.6L47.8,36.6L47,37.4L46,36L45,37.4Z" />
+                <path android:fillColor="#FFFBBC04" android:pathData="M40.2,45.4L42.8,45.4L42.8,46.6L40.2,46.6Z" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="heart">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1400" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.12" android:value="1.22" />
+                    <keyframe android:fraction="0.24" android:value="1" />
+                    <keyframe android:fraction="0.36" android:value="1.15" />
+                    <keyframe android:fraction="0.5" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.12" android:value="1.22" />
+                    <keyframe android:fraction="0.24" android:value="1" />
+                    <keyframe android:fraction="0.36" android:value="1.15" />
+                    <keyframe android:fraction="0.5" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="bunch">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1800" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-5" android:valueTo="4" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

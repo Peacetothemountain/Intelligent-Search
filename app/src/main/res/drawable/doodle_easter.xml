@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Easter: bunny ears poke up from behind the G and twitch, and two painted eggs wobble beside it.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <!-- Ears, each pivoting at its base on the G's top edge -->
+            <group android:name="ear_left" android:rotation="-14" android:translateX="20.5" android:translateY="15">
+                <path android:fillColor="#FFF8F9FA" android:pathData="M-1.7,0C-2.3,-3 -1.9,-8.4 0,-9.6C1.9,-8.4 2.3,-3 1.7,0Z" android:strokeColor="#FFBDC1C6" android:strokeWidth="0.5" />
+                <path android:fillColor="#FFF8BBD0" android:pathData="M-0.8,-0.9C-1.1,-3 -0.9,-6.9 0,-7.8C0.9,-6.9 1.1,-3 0.8,-0.9Z" />
+            </group>
+            <group android:name="ear_right" android:rotation="12" android:translateX="27.5" android:translateY="14.6">
+                <path android:fillColor="#FFF8F9FA" android:pathData="M-1.7,0C-2.3,-3 -1.9,-8.4 0,-9.6C1.9,-8.4 2.3,-3 1.7,0Z" android:strokeColor="#FFBDC1C6" android:strokeWidth="0.5" />
+                <path android:fillColor="#FFF8BBD0" android:pathData="M-0.8,-0.9C-1.1,-3 -0.9,-6.9 0,-7.8C0.9,-6.9 1.1,-3 0.8,-0.9Z" />
+            </group>
+
+            <!-- Eggs, each rocking on its base -->
+            <group android:name="egg_1" android:translateX="39.4" android:translateY="45">
+                <path android:fillColor="#FF8AB4F8" android:pathData="M0,0C-2.4,0 -3,-2.2 -2.6,-3.6C-2.2,-5.2 -1,-6.2 0,-6.2C1,-6.2 2.2,-5.2 2.6,-3.6C3,-2.2 2.4,0 0,0Z" />
+                <path android:pathData="M-2.5,-3L-1.25,-2L0,-3L1.25,-2L2.5,-3" android:strokeColor="#FFFFFFFF" android:strokeLineJoin="round" android:strokeWidth="0.55" />
+                <path android:pathData="M-2,-4.8L2,-4.8" android:strokeColor="#FF4285F4" android:strokeWidth="0.5" />
+            </group>
+            <group android:name="egg_2" android:scaleX="0.85" android:scaleY="0.85" android:translateX="44.8" android:translateY="45">
+                <path android:fillColor="#FFFDD663" android:pathData="M0,0C-2.4,0 -3,-2.2 -2.6,-3.6C-2.2,-5.2 -1,-6.2 0,-6.2C1,-6.2 2.2,-5.2 2.6,-3.6C3,-2.2 2.4,0 0,0Z" />
+                <path android:fillColor="#FFE52592" android:pathData="M-1.6,-2.4a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M0.6,-3.6a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M-0.4,-5a0.45,0.45 0,1 0,0.9 0a0.45,0.45 0,1 0,-0.9 0Z M0.4,-1.2a0.45,0.45 0,1 0,0.9 0a0.45,0.45 0,1 0,-0.9 0Z" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="ear_right">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="12" />
+                    <keyframe android:fraction="0.6" android:value="12" />
+                    <keyframe android:fraction="0.66" android:value="30" />
+                    <keyframe android:fraction="0.72" android:value="8" />
+                    <keyframe android:fraction="0.78" android:value="18" />
+                    <keyframe android:fraction="0.84" android:value="12" />
+                    <keyframe android:fraction="1" android:value="12" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="ear_left">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-14" />
+                    <keyframe android:fraction="0.2" android:value="-14" />
+                    <keyframe android:fraction="0.26" android:value="-24" />
+                    <keyframe android:fraction="0.34" android:value="-10" />
+                    <keyframe android:fraction="0.4" android:value="-14" />
+                    <keyframe android:fraction="1" android:value="-14" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="egg_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1200" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-10" android:valueTo="10" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="egg_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1500" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="8" android:valueTo="-8" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

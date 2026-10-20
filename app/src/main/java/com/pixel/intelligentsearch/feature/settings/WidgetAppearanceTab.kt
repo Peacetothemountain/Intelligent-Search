@@ -92,7 +92,7 @@ internal fun WidgetAppearanceTab(
         AnimatedVisibility(visible = localShowGIcon) {
             SettingsRowToggle(
                 title = "Doodles",
-                subtitle = "Animates the G on Holidays and the First Day of Each Season. Tap It to Search for the Day.",
+                subtitle = "Show Mini Doodles Around the G Icon for Holidays and Special Events.",
                 icon = Icons.Outlined.Celebration,
                 isChecked = localShowDoodles,
                 onCheckedChange = { localShowDoodles = it },

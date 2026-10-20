@@ -102,7 +102,7 @@ Built with Jetpack Compose, Material 3 Expressive, Material You dynamic color an
       <ul>
         <li>Resizable System Design and Material Design search bar widgets.</li>
         <li>Color Studio, custom action buttons and G icon styles, with a live preview.</li>
-        <li>Animated doodles around the G on holidays and the first day of each season, drawn on your phone.</li>
+        <li>Animated mini doodles around the G on 34 holidays and special days, drawn on your phone; tap one to search for the day.</li>
         <li>A Quick Settings tile and launcher app shortcuts; the widget keeps working before first unlock.</li>
       </ul>
     </td>

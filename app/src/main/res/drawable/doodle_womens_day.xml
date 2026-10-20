@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- International Women's Day: a sprig of mimosa sways beside the G under twinkling purple stars.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <group android:name="star_1" android:translateX="39" android:translateY="8">
+                <path android:fillColor="#FFA142F4" android:pathData="M0,-3Q0.45,-0.45 3,0Q0.45,0.45 0,3Q-0.45,0.45 -3,0Q-0.45,-0.45 0,-3Z" />
+            </group>
+            <group android:name="star_2" android:scaleX="0.6" android:scaleY="0.6" android:translateX="46" android:translateY="16">
+                <path android:fillColor="#FFC58AF9" android:pathData="M0,-3Q0.45,-0.45 3,0Q0.45,0.45 0,3Q-0.45,0.45 -3,0Q-0.45,-0.45 0,-3Z" />
+            </group>
+            <group android:name="star_3" android:scaleX="0.7" android:scaleY="0.7" android:translateX="8" android:translateY="15">
+                <path android:fillColor="#FFA142F4" android:pathData="M0,-3Q0.45,-0.45 3,0Q0.45,0.45 0,3Q-0.45,0.45 -3,0Q-0.45,-0.45 0,-3Z" />
+            </group>
+
+            <!-- Mimosa, rooted at the bottom right -->
+            <group android:name="sprig" android:pivotX="44" android:pivotY="47">
+                <path android:pathData="M44,47C42,43 40,39 36.5,35.5 M41.6,41.5C43.5,39.5 45,38.5 46.5,38" android:strokeColor="#FF34A853" android:strokeLineCap="round" android:strokeWidth="0.7" />
+                <path android:fillColor="#FF5BB974" android:pathData="M42.8,44.4C41.2,44.2 40.2,43 40.2,42C41.6,42.2 42.6,43.2 42.8,44.4Z M40.4,40.4C41.6,40 42.2,38.8 42,37.8C40.8,38.2 40.2,39.4 40.4,40.4Z" />
+                <path android:fillColor="#FFFBBC04" android:pathData="M35,35a1.2,1.2 0,1 0,2.4 0a1.2,1.2 0,1 0,-2.4 0Z M36.8,33.4a1.1,1.1 0,1 0,2.2 0a1.1,1.1 0,1 0,-2.2 0Z M37.4,36.4a1.1,1.1 0,1 0,2.2 0a1.1,1.1 0,1 0,-2.2 0Z M34,37.2a1,1 0,1 0,2 0a1,1 0,1 0,-2 0Z M45.4,37.6a1.2,1.2 0,1 0,2.4 0a1.2,1.2 0,1 0,-2.4 0Z M44.6,35.6a1,1 0,1 0,2 0a1,1 0,1 0,-2 0Z M38.6,38.6a1,1 0,1 0,2 0a1,1 0,1 0,-2 0Z" />
+                <path android:fillColor="#FFFDD663" android:pathData="M35.4,34.6a0.5,0.5 0,1 0,1 0a0.5,0.5 0,1 0,-1 0Z M37.2,33a0.45,0.45 0,1 0,0.9 0a0.45,0.45 0,1 0,-0.9 0Z M45.8,37.2a0.5,0.5 0,1 0,1 0a0.5,0.5 0,1 0,-1 0Z" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="sprig">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1700" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-4" android:valueTo="5" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="star_1">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="90" android:valueType="floatType" />
+                <objectAnimator android:duration="900" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.6" android:valueType="floatType" />
+                <objectAnimator android:duration="900" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.6" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="star_2">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1200" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0.6" android:valueTo="0.25" android:valueType="floatType" />
+                <objectAnimator android:duration="1200" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0.6" android:valueTo="0.25" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="star_3">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1050" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0.35" android:valueTo="0.75" android:valueType="floatType" />
+                <objectAnimator android:duration="1050" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0.35" android:valueTo="0.75" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+</animated-vector>

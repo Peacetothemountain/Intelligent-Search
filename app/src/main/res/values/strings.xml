@@ -40,4 +40,27 @@
     <string name="occasion_halloween">Halloween</string>
     <string name="occasion_holidays">Happy Holidays</string>
     <string name="occasion_new_years_eve">New Year\'s Eve</string>
+    <string name="occasion_lunar_new_year">Lunar New Year</string>
+    <string name="occasion_groundhog_day">Groundhog Day</string>
+    <string name="occasion_womens_day">International Women\'s Day</string>
+    <string name="occasion_pi_day">Pi Day</string>
+    <string name="occasion_st_patricks_day">St. Patrick\'s Day</string>
+    <string name="occasion_april_fools_day">April Fools\' Day</string>
+    <string name="occasion_easter">Easter</string>
+    <string name="occasion_mothers_day">Mother\'s Day</string>
+    <string name="occasion_bee_day">World Bee Day</string>
+    <string name="occasion_oceans_day">World Oceans Day</string>
+    <string name="occasion_fathers_day">Father\'s Day</string>
+    <string name="occasion_canada_day">Canada Day</string>
+    <string name="occasion_independence_day">Fourth of July</string>
+    <string name="occasion_chocolate_day">World Chocolate Day</string>
+    <string name="occasion_emoji_day">World Emoji Day</string>
+    <string name="occasion_moon_day">Moon Day</string>
+    <string name="occasion_cat_day">International Cat Day</string>
+    <string name="occasion_dog_day">International Dog Day</string>
+    <string name="occasion_pirate_day">Talk Like a Pirate Day</string>
+    <string name="occasion_coffee_day">International Coffee Day</string>
+    <string name="occasion_teachers_day">World Teachers\' Day</string>
+    <string name="occasion_kindness_day">World Kindness Day</string>
+    <string name="occasion_thanksgiving">Thanksgiving</string>
 </resources>

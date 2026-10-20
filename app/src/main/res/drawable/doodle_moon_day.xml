@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Moon Day: a rocket orbits the G past a crescent moon while stars twinkle.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <path android:name="star_1" android:fillColor="#FFFDD663" android:pathData="M45,25.4Q45.2,26.8 46.6,27Q45.2,27.2 45,28.6Q44.8,27.2 43.4,27Q44.8,26.8 45,25.4Z" />
+            <path android:name="star_2" android:fillAlpha="0.4" android:fillColor="#FFFDD663" android:pathData="M10,8.6Q10.15,9.85 11.4,10Q10.15,10.15 10,11.4Q9.85,10.15 8.6,10Q9.85,9.85 10,8.6Z" />
+            <path android:name="star_3" android:fillColor="#FFFDD663" android:pathData="M34,42.8Q34.15,43.85 35.2,44Q34.15,44.15 34,45.2Q33.85,44.15 32.8,44Q33.85,43.85 34,42.8Z" />
+
+            <!-- Crescent moon with craters -->
+            <path android:fillColor="#FFFDD663" android:pathData="M41,4A5,5 0,0 0,41 14A6.4,6.4 0,0 1,41 4Z" />
+            <path android:fillColor="#FFF9AB00" android:pathData="M37.6,7.6a0.7,0.7 0,1 0,1.4 0a0.7,0.7 0,1 0,-1.4 0Z M37.4,11a0.5,0.5 0,1 0,1 0a0.5,0.5 0,1 0,-1 0Z" />
+
+            <!-- The orbit: the rocket sits above the G and the whole group turns about the G's centre. -->
+            <group android:name="orbit" android:pivotX="24" android:pivotY="24">
+                <group android:translateX="24" android:translateY="5.6">
+                    <group android:name="flame" android:pivotX="-3">
+                        <path android:fillColor="#FFFA7B17" android:pathData="M-3,-0.8L-5.8,0L-3,0.8Z" />
+                        <path android:fillColor="#FFFBBC04" android:pathData="M-3,-0.4L-4.6,0L-3,0.4Z" />
+                    </group>
+                    <path android:fillColor="#FFEA4335" android:pathData="M-3,-1.2L-4.2,-2.6L-1.6,-1.2Z M-3,1.2L-4.2,2.6L-1.6,1.2Z" />
+                    <path android:fillColor="#FFF8F9FA" android:pathData="M-3,-1.2L2,-1.2C3,-1.2 4,-0.6 4.4,0C4,0.6 3,1.2 2,1.2L-3,1.2Z" android:strokeColor="#FF9AA0A6" android:strokeWidth="0.3" />
+                    <path android:fillColor="#FF4285F4" android:pathData="M0.4,0a0.6,0.6 0,1 0,1.2 0a0.6,0.6 0,1 0,-1.2 0Z" />
+                </group>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="orbit">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="5200" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="360" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="flame">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="120" android:interpolator="@android:interpolator/linear" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.6" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="star_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="900" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="fillAlpha" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.2" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="star_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1200" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="fillAlpha" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0.4" android:valueTo="1" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="star_3">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1000" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="fillAlpha" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.3" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- World Oceans Day: waves roll under the G while a fish leaps out of them and dives back in, trailing bubbles.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <!-- The sea fills the bottom right; the waves repeat every 12 units, so sliding them that far loops. -->
+            <group>
+                <clip-path android:pathData="M12,48Q22,37 48,37L48,48Z" />
+                <group android:name="wave_back" android:translateY="-1.4">
+                    <path android:fillColor="#FF8AB4F8" android:pathData="M-12,40Q-9,38 -6,40T0,40T6,40T12,40T18,40T24,40T30,40T36,40T42,40T48,40T54,40T60,40L60,48L-12,48Z" />
+                </group>
+            </group>
+
+            <group android:name="bubble_1" android:translateX="28" android:translateY="44">
+                <path android:fillColor="#00000000" android:pathData="M-0.6,0a0.6,0.6 0,1 0,1.2 0a0.6,0.6 0,1 0,-1.2 0Z" android:strokeColor="#FF4285F4" android:strokeWidth="0.35" />
+            </group>
+
+            <group android:name="fish" android:translateX="30" android:translateY="47">
+                <path android:fillColor="#FFFA7B17" android:pathData="M-3,0C-2,-1.8 1.5,-1.8 3,0C1.5,1.8 -2,1.8 -3,0Z M-2.6,0L-4.4,-1.4L-4.4,1.4Z" />
+                <path android:fillColor="#FFFFFFFF" android:pathData="M1.3,-0.4a0.45,0.45 0,1 0,0.9 0a0.45,0.45 0,1 0,-0.9 0Z" />
+                <path android:fillColor="#FF202124" android:pathData="M1.6,-0.4a0.2,0.2 0,1 0,0.4 0a0.2,0.2 0,1 0,-0.4 0Z" />
+            </group>
+
+            <group>
+                <clip-path android:pathData="M12,48Q22,37 48,37L48,48Z" />
+                <group android:name="wave_front">
+                    <path android:fillColor="#FF4285F4" android:pathData="M-12,42Q-9,40 -6,42T0,42T6,42T12,42T18,42T24,42T30,42T36,42T42,42T48,42T54,42T60,42L60,48L-12,48Z" />
+                </group>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="wave_back">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="3000" android:interpolator="@android:interpolator/linear" android:propertyName="translateX" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="-12" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="wave_front">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2000" android:interpolator="@android:interpolator/linear" android:propertyName="translateX" android:repeatCount="infinite" android:valueFrom="-12" android:valueTo="0" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <!-- 2.8s: under water, leap in an arc nose first, dive back under. -->
+    <target android:name="fish">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2800" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="30" />
+                    <keyframe android:fraction="0.2" android:value="30" />
+                    <keyframe android:fraction="0.8" android:value="43" />
+                    <keyframe android:fraction="1" android:value="43" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="47" />
+                    <keyframe android:fraction="0.2" android:value="47" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/decelerate_quad" android:value="32" />
+                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/accelerate_quad" android:value="47" />
+                    <keyframe android:fraction="1" android:value="47" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-55" />
+                    <keyframe android:fraction="0.2" android:value="-55" />
+                    <keyframe android:fraction="0.5" android:value="0" />
+                    <keyframe android:fraction="0.8" android:value="55" />
+                    <keyframe android:fraction="1" android:value="55" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="bubble_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2800" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="44" />
+                    <keyframe android:fraction="0.25" android:value="44" />
+                    <keyframe android:fraction="0.6" android:value="36" />
+                    <keyframe android:fraction="0.601" android:value="44" />
+                    <keyframe android:fraction="1" android:value="44" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.25" android:value="0" />
+                    <keyframe android:fraction="0.3" android:value="1" />
+                    <keyframe android:fraction="0.55" android:value="1.3" />
+                    <keyframe android:fraction="0.6" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.25" android:value="0" />
+                    <keyframe android:fraction="0.3" android:value="1" />
+                    <keyframe android:fraction="0.55" android:value="1.3" />
+                    <keyframe android:fraction="0.6" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

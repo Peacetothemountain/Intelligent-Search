@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- World Chocolate Day: a bitten chocolate bar melts beside the G, dripping, while a chocolate heart beats above.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <group android:name="heart" android:translateX="39.5" android:translateY="9">
+                <path android:fillColor="#FF8D6E63" android:pathData="M0,3C-1,2.2 -3.3,0.7 -3.3,-1C-3.3,-2.2 -2.4,-3 -1.5,-3C-0.8,-3 -0.25,-2.6 0,-2C0.25,-2.6 0.8,-3 1.5,-3C2.4,-3 3.3,-2.2 3.3,-1C3.3,0.7 1,2.2 0,3Z" />
+                <path android:fillAlpha="0.5" android:fillColor="#FFFFFFFF" android:pathData="M-2.6,-1.2a0.6,0.8 0,1 0,1.2 0a0.6,0.8 0,1 0,-1.2 0Z" />
+            </group>
+
+            <group android:rotation="-14" android:translateX="40.5" android:translateY="38">
+                <!-- Drip hanging from the bar's bottom edge -->
+                <group android:name="drip" android:pivotY="3" android:scaleY="1">
+                    <path android:fillColor="#FF6D4C41" android:pathData="M0.6,3L1.8,3L1.8,4.4C1.8,5.3 0.6,5.3 0.6,4.4Z" />
+                </group>
+                <group android:name="drop" android:translateX="1.2" android:translateY="5.6">
+                    <path android:name="drop_path" android:fillAlpha="0" android:fillColor="#FF6D4C41" android:pathData="M-0.5,0a0.5,0.6 0,1 0,1 0a0.5,0.6 0,1 0,-1 0Z" />
+                </group>
+                <!-- Bar with a bite out of its corner, and its foil -->
+                <path android:fillColor="#FF6D4C41" android:pathData="M-4,-3L1.6,-3C1.4,-1.8 2.6,-1.2 3.2,-1.9C3.4,-1.1 4.3,-0.7 4,0.1L4,3L-4,3Z" />
+                <path android:pathData="M-1.2,-3L-1.2,3 M1.4,-1.4L1.4,3 M-4,0L4,0" android:strokeColor="#FF8D6E63" android:strokeWidth="0.4" />
+                <path android:fillColor="#FFBDC1C6" android:pathData="M-4.5,-3.4L-2,-3.4L-2.4,3.4L-4.5,3.4Z" />
+                <path android:fillColor="#FFEA4335" android:pathData="M-4.5,-1L-2.2,-1L-2.3,1L-4.5,1Z" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="heart">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="900" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="1.12" android:valueType="floatType" />
+                <objectAnimator android:duration="900" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="1.12" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+
+    <!-- 2.4s: the drip swells, a drop falls from it, the drip shrinks back. -->
+    <target android:name="drip">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2400" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_quad" android:value="1.6" />
+                    <keyframe android:fraction="0.56" android:interpolator="@android:interpolator/decelerate_quad" android:value="0.8" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="drop">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2400" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="6.4" />
+                    <keyframe android:fraction="0.52" android:value="6.4" />
+                    <keyframe android:fraction="0.75" android:interpolator="@android:interpolator/accelerate_quad" android:value="10" />
+                    <keyframe android:fraction="1" android:value="10" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="drop_path">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2400" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.52" android:value="0" />
+                    <keyframe android:fraction="0.54" android:value="1" />
+                    <keyframe android:fraction="0.72" android:value="1" />
+                    <keyframe android:fraction="0.76" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

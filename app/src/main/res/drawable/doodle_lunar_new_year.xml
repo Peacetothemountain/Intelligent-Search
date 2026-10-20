@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lunar New Year: two red lanterns sway above the G's shoulder while gold sparkles twinkle.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <path android:name="spark_1" android:fillColor="#FFFBBC04" android:pathData="M8,9.4Q8.3,11.7 10.6,12Q8.3,12.3 8,14.6Q7.7,12.3 5.4,12Q7.7,11.7 8,9.4Z" />
+            <path android:name="spark_2" android:fillAlpha="0.4" android:fillColor="#FFFBBC04" android:pathData="M7,34.6Q7.2,36.3 8.9,36.5Q7.2,36.7 7,38.4Q6.8,36.7 5.1,36.5Q6.8,36.3 7,34.6Z" />
+            <path android:name="spark_3" android:fillColor="#FFFDD663" android:pathData="M43,38.6Q43.2,40.3 44.9,40.5Q43.2,40.7 43,42.4Q42.8,40.7 41.1,40.5Q42.8,40.3 43,38.6Z" />
+
+            <!-- Each lantern hangs from its string's top, its pivot. -->
+            <group android:name="lantern_1" android:translateX="38.5" android:translateY="-1">
+                <path android:pathData="M0,0L0,3.2" android:strokeColor="#FFF9AB00" android:strokeWidth="0.5" />
+                <path android:fillColor="#FFF9AB00" android:pathData="M-1.6,3L1.6,3L1.6,4.1L-1.6,4.1Z M-1.4,11L1.4,11L1.4,11.9L-1.4,11.9Z" />
+                <path android:fillColor="#FFEA4335" android:pathData="M-3.6,7.5a3.6,3.5 0,1 0,7.2 0a3.6,3.5 0,1 0,-7.2 0Z" />
+                <path android:pathData="M0,4.1L0,11 M-2,4.4Q-3.4,7.5 -2,10.6 M2,4.4Q3.4,7.5 2,10.6" android:strokeColor="#FFC5221F" android:strokeWidth="0.4" />
+                <path android:pathData="M-0.5,11.9L-0.5,14.3 M0,11.9L0,14.8 M0.5,11.9L0.5,14.3" android:strokeColor="#FFF9AB00" android:strokeLineCap="round" android:strokeWidth="0.4" />
+            </group>
+            <group android:name="lantern_2" android:scaleX="0.7" android:scaleY="0.7" android:translateX="45.2" android:translateY="1">
+                <path android:pathData="M0,0L0,3.2" android:strokeColor="#FFF9AB00" android:strokeWidth="0.5" />
+                <path android:fillColor="#FFF9AB00" android:pathData="M-1.6,3L1.6,3L1.6,4.1L-1.6,4.1Z M-1.4,11L1.4,11L1.4,11.9L-1.4,11.9Z" />
+                <path android:fillColor="#FFEA4335" android:pathData="M-3.6,7.5a3.6,3.5 0,1 0,7.2 0a3.6,3.5 0,1 0,-7.2 0Z" />
+                <path android:pathData="M0,4.1L0,11 M-2,4.4Q-3.4,7.5 -2,10.6 M2,4.4Q3.4,7.5 2,10.6" android:strokeColor="#FFC5221F" android:strokeWidth="0.4" />
+                <path android:pathData="M-0.5,11.9L-0.5,14.3 M0,11.9L0,14.8 M0.5,11.9L0.5,14.3" android:strokeColor="#FFF9AB00" android:strokeLineCap="round" android:strokeWidth="0.4" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="lantern_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1500" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-8" android:valueTo="8" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="lantern_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1800" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="9" android:valueTo="-7" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="spark_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="900" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="fillAlpha" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.2" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="spark_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1200" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="fillAlpha" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0.4" android:valueTo="1" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="spark_3">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1050" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="fillAlpha" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.3" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

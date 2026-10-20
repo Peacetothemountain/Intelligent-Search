@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- St. Patrick's Day: a rainbow paints itself over the G's shoulder down to a pot of gold, and a shamrock bobs
+     beside the G. See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <!-- Rainbow, outer to inner -->
+            <path android:name="band_1" android:pathData="M30.6,14A8.4,8.4 0,0 1,47.4 14" android:strokeColor="#FFEA4335" android:strokeWidth="1.3" />
+            <path android:name="band_2" android:pathData="M32,14A7,7 0,0 1,46 14" android:strokeColor="#FFFBBC04" android:strokeWidth="1.3" />
+            <path android:name="band_3" android:pathData="M33.4,14A5.6,5.6 0,0 1,44.6 14" android:strokeColor="#FF34A853" android:strokeWidth="1.3" />
+            <path android:name="band_4" android:pathData="M34.8,14A4.2,4.2 0,0 1,43.2 14" android:strokeColor="#FF4285F4" android:strokeWidth="1.3" />
+
+            <!-- Pot of gold -->
+            <path android:fillColor="#FFFBBC04" android:pathData="M37.4,38.8C38.2,36.6 39.8,35.8 41,36C42.4,35.8 43.9,36.7 44.6,38.8Z" />
+            <path android:fillColor="#FF5F6368" android:pathData="M37,39.4L45,39.4C45.6,41.4 45.4,43.6 43.6,44.6L38.4,44.6C36.6,43.6 36.4,41.4 37,39.4Z" />
+            <path android:fillColor="#FF80868B" android:pathData="M36.4,38.6L45.6,38.6L45.6,39.8L36.4,39.8Z" />
+            <path android:name="glint" android:fillColor="#FFFFFFFF" android:pathData="M40,35.2Q40.15,36.25 41.2,36.4Q40.15,36.55 40,37.6Q39.85,36.55 38.8,36.4Q39.85,36.25 40,35.2Z" />
+
+            <!-- Shamrock: three heart-shaped leaves round a stem -->
+            <group android:name="shamrock" android:translateX="8" android:translateY="29">
+                <path android:pathData="M0,0Q0.7,2.4 -0.5,4.2" android:strokeColor="#FF188038" android:strokeLineCap="round" android:strokeWidth="0.7" />
+                <group android:rotation="0">
+                    <path android:fillColor="#FF34A853" android:pathData="M0,0C-1.2,-1 -2.4,-2.2 -1.6,-3.4C-1,-4.2 -0.2,-3.8 0,-3.2C0.2,-3.8 1,-4.2 1.6,-3.4C2.4,-2.2 1.2,-1 0,0Z" />
+                </group>
+                <group android:rotation="120">
+                    <path android:fillColor="#FF34A853" android:pathData="M0,0C-1.2,-1 -2.4,-2.2 -1.6,-3.4C-1,-4.2 -0.2,-3.8 0,-3.2C0.2,-3.8 1,-4.2 1.6,-3.4C2.4,-2.2 1.2,-1 0,0Z" />
+                </group>
+                <group android:rotation="240">
+                    <path android:fillColor="#FF34A853" android:pathData="M0,0C-1.2,-1 -2.4,-2.2 -1.6,-3.4C-1,-4.2 -0.2,-3.8 0,-3.2C0.2,-3.8 1,-4.2 1.6,-3.4C2.4,-2.2 1.2,-1 0,0Z" />
+                </group>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="band_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathStart" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.75" android:value="0" />
+                    <keyframe android:fraction="0.85" android:value="1" />
+                    <keyframe android:fraction="0.851" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.85" android:value="1" />
+                    <keyframe android:fraction="0.851" android:value="0" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="band_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathStart" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.76" android:value="0" />
+                    <keyframe android:fraction="0.86" android:value="1" />
+                    <keyframe android:fraction="0.861" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.86" android:value="1" />
+                    <keyframe android:fraction="0.861" android:value="0" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="band_3">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathStart" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.77" android:value="0" />
+                    <keyframe android:fraction="0.87" android:value="1" />
+                    <keyframe android:fraction="0.871" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.87" android:value="1" />
+                    <keyframe android:fraction="0.871" android:value="0" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="band_4">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathStart" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.78" android:value="0" />
+                    <keyframe android:fraction="0.88" android:value="1" />
+                    <keyframe android:fraction="0.881" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.88" android:value="1" />
+                    <keyframe android:fraction="0.881" android:value="0" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="glint">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="700" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="fillAlpha" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="shamrock">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-12" android:valueTo="12" android:valueType="floatType" />
+                <objectAnimator android:duration="1300" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="29" android:valueTo="27.6" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+</animated-vector>

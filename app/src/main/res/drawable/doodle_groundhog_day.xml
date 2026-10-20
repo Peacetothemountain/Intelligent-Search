@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Groundhog Day: a groundhog pops out of its burrow beside the G, looks around under the sun, and ducks back down.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <!-- Sun -->
+            <group android:name="sun_rays" android:translateX="41" android:translateY="8">
+                <path android:pathData="M0,-4.3L0,-5.6 M0,4.3L0,5.6 M-4.3,0L-5.6,0 M4.3,0L5.6,0 M3,-3L4,-4 M-3,-3L-4,-4 M3,3L4,4 M-3,3L-4,4" android:strokeColor="#FFFBBC04" android:strokeLineCap="round" android:strokeWidth="0.9" />
+            </group>
+            <path android:fillColor="#FFFBBC04" android:pathData="M38,8a3,3 0,1 0,6 0a3,3 0,1 0,-6 0Z" />
+
+            <!-- Burrow -->
+            <path android:fillColor="#FF5D4037" android:pathData="M35,42.2a5.6,1.8 0,1 0,11.2 0a5.6,1.8 0,1 0,-11.2 0Z" />
+
+            <!-- The groundhog shows only above the burrow's mouth. -->
+            <group>
+                <clip-path android:pathData="M30,26L48,26L48,42.2L30,42.2Z" />
+                <group android:name="groundhog" android:translateX="40.6" android:translateY="38">
+                    <path android:fillColor="#FF6D4C41" android:pathData="M-3.6,-3.8a1,1 0,1 0,2 0a1,1 0,1 0,-2 0Z M1.6,-3.8a1,1 0,1 0,2 0a1,1 0,1 0,-2 0Z" />
+                    <path android:fillColor="#FF8D6E63" android:pathData="M-4,0a4,5 0,1 0,8 0a4,5 0,1 0,-8 0Z" />
+                    <path android:fillColor="#FFD7CCC8" android:pathData="M-2.4,1.6a2.4,3 0,1 0,4.8 0a2.4,3 0,1 0,-4.8 0Z" />
+                    <group android:name="groundhog_eyes">
+                        <path android:fillColor="#FF202124" android:pathData="M-1.95,-2a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M0.85,-2a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z" />
+                    </group>
+                    <path android:fillColor="#FF4E342E" android:pathData="M-0.9,-0.6a0.9,0.6 0,1 0,1.8 0a0.9,0.6 0,1 0,-1.8 0Z" />
+                    <path android:fillColor="#FFFFFFFF" android:pathData="M-0.45,0.1L0.45,0.1L0.45,1L-0.45,1Z" />
+                    <path android:fillColor="#FF6D4C41" android:pathData="M-3,3a1,0.7 0,1 0,2 0a1,0.7 0,1 0,-2 0Z M1,3a1,0.7 0,1 0,2 0a1,0.7 0,1 0,-2 0Z" />
+                </group>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="sun_rays">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="3000" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="45" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <!-- 4s: pop up, look left and right, duck back down, wait. -->
+    <target android:name="groundhog">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="38" />
+                    <keyframe android:fraction="0.6" android:value="38" />
+                    <keyframe android:fraction="0.68" android:interpolator="@android:interpolator/accelerate_quad" android:value="48" />
+                    <keyframe android:fraction="0.88" android:value="48" />
+                    <keyframe android:fraction="0.94" android:interpolator="@android:interpolator/decelerate_quad" android:value="37" />
+                    <keyframe android:fraction="1" android:value="38" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="groundhog_eyes">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.1" android:value="0" />
+                    <keyframe android:fraction="0.15" android:value="-0.6" />
+                    <keyframe android:fraction="0.3" android:value="-0.6" />
+                    <keyframe android:fraction="0.35" android:value="0.6" />
+                    <keyframe android:fraction="0.5" android:value="0.6" />
+                    <keyframe android:fraction="0.55" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

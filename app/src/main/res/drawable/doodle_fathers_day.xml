@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Father's Day: the G wears a polka-dot bow tie that wiggles, and a gold "best dad" star spins beside it.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <!-- Bow tie under the G -->
+            <group android:name="bow_tie" android:translateX="24" android:translateY="39.6">
+                <path android:fillColor="#FF4285F4" android:pathData="M-0.9,-0.8L-4.8,-2.8C-5.3,-3 -5.6,-2.7 -5.6,-2.2L-5.6,2.2C-5.6,2.7 -5.3,3 -4.8,2.8L-0.9,0.8Z M0.9,-0.8L4.8,-2.8C5.3,-3 5.6,-2.7 5.6,-2.2L5.6,2.2C5.6,2.7 5.3,3 4.8,2.8L0.9,0.8Z" />
+                <path android:fillColor="#FFFFFFFF" android:pathData="M-4.2,-0.9a0.5,0.5 0,1 0,1 0a0.5,0.5 0,1 0,-1 0Z M-3.2,1.2a0.5,0.5 0,1 0,1 0a0.5,0.5 0,1 0,-1 0Z M3.2,-0.9a0.5,0.5 0,1 0,1 0a0.5,0.5 0,1 0,-1 0Z M2.2,1.2a0.5,0.5 0,1 0,1 0a0.5,0.5 0,1 0,-1 0Z" />
+                <path android:fillColor="#FF1A73E8" android:pathData="M-1.2,-1.2L1.2,-1.2L1.2,1.2L-1.2,1.2Z" />
+            </group>
+
+            <!-- Star badge -->
+            <group android:name="star" android:translateX="40" android:translateY="10">
+                <path android:fillColor="#FFFBBC04" android:pathData="M0,-4.4L1.3,-1.4L4.2,-1.4L1.9,0.6L2.7,3.6L0,1.9L-2.7,3.6L-1.9,0.6L-4.2,-1.4L-1.3,-1.4Z" />
+                <path android:fillColor="#FFFDD663" android:pathData="M0,-2.6L0.6,-1L-0.6,-1Z" />
+            </group>
+            <path android:name="glint" android:fillColor="#FFFDD663" android:pathData="M45.5,15.4Q45.7,16.8 47.1,17Q45.7,17.2 45.5,18.6Q45.3,17.2 43.9,17Q45.3,16.8 45.5,15.4Z" />
+        </vector>
+    </aapt:attr>
+
+    <target android:name="bow_tie">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2400" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.6" android:value="0" />
+                    <keyframe android:fraction="0.66" android:value="-14" />
+                    <keyframe android:fraction="0.74" android:value="12" />
+                    <keyframe android:fraction="0.82" android:value="-6" />
+                    <keyframe android:fraction="0.9" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="star">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="5000" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="72" android:valueType="floatType" />
+                <objectAnimator android:duration="1000" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="1.12" android:valueType="floatType" />
+                <objectAnimator android:duration="1000" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="1.12" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="glint">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="800" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="fillAlpha" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.15" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

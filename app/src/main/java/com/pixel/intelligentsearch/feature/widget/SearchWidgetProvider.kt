@@ -11,6 +11,8 @@ import com.pixel.intelligentsearch.core.data.widget.WidgetDesignSettings
 import com.pixel.intelligentsearch.core.data.widget.WidgetElementColors
 import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
 import com.pixel.intelligentsearch.core.occasion.Occasion
+import com.pixel.intelligentsearch.core.security.SafeWebLaunch
+import com.pixel.intelligentsearch.feature.search.webSearchLaunch
 import androidx.core.graphics.toColorInt
 import android.app.PendingIntent
 import android.app.SearchManager
@@ -927,9 +929,16 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             return intent
         }
 
-        /** Tapping a doodle searches for its day, the same way as typing it into the search bar. */
-        internal fun doodleSearchIntent(context: Context, prefs: SharedPreferences, appWidgetId: Int, doodle: Occasion): Intent =
-            mainSearchIntent(context, prefs, appWidgetId, context.getString(doodle.title))
+        /**
+         * Tapping a doodle opens the web search for its day straight away, as tapping one of Google's does, with the
+         * search engine chosen in settings. If that can't open (Tor without Tor Browser), the search bar opens with
+         * the day typed in instead.
+         */
+        internal fun doodleSearchIntent(context: Context, prefs: SharedPreferences, appWidgetId: Int, doodle: Occasion): Intent {
+            val day = context.getString(doodle.title)
+            val launch = webSearchLaunch(context, prefs[SettingsManager.SEARCH_ENGINE], prefs[SettingsManager.CUSTOM_SEARCH_ENGINE_URL], day)
+            return (launch as? SafeWebLaunch.Launch.Open)?.intent ?: mainSearchIntent(context, prefs, appWidgetId, day)
+        }
 
         /**
          * Sets the G as the design asks, and on a doodle day plays the day's doodle around it (in the G's 48dp slot,

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Talk Like a Pirate Day: the G wears a tricorn hat that tips, and a little ship rocks on the waves beside it.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <!-- Hat on the G's top edge, pivoting on its brim -->
+            <group android:name="hat" android:translateX="24" android:translateY="13.6">
+                <path android:fillColor="#FF5D4037" android:pathData="M-8,0C-6,-1.8 -4.2,-6.2 0,-6.2C4.2,-6.2 6,-1.8 8,0C4.6,-1.2 -4.6,-1.2 -8,0Z" />
+                <path android:pathData="M-8,0C-4.6,-1.2 4.6,-1.2 8,0" android:strokeColor="#FFFBBC04" android:strokeLineCap="round" android:strokeWidth="0.6" />
+                <path android:fillColor="#FFF8F9FA" android:pathData="M-1.1,-3.6a1.1,1 0,1 0,2.2 0a1.1,1 0,1 0,-2.2 0Z M-0.6,-2.8L0.6,-2.8L0.6,-2.2L-0.6,-2.2Z" />
+                <path android:fillColor="#FF202124" android:pathData="M-0.6,-3.7a0.3,0.3 0,1 0,0.6 0a0.3,0.3 0,1 0,-0.6 0Z M0,-3.7a0.3,0.3 0,1 0,0.6 0a0.3,0.3 0,1 0,-0.6 0Z" />
+            </group>
+
+            <!-- Ship and waves -->
+            <group android:name="ship" android:pivotY="2" android:translateX="41" android:translateY="40">
+                <path android:pathData="M0,1.4L0,-6.4" android:strokeColor="#FF5D4037" android:strokeWidth="0.5" />
+                <path android:fillColor="#FFF8F9FA" android:pathData="M0.4,-6L4,-1.6L0.4,-1.6Z M-0.4,-5.2L-3.4,-1.6L-0.4,-1.6Z" android:strokeColor="#FFBDC1C6" android:strokeWidth="0.3" />
+                <path android:fillColor="#FFEA4335" android:pathData="M0,-6.4L2,-5.9L0,-5.4Z" />
+                <path android:fillColor="#FF8D6E63" android:pathData="M-4.8,-0.8L4.8,-0.8L3.4,2L-3.4,2Z" />
+            </group>
+            <group>
+                <clip-path android:pathData="M34,40L48,40L48,46L34,46Z" />
+                <group android:name="waves">
+                    <path android:pathData="M30,43.4Q31.5,42.2 33,43.4T36,43.4T39,43.4T42,43.4T45,43.4T48,43.4T51,43.4T54,43.4" android:strokeColor="#FF4285F4" android:strokeLineCap="round" android:strokeWidth="0.8" />
+                </group>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="hat">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.6" android:value="0" />
+                    <keyframe android:fraction="0.7" android:interpolator="@android:interpolator/decelerate_quad" android:value="-10" />
+                    <keyframe android:fraction="0.8" android:value="-10" />
+                    <keyframe android:fraction="0.9" android:interpolator="@android:interpolator/overshoot" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="13.6" />
+                    <keyframe android:fraction="0.6" android:value="13.6" />
+                    <keyframe android:fraction="0.7" android:interpolator="@android:interpolator/decelerate_quad" android:value="11.8" />
+                    <keyframe android:fraction="0.8" android:value="11.8" />
+                    <keyframe android:fraction="0.9" android:interpolator="@android:interpolator/accelerate_quad" android:value="13.6" />
+                    <keyframe android:fraction="1" android:value="13.6" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="ship">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1300" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-7" android:valueTo="7" android:valueType="floatType" />
+                <objectAnimator android:duration="900" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="40" android:valueTo="40.8" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <!-- The waves repeat every 6 units, so sliding them that far loops. -->
+    <target android:name="waves">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1500" android:interpolator="@android:interpolator/linear" android:propertyName="translateX" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="-6" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

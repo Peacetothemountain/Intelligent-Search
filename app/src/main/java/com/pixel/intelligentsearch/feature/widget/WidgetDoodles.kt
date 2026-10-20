@@ -54,7 +54,7 @@ object WidgetDoodles {
     /** Arranges the redraw for the next time the doodle changes, replacing any arranged before. */
     fun scheduleNextChange(context: Context) {
         val now = OccasionCalendar.now()
-        val delayMs = Duration.between(now, OccasionCalendar.nextChange(now)).toMillis() + AFTER_MIDNIGHT_MS
+        val delayMs = Duration.between(now, OccasionCalendar.nextChange(now, OccasionCalendar.region())).toMillis() + AFTER_MIDNIGHT_MS
         val request = OneTimeWorkRequestBuilder<DoodleChangeWorker>()
             .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
             .build()

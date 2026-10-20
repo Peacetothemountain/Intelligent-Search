@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- World Emoji Day: a smiley bounces above the G's shoulder and winks, and a heart pops beside the G.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <group android:name="smiley" android:pivotY="4.5" android:translateX="40" android:translateY="9.5">
+                <path android:fillColor="#FFFBBC04" android:pathData="M-4.5,0a4.5,4.5 0,1 0,9 0a4.5,4.5 0,1 0,-9 0Z" />
+                <path android:fillColor="#FF5F3B00" android:pathData="M-2.2,-1.2a0.65,0.9 0,1 0,1.3 0a0.65,0.9 0,1 0,-1.3 0Z" />
+                <group android:name="wink_eye" android:pivotX="1.55" android:pivotY="-1.2">
+                    <path android:fillColor="#FF5F3B00" android:pathData="M0.9,-1.2a0.65,0.9 0,1 0,1.3 0a0.65,0.9 0,1 0,-1.3 0Z" />
+                </group>
+                <path android:fillColor="#FF5F3B00" android:pathData="M-2.6,1C-1.6,3.4 1.6,3.4 2.6,1C1.4,1.6 -1.4,1.6 -2.6,1Z" />
+                <path android:fillAlpha="0.45" android:fillColor="#FFF28B82" android:pathData="M-3.6,1a0.8,0.5 0,1 0,1.6 0a0.8,0.5 0,1 0,-1.6 0Z M2,1a0.8,0.5 0,1 0,1.6 0a0.8,0.5 0,1 0,-1.6 0Z" />
+            </group>
+
+            <group android:name="heart" android:translateX="41.5" android:translateY="38">
+                <path android:fillColor="#FFEA4335" android:pathData="M0,3C-1,2.2 -3.3,0.7 -3.3,-1C-3.3,-2.2 -2.4,-3 -1.5,-3C-0.8,-3 -0.25,-2.6 0,-2C0.25,-2.6 0.8,-3 1.5,-3C2.4,-3 3.3,-2.2 3.3,-1C3.3,0.7 1,2.2 0,3Z" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <!-- 2s: two bounces, then a wink. -->
+    <target android:name="smiley">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="9.5" />
+                    <keyframe android:fraction="0.15" android:interpolator="@android:interpolator/decelerate_quad" android:value="7" />
+                    <keyframe android:fraction="0.3" android:interpolator="@android:interpolator/accelerate_quad" android:value="9.5" />
+                    <keyframe android:fraction="0.42" android:interpolator="@android:interpolator/decelerate_quad" android:value="8" />
+                    <keyframe android:fraction="0.54" android:interpolator="@android:interpolator/accelerate_quad" android:value="9.5" />
+                    <keyframe android:fraction="1" android:value="9.5" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.6" android:value="0" />
+                    <keyframe android:fraction="0.7" android:value="-10" />
+                    <keyframe android:fraction="0.9" android:value="-10" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="wink_eye">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.66" android:value="1" />
+                    <keyframe android:fraction="0.7" android:value="0.15" />
+                    <keyframe android:fraction="0.88" android:value="0.15" />
+                    <keyframe android:fraction="0.92" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="heart">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.66" android:value="1" />
+                    <keyframe android:fraction="0.74" android:interpolator="@android:interpolator/overshoot" android:value="1.3" />
+                    <keyframe android:fraction="0.86" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.66" android:value="1" />
+                    <keyframe android:fraction="0.74" android:interpolator="@android:interpolator/overshoot" android:value="1.3" />
+                    <keyframe android:fraction="0.86" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

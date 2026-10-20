@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- World Kindness Day: three hearts circle the G, staying upright and gently beating as they go.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <!-- The ring turns about the G's centre; each heart turns back the other way so it stays upright. -->
+            <group android:name="ring" android:pivotX="24" android:pivotY="24">
+                <group android:translateX="24" android:translateY="6.6">
+                    <group android:name="heart_1">
+                        <path android:fillColor="#FFEA4335" android:pathData="M0,2.6C-0.9,1.9 -2.9,0.6 -2.9,-0.9C-2.9,-1.9 -2.1,-2.6 -1.3,-2.6C-0.7,-2.6 -0.2,-2.3 0,-1.7C0.2,-2.3 0.7,-2.6 1.3,-2.6C2.1,-2.6 2.9,-1.9 2.9,-0.9C2.9,0.6 0.9,1.9 0,2.6Z" />
+                    </group>
+                </group>
+                <group android:translateX="39.07" android:translateY="32.7">
+                    <group android:name="heart_2">
+                        <path android:fillColor="#FFE52592" android:pathData="M0,2.6C-0.9,1.9 -2.9,0.6 -2.9,-0.9C-2.9,-1.9 -2.1,-2.6 -1.3,-2.6C-0.7,-2.6 -0.2,-2.3 0,-1.7C0.2,-2.3 0.7,-2.6 1.3,-2.6C2.1,-2.6 2.9,-1.9 2.9,-0.9C2.9,0.6 0.9,1.9 0,2.6Z" />
+                    </group>
+                </group>
+                <group android:translateX="8.93" android:translateY="32.7">
+                    <group android:name="heart_3">
+                        <path android:fillColor="#FFA142F4" android:pathData="M0,2.6C-0.9,1.9 -2.9,0.6 -2.9,-0.9C-2.9,-1.9 -2.1,-2.6 -1.3,-2.6C-0.7,-2.6 -0.2,-2.3 0,-1.7C0.2,-2.3 0.7,-2.6 1.3,-2.6C2.1,-2.6 2.9,-1.9 2.9,-0.9C2.9,0.6 0.9,1.9 0,2.6Z" />
+                    </group>
+                </group>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="ring">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="7200" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="360" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="heart_1">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="7200" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="-360" android:valueType="floatType" />
+                <objectAnimator android:duration="600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="1.2" android:valueType="floatType" />
+                <objectAnimator android:duration="600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="1.2" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="heart_2">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="7200" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="-360" android:valueType="floatType" />
+                <objectAnimator android:duration="600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:startOffset="200" android:valueFrom="1" android:valueTo="1.2" android:valueType="floatType" />
+                <objectAnimator android:duration="600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:startOffset="200" android:valueFrom="1" android:valueTo="1.2" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="heart_3">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="7200" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="-360" android:valueType="floatType" />
+                <objectAnimator android:duration="600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:startOffset="400" android:valueFrom="1" android:valueTo="1.2" android:valueType="floatType" />
+                <objectAnimator android:duration="600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:startOffset="400" android:valueFrom="1" android:valueTo="1.2" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+</animated-vector>

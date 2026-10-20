@@ -225,6 +225,30 @@
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
             android:exported="false" />
 
+        <!-- "Intelligent Search" in other apps' text selection menu and share sheet. Shows no window: it hands the
+             cleaned text to the overlay and finishes. Disabled by the Search From Selected Text setting. -->
+        <activity
+            android:name="com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity"
+            android:label="@string/selected_text_search_label"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name="com.pixel.intelligentsearch.feature.settings.SettingsActivity"
             android:windowSoftInputMode="adjustResize"

@@ -589,6 +589,11 @@ class BackupManager @Inject constructor(
             restoredCount += entities.size
         }
 
+        // Settings that switch a component on or off live outside the settings file; apply the restored value.
+        com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity.setEnabled(
+            context, settingsManager[SettingsManager.SEARCH_FROM_SELECTED_TEXT]
+        )
+
         // 5. Update Home Screen Widgets immediately
         try {
             widgetUpdater.updateAll()

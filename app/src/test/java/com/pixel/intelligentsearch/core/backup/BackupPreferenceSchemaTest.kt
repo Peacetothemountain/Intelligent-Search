@@ -52,6 +52,15 @@ class BackupPreferenceSchemaTest {
     }
 
     @Test
+    fun searchFromSelectedTextIsBackedUpAsABoolean() {
+        val key = SettingsManager.SEARCH_FROM_SELECTED_TEXT
+        assertEquals("BOOLEAN", BackupPreferenceSchema.expectedType(key.name))
+        assertTrue(key in SettingsManager.ALL)
+        assertEquals(key, SettingsManager.keyFor("search_from_selected_text"))
+        assertTrue(key.default)
+    }
+
+    @Test
     fun debugSwitchesAreNeverImported() {
         assertTrue(BackupPreferenceSchema.isDebugKey("debug_unlocked"))
         assertTrue(BackupPreferenceSchema.isDebugKey("debug.verbose_logging"))

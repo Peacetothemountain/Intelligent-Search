@@ -26,7 +26,7 @@ internal object BackupPreferenceSchema {
             "search.files.thumbnails", "search.shortcuts", "search.web", "search.web.suggestions", "search_apps",
             "search_calculator", "search_calendar", "search_contacts", "search_files", "search_files_hidden_files",
             "search_files_thumbnails", "search_overlay_enabled", "search_previous_searches", "search_shortcuts",
-            "search_web", "settings.bottom.search", "settings.bottom.search.result",
+            "search_from_selected_text", "search_web", "settings.bottom.search", "settings.bottom.search.result",
             "settings_back_to_search_overlay", "shortcut.inline", "shortcut_inline", "show.wallpaper",
             "show_wallpaper", "smart_clipboard_suggestions", "tutorial_completed", "vibration_enabled",
             "widget_custom_keep_system_g", "widget_custom_sync_colors", "widget_material_custom_keep_system_g",

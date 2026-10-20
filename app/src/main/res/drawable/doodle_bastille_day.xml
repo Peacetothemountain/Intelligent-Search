@@ -1,0 +1,354 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bastille Day: three jets fly past above the G trailing blue, white and red smoke that drifts away behind
+     them, and while the sky is clear two fireworks burst on the right. See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="48dp"
+            android:height="48dp"
+            android:viewportWidth="48"
+            android:viewportHeight="48">
+
+            <!-- Fireworks -->
+            <group
+                android:name="burst_1"
+                android:scaleX="0"
+                android:scaleY="0"
+                android:translateX="41.5"
+                android:translateY="31">
+                <path
+                    android:name="burst_1_sparks"
+                    android:fillAlpha="1"
+                    android:fillColor="#FF4285F4"
+                    android:pathData="M2.65,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M1.713,2.263a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M-0.55,3.2a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M-2.813,2.263a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M-3.75,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M-2.813,-2.263a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M-0.55,-3.2a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M1.713,-2.263a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M-0.6,0a0.6,0.6 0,1 0,1.2 0a0.6,0.6 0,1 0,-1.2 0Z" />
+                <path
+                    android:fillColor="#FFEA4335"
+                    android:pathData="M1.263,0.689a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z M0.289,1.663a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z M-1.089,1.663a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z M-2.063,0.689a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z M-2.063,-0.689a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z M-1.089,-1.663a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z M0.289,-1.663a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z M1.263,-0.689a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z" />
+            </group>
+            <group
+                android:name="burst_2"
+                android:scaleX="0"
+                android:scaleY="0"
+                android:translateX="37.5"
+                android:translateY="42.5">
+                <path
+                    android:name="burst_2_sparks"
+                    android:fillAlpha="1"
+                    android:fillColor="#FFEA4335"
+                    android:pathData="M2.65,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M1.713,2.263a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M-0.55,3.2a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M-2.813,2.263a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M-3.75,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M-2.813,-2.263a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M-0.55,-3.2a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M1.713,-2.263a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z M-0.6,0a0.6,0.6 0,1 0,1.2 0a0.6,0.6 0,1 0,-1.2 0Z" />
+                <path
+                    android:fillColor="#FF4285F4"
+                    android:pathData="M1.263,0.689a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z M0.289,1.663a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z M-1.089,1.663a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z M-2.063,0.689a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z M-2.063,-0.689a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z M-1.089,-1.663a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z M0.289,-1.663a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z M1.263,-0.689a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z" />
+            </group>
+
+            <!-- Smoke trails -->
+            <path
+                android:name="trail_blue"
+                android:pathData="M2,12.2L54,-5.133"
+                android:strokeColor="#FF4285F4"
+                android:strokeLineCap="round"
+                android:strokeWidth="1.2"
+                android:trimPathEnd="0.462"
+                android:trimPathStart="0" />
+            <path
+                android:name="trail_white_rim"
+                android:pathData="M2,14L54,-3.333"
+                android:strokeColor="#FFBDC1C6"
+                android:strokeLineCap="round"
+                android:strokeWidth="1.6"
+                android:trimPathEnd="0.462"
+                android:trimPathStart="0" />
+            <path
+                android:name="trail_white"
+                android:pathData="M2,14L54,-3.333"
+                android:strokeColor="#FFFFFFFF"
+                android:strokeLineCap="round"
+                android:strokeWidth="1.2"
+                android:trimPathEnd="0.462"
+                android:trimPathStart="0" />
+            <path
+                android:name="trail_red"
+                android:pathData="M2,15.8L54,-1.533"
+                android:strokeColor="#FFEA4335"
+                android:strokeLineCap="round"
+                android:strokeWidth="1.2"
+                android:trimPathEnd="0.462"
+                android:trimPathStart="0" />
+
+            <!-- Jets, at the heads of the trails -->
+            <group
+                android:name="jets"
+                android:scaleX="1"
+                android:scaleY="1"
+                android:translateX="26"
+                android:translateY="6">
+                <path
+                    android:fillColor="#FF1967D2"
+                    android:pathData="M-0.285,-2.021L-0.949,-3.065L-0.095,-3.35L1.138,-2.496Z" />
+                <path
+                    android:fillColor="#FF4285F4"
+                    android:pathData="M-0.291,-2.04L2.135,-2.986Q3.463,-3.112 3.605,-3.001Q3.441,-2.546 2.41,-2.16L-0.076,-1.395Z" />
+                <path
+                    android:fillColor="#FF1967D2"
+                    android:pathData="M1.028,-1.879L2.451,-2.353L1.565,-0.899L0.996,-0.709Z" />
+                <path
+                    android:fillColor="#FFAECBFA"
+                    android:pathData="M1.954,-2.894Q2.356,-3.586 3.055,-3.071Z" />
+                <path
+                    android:fillColor="#FF1967D2"
+                    android:pathData="M-0.285,-0.221L-0.949,-1.265L-0.095,-1.55L1.138,-0.696Z" />
+                <path
+                    android:fillColor="#FF4285F4"
+                    android:pathData="M-0.291,-0.24L2.135,-1.186Q3.463,-1.312 3.605,-1.201Q3.441,-0.746 2.41,-0.36L-0.076,0.405Z" />
+                <path
+                    android:fillColor="#FF1967D2"
+                    android:pathData="M1.028,-0.079L2.451,-0.553L1.565,0.901L0.996,1.091Z" />
+                <path
+                    android:fillColor="#FFAECBFA"
+                    android:pathData="M1.954,-1.094Q2.356,-1.786 3.055,-1.271Z" />
+                <path
+                    android:fillColor="#FF1967D2"
+                    android:pathData="M-0.285,1.579L-0.949,0.535L-0.095,0.25L1.138,1.104Z" />
+                <path
+                    android:fillColor="#FF4285F4"
+                    android:pathData="M-0.291,1.56L2.135,0.614Q3.463,0.488 3.605,0.599Q3.441,1.054 2.41,1.44L-0.076,2.205Z" />
+                <path
+                    android:fillColor="#FF1967D2"
+                    android:pathData="M1.028,1.721L2.451,1.247L1.565,2.701L0.996,2.891Z" />
+                <path
+                    android:fillColor="#FFAECBFA"
+                    android:pathData="M1.954,0.706Q2.356,0.014 3.055,0.529Z" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <!-- The jets fly straight and steady so the trails keep pace, then the sky rests; they fly in from afar, growing. -->
+    <target android:name="jets">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="4400"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="26" />
+                    <keyframe android:fraction="0.242" android:value="56" />
+                    <keyframe android:fraction="0.243" android:value="2" />
+                    <keyframe android:fraction="0.806" android:value="2" />
+                    <keyframe android:fraction="1" android:value="26" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.242" android:value="1" />
+                    <keyframe android:fraction="0.243" android:value="0" />
+                    <keyframe android:fraction="0.806" android:value="0" />
+                    <keyframe android:fraction="0.86" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.242" android:value="1" />
+                    <keyframe android:fraction="0.243" android:value="0" />
+                    <keyframe android:fraction="0.806" android:value="0" />
+                    <keyframe android:fraction="0.86" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="6" />
+                    <keyframe android:fraction="0.242" android:value="-4" />
+                    <keyframe android:fraction="0.243" android:value="14" />
+                    <keyframe android:fraction="0.806" android:value="14" />
+                    <keyframe android:fraction="1" android:value="6" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- Trails draw out behind the jets and thin away from their far ends. -->
+    <target android:name="trail_blue">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="4400"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.462" />
+                    <keyframe android:fraction="0.226" android:value="1" />
+                    <keyframe android:fraction="0.806" android:value="1" />
+                    <keyframe android:fraction="0.807" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0.462" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="trimPathStart" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.16" android:value="0" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.806" android:value="1" />
+                    <keyframe android:fraction="0.807" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="trail_white_rim">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="4400"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.462" />
+                    <keyframe android:fraction="0.226" android:value="1" />
+                    <keyframe android:fraction="0.806" android:value="1" />
+                    <keyframe android:fraction="0.807" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0.462" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="trimPathStart" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.16" android:value="0" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.806" android:value="1" />
+                    <keyframe android:fraction="0.807" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="trail_white">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="4400"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.462" />
+                    <keyframe android:fraction="0.226" android:value="1" />
+                    <keyframe android:fraction="0.806" android:value="1" />
+                    <keyframe android:fraction="0.807" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0.462" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="trimPathStart" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.16" android:value="0" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.806" android:value="1" />
+                    <keyframe android:fraction="0.807" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="trail_red">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="4400"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.462" />
+                    <keyframe android:fraction="0.226" android:value="1" />
+                    <keyframe android:fraction="0.806" android:value="1" />
+                    <keyframe android:fraction="0.807" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0.462" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="trimPathStart" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.16" android:value="0" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.806" android:value="1" />
+                    <keyframe android:fraction="0.807" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- Each firework blooms out and fades. -->
+    <target android:name="burst_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="4400"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.3" android:value="0" />
+                    <keyframe android:fraction="0.42" android:interpolator="@android:interpolator/decelerate_quad" android:value="1.45" />
+                    <keyframe android:fraction="0.52" android:value="1.6" />
+                    <keyframe android:fraction="0.521" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.3" android:value="0" />
+                    <keyframe android:fraction="0.42" android:interpolator="@android:interpolator/decelerate_quad" android:value="1.45" />
+                    <keyframe android:fraction="0.52" android:value="1.6" />
+                    <keyframe android:fraction="0.521" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="burst_1_sparks">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="4400"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.4" android:value="1" />
+                    <keyframe android:fraction="0.52" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="0.521" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="burst_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="4400"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.42" android:value="0" />
+                    <keyframe android:fraction="0.54" android:interpolator="@android:interpolator/decelerate_quad" android:value="1.45" />
+                    <keyframe android:fraction="0.64" android:value="1.6" />
+                    <keyframe android:fraction="0.641" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.42" android:value="0" />
+                    <keyframe android:fraction="0.54" android:interpolator="@android:interpolator/decelerate_quad" android:value="1.45" />
+                    <keyframe android:fraction="0.64" android:value="1.6" />
+                    <keyframe android:fraction="0.641" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="burst_2_sparks">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="4400"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.52" android:value="1" />
+                    <keyframe android:fraction="0.64" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="0.641" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

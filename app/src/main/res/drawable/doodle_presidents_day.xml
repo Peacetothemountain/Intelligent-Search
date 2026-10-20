@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Presidents' Day: the G tips a star-spangled top hat, a pleated red, white and blue bunting fan hangs below
+     it, cherries swing from a branch on the right and stars twinkle on the left. See doodle_halloween.xml for the
+     layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="48dp"
+            android:height="48dp"
+            android:viewportWidth="48"
+            android:viewportHeight="48">
+
+            <!-- Stars -->
+            <path
+                android:name="stars_1"
+                android:fillAlpha="1"
+                android:fillColor="#FF4285F4"
+                android:pathData="M6.4,19L6.795,20.056L7.922,20.106L7.039,20.808L7.34,21.894L6.4,21.272L5.46,21.894L5.761,20.808L4.878,20.106L6.005,20.056Z M9.6,31.9L9.872,32.626L10.646,32.66L10.039,33.143L10.247,33.89L9.6,33.462L8.953,33.89L9.161,33.143L8.554,32.66L9.328,32.626Z" />
+            <path
+                android:name="stars_2"
+                android:fillAlpha="0.25"
+                android:fillColor="#FFEA4335"
+                android:pathData="M5.2,26.8L5.496,27.592L6.341,27.629L5.679,28.156L5.905,28.971L5.2,28.504L4.495,28.971L4.721,28.156L4.059,27.629L4.904,27.592Z M12.6,8.4L12.847,9.06L13.551,9.091L12.999,9.53L13.188,10.209L12.6,9.82L12.012,10.209L12.201,9.53L11.649,9.091L12.353,9.06Z" />
+
+            <!-- Bunting fan -->
+            <path
+                android:fillColor="#FFC5221F"
+                android:pathData="M16.8,37.2A7.2,7.2 0,0 0,31.2,37.2Z" />
+            <path
+                android:fillColor="#FFEA4335"
+                android:pathData="M17,37.2A7,7 0,0 0,31,37.2Z" />
+            <path
+                android:fillColor="#FFDADCE0"
+                android:pathData="M18.6,37.2A5.4,5.4 0,0 0,29.4,37.2Z" />
+            <path
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M18.9,37.2A5.1,5.1 0,0 0,29.1,37.2Z" />
+            <path
+                android:fillColor="#FF1967D2"
+                android:pathData="M20.5,37.2A3.5,3.5 0,0 0,27.5,37.2Z" />
+            <path
+                android:fillColor="#FF4285F4"
+                android:pathData="M20.7,37.2A3.3,3.3 0,0 0,27.3,37.2Z" />
+            <path
+                android:pathData="M26.092,37.88L30.657,39.363 M25.78,38.493L29.663,41.314 M25.293,38.98L28.114,42.863 M24.68,39.292L26.163,43.857 M24,39.4L24,44.2 M23.32,39.292L21.837,43.857 M22.707,38.98L19.886,42.863 M22.22,38.493L18.337,41.314 M21.908,37.88L17.343,39.363"
+                android:strokeAlpha="0.12"
+                android:strokeColor="#FF000000"
+                android:strokeWidth="0.3" />
+            <path
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M22.4,38.05L22.536,38.413L22.923,38.43L22.62,38.671L22.723,39.045L22.4,38.831L22.077,39.045L22.18,38.671L21.877,38.43L22.264,38.413Z M24,39.05L24.136,39.413L24.523,39.43L24.22,39.671L24.323,40.045L24,39.831L23.677,40.045L23.78,39.671L23.477,39.43L23.864,39.413Z M25.6,38.05L25.736,38.413L26.123,38.43L25.82,38.671L25.923,39.045L25.6,38.831L25.277,39.045L25.38,38.671L25.077,38.43L25.464,38.413Z" />
+            <path
+                android:fillColor="#FF1967D2"
+                android:pathData="M16.4,36.6L31.6,36.6L31.6,37.6L16.4,37.6Z" />
+
+            <!-- Cherry branch -->
+            <group
+                android:name="branch"
+                android:pivotX="48.5"
+                android:pivotY="19"
+                android:rotation="-1.5">
+                <path
+                    android:pathData="M49,18.6Q44,19.6 39.4,18.8"
+                    android:strokeColor="#FF8D5A2B"
+                    android:strokeLineCap="round"
+                    android:strokeWidth="0.8" />
+                <path
+                    android:fillColor="#FF188038"
+                    android:pathData="M41,19.1C39.721,19.516 37.975,18.739 37.509,17.546C38.739,17.217 40.434,18.08 41,19.1Z M45.4,19C45.447,17.655 46.774,16.281 48.054,16.251C47.943,17.519 46.552,18.817 45.4,19Z" />
+                <path
+                    android:fillColor="#FF34A853"
+                    android:pathData="M41,19.1C40.496,20.348 38.779,21.185 37.566,20.776C38.104,19.622 39.855,18.878 41,19.1Z M45.4,19C46.679,18.584 48.425,19.361 48.891,20.554C47.661,20.883 45.966,20.02 45.4,19Z" />
+                <group
+                    android:name="cherries"
+                    android:rotation="10"
+                    android:translateX="43.2"
+                    android:translateY="19.4">
+                    <path
+                        android:pathData="M0,0Q-1,2 -1.6,4 M0,0Q0.8,2.2 1.4,4.4"
+                        android:strokeColor="#FF188038"
+                        android:strokeLineCap="round"
+                        android:strokeWidth="0.35" />
+                    <path
+                        android:fillColor="#FFC5221F"
+                        android:pathData="M-2.75,5a1.15,1.15 0,1 0,2.3 0a1.15,1.15 0,1 0,-2.3 0Z" />
+                    <path
+                        android:fillColor="#FFEA4335"
+                        android:pathData="M-2.7,4.85a0.95,0.95 0,1 0,1.9 0a0.95,0.95 0,1 0,-1.9 0Z" />
+                    <path
+                        android:fillAlpha="0.75"
+                        android:fillColor="#FFFFFFFF"
+                        android:pathData="M-2.31,4.5a0.26,0.26 0,1 0,0.52 0a0.26,0.26 0,1 0,-0.52 0Z" />
+                    <path
+                        android:fillColor="#FFC5221F"
+                        android:pathData="M0.25,5.4a1.15,1.15 0,1 0,2.3 0a1.15,1.15 0,1 0,-2.3 0Z" />
+                    <path
+                        android:fillColor="#FFEA4335"
+                        android:pathData="M0.3,5.25a0.95,0.95 0,1 0,1.9 0a0.95,0.95 0,1 0,-1.9 0Z" />
+                    <path
+                        android:fillAlpha="0.75"
+                        android:fillColor="#FFFFFFFF"
+                        android:pathData="M0.69,4.9a0.26,0.26 0,1 0,0.52 0a0.26,0.26 0,1 0,-0.52 0Z" />
+                </group>
+            </group>
+
+            <!-- Top hat on the G -->
+            <group
+                android:name="hat"
+                android:rotation="-10"
+                android:translateX="24.5"
+                android:translateY="12.6">
+                <path
+                    android:fillColor="#FF174EA6"
+                    android:pathData="M-4.5,0a4.5,1 0,1 0,9 0a4.5,1 0,1 0,-9 0Z" />
+                <path
+                    android:fillColor="#FF1967D2"
+                    android:pathData="M-2.6,-0.2L-2.9,-7.2Q0,-7.9 2.9,-7.2L2.6,-0.2Q0,0.5 -2.6,-0.2Z" />
+                <path
+                    android:fillColor="#FF174EA6"
+                    android:pathData="M1,0.1L1.2,-7.5Q2.2,-7.4 2.9,-7.2L2.6,-0.2Q1.8,0.1 1,0.1Z" />
+                <path
+                    android:fillColor="#FF4285F4"
+                    android:pathData="M-2.9,-7.25a2.9,0.55 0,1 0,5.8 0a2.9,0.55 0,1 0,-5.8 0Z" />
+                <path
+                    android:fillColor="#FFEA4335"
+                    android:pathData="M-2.66,-1.2Q0,-0.5 2.66,-1.2L2.73,-2.8Q0,-2.1 -2.73,-2.8Z" />
+                <path
+                    android:fillColor="#FFFFFFFF"
+                    android:pathData="M-0.6,-2.6L-0.415,-2.105L0.113,-2.082L-0.3,-1.753L-0.159,-1.243L-0.6,-1.535L-1.041,-1.243L-0.9,-1.753L-1.313,-2.082L-0.785,-2.105Z" />
+                <path
+                    android:pathData="M-2.1,-3.4L-2.3,-6.6"
+                    android:strokeAlpha="0.45"
+                    android:strokeColor="#FFFFFFFF"
+                    android:strokeLineCap="round"
+                    android:strokeWidth="0.45" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <!-- The G lifts its hat in greeting: a little dip, up and over, and back down to rest. -->
+    <target android:name="hat">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="4000"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="12.6" />
+                    <keyframe android:fraction="0.3" android:value="12.6" />
+                    <keyframe android:fraction="0.36" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="13" />
+                    <keyframe android:fraction="0.48" android:interpolator="@android:interpolator/decelerate_quad" android:value="8.8" />
+                    <keyframe android:fraction="0.62" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="8.8" />
+                    <keyframe android:fraction="0.72" android:interpolator="@android:interpolator/accelerate_quad" android:value="12.6" />
+                    <keyframe android:fraction="0.76" android:interpolator="@android:interpolator/decelerate_quad" android:value="12.9" />
+                    <keyframe android:fraction="0.84" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="12.6" />
+                    <keyframe android:fraction="1" android:value="12.6" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="24.5" />
+                    <keyframe android:fraction="0.36" android:value="24.5" />
+                    <keyframe android:fraction="0.48" android:interpolator="@android:interpolator/decelerate_quad" android:value="26" />
+                    <keyframe android:fraction="0.62" android:value="26" />
+                    <keyframe android:fraction="0.72" android:interpolator="@android:interpolator/accelerate_quad" android:value="24.5" />
+                    <keyframe android:fraction="1" android:value="24.5" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-10" />
+                    <keyframe android:fraction="0.3" android:value="-10" />
+                    <keyframe android:fraction="0.36" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-6" />
+                    <keyframe android:fraction="0.48" android:interpolator="@android:interpolator/decelerate_quad" android:value="18" />
+                    <keyframe android:fraction="0.62" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="14" />
+                    <keyframe android:fraction="0.72" android:interpolator="@android:interpolator/accelerate_quad" android:value="-12" />
+                    <keyframe android:fraction="0.82" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-9" />
+                    <keyframe android:fraction="0.9" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-10" />
+                    <keyframe android:fraction="1" android:value="-10" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- The branch sways and the cherries swing under it. -->
+    <target android:name="branch">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="3000"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-1.5" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="2" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="cherries">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1700"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="10" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-10" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- Stars twinkle in turn. -->
+    <target android:name="stars_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1800"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.25" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="stars_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1800"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.25" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

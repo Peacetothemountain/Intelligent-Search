@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Children's Day: a family of carp streamers flies from a pole to the right of the G, tails flicking in the
+     wind under a spinning arrow wheel, while clouds drift by on the left. See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="48dp"
+            android:height="48dp"
+            android:viewportWidth="48"
+            android:viewportHeight="48">
+
+            <!-- Clouds -->
+            <group
+                android:name="cloud_left"
+                android:scaleX="1"
+                android:scaleY="1"
+                android:translateX="6"
+                android:translateY="21">
+                <path
+                    android:fillColor="#FFDADCE0"
+                    android:pathData="M-3.2,1.65Q-4.6,1.65 -4.6,0.35Q-4.6,-0.95 -3.1,-0.85Q-2.7,-2.65 -0.8,-2.55Q0.6,-3.45 2,-2.15Q3.9,-2.25 4.2,-0.45Q5,0.75 3.7,1.65Z" />
+                <path
+                    android:fillColor="#FFFFFFFF"
+                    android:pathData="M-3.2,1.2Q-4.6,1.2 -4.6,-0.1Q-4.6,-1.4 -3.1,-1.3Q-2.7,-3.1 -0.8,-3Q0.6,-3.9 2,-2.6Q3.9,-2.7 4.2,-0.9Q5,0.3 3.7,1.2Z" />
+            </group>
+            <group
+                android:name="cloud_low"
+                android:scaleX="0.85"
+                android:scaleY="0.85"
+                android:translateX="17"
+                android:translateY="42.5">
+                <path
+                    android:fillColor="#FFDADCE0"
+                    android:pathData="M-3.2,1.65Q-4.6,1.65 -4.6,0.35Q-4.6,-0.95 -3.1,-0.85Q-2.7,-2.65 -0.8,-2.55Q0.6,-3.45 2,-2.15Q3.9,-2.25 4.2,-0.45Q5,0.75 3.7,1.65Z" />
+                <path
+                    android:fillColor="#FFFFFFFF"
+                    android:pathData="M-3.2,1.2Q-4.6,1.2 -4.6,-0.1Q-4.6,-1.4 -3.1,-1.3Q-2.7,-3.1 -0.8,-3Q0.6,-3.9 2,-2.6Q3.9,-2.7 4.2,-0.9Q5,0.3 3.7,1.2Z" />
+            </group>
+
+            <!-- Pole -->
+            <path
+                android:fillColor="#FFB5713A"
+                android:pathData="M45,2.6L45.9,2.6L45.9,48L45,48Z" />
+            <path
+                android:fillColor="#FF8D5A2B"
+                android:pathData="M45.5,2.6L45.9,2.6L45.9,48L45.5,48Z" />
+
+            <!-- Carp streamers, mouths tied to the pole -->
+            <group
+                android:name="carp_big"
+                android:rotation="-2"
+                android:scaleX="1.15"
+                android:scaleY="1.15"
+                android:translateX="45"
+                android:translateY="6.6">
+                <group
+                    android:name="carp_big_tail"
+                    android:rotation="-14"
+                    android:translateX="-9.4">
+                    <path
+                        android:fillColor="#FF1967D2"
+                        android:pathData="M0.3,-1.1L-2.4,-2.9L-1.5,0L-2.4,2.9L0.3,1.1Z" />
+                    <path
+                        android:fillColor="#FF4285F4"
+                        android:pathData="M0.3,-1.1L-2.4,-2.9L-1.5,0L0.3,0Z" />
+                </group>
+                <path
+                    android:fillColor="#FF4285F4"
+                    android:pathData="M0,-1.7C-3,-2.3 -7,-2.2 -9.4,-1.1L-9.4,1.1C-7,2.2 -3,2.3 0,1.7Z" />
+                <path
+                    android:fillColor="#FF8AB4F8"
+                    android:pathData="M-0.6,0.9C-3,1.5 -7,1.5 -9.4,0.6L-9.4,1.1C-7,2.2 -3,2.3 0,1.7Z" />
+                <path
+                    android:pathData="M-3.4,-1.5Q-4.3,0 -3.4,1.5 M-5.4,-1.6Q-6.3,0 -5.4,1.6 M-7.4,-1.4Q-8.2,0 -7.4,1.4"
+                    android:strokeColor="#FF1967D2"
+                    android:strokeLineCap="round"
+                    android:strokeWidth="0.35" />
+                <path
+                    android:fillColor="#FFFFFFFF"
+                    android:pathData="M-0.65,0a0.45,1.6 0,1 0,0.9 0a0.45,1.6 0,1 0,-0.9 0Z M-2.5,-0.45a0.7,0.7 0,1 0,1.4 0a0.7,0.7 0,1 0,-1.4 0Z" />
+                <path
+                    android:fillColor="#FF1967D2"
+                    android:pathData="M-2.05,-0.45a0.35,0.35 0,1 0,0.7 0a0.35,0.35 0,1 0,-0.7 0Z" />
+            </group>
+            <group
+                android:name="carp_middle"
+                android:rotation="1.6"
+                android:scaleX="1"
+                android:scaleY="1"
+                android:translateX="45"
+                android:translateY="12.6">
+                <group
+                    android:name="carp_middle_tail"
+                    android:rotation="-14"
+                    android:translateX="-9.4">
+                    <path
+                        android:fillColor="#FFC5221F"
+                        android:pathData="M0.3,-1.1L-2.4,-2.9L-1.5,0L-2.4,2.9L0.3,1.1Z" />
+                    <path
+                        android:fillColor="#FFEA4335"
+                        android:pathData="M0.3,-1.1L-2.4,-2.9L-1.5,0L0.3,0Z" />
+                </group>
+                <path
+                    android:fillColor="#FFEA4335"
+                    android:pathData="M0,-1.7C-3,-2.3 -7,-2.2 -9.4,-1.1L-9.4,1.1C-7,2.2 -3,2.3 0,1.7Z" />
+                <path
+                    android:fillColor="#FFF28B82"
+                    android:pathData="M-0.6,0.9C-3,1.5 -7,1.5 -9.4,0.6L-9.4,1.1C-7,2.2 -3,2.3 0,1.7Z" />
+                <path
+                    android:pathData="M-3.4,-1.5Q-4.3,0 -3.4,1.5 M-5.4,-1.6Q-6.3,0 -5.4,1.6 M-7.4,-1.4Q-8.2,0 -7.4,1.4"
+                    android:strokeColor="#FFC5221F"
+                    android:strokeLineCap="round"
+                    android:strokeWidth="0.35" />
+                <path
+                    android:fillColor="#FFFFFFFF"
+                    android:pathData="M-0.65,0a0.45,1.6 0,1 0,0.9 0a0.45,1.6 0,1 0,-0.9 0Z M-2.5,-0.45a0.7,0.7 0,1 0,1.4 0a0.7,0.7 0,1 0,-1.4 0Z" />
+                <path
+                    android:fillColor="#FFC5221F"
+                    android:pathData="M-2.05,-0.45a0.35,0.35 0,1 0,0.7 0a0.35,0.35 0,1 0,-0.7 0Z" />
+            </group>
+            <group
+                android:name="carp_small"
+                android:rotation="-2.4"
+                android:scaleX="0.85"
+                android:scaleY="0.85"
+                android:translateX="45"
+                android:translateY="18.4">
+                <group
+                    android:name="carp_small_tail"
+                    android:rotation="-14"
+                    android:translateX="-9.4">
+                    <path
+                        android:fillColor="#FFE8710A"
+                        android:pathData="M0.3,-1.1L-2.4,-2.9L-1.5,0L-2.4,2.9L0.3,1.1Z" />
+                    <path
+                        android:fillColor="#FFFA7B17"
+                        android:pathData="M0.3,-1.1L-2.4,-2.9L-1.5,0L0.3,0Z" />
+                </group>
+                <path
+                    android:fillColor="#FFFA7B17"
+                    android:pathData="M0,-1.7C-3,-2.3 -7,-2.2 -9.4,-1.1L-9.4,1.1C-7,2.2 -3,2.3 0,1.7Z" />
+                <path
+                    android:fillColor="#FFFDC69C"
+                    android:pathData="M-0.6,0.9C-3,1.5 -7,1.5 -9.4,0.6L-9.4,1.1C-7,2.2 -3,2.3 0,1.7Z" />
+                <path
+                    android:pathData="M-3.4,-1.5Q-4.3,0 -3.4,1.5 M-5.4,-1.6Q-6.3,0 -5.4,1.6 M-7.4,-1.4Q-8.2,0 -7.4,1.4"
+                    android:strokeColor="#FFE8710A"
+                    android:strokeLineCap="round"
+                    android:strokeWidth="0.35" />
+                <path
+                    android:fillColor="#FFFFFFFF"
+                    android:pathData="M-0.65,0a0.45,1.6 0,1 0,0.9 0a0.45,1.6 0,1 0,-0.9 0Z M-2.5,-0.45a0.7,0.7 0,1 0,1.4 0a0.7,0.7 0,1 0,-1.4 0Z" />
+                <path
+                    android:fillColor="#FFE8710A"
+                    android:pathData="M-2.05,-0.45a0.35,0.35 0,1 0,0.7 0a0.35,0.35 0,1 0,-0.7 0Z" />
+            </group>
+
+            <!-- Arrow wheel and the ball on top of the pole -->
+            <group
+                android:name="wheel"
+                android:rotation="0"
+                android:translateX="45.45"
+                android:translateY="3.6">
+                <path
+                    android:fillColor="#FFEA4335"
+                    android:pathData="M0,0L-0.55,-2.3Q0,-2.6 0.55,-2.3Z M0,0L0.55,2.3Q0,2.6 -0.55,2.3Z" />
+                <path
+                    android:fillColor="#FFFBBC04"
+                    android:pathData="M0,0L1.237,-2.015Q1.838,-1.838 2.015,-1.237Z M0,0L-1.237,2.015Q-1.838,1.838 -2.015,1.237Z" />
+                <path
+                    android:fillColor="#FF4285F4"
+                    android:pathData="M0,0L2.3,-0.55Q2.6,0 2.3,0.55Z M0,0L-2.3,0.55Q-2.6,0 -2.3,-0.55Z" />
+                <path
+                    android:fillColor="#FF34A853"
+                    android:pathData="M0,0L2.015,1.237Q1.838,1.838 1.237,2.015Z M0,0L-2.015,-1.237Q-1.838,-1.838 -1.237,-2.015Z" />
+                <path
+                    android:fillColor="#FFF29900"
+                    android:pathData="M-0.7,0a0.7,0.7 0,1 0,1.4 0a0.7,0.7 0,1 0,-1.4 0Z" />
+            </group>
+            <path
+                android:fillColor="#FFF29900"
+                android:pathData="M44.6,1.25a0.85,0.85 0,1 0,1.7 0a0.85,0.85 0,1 0,-1.7 0Z" />
+            <path
+                android:fillColor="#FFFDD663"
+                android:pathData="M44.85,1.05a0.4,0.4 0,1 0,0.8 0a0.4,0.4 0,1 0,-0.8 0Z" />
+        </vector>
+    </aapt:attr>
+
+    <!-- The arrow wheel spins steadily. -->
+    <target android:name="wheel">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="2000"
+                android:interpolator="@android:interpolator/linear"
+                android:propertyName="rotation"
+                android:repeatCount="infinite"
+                android:valueFrom="0"
+                android:valueTo="360"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <!-- Each carp rides the wind on its own rhythm, and its tail flicks twice as fast. -->
+    <target android:name="carp_big">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="2300"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-2" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="5" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="carp_big_tail">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1150"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-14" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="14" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="carp_middle">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="2000"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1.6" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-4" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="carp_middle_tail">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1000"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-14" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="14" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="carp_small">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1700"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-2.4" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="6" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="carp_small_tail">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="850"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-14" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="14" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- Clouds drift back and forth. -->
+    <target android:name="cloud_left">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="4200"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="6" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="7.6" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="cloud_low">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="5000"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="17" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="14.6" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

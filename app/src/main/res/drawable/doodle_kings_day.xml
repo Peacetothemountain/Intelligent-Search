@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- King's Day: the G wears a golden crown that hops and lands with a squash, orange balloons bob on either side
+     and red, white, blue and orange bunting flutters below. See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="48dp"
+            android:height="48dp"
+            android:viewportWidth="48"
+            android:viewportHeight="48">
+
+            <!-- Balloons -->
+            <group
+                android:name="balloon_left"
+                android:rotation="-5"
+                android:translateX="6"
+                android:translateY="21">
+                <path
+                    android:pathData="M0,3.4Q-0.8,5.2 0.2,6.8Q1,8.2 0,9.6"
+                    android:strokeColor="#FFE8710A"
+                    android:strokeLineCap="round"
+                    android:strokeWidth="0.4" />
+                <path
+                    android:fillColor="#FFE8710A"
+                    android:pathData="M0,-3.6C2.4,-3.6 3.3,-1.6 3.1,0.2C2.9,2 1.4,3.3 0,3.4C-1.4,3.3 -2.9,2 -3.1,0.2C-3.3,-1.6 -2.4,-3.6 0,-3.6Z" />
+                <path
+                    android:fillColor="#FFFA7B17"
+                    android:pathData="M0,-3.6C2.1,-3.6 2.8,-1.8 2.5,0C2.2,1.8 1,3 0,3.1C-1.4,3 -2.9,1.9 -3.1,0.2C-3.3,-1.6 -2.4,-3.6 0,-3.6Z" />
+                <path
+                    android:fillColor="#FFE8710A"
+                    android:pathData="M-0.7,3.2L0.7,3.2L0.5,4L-0.5,4Z" />
+                <path
+                    android:fillAlpha="0.65"
+                    android:fillColor="#FFFFFFFF"
+                    android:pathData="M-1.9,-1.6a0.6,1 0,1 0,1.2 0a0.6,1 0,1 0,-1.2 0Z" />
+            </group>
+            <group
+                android:name="balloon_right"
+                android:rotation="6"
+                android:translateX="42.5"
+                android:translateY="17">
+                <path
+                    android:pathData="M0,3.4Q-0.8,5.2 0.2,6.8Q1,8.2 0,9.6"
+                    android:strokeColor="#FFF29900"
+                    android:strokeLineCap="round"
+                    android:strokeWidth="0.4" />
+                <path
+                    android:fillColor="#FFF29900"
+                    android:pathData="M0,-3.6C2.4,-3.6 3.3,-1.6 3.1,0.2C2.9,2 1.4,3.3 0,3.4C-1.4,3.3 -2.9,2 -3.1,0.2C-3.3,-1.6 -2.4,-3.6 0,-3.6Z" />
+                <path
+                    android:fillColor="#FFFBBC04"
+                    android:pathData="M0,-3.6C2.1,-3.6 2.8,-1.8 2.5,0C2.2,1.8 1,3 0,3.1C-1.4,3 -2.9,1.9 -3.1,0.2C-3.3,-1.6 -2.4,-3.6 0,-3.6Z" />
+                <path
+                    android:fillColor="#FFF29900"
+                    android:pathData="M-0.7,3.2L0.7,3.2L0.5,4L-0.5,4Z" />
+                <path
+                    android:fillAlpha="0.65"
+                    android:fillColor="#FFFFFFFF"
+                    android:pathData="M-1.9,-1.6a0.6,1 0,1 0,1.2 0a0.6,1 0,1 0,-1.2 0Z" />
+            </group>
+
+            <!-- Bunting -->
+            <group
+                android:name="bunting"
+                android:pivotX="29"
+                android:pivotY="38"
+                android:rotation="-1.5">
+                <path
+                    android:pathData="M11,38.6Q29,43.4 47.5,38.4"
+                    android:strokeColor="#FF9AA0A6"
+                    android:strokeLineCap="round"
+                    android:strokeWidth="0.45" />
+                <group
+                    android:name="pennant_1"
+                    android:rotation="-9"
+                    android:translateX="14.605"
+                    android:translateY="39.262">
+                    <path
+                        android:fillColor="#FFFA7B17"
+                        android:pathData="M-1.9,0L1.9,0L0,4.2Z" />
+                    <path
+                        android:fillColor="#FFE8710A"
+                        android:pathData="M0.4,0L1.9,0L0,4.2Z" />
+                </group>
+                <group
+                    android:name="pennant_2"
+                    android:rotation="9"
+                    android:translateX="20.756"
+                    android:translateY="40.278">
+                    <path
+                        android:fillColor="#FFEA4335"
+                        android:pathData="M-1.9,0L1.9,0L0,4.2Z" />
+                    <path
+                        android:fillColor="#FFC5221F"
+                        android:pathData="M0.4,0L1.9,0L0,4.2Z" />
+                </group>
+                <group
+                    android:name="pennant_3"
+                    android:rotation="-9"
+                    android:translateX="26.937"
+                    android:translateY="40.727">
+                    <path
+                        android:fillColor="#FFF8F9FA"
+                        android:pathData="M-1.9,0L1.9,0L0,4.2Z" />
+                    <path
+                        android:fillColor="#FFDADCE0"
+                        android:pathData="M0.4,0L1.9,0L0,4.2Z" />
+                </group>
+                <group
+                    android:name="pennant_4"
+                    android:rotation="9"
+                    android:translateX="33.146"
+                    android:translateY="40.609">
+                    <path
+                        android:fillColor="#FF4285F4"
+                        android:pathData="M-1.9,0L1.9,0L0,4.2Z" />
+                    <path
+                        android:fillColor="#FF1967D2"
+                        android:pathData="M0.4,0L1.9,0L0,4.2Z" />
+                </group>
+                <group
+                    android:name="pennant_5"
+                    android:rotation="-9"
+                    android:translateX="39.384"
+                    android:translateY="39.926">
+                    <path
+                        android:fillColor="#FFFA7B17"
+                        android:pathData="M-1.9,0L1.9,0L0,4.2Z" />
+                    <path
+                        android:fillColor="#FFE8710A"
+                        android:pathData="M0.4,0L1.9,0L0,4.2Z" />
+                </group>
+                <group
+                    android:name="pennant_6"
+                    android:rotation="9"
+                    android:translateX="45.282"
+                    android:translateY="38.765">
+                    <path
+                        android:fillColor="#FFFBBC04"
+                        android:pathData="M-1.9,0L1.9,0L0,4.2Z" />
+                    <path
+                        android:fillColor="#FFF29900"
+                        android:pathData="M0.4,0L1.9,0L0,4.2Z" />
+                </group>
+            </group>
+
+            <!-- Crown, resting on the top of the G -->
+            <group
+                android:name="crown"
+                android:rotation="-14"
+                android:scaleX="1"
+                android:scaleY="1"
+                android:translateX="23.5"
+                android:translateY="12.4">
+                <path
+                    android:fillColor="#FFFBBC04"
+                    android:pathData="M-4.6,-1.4L-5,-6.2L-2.4,-3.6L0,-7L2.4,-3.6L5,-6.2L4.6,-1.4Z" />
+                <path
+                    android:fillColor="#FFF29900"
+                    android:pathData="M1.3,-1.4L1.3,-5.2L2.4,-3.6L5,-6.2L4.6,-1.4Z" />
+                <path
+                    android:fillColor="#FFF29900"
+                    android:pathData="M-4.6,0.2L4.6,0.2L4.6,-1.6L-4.6,-1.6Z" />
+                <path
+                    android:fillColor="#FFE37400"
+                    android:pathData="M1.3,0.2L4.6,0.2L4.6,-1.6L1.3,-1.6Z" />
+                <path
+                    android:fillColor="#FFFA7B17"
+                    android:pathData="M-5.75,-6.3a0.75,0.75 0,1 0,1.5 0a0.75,0.75 0,1 0,-1.5 0Z M-0.8,-7.1a0.8,0.8 0,1 0,1.6 0a0.8,0.8 0,1 0,-1.6 0Z M4.25,-6.3a0.75,0.75 0,1 0,1.5 0a0.75,0.75 0,1 0,-1.5 0Z" />
+                <path
+                    android:fillColor="#FFEA4335"
+                    android:pathData="M-0.6,-0.7a0.6,0.6 0,1 0,1.2 0a0.6,0.6 0,1 0,-1.2 0Z" />
+                <path
+                    android:fillColor="#FF4285F4"
+                    android:pathData="M-3.15,-0.7a0.45,0.45 0,1 0,0.9 0a0.45,0.45 0,1 0,-0.9 0Z M2.25,-0.7a0.45,0.45 0,1 0,0.9 0a0.45,0.45 0,1 0,-0.9 0Z" />
+                <path
+                    android:fillAlpha="0.7"
+                    android:fillColor="#FFFFFFFF"
+                    android:pathData="M-5.45,-6.6a0.25,0.25 0,1 0,0.5 0a0.25,0.25 0,1 0,-0.5 0Z M-0.53,-7.4a0.28,0.28 0,1 0,0.56 0a0.28,0.28 0,1 0,-0.56 0Z M-3.9,-1.9L-4.1,-4.6L-3.6,-4.1L-3.5,-1.9Z" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <!-- A squash to wind up, a hop with a little spin, a squashy landing and a rest. -->
+    <target android:name="crown">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="3600"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="12.4" />
+                    <keyframe android:fraction="0.2" android:value="12.4" />
+                    <keyframe android:fraction="0.27" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="12.8" />
+                    <keyframe android:fraction="0.38" android:interpolator="@android:interpolator/decelerate_quad" android:value="8.6" />
+                    <keyframe android:fraction="0.49" android:interpolator="@android:interpolator/accelerate_quad" android:value="12.4" />
+                    <keyframe android:fraction="0.53" android:interpolator="@android:interpolator/decelerate_quad" android:value="12.7" />
+                    <keyframe android:fraction="0.6" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="12.4" />
+                    <keyframe android:fraction="1" android:value="12.4" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-14" />
+                    <keyframe android:fraction="0.2" android:value="-14" />
+                    <keyframe android:fraction="0.27" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-10" />
+                    <keyframe android:fraction="0.38" android:interpolator="@android:interpolator/decelerate_quad" android:value="4" />
+                    <keyframe android:fraction="0.49" android:interpolator="@android:interpolator/accelerate_quad" android:value="-16" />
+                    <keyframe android:fraction="0.58" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-13" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-14" />
+                    <keyframe android:fraction="1" android:value="-14" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.2" android:value="1" />
+                    <keyframe android:fraction="0.27" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="0.82" />
+                    <keyframe android:fraction="0.32" android:interpolator="@android:interpolator/decelerate_quad" android:value="1.1" />
+                    <keyframe android:fraction="0.42" android:value="1" />
+                    <keyframe android:fraction="0.49" android:value="1" />
+                    <keyframe android:fraction="0.53" android:interpolator="@android:interpolator/decelerate_quad" android:value="0.84" />
+                    <keyframe android:fraction="0.62" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.04" />
+                    <keyframe android:fraction="0.7" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.2" android:value="1" />
+                    <keyframe android:fraction="0.27" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.12" />
+                    <keyframe android:fraction="0.32" android:interpolator="@android:interpolator/decelerate_quad" android:value="0.94" />
+                    <keyframe android:fraction="0.42" android:value="1" />
+                    <keyframe android:fraction="0.49" android:value="1" />
+                    <keyframe android:fraction="0.53" android:interpolator="@android:interpolator/decelerate_quad" android:value="1.1" />
+                    <keyframe android:fraction="0.62" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="0.98" />
+                    <keyframe android:fraction="0.7" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- Balloons bob and lean, out of step with each other. -->
+    <target android:name="balloon_left">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1900"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="21" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="19.6" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-5" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="5" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="balloon_right">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="2300"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="17" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="15.4" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="6" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-4" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- The bunting sways and each pennant flutters on its own. -->
+    <target android:name="bunting">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="2800"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-1.5" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.5" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="pennant_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1100"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-9" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="7" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="pennant_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1300"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="9" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-7" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="pennant_3">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1000"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-9" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="7" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="pennant_4">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1250"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="9" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-7" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="pennant_5">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1150"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-9" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="7" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="pennant_6">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1350"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="9" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-7" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

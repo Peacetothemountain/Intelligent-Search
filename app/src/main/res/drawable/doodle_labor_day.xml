@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Labor Day: the G wears a yellow hard hat and gives a nod, two gears turn together on the left and a wrench
+     tightens a nut with a ratcheting swing on the right. See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="48dp"
+            android:height="48dp"
+            android:viewportWidth="48"
+            android:viewportHeight="48">
+
+            <!-- Gears -->
+            <group
+                android:name="gear_big"
+                android:rotation="0"
+                android:translateX="6.2"
+                android:translateY="23.4">
+                <path
+                    android:fillColor="#FF1967D2"
+                    android:fillType="evenOdd"
+                    android:pathData="M3.546,-0.619L4.477,-0.452L4.477,0.452L3.546,0.619A3.6,3.6 0,0 1,3.233,1.584L3.233,1.584L3.888,2.266L3.357,2.997L2.505,2.585A3.6,3.6 0,0 1,1.685,3.182L1.685,3.182L1.813,4.119L0.954,4.398L0.507,3.564A3.6,3.6 0,0 1,-0.507,3.564L-0.507,3.564L-0.954,4.398L-1.813,4.119L-1.685,3.182A3.6,3.6 0,0 1,-2.505,2.585L-2.505,2.585L-3.357,2.997L-3.888,2.266L-3.233,1.584A3.6,3.6 0,0 1,-3.546,0.619L-3.546,0.619L-4.477,0.452L-4.477,-0.452L-3.546,-0.619A3.6,3.6 0,0 1,-3.233,-1.584L-3.233,-1.584L-3.888,-2.266L-3.357,-2.997L-2.505,-2.585A3.6,3.6 0,0 1,-1.685,-3.182L-1.685,-3.182L-1.813,-4.119L-0.954,-4.398L-0.507,-3.564A3.6,3.6 0,0 1,0.507,-3.564L0.507,-3.564L0.954,-4.398L1.813,-4.119L1.685,-3.182A3.6,3.6 0,0 1,2.505,-2.585L2.505,-2.585L3.357,-2.997L3.888,-2.266L3.233,-1.584A3.6,3.6 0,0 1,3.546,-0.619Z M-1.1,0a1.1,1.1 0,1 0,2.2 0a1.1,1.1 0,1 0,-2.2 0Z" />
+                <path
+                    android:fillColor="#FF4285F4"
+                    android:fillType="evenOdd"
+                    android:pathData="M-3.1,0a3.1,3.1 0,1 0,6.2 0a3.1,3.1 0,1 0,-6.2 0Z M-1.1,0a1.1,1.1 0,1 0,2.2 0a1.1,1.1 0,1 0,-2.2 0Z" />
+                <path
+                    android:fillColor="#FF8AB4F8"
+                    android:pathData="M-2.1,-1.6a0.9,0.5 0,1 0,1.8 0a0.9,0.5 0,1 0,-1.8 0Z" />
+            </group>
+            <group
+                android:name="gear_small"
+                android:rotation="25.714"
+                android:translateX="9.45"
+                android:translateY="29.05">
+                <path
+                    android:fillColor="#FFC5221F"
+                    android:fillType="evenOdd"
+                    android:pathData="M2.182,-0.55L2.969,-0.429L2.969,0.429L2.182,0.55A2.25,2.25 0,0 1,1.79,1.363L1.79,1.363L2.187,2.054L1.516,2.589L0.931,2.049A2.25,2.25 0,0 1,0.05,2.249L0.05,2.249L-0.242,2.99L-1.079,2.799L-1.021,2.005A2.25,2.25 0,0 1,-1.727,1.442L-1.727,1.442L-2.489,1.675L-2.861,0.901L-2.204,0.451A2.25,2.25 0,0 1,-2.204,-0.451L-2.204,-0.451L-2.861,-0.901L-2.489,-1.675L-1.727,-1.442A2.25,2.25 0,0 1,-1.021,-2.005L-1.021,-2.005L-1.079,-2.799L-0.242,-2.99L0.05,-2.249A2.25,2.25 0,0 1,0.931,-2.049L0.931,-2.049L1.516,-2.589L2.187,-2.054L1.79,-1.363A2.25,2.25 0,0 1,2.182,-0.55Z M-0.7,0a0.7,0.7 0,1 0,1.4 0a0.7,0.7 0,1 0,-1.4 0Z" />
+                <path
+                    android:fillColor="#FFEA4335"
+                    android:fillType="evenOdd"
+                    android:pathData="M-1.85,0a1.85,1.85 0,1 0,3.7 0a1.85,1.85 0,1 0,-3.7 0Z M-0.7,0a0.7,0.7 0,1 0,1.4 0a0.7,0.7 0,1 0,-1.4 0Z" />
+                <path
+                    android:fillColor="#FFF28B82"
+                    android:pathData="M-1.25,-1a0.55,0.3 0,1 0,1.1 0a0.55,0.3 0,1 0,-1.1 0Z" />
+            </group>
+
+            <!-- Nut and wrench -->
+            <group
+                android:name="nut"
+                android:rotation="0"
+                android:scaleX="1.4"
+                android:scaleY="1.4"
+                android:translateX="40.4"
+                android:translateY="41.4">
+                <path
+                    android:fillColor="#FF80868B"
+                    android:pathData="M1.472,0.85L0,1.7L-1.472,0.85L-1.472,-0.85L0,-1.7L1.472,-0.85Z" />
+                <path
+                    android:fillColor="#FFBDC1C6"
+                    android:pathData="M-0.75,0a0.75,0.75 0,1 0,1.5 0a0.75,0.75 0,1 0,-1.5 0Z" />
+            </group>
+            <group
+                android:name="wrench"
+                android:rotation="-20"
+                android:scaleX="1.4"
+                android:scaleY="1.4"
+                android:translateX="40.4"
+                android:translateY="41.4">
+                <path
+                    android:fillColor="#FF5F6368"
+                    android:pathData="M0.9,-0.75L8.6,-0.75Q9.4,0 8.6,0.75L0.9,0.75Z" />
+                <path
+                    android:fillColor="#FF80868B"
+                    android:pathData="M0.9,-0.75L8.6,-0.75Q9.1,-0.4 9,0L0.9,0Z" />
+                <path
+                    android:pathData="M-1.6,-1.6A2.3,2.3 0,1 1,-1.6 1.6"
+                    android:strokeColor="#FF5F6368"
+                    android:strokeLineCap="round"
+                    android:strokeWidth="1.2" />
+                <path
+                    android:pathData="M-0.4,-2.1A2.1,2.1 0,0 1,1.8 -1"
+                    android:strokeColor="#FF9AA0A6"
+                    android:strokeLineCap="round"
+                    android:strokeWidth="0.4" />
+            </group>
+            <path
+                android:name="shine"
+                android:fillAlpha="0"
+                android:fillColor="#FFFBBC04"
+                android:pathData="M46.4,34.3Q46.598,35.202 47.5,35.4Q46.598,35.598 46.4,36.5Q46.202,35.598 45.3,35.4Q46.202,35.202 46.4,34.3Z M34.6,37.4Q34.744,38.056 35.4,38.2Q34.744,38.344 34.6,39Q34.456,38.344 33.8,38.2Q34.456,38.056 34.6,37.4Z" />
+
+            <!-- Hard hat on the G -->
+            <group
+                android:name="hat"
+                android:rotation="-8"
+                android:translateX="24.4"
+                android:translateY="12.8">
+                <path
+                    android:fillColor="#FFF29900"
+                    android:pathData="M-5.6,0.2Q-5.6,-0.6 -4.8,-0.6L4.8,-0.6Q5.6,-0.6 5.6,0.2Q5.6,0.6 4.8,0.6L-4.8,0.6Q-5.6,0.6 -5.6,0.2Z" />
+                <path
+                    android:fillColor="#FFFBBC04"
+                    android:pathData="M-4.2,-0.4C-4.2,-4.2 -2.4,-6 0,-6C2.4,-6 4.2,-4.2 4.2,-0.4Z" />
+                <path
+                    android:fillColor="#FFF29900"
+                    android:pathData="M1.6,-0.4C2,-3 1.6,-5 0.6,-5.95C2.7,-5.7 4.2,-3.9 4.2,-0.4Z" />
+                <path
+                    android:fillColor="#FFFDD663"
+                    android:pathData="M-0.7,-0.4L-0.7,-5.9Q0,-6.05 0.7,-5.9L0.7,-0.4Z" />
+                <path
+                    android:fillAlpha="0.6"
+                    android:fillColor="#FFFFFFFF"
+                    android:pathData="M-3.4,-1.6Q-3.2,-3.8 -1.8,-4.8Q-2.6,-3.4 -2.7,-1.6Z" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <!-- The gears turn together, tooth by tooth. -->
+    <target android:name="gear_big">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="6000"
+                android:interpolator="@android:interpolator/linear"
+                android:propertyName="rotation"
+                android:repeatCount="infinite"
+                android:valueFrom="0"
+                android:valueTo="360"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="gear_small">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="6000"
+                android:interpolator="@android:interpolator/linear"
+                android:propertyName="rotation"
+                android:repeatCount="infinite"
+                android:valueFrom="25.714"
+                android:valueTo="-488.571"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <!-- The wrench pulls round, swings back for another bite and pulls again, then rests. -->
+    <target android:name="wrench">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="3600"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-20" />
+                    <keyframe android:fraction="0.12" android:value="-20" />
+                    <keyframe android:fraction="0.24" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="25" />
+                    <keyframe android:fraction="0.3" android:value="25" />
+                    <keyframe android:fraction="0.38" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-20" />
+                    <keyframe android:fraction="0.42" android:value="-20" />
+                    <keyframe android:fraction="0.54" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="25" />
+                    <keyframe android:fraction="0.62" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="22" />
+                    <keyframe android:fraction="0.72" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-20" />
+                    <keyframe android:fraction="1" android:value="-20" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="nut">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="3600"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.12" android:value="0" />
+                    <keyframe android:fraction="0.24" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="30" />
+                    <keyframe android:fraction="0.42" android:value="30" />
+                    <keyframe android:fraction="0.54" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="60" />
+                    <keyframe android:fraction="1" android:value="60" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="shine">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="3600"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.54" android:value="0" />
+                    <keyframe android:fraction="0.6" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- The G nods under its hat. -->
+    <target android:name="hat">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="3600"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-8" />
+                    <keyframe android:fraction="0.62" android:value="-8" />
+                    <keyframe android:fraction="0.7" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-14" />
+                    <keyframe android:fraction="0.78" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-3" />
+                    <keyframe android:fraction="0.86" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-10" />
+                    <keyframe android:fraction="0.94" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-8" />
+                    <keyframe android:fraction="1" android:value="-8" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="12.8" />
+                    <keyframe android:fraction="0.62" android:value="12.8" />
+                    <keyframe android:fraction="0.7" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="12.2" />
+                    <keyframe android:fraction="0.78" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="13" />
+                    <keyframe android:fraction="0.86" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="12.8" />
+                    <keyframe android:fraction="1" android:value="12.8" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

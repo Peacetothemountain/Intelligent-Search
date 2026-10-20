@@ -81,4 +81,28 @@
     <string name="occasion_programmers_day">Day of the Programmer</string>
     <string name="occasion_smile_day">World Smile Day</string>
     <string name="occasion_hello_day">World Hello Day</string>
+    <!-- Local festivals: doodles shown only in the regions that keep them (see OccasionCalendar). -->
+    <string name="occasion_pancake_day">Pancake Day</string>
+    <string name="occasion_carnival">Carnival</string>
+    <string name="occasion_songkran">Songkran</string>
+    <string name="occasion_arbor_day">Arbor Day</string>
+    <string name="occasion_kings_day">King\'s Day</string>
+    <string name="occasion_childrens_day">Children\'s Day</string>
+    <string name="occasion_midsummer">Midsummer</string>
+    <string name="occasion_tanabata">Tanabata</string>
+    <string name="occasion_bastille_day">Bastille Day</string>
+    <string name="occasion_ice_cream_day">National Ice Cream Day</string>
+    <string name="occasion_mid_autumn_festival">Mid-Autumn Festival</string>
+    <string name="occasion_chuseok">Chuseok</string>
+    <string name="occasion_german_unity_day">German Unity Day</string>
+    <string name="occasion_day_of_the_dead">Día de los Muertos</string>
+    <string name="occasion_diwali">Diwali</string>
+    <string name="occasion_bonfire_night">Bonfire Night</string>
+    <!-- US federal holidays. -->
+    <string name="occasion_mlk_day">Martin Luther King Jr. Day</string>
+    <string name="occasion_presidents_day">Presidents\' Day</string>
+    <string name="occasion_memorial_day">Memorial Day</string>
+    <string name="occasion_juneteenth">Juneteenth</string>
+    <string name="occasion_labor_day">Labor Day</string>
+    <string name="occasion_veterans_day">Veterans Day</string>
 </resources>

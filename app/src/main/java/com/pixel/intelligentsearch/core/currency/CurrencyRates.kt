@@ -21,9 +21,15 @@ data class CurrencyRates(val base: String, val perBase: Map<String, Double>, val
         return value / fromRate * toRate
     }
 
-    /** Where the rates come from, for the answer card: "Rates from Oct 19, 2026" or "Built-in rates". */
-    fun sourceLabel(locale: Locale = Locale.getDefault()): String = date?.let {
-        "Rates from " + DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).withDecimalStyle(DecimalStyle.of(locale)).format(it)
+    /**
+     * Where the rates come from, for the answer card: "Rates from Oct 19, 2026" or "Built-in rates". The date is
+     * written the [locale]'s way but in the digits 0 to 9, the ones the conversion above it is written in (as the
+     * calculator writes every answer), so the card never mixes two kinds of digits. That includes digits in a month's
+     * own name, as in Dzongkha's "ཟླ་༡༠".
+     */
+    fun sourceLabel(locale: Locale = Locale.getDefault()): String = date?.let { date ->
+        val written = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).withDecimalStyle(DecimalStyle.STANDARD).format(date)
+        "Rates from " + written.map { if (it.isDigit()) '0' + Character.getNumericValue(it) else it }.joinToString("")
     } ?: "Built-in rates"
 
     companion object {

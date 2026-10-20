@@ -4,6 +4,7 @@ import java.io.File
 import java.math.BigDecimal
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.time.Clock
 import java.time.LocalDate
 import java.util.Properties
 import java.util.concurrent.ConcurrentHashMap
@@ -12,9 +13,10 @@ import java.util.concurrent.ConcurrentHashMap
  * The last rates fetched, kept in a file in the app's private storage so conversions work offline. A new table is
  * written beside the old one, in a temporary file of its own so two writers never share one, and renamed over it,
  * so an interrupted write never leaves half a table behind; writes in this process take turns. A file that can't be read back, or whose values fail the
- * checks the feed itself must pass, counts as no file.
+ * checks the feed itself must pass, counts as no file. So does one dated before the ECB's first rates or more than
+ * [EcbRatesParser.MAX_DAYS_AHEAD] days after today, which [clock] says.
  */
-class CurrencyRateStore(private val file: File) {
+class CurrencyRateStore(private val file: File, private val clock: Clock = Clock.systemDefaultZone()) {
 
     fun exists(): Boolean = file.exists()
 
@@ -23,7 +25,9 @@ class CurrencyRateStore(private val file: File) {
         if (!file.isFile || file.length() > MAX_FILE_BYTES) null else {
             val props = Properties().apply { file.reader(Charsets.UTF_8).use { load(it) } }
             val base = props.getProperty(KEY_BASE)
+            // A day the ECB could have set rates on: not before its first, nor further ahead than a fetched table may be.
             val date = props.getProperty(KEY_DATE)?.let(LocalDate::parse)
+                ?.takeIf { it in FIRST_ECB_DAY..LocalDate.now(clock).plusDays(EcbRatesParser.MAX_DAYS_AHEAD) }
             val rateTexts = props.stringPropertyNames()
                 .filter { it.startsWith(RATE_PREFIX) }
                 .associate { it.removePrefix(RATE_PREFIX) to props.getProperty(it) }
@@ -70,6 +74,9 @@ class CurrencyRateStore(private val file: File) {
         const val MAX_RATES = 200
         const val MAX_FILE_BYTES = 64L * 1024
         val CODE = Regex("^[a-z]{3}$")
+
+        /** The first day the ECB set euro reference rates; no table of them is older. */
+        val FIRST_ECB_DAY: LocalDate = LocalDate.of(1999, 1, 4)
 
         /** One lock per file, shared by every store of it in this process, so writes to it take turns. */
         private val LOCKS = ConcurrentHashMap<String, Any>()

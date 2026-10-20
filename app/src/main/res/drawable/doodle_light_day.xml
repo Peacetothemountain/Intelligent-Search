@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- International Day of Light: a beam of light shines into a glass prism beside the G and fans out under it into a
+     rainbow; it fades, and the beam draws it again. A light bulb glows on the other side.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <!-- Light bulb -->
+            <group android:name="glow" android:translateX="38.2" android:translateY="7.6" android:rotation="0" android:scaleX="0.9" android:scaleY="0.9">
+                <path android:strokeColor="#FFFBBC04" android:strokeWidth="0.5" android:strokeLineCap="round" android:pathData="M-3.81,-2.2L-4.85,-2.8M-1.5,-4.13L-1.92,-5.26M1.5,-4.13L1.92,-5.26M3.81,-2.2L4.85,-2.8M4.33,0.76L5.51,0.97M-4.33,0.76L-5.51,0.97" />
+            </group>
+            <path android:fillColor="#FF9AA0A6" android:strokeColor="#FF80868B" android:strokeWidth="0.3" android:strokeLineJoin="round" android:pathData="M37.2,10.4L39.2,10.4A0.5,0.5 0,0 1 39.7,10.9L39.7,12.2A0.5,0.5 0,0 1 39.2,12.7L37.2,12.7A0.5,0.5 0,0 1 36.7,12.2L36.7,10.9A0.5,0.5 0,0 1 37.2,10.4Z" />
+            <path android:strokeColor="#FF80868B" android:strokeWidth="0.25" android:pathData="M36.8,11.6L39.6,11.6" />
+            <path android:fillColor="#FFFDD663" android:strokeColor="#FFFBBC04" android:strokeWidth="0.4" android:pathData="M35.2,7.6a3,3.2 0,1 0,6 0a3,3.2 0,1 0,-6 0Z" />
+            <path android:strokeColor="#FFF29900" android:strokeWidth="0.3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M37.2,10.4L37.2,8.6L37.8,7.6L38.4,8.6L39,7.6L39.2,8.6L39.2,10.4" />
+            <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.75" android:pathData="M36.4,6.3a0.6,0.95 0,1 0,1.2 0a0.6,0.95 0,1 0,-1.2 0Z" />
+
+            <!-- Beam and rainbow -->
+            <path android:name="beam" android:strokeColor="#FFFBBC04" android:strokeAlpha="1" android:strokeWidth="1.1" android:strokeLineCap="round" android:trimPathEnd="1" android:pathData="M1,30.6L7.6,37" />
+            <path android:name="ray_0" android:strokeColor="#FFEA4335" android:strokeAlpha="1" android:strokeWidth="1.15" android:trimPathEnd="1" android:pathData="M12.7,37.6L45.5,38.4" />
+            <path android:name="ray_1" android:strokeColor="#FFFA7B17" android:strokeAlpha="1" android:strokeWidth="1.15" android:trimPathEnd="1" android:pathData="M12.7,37.6L45.5,39.8" />
+            <path android:name="ray_2" android:strokeColor="#FFFBBC04" android:strokeAlpha="1" android:strokeWidth="1.15" android:trimPathEnd="1" android:pathData="M12.7,37.6L45.5,41.2" />
+            <path android:name="ray_3" android:strokeColor="#FF34A853" android:strokeAlpha="1" android:strokeWidth="1.15" android:trimPathEnd="1" android:pathData="M12.7,37.6L45.5,42.6" />
+            <path android:name="ray_4" android:strokeColor="#FF4285F4" android:strokeAlpha="1" android:strokeWidth="1.15" android:trimPathEnd="1" android:pathData="M12.7,37.6L45.5,44" />
+            <path android:name="ray_5" android:strokeColor="#FFA142F4" android:strokeAlpha="1" android:strokeWidth="1.15" android:trimPathEnd="1" android:pathData="M12.7,37.6L45.5,45.4" />
+
+            <!-- Prism -->
+            <path android:fillColor="#FFD2E3FC" android:fillAlpha="0.92" android:strokeColor="#FF8AB4F8" android:strokeWidth="0.45" android:strokeLineJoin="round" android:pathData="M10,32.6L14.8,41.4L5.2,41.4Z" />
+            <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.75" android:pathData="M10,34.6L7.6,39.8L9,39.8Z" />
+            <group android:name="flash" android:translateX="12.7" android:translateY="37.6" android:scaleX="0" android:scaleY="0">
+                <path android:fillColor="#FFFDD663" android:strokeColor="#FFFBBC04" android:strokeWidth="0.25" android:strokeLineJoin="round" android:pathData="M0,-1.6Q0.45,-0.45 1.6,0Q0.45,0.45 0,1.6Q-0.45,0.45 -1.6,0Q-0.45,-0.45 0,-1.6Z" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <!-- 4s: the rainbow shimmers, fades, the beam shines in again and the rainbow fans out band by band. -->
+    <target android:name="ray_0">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.65" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/linear" android:value="0" />
+                    <keyframe android:fraction="0.78" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.92" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.3" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.7" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.55" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.63" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="0.655" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/linear" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="ray_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.65" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/linear" android:value="0" />
+                    <keyframe android:fraction="0.792" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.932" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.33" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.7" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.55" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.63" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="0.655" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/linear" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="ray_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.65" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/linear" android:value="0" />
+                    <keyframe android:fraction="0.804" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.944" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.36" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.7" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.55" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.63" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="0.655" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/linear" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="ray_3">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.65" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/linear" android:value="0" />
+                    <keyframe android:fraction="0.816" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.956" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.39" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.7" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.55" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.63" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="0.655" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/linear" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="ray_4">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.65" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/linear" android:value="0" />
+                    <keyframe android:fraction="0.828" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.968" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.42" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.7" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.55" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.63" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="0.655" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/linear" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="ray_5">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.65" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/linear" android:value="0" />
+                    <keyframe android:fraction="0.84" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.98" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.45" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.7" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.55" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.63" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="0.655" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/linear" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="beam">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.65" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/linear" android:value="0" />
+                    <keyframe android:fraction="0.68" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.76" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.55" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.63" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="0.655" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.66" android:interpolator="@android:interpolator/linear" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="flash">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.76" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/decelerate_quad" android:value="1.3" />
+                    <keyframe android:fraction="0.9" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.76" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/decelerate_quad" android:value="1.3" />
+                    <keyframe android:fraction="0.9" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="glow">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.9" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.12" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.9" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.9" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.12" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.9" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="8" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

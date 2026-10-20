@@ -22,15 +22,25 @@ object AndroidSettingsCatalog {
         val keywords: List<String>
     )
 
+    /**
+     * `Settings.ACTION_SYSTEM_UPDATE_SETTINGS`: public from API level 36.1, and answered by the Settings app
+     * before that. Spelled out so older releases can look it up too.
+     */
+    private const val SYSTEM_UPDATE_SETTINGS = "android.settings.SYSTEM_UPDATE_SETTINGS"
+
+    /** The Settings app's own action for its Text-to-Speech page; not in the SDK, so only offered where it resolves. */
+    private const val TTS_SETTINGS = "com.android.settings.TTS_SETTINGS"
+
     private fun page(id: String, title: String, action: String, iconType: String, vararg keywords: String) =
         Page(id, title, action, iconType, keywords.toList())
 
     val pages: List<Page> = buildList {
         // Network & connections
         add(page("wifi", "Wi-Fi", Settings.ACTION_WIFI_SETTINGS, "wifi",
-            "wifi", "wi fi", "wireless", "wlan", "internet", "networks", "wifi networks"))
+            "wifi", "wi fi", "wireless", "wlan", "networks", "wifi networks"))
         add(page("network", "Network & Internet", Settings.ACTION_WIRELESS_SETTINGS, "network",
-            "network", "internet", "hotspot", "tethering", "wifi hotspot", "portable hotspot", "data saver", "private dns"))
+            "network", "internet", "hotspot", "tethering", "wifi hotspot", "portable hotspot", "mobile hotspot", "data saver",
+            "private dns"))
         add(page("mobile_network", "Mobile Network", Settings.ACTION_DATA_ROAMING_SETTINGS, "mobile_network",
             "mobile network", "mobile data", "cellular", "cellular data", "roaming", "sim", "carrier", "apn"))
         add(page("data_usage", "Data Usage", Settings.ACTION_DATA_USAGE_SETTINGS, "data_usage",
@@ -41,9 +51,9 @@ object AndroidSettingsCatalog {
             "bluetooth", "bt", "blue tooth", "pairing", "pair new device", "connected devices", "headphones", "earbuds"))
         add(page("nfc", "NFC", Settings.ACTION_NFC_SETTINGS, "nfc", "nfc", "near field communication"))
         add(page("contactless", "Contactless Payments", Settings.ACTION_NFC_PAYMENT_SETTINGS, "contactless",
-            "contactless payments", "tap to pay", "tap and pay", "nfc payment", "default payment app"))
+            "contactless payments", "tap and pay", "nfc payment", "default payment app"))
         add(page("cast", "Cast", Settings.ACTION_CAST_SETTINGS, "cast",
-            "cast", "screen cast", "screen mirroring", "chromecast", "mirror screen"))
+            "cast", "screen cast", "screen mirroring", "mirror screen"))
         add(page("vpn", "VPN", Settings.ACTION_VPN_SETTINGS, "vpn", "vpn", "virtual private network"))
 
         // Battery
@@ -57,11 +67,13 @@ object AndroidSettingsCatalog {
         // Display & sound
         add(page("display", "Display", Settings.ACTION_DISPLAY_SETTINGS, "display",
             "display", "screen", "brightness", "adaptive brightness", "dark mode", "dark theme", "light mode",
-            "screen timeout", "font size", "display size", "refresh rate", "smooth display"))
+            "screen timeout", "font size", "text size", "display size", "refresh rate", "smooth display"))
         add(page("night_light", "Night Light", Settings.ACTION_NIGHT_DISPLAY_SETTINGS, "night_light",
             "night light", "blue light", "eye comfort", "night mode", "warm screen"))
         add(page("auto_rotate", "Auto-Rotate Screen", Settings.ACTION_AUTO_ROTATE_SETTINGS, "auto_rotate",
             "auto rotate", "autorotate", "rotation", "screen rotation", "rotate"))
+        add(page("wallpaper", "Wallpaper & Style", Intent.ACTION_SET_WALLPAPER, "wallpaper",
+            "wallpaper", "wallpapers", "change wallpaper", "background", "wallpaper and style"))
         add(page("screen_saver", "Screen Saver", Settings.ACTION_DREAM_SETTINGS, "screen_saver",
             "screen saver", "screensaver", "daydream"))
         add(page("sound", "Sound & Vibration", Settings.ACTION_SOUND_SETTINGS, "sound",
@@ -74,12 +86,13 @@ object AndroidSettingsCatalog {
             add(page("notifications", "App Notifications", Settings.ACTION_ALL_APPS_NOTIFICATION_SETTINGS, "notifications",
                 "notifications", "app notifications", "notification settings"))
         }
-        add(page("notification_access", "Notification Read, Reply & Control", Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS, "notification_access",
-            "notification access", "notification listener"))
+        add(page("notification_access", "Device & App Notifications", Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS, "notification_access",
+            "notification access", "notification listener", "notification read reply"))
         add(page("apps", "Apps", Settings.ACTION_APPLICATION_SETTINGS, "apps",
             "apps", "applications", "app info", "installed apps", "all apps", "manage apps", "uninstall apps"))
         add(page("default_apps", "Default Apps", Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS, "default_apps",
-            "default apps", "default browser", "default phone app", "default sms app", "default assistant", "open by default"))
+            "default apps", "default browser", "default dialer", "default calling app", "default sms app", "default assistant",
+            "open by default"))
         add(page("home_app", "Home App", Settings.ACTION_HOME_SETTINGS, "home_app",
             "home app", "launcher", "default launcher", "home screen app"))
         add(page("overlay", "Display Over Other Apps", Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "overlay",
@@ -99,7 +112,7 @@ object AndroidSettingsCatalog {
         add(page("location", "Location", Settings.ACTION_LOCATION_SOURCE_SETTINGS, "location",
             "location", "gps", "location services", "location access"))
         add(page("privacy", "Privacy", Settings.ACTION_PRIVACY_SETTINGS, "privacy",
-            "privacy", "permissions", "permission manager", "camera access", "microphone access", "privacy dashboard"))
+            "privacy", "permissions", "permission manager", "microphone access", "privacy dashboard"))
         add(page("security", "Security", Settings.ACTION_SECURITY_SETTINGS, "security",
             "security", "screen lock", "lock screen", "pin", "password", "pattern", "fingerprint", "face unlock",
             "biometrics", "find my device"))
@@ -108,7 +121,7 @@ object AndroidSettingsCatalog {
                 "passwords", "passkeys", "password manager", "autofill", "credential manager"))
         }
         add(page("accounts", "Accounts", Settings.ACTION_SYNC_SETTINGS, "accounts",
-            "accounts", "sync", "account sync", "google account", "add account"))
+            "accounts", "sync", "account sync", "add account"))
         add(page("wallet", "Wallet", Settings.ACTION_QUICK_ACCESS_WALLET_SETTINGS, "wallet",
             "wallet", "quick access wallet", "show wallet"))
 
@@ -129,20 +142,32 @@ object AndroidSettingsCatalog {
             "physical keyboard", "hardware keyboard", "keyboard layout"))
         add(page("dictionary", "Personal Dictionary", Settings.ACTION_USER_DICTIONARY_SETTINGS, "dictionary",
             "personal dictionary", "user dictionary", "dictionary"))
+        // Voice input is speech recognition; reading text aloud is the Text-to-Speech page's.
         add(page("voice_input", "Voice Input", Settings.ACTION_VOICE_INPUT_SETTINGS, "voice_input",
-            "voice input", "speech", "text to speech", "voice typing"))
+            "voice input", "speech recognition", "voice typing"))
+        add(page("tts", "Text-to-Speech Output", TTS_SETTINGS, "tts",
+            "text to speech", "tts", "speech rate", "speech output", "preferred engine"))
 
         // System
         add(page("date_time", "Date & Time", Settings.ACTION_DATE_SETTINGS, "date_time",
-            "date and time", "date & time", "date", "time", "time zone", "timezone", "clock", "24 hour"))
+            "date and time", "date & time", "date", "time", "time zone", "timezone", "24 hour"))
         add(page("printing", "Printing", Settings.ACTION_PRINT_SETTINGS, "printing", "printing", "print", "printer"))
         add(page("developer", "Developer Options", Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS, "developer",
             "developer options", "developer", "usb debugging", "adb", "wireless debugging", "dev options"))
         add(page("about", "About Phone", Settings.ACTION_DEVICE_INFO_SETTINGS, "about",
-            "about phone", "about device", "build number", "android version", "device name", "phone number", "imei", "model"))
+            "about phone", "about device", "build number", "android version", "device name", "imei", "model number",
+            "phone model"))
+        add(page("system_update", "System Update", SYSTEM_UPDATE_SETTINGS, "system_update",
+            "system update", "software update", "android update", "security update"))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             add(page("satellite", "Satellite Messaging", Settings.ACTION_SATELLITE_SETTING, "satellite",
                 "satellite", "satellite messaging", "satellite sos"))
         }
     }
+
+    /**
+     * Phrases that name a Settings page no public action opens. A query that is one of them gets no page rather
+     * than a near miss: "screen time" is Digital Wellbeing's, not Display's "screen timeout".
+     */
+    val unlisted: Set<String> = setOf("screen time")
 }

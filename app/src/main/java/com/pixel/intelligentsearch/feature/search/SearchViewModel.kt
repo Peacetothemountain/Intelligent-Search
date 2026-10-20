@@ -79,7 +79,7 @@ data class SearchUiState(
     val files: List<FileItem> = emptyList(),
     val webSuggestions: List<String> = emptyList(),
     val shortcuts: List<AppShortcutItem> = emptyList(),
-    /** Android Settings pages (and App Info pages) matching the query, shown after the apps. */
+    /** Android Settings pages (and App Info pages) matching the query; see [resultSectionOrder] for where they show. */
     val androidSettings: List<com.pixel.intelligentsearch.core.search.AndroidSettingResult> = emptyList(),
     val mathResult: String? = null,
     val instantAnswer: InstantAnswer? = null,
@@ -639,11 +639,18 @@ class SearchViewModel @Inject constructor(
             } else emptyList()
 
             // Settings pages complement the quick toggles above ("wifi" offers both). App Info looks apps up
-            // through the same app index, leaving out hidden apps.
+            // through the same app index, leaving out hidden apps; it is an app result too, so it also needs the
+            // Apps source. The contacts shown keep a name ("carrie") from turning into a setting ("carrier").
             val androidSettings = if (settings.searchAndroidSettings) {
-                androidSettingsSearch.search(newQuery) { name ->
-                    unifiedSearchCoordinator.searchApps(name, limit = 3).filter { it.packageName !in settings.hiddenApps }
-                }
+                androidSettingsSearch.search(
+                    newQuery,
+                    findApps = { name ->
+                        if (settings.searchApps) {
+                            unifiedSearchCoordinator.searchApps(name, limit = 3).filter { it.packageName !in settings.hiddenApps }
+                        } else emptyList()
+                    },
+                    peopleNames = localContacts.map { it.name }
+                )
             } else emptyList()
 
             val suggestionsEnabled = settings.searchWeb && customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]

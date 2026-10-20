@@ -11,18 +11,36 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** A Settings page offered for a query: tapping it opens [intent]. [app] is set for an app's App Info page. */
+/**
+ * A Settings page offered for a query: tapping it opens [intent]. [app] is set for an app's App Info page.
+ * [isStrongMatch] means the query named the page outright ("battery", "wifi settings", "app info chrome"), so the
+ * overlay may lift the section to just after the apps.
+ *
+ * Results are equal when they show and open the same thing: [id] names the page, or the app and its profile, so
+ * the intent follows from it. An Intent compares by identity and can be changed, so it is left out of equality
+ * and never changed once made (opening a result launches a copy), which keeps the [androidx.compose.runtime.Immutable]
+ * promise honest.
+ */
 @androidx.compose.runtime.Immutable
-data class AndroidSettingResult(
+class AndroidSettingResult(
     val id: String,
     val title: String,
     val subtitle: String,
     val iconType: String,
     val intent: Intent,
-    val app: AppItem? = null
+    val app: AppItem? = null,
+    val isStrongMatch: Boolean = false
 ) {
     /** What TalkBack reads for the row, e.g. "Battery settings" or "App info for Chrome". */
     val spokenLabel: String get() = if (app != null) "App info for ${app.name}" else "$title settings"
+
+    override fun equals(other: Any?): Boolean =
+        other is AndroidSettingResult && id == other.id && title == other.title && subtitle == other.subtitle &&
+            iconType == other.iconType && app == other.app && isStrongMatch == other.isStrongMatch
+
+    override fun hashCode(): Int = id.hashCode()
+
+    override fun toString(): String = "AndroidSettingResult(id=$id, title=$title, strong=$isStrongMatch)"
 }
 
 /**
@@ -34,8 +52,10 @@ data class AndroidSettingResult(
 @Singleton
 class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext private val context: Context) {
 
-    private class Term(val text: String, val metaphone: DoubleMetaphone.MetaphoneResult, val isTitle: Boolean) {
+    private class Term(val text: String, val isTitle: Boolean) {
+        val metaphone: DoubleMetaphone.MetaphoneResult = DoubleMetaphone.encode(text)
         val words: List<String> = text.split(' ')
+        val wordMetaphones: List<DoubleMetaphone.MetaphoneResult> = words.map(DoubleMetaphone::encode)
         val initials: String = words.joinToString("") { it.take(1) }
     }
 
@@ -43,44 +63,80 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
 
     private val index: List<IndexedPage> = AndroidSettingsCatalog.pages.map { page ->
         val texts = (listOf(page.title) + page.keywords).map(QueryNormalizer::normalize).filter { it.isNotEmpty() }
-        IndexedPage(page, texts.distinct().map { Term(it, DoubleMetaphone.encode(it), isTitle = it == QueryNormalizer.normalize(page.title)) })
+        IndexedPage(page, texts.distinct().map { Term(it, isTitle = it == QueryNormalizer.normalize(page.title)) })
     }
+
+    private val unlisted: Set<String> = AndroidSettingsCatalog.unlisted.map(QueryNormalizer::normalize).toSet()
 
     private val resolvable = ConcurrentHashMap<String, Boolean>()
 
     /**
      * Settings pages and App Info pages for [rawQuery], best match first. [findApps] looks installed apps up by
-     * name for "app info <app>"; it should leave out apps the user hid.
+     * name; it should leave out apps the user hid, and find nothing while the Apps source is off. [peopleNames] are
+     * the contacts shown for the query.
+     *
+     * Besides "app info <app>", a query that is exactly an installed app's name ("chrome", "camera settings")
+     * answers that app's App Info rather than pages that merely share a word with it, and a query that only starts
+     * an app's or a contact's name ("insta", "carrie") is left to them: only a page it names outright is offered.
      */
-    fun search(rawQuery: String, findApps: (String) -> List<AppItem> = { emptyList() }): List<AndroidSettingResult> {
+    fun search(rawQuery: String, findApps: (String) -> List<AppItem> = { emptyList() }): List<AndroidSettingResult> =
+        search(rawQuery, emptyList(), findApps)
+
+    /** [search], knowing which contacts are shown for the query ([peopleNames]). */
+    fun search(rawQuery: String, peopleNames: List<String>, findApps: (String) -> List<AppItem>): List<AndroidSettingResult> {
         val normalized = QueryNormalizer.normalize(rawQuery)
         if (normalized.isEmpty()) return emptyList()
-        return appInfoResults(normalized, findApps) + pageResults(normalized)
-    }
-
-    private fun pageResults(normalized: String): List<AndroidSettingResult> {
         // "battery settings" and "settings wifi" mean the page; "settings" alone is the Settings app's to answer.
         val query = normalized.split(' ').filterNot { it in SETTINGS_WORDS }.joinToString(" ")
         if (query.isEmpty()) return emptyList()
+
+        appInfoTarget(normalized)?.let { appName ->
+            return appInfoResults(findApps(appName), isStrongMatch = true) + pageResults(query)
+        }
+
+        val apps = findApps(query)
+        val namedApps = apps.filter { QueryNormalizer.normalize(it.name) == query }
+        // "chrome settings" asks for the app's settings outright; a bare "chrome" is mostly the app itself.
+        if (namedApps.isNotEmpty()) return appInfoResults(namedApps, isStrongMatch = query != normalized)
+        val pages = pageResults(query)
+        val startsAName = apps.any { QueryNormalizer.normalize(it.name).startsWith(query) } ||
+            peopleNames.any { name -> QueryNormalizer.normalize(name).let { it.startsWith(query) || it.split(' ').any { word -> word.startsWith(query) } } }
+        return if (startsAName) pages.filter { it.isStrongMatch } else pages
+    }
+
+    private fun pageResults(query: String): List<AndroidSettingResult> {
+        if (query in unlisted) return emptyList()
+        val queryWords = query.split(' ')
         val queryMetaphone = DoubleMetaphone.encode(query)
         return index
-            .mapNotNull { indexed -> score(query, queryMetaphone, indexed)?.let { indexed.page to it } }
+            .mapNotNull { indexed -> score(query, queryWords, queryMetaphone, indexed)?.let { indexed to it } }
             .sortedByDescending { it.second }
             .asSequence()
             .map { it.first }
-            .filter { isAvailable(it.id) { Intent(it.action) } }
+            .filter { isAvailable(it.page.id) { Intent(it.page.action) } }
             .take(MAX_PAGES)
-            .map { AndroidSettingResult(id = it.id, title = it.title, subtitle = SUBTITLE, iconType = it.iconType, intent = Intent(it.action)) }
+            .map { indexed ->
+                val page = indexed.page
+                AndroidSettingResult(
+                    id = page.id,
+                    title = page.title,
+                    subtitle = SUBTITLE,
+                    iconType = page.iconType,
+                    intent = Intent(page.action),
+                    // Named outright: the query is the page's title or one of its keywords.
+                    isStrongMatch = indexed.terms.any { it.text == query }
+                )
+            }
             .toList()
     }
 
     /** The page's best score over its title and keywords, or null when nothing matches well enough. */
-    private fun score(query: String, queryMetaphone: DoubleMetaphone.MetaphoneResult, indexed: IndexedPage): Float? {
+    private fun score(query: String, queryWords: List<String>, queryMetaphone: DoubleMetaphone.MetaphoneResult, indexed: IndexedPage): Float? {
         var best = 0f
         for (term in indexed.terms) {
             // Under three letters only a whole keyword counts ("bt", "dnd" is three): "b" alone would list half the catalogue.
             if (query.length < MIN_PARTIAL_QUERY && term.text != query) continue
-            if (!isPlausible(query, queryMetaphone, term)) continue
+            if (!isPlausible(query, queryWords, term)) continue
             val match = SearchScoringEngine.evaluateScore(
                 query = query,
                 targetTitle = term.text,
@@ -96,27 +152,57 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
     }
 
     /**
-     * Whether [term] is a match worth scoring: the query starts the term or one of its words, spells its initials,
-     * or is a typo of or sounds like a whole word or term. App names need the scorer's looser tiers; against this
-     * short list of common words they turned app names into settings ("news" into "pair new device", "clock" into
-     * "lock screen", "weather" into "other"), so typos and sound-alikes need five letters and the right first letter.
+     * Whether [term] is a match worth scoring: the query is the term, starts it or one of its words, spells its
+     * initials, or is a typo of or sounds like it. App names need the scorer's looser tiers; against this short list
+     * of common words they turned app names, people and everyday words into settings ("news" into "pair new device",
+     * "clock" into "lock screen", "tim" into Date & Time, "carrie" into "carrier", "patreon" into "pattern"). So:
+     * - a title may be started from three letters ("blu"); a word inside it, or a keyword, only from four;
+     * - a keyword's initials must be typed whole;
+     * - a multi-word query must match the term word for word, so "system update" isn't "system language" for
+     *   sharing its first word, and a slip or sound-alike counts only within its own word;
+     * - a single word gets typos and sound-alikes against titles from five letters, but against keywords, which are
+     *   everyday words, only one slip in seven letters or more ("hotpsot") and no sound-alikes.
      */
-    private fun isPlausible(query: String, queryMetaphone: DoubleMetaphone.MetaphoneResult, term: Term): Boolean {
-        if (term.text.startsWith(query) || term.words.any { it.startsWith(query) }) return true
-        if (term.words.size > 1 && term.initials.startsWith(query)) return true
-        if (query.length < MIN_TYPO_QUERY || term.text[0] != query[0]) return false
-        val edits = SearchScoringEngine.fuzzyEditsFor(query.length)
-        if (LevenshteinDistance.computeDistance(query, term.text, maxDistance = edits) <= edits) return true
-        if (term.words.any { it.length >= MIN_TYPO_QUERY && it[0] == query[0] && LevenshteinDistance.computeDistance(query, it, maxDistance = edits) <= edits }) return true
-        // Metaphone codes are short, so "app info spotify" would sound like "app info": the word counts must agree too.
-        return query.count { it == ' ' } + 1 == term.words.size && queryMetaphone.matches(term.metaphone)
+    private fun isPlausible(query: String, queryWords: List<String>, term: Term): Boolean {
+        if (term.text == query) return true
+        if (term.text.startsWith(query) && (term.isTitle || query.length >= MIN_WORD_PREFIX)) return true
+        if (query.length >= MIN_WORD_PREFIX && term.words.any { it.startsWith(query) }) return true
+        if (term.words.size > 1 && (if (term.isTitle) term.initials.startsWith(query) else term.initials == query)) return true
+        if (queryWords.size > 1) {
+            if (queryWords.size != term.words.size) return false
+            return queryWords.indices.all { i ->
+                val typed = queryWords[i]
+                val word = term.words[i]
+                typed == word || (i == queryWords.lastIndex && word.startsWith(typed)) ||
+                    isSlipOf(typed, word, term.wordMetaphones[i], strict = false)
+            }
+        }
+        // One word: a slip of the whole term or of one of its words; sounding alike only against a one-word term.
+        val strict = !term.isTitle
+        if (term.words.size > 1 && isSlipOf(query, term.text, null, strict)) return true
+        return term.words.indices.any { i -> isSlipOf(query, term.words[i], term.wordMetaphones[i].takeIf { term.words.size == 1 }, strict) }
     }
 
-    /** App Info pages for "app info chrome", "chrome app info" and the like. */
-    private fun appInfoResults(normalized: String, findApps: (String) -> List<AppItem>): List<AndroidSettingResult> {
-        val appName = appInfoTarget(normalized) ?: return emptyList()
-        if (!isAvailable(APP_INFO_ID) { appDetailsIntent(context.packageName) }) return emptyList()
-        return findApps(appName)
+    /**
+     * Whether [typed] is a typo of [word], or sounds like it when [wordMetaphone] is given; both need the right first
+     * letter. [strict] is for keywords: seven letters and a single slip, and no sound-alikes.
+     */
+    private fun isSlipOf(typed: String, word: String, wordMetaphone: DoubleMetaphone.MetaphoneResult?, strict: Boolean): Boolean {
+        if (word.isEmpty() || typed[0] != word[0]) return false
+        if (strict) {
+            return typed.length >= MIN_KEYWORD_TYPO_QUERY &&
+                LevenshteinDistance.computeDistance(typed, word, maxDistance = 1) <= 1
+        }
+        if (typed.length < MIN_TYPO_QUERY || word.length < MIN_TYPO_QUERY) return false
+        val edits = SearchScoringEngine.fuzzyEditsFor(typed.length)
+        if (LevenshteinDistance.computeDistance(typed, word, maxDistance = edits) <= edits) return true
+        return wordMetaphone != null && DoubleMetaphone.encode(typed).matches(wordMetaphone)
+    }
+
+    /** App Info pages for [apps]: those named by "app info chrome" and the like, or by the query itself. */
+    private fun appInfoResults(apps: List<AppItem>, isStrongMatch: Boolean): List<AndroidSettingResult> {
+        if (apps.isEmpty() || !isAvailable(APP_INFO_ID) { appDetailsIntent(context.packageName) }) return emptyList()
+        return apps
             .distinctBy { it.packageName to it.userHandle }
             .take(MAX_APP_INFO)
             .map { app ->
@@ -126,7 +212,8 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
                     subtitle = APP_INFO_SUBTITLE,
                     iconType = APP_INFO_ID,
                     intent = appDetailsIntent(app.packageName),
-                    app = app
+                    app = app,
+                    isStrongMatch = isStrongMatch
                 )
             }
     }
@@ -145,7 +232,10 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
         private const val MAX_PAGES = 4
         private const val MAX_APP_INFO = 3
         private const val MIN_PARTIAL_QUERY = 3
+        /** Letters needed before a query may start a keyword, or a word inside a title. */
+        private const val MIN_WORD_PREFIX = 4
         private const val MIN_TYPO_QUERY = 5
+        private const val MIN_KEYWORD_TYPO_QUERY = 7
         /** Below this a match is a two-slip guess or a distant word ("chrome" for "home"). */
         private const val MIN_MATCH_SCORE = 60f
         private const val KEYWORD_WEIGHT = 0.9f

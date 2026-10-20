@@ -104,8 +104,8 @@ class AndroidSettingsSearchTest {
         for (query in listOf("weather", "spotify", "youtube", "news", "contacts")) {
             assertEquals("results for \"$query\"", emptyList<String>(), titles(search, query))
         }
-        // "clock" is a Date & Time keyword, but "lock screen" is not a clock.
-        assertEquals(listOf("Date & Time"), titles(search, "clock"))
+        // "clock" is the Clock app's: no longer a Date & Time keyword, and "lock screen" is not a clock.
+        assertEquals(emptyList<String>(), titles(search, "clock"))
         // A match in the middle of a word is not a match: "ion" is not Location.
         assertTrue("Location" !in titles(search, "ion"))
     }
@@ -188,12 +188,15 @@ class AndroidSettingsSearchTest {
 
     @Test
     fun aSettingsPageNeverRanksAboveAnExactAppMatch() {
-        // An app named like a settings page keeps first place: settings pages sit in their own section after the apps.
-        val order = resultSectionOrder(appWeight = 0, webWeight = 100, contactWeight = 50, fileWeight = 100)
+        // An app named like a settings page keeps first place: settings pages sit in their own section after the
+        // apps, straight after them when the query names a page outright.
+        val order = resultSectionOrder(appWeight = 0, webWeight = 100, contactWeight = 50, fileWeight = 100, settingsStrongMatch = true)
         assertTrue(order.indexOf("android_settings") == order.indexOf("apps") + 1)
-        for (weights in listOf(listOf(50, 50, 50, 50), listOf(100, 0, 0, 0), listOf(0, 0, 0, 0))) {
-            val o = resultSectionOrder(weights[0], weights[1], weights[2], weights[3])
-            assertEquals(o.indexOf("apps") + 1, o.indexOf("android_settings"))
+        for (weights in listOf(listOf(0, 100, 50, 100), listOf(50, 50, 50, 50), listOf(100, 0, 0, 0), listOf(0, 0, 0, 0))) {
+            val strong = resultSectionOrder(weights[0], weights[1], weights[2], weights[3], settingsStrongMatch = true)
+            assertEquals(strong.indexOf("apps") + 1, strong.indexOf("android_settings"))
+            val weak = resultSectionOrder(weights[0], weights[1], weights[2], weights[3])
+            assertTrue("$weak", weak.indexOf("android_settings") > weak.indexOf("apps"))
         }
 
         // And "settings" still finds the Settings app first, with no page competing.
@@ -206,5 +209,147 @@ class AndroidSettingsSearchTest {
         coordinator.bulkIndexApps(listOf(app("Settings", "com.android.settings"), app("Settings Shortcut Maker", "com.example.shortcuts")))
         assertEquals("Settings", coordinator.searchApps("settings").first().name)
         assertEquals(emptyList<String>(), titles(everyPageResolves(), "settings"))
+    }
+
+    @Test
+    fun theSettingsSectionSitsAfterWebAndContactsUnlessAPageIsNamedOutright() {
+        // Default weights: a weak match waits below the web and the contacts; a strong one comes straight after the apps.
+        assertEquals(listOf("apps", "web", "contacts", "android_settings", "files"), resultSectionOrder(50, 50, 50, 50))
+        assertEquals(listOf("apps", "android_settings", "web", "contacts", "files"), resultSectionOrder(50, 50, 50, 50, settingsStrongMatch = true))
+        // Whatever the weights, the other sections keep the order they had without settings.
+        for (weights in listOf(listOf(20, 80, 60, 40), listOf(80, 10, 60, 40), listOf(70, 60, 10, 90), listOf(0, 0, 0, 100))) {
+            val before = listOf("apps" to weights[0], "web" to weights[1], "contacts" to weights[2], "files" to weights[3])
+                .sortedByDescending { it.second }.map { it.first }
+            for (strong in listOf(false, true)) {
+                val order = resultSectionOrder(weights[0], weights[1], weights[2], weights[3], strong)
+                assertEquals("$weights strong=$strong", before, order - "android_settings")
+                val settings = order.indexOf("android_settings")
+                if (strong) {
+                    assertEquals(order.indexOf("apps") + 1, settings)
+                } else {
+                    assertEquals(maxOf(order.indexOf("apps"), order.indexOf("web"), order.indexOf("contacts")) + 1, settings)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun aQueryNamingAPageIsAStrongMatchAndAPartOfOneIsNot() {
+        val search = everyPageResolves()
+        for (query in listOf("battery", "Battery Settings", "settings wifi", "wi-fi", "dnd", "screen timeout", "date & time")) {
+            assertTrue("\"$query\" names its page", search.search(query).first().isStrongMatch)
+        }
+        for (query in listOf("batt", "batery", "phone", "model")) {
+            assertTrue("\"$query\" only partly names a page", search.search(query).none { it.isStrongMatch })
+        }
+    }
+
+    /** A Pixel's usual apps, and an index lookup that finds them by the start of their name. */
+    private val pixelApps = listOf("Chrome", "Camera", "Phone", "Google", "Files", "Clock", "Instagram", "Wallet", "Home", "Patreon")
+        .map { app(it, "com.example.${it.lowercase()}") }
+    private val findPixelApps: (String) -> List<AppItem> = { query ->
+        pixelApps.filter { QueryNormalizer.normalize(it.name).startsWith(query) }.take(3)
+    }
+    private val people = listOf("Carrie Fisher", "Tim Cook", "Pat Smith")
+
+    @Test
+    fun everydayWordsAppNamesAndPeopleDoNotBecomeSettingsPages() {
+        val search = everyPageResolves()
+        fun results(query: String) = search.search(query, people, findPixelApps).map { it.title }
+        // A query that is an app's name is that app's App Info, not a page that merely shares a word with it.
+        val appInfo = mapOf(
+            "chrome" to "Chrome App Info", "chrome settings" to "Chrome App Info", "camera" to "Camera App Info",
+            "phone" to "Phone App Info", "google" to "Google App Info", "files" to "Files App Info",
+            "clock" to "Clock App Info", "wallet" to "Wallet App Info", "home" to "Home App Info", "patreon" to "Patreon App Info"
+        )
+        for ((query, title) in appInfo) {
+            assertEquals("results for \"$query\"", listOf(title), results(query))
+        }
+        // The start of an app's or a person's name, and short words, are theirs.
+        for (query in listOf("chr", "cam", "file", "insta", "pay", "tim", "pat", "sid", "carrie")) {
+            assertEquals("results for \"$query\"", emptyList<String>(), results(query))
+        }
+
+        // Without such apps or people installed, the dropped keywords and the stricter matching still keep them out.
+        for (query in listOf("chrome", "chr", "chrome settings", "camera", "cam", "google", "clock", "pay", "tim", "pat", "sid", "patreon")) {
+            assertEquals("results for \"$query\" alone", emptyList<String>(), titles(search, query))
+        }
+        // "model" is About Phone's (it shows the model), as a weak match, and no longer Do Not Disturb's "modes".
+        assertEquals(listOf("About Phone"), titles(search, "model"))
+        assertTrue(search.search("model").none { it.isStrongMatch })
+        // "phone" is no longer a Default Apps keyword.
+        assertEquals(listOf("About Phone"), titles(search, "phone"))
+    }
+
+    @Test
+    fun multiWordQueriesMatchWordForWord() {
+        val search = everyPageResolves()
+        assertEquals(listOf("System Update"), titles(search, "system update"))
+        assertEquals(emptyList<String>(), titles(search, "screen recorder"))
+        assertEquals(listOf("Network & Internet"), titles(search, "mobile hotspot"))
+        assertEquals(listOf("Network & Internet"), titles(search, "internet"))
+        // Digital Wellbeing has no public Settings action, and Display's "screen timeout" is not it.
+        assertEquals(emptyList<String>(), titles(search, "screen time"))
+        assertEquals("Display", titles(search, "screen tim").first())
+        assertEquals("Display", titles(search, "text size").first())
+        // A slip inside one word still counts.
+        assertEquals("Developer Options", titles(search, "devloper opt").first())
+    }
+
+    @Test
+    fun commonSettingsStillFindTheirPageFirst() {
+        val search = everyPageResolves()
+        val expected = mapOf(
+            "wi-fi" to "Wi-Fi", "wifi" to "Wi-Fi", "dnd" to "Do Not Disturb", "screen timeout" to "Display",
+            "font size" to "Display", "ringtone" to "Sound & Vibration", "data saver" to "Network & Internet", "vpn" to "VPN",
+            "bluetooth" to "Bluetooth", "airplane" to "Airplane Mode", "lock screen" to "Security",
+            "hotspot" to "Network & Internet", "dark mode" to "Display", "battery" to "Battery", "storage" to "Storage",
+            "display" to "Display", "sound" to "Sound & Vibration", "wallpaper" to "Wallpaper & Style"
+        )
+        for ((query, title) in expected) {
+            val first = search.search(query, people, findPixelApps).firstOrNull()
+            assertEquals("first result for \"$query\"", title, first?.title)
+            assertTrue("\"$query\" names its page", first!!.isStrongMatch)
+        }
+    }
+
+    @Test
+    fun textToSpeechIsItsOwnPageNotVoiceInput() {
+        val search = everyPageResolves()
+        for (query in listOf("text to speech", "text-to-speech", "tts")) {
+            val results = search.search(query)
+            assertEquals("results for \"$query\"", listOf("Text-to-Speech Output"), results.map { it.title })
+            assertEquals("com.android.settings.TTS_SETTINGS", results.first().intent.action)
+        }
+        assertEquals("Voice Input", titles(search, "voice input").first())
+    }
+
+    @Test
+    fun textToSpeechIsHiddenWhereItsPageDoesNotOpen() {
+        resolves(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS))
+        val search = AndroidSettingsSearch(context)
+        assertEquals(emptyList<String>(), titles(search, "text to speech"))
+        assertEquals(emptyList<String>(), titles(search, "tts"))
+    }
+
+    @Test
+    fun newPagesOpenThroughTheirPublicActions() {
+        val search = everyPageResolves()
+        assertEquals("android.settings.SYSTEM_UPDATE_SETTINGS", search.search("software update").first().intent.action)
+        assertEquals(Intent.ACTION_SET_WALLPAPER, search.search("wallpaper").first().intent.action)
+        assertEquals("Device & App Notifications", titles(search, "notification access").first())
+    }
+
+    @Test
+    fun resultsAreEqualByWhatTheyShowAndOpen() {
+        val search = everyPageResolves()
+        val first = search.search("battery").first()
+        val again = search.search("battery").first()
+        assertTrue(first.intent !== again.intent)
+        assertEquals(first, again)
+        assertEquals(first.hashCode(), again.hashCode())
+        // A weak "batt" Battery is not the strong "battery" one.
+        assertTrue(first != search.search("batt").first())
+        assertEquals(search.search("app info chrome", findPixelApps), search.search("app info chrome", findPixelApps))
     }
 }

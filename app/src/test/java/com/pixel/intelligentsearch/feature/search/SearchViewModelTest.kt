@@ -214,4 +214,91 @@ class SearchViewModelTest {
         val state = await("local results") { it.systemToggle?.id == "battery" }
         assertEquals(emptyList<Any>(), state.androidSettings)
     }
+
+    /** Makes [intent] open a Settings activity. */
+    private fun opens(intent: android.content.Intent) {
+        val info = android.content.pm.ResolveInfo().apply {
+            activityInfo = android.content.pm.ActivityInfo().apply {
+                packageName = "com.android.settings"
+                name = "com.android.settings.SubSettings"
+            }
+        }
+        shadowOf(ApplicationProvider.getApplicationContext<Context>().packageManager).addResolveInfoForIntent(intent, info)
+    }
+
+    private fun appDetailsOpens() = opens(
+        com.pixel.intelligentsearch.core.search.AndroidSettingsSearch.appDetailsIntent(ApplicationProvider.getApplicationContext<Context>().packageName)
+    )
+
+    /** Types [query] and waits until its search has finished. */
+    private fun search(query: String): SearchUiState {
+        viewModel.onQueryChanged(query)
+        kotlinx.coroutines.runBlocking { viewModel.awaitSearch() }
+        return await("results for $query") { it.query == query }
+    }
+
+    private fun appInfoTitles(state: SearchUiState) = state.androidSettings.filter { it.app != null }.map { it.title }
+
+    @Test
+    fun appInfoLeavesOutHiddenApps() {
+        appDetailsOpens()
+        prefs.edit().put(SettingsManager.HIDDEN_APPS, setOf("com.example.hidden")).commit()
+        start()
+        // A visible app's App Info is found, so the app index is ready...
+        viewModel.onQueryChanged("app info camera")
+        assertEquals(listOf("Camera App Info"), appInfoTitles(await("camera app info") { appInfoTitles(it).isNotEmpty() }))
+        // ...and the hidden app's isn't.
+        assertEquals(emptyList<String>(), appInfoTitles(search("app info hidden thing")))
+        assertEquals(emptyList<String>(), appInfoTitles(search("hidden thing")))
+    }
+
+    @Test
+    fun appInfoNeedsTheAppsSourceToo() {
+        appDetailsOpens()
+        start()
+        // With both sources on, an app's name finds its App Info.
+        viewModel.onQueryChanged("calendar")
+        assertEquals(listOf("Calendar App Info"), appInfoTitles(await("calendar app info") { appInfoTitles(it).isNotEmpty() }))
+
+        prefs.edit().put(SettingsManager.SEARCH_APPS, false).commit()
+        shadowOf(Looper.getMainLooper()).idle()
+        val state = search("app info camera")
+        assertEquals(emptyList<String>(), appInfoTitles(state))
+        assertEquals(emptyList<String>(), appInfoTitles(search("camera")))
+    }
+
+    /** What a quick toggle card shows, without its callbacks (which compare by identity). */
+    private fun shown(state: SearchUiState): List<Any?> {
+        val toggle = state.systemToggle
+        return listOf(
+            toggle?.id, toggle?.title, toggle?.subtitle, toggle?.iconType, toggle?.isEnabled, toggle?.isActionOnly,
+            state.filteredApps.map { it.name }, state.directActions.map { it.title }, state.mathResult, state.instantAnswer
+        )
+    }
+
+    @Test
+    fun quickTogglesAreTheSameWithSettingsPagesOnAndOff() {
+        opens(android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS))
+        opens(android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS))
+        opens(android.content.Intent(android.provider.Settings.ACTION_AIRPLANE_MODE_SETTINGS))
+        start()
+        val toggles = listOf("wifi" to "Wi-Fi", "bluetooth" to "Bluetooth", "flashlight" to "Flashlight", "airplane mode" to "Airplane Mode")
+        val withPages = toggles.map { (query, title) ->
+            val state = search(query)
+            assertEquals("toggle for \"$query\"", title, state.systemToggle?.title)
+            // Wi-Fi, Bluetooth and Airplane Mode also have a Settings page; the flashlight has none.
+            assertEquals("pages for \"$query\"", query != "flashlight", state.androidSettings.isNotEmpty())
+            shown(state)
+        }
+
+        prefs.edit().put(SettingsManager.SEARCH_ANDROID_SETTINGS, false).commit()
+        shadowOf(Looper.getMainLooper()).idle()
+        val withoutPages = toggles.map { (query, _) ->
+            search("")
+            val state = search(query)
+            assertEquals(emptyList<Any>(), state.androidSettings)
+            shown(state)
+        }
+        assertEquals(withoutPages, withPages)
+    }
 }

@@ -70,17 +70,27 @@ import androidx.compose.ui.graphics.Brush
 
 /**
  * The result sections in display order: heaviest user weight first (apps, web, contacts, files on a tie), with
- * Android Settings pages straight after the apps, so a settings page never sits above an app, whatever the weights.
+ * Android Settings pages placed among them without moving the others. Pages come after the apps, the web and the
+ * contacts, since a name or a search shares words with some setting ("tim", "pat") far more often than it means
+ * one; when the query names a page outright ([settingsStrongMatch]: "battery", "wifi settings") they come straight
+ * after the apps. Either way a settings page never sits above an app, whatever the weights.
  */
-internal fun resultSectionOrder(appWeight: Int, webWeight: Int, contactWeight: Int, fileWeight: Int): List<String> =
-    listOf(
+internal fun resultSectionOrder(
+    appWeight: Int,
+    webWeight: Int,
+    contactWeight: Int,
+    fileWeight: Int,
+    settingsStrongMatch: Boolean = false
+): List<String> {
+    val sections = listOf(
         "apps" to appWeight,
         "web" to webWeight,
         "contacts" to contactWeight,
         "files" to fileWeight
-    ).sortedByDescending { it.second }.flatMap { (section, _) ->
-        if (section == "apps") listOf("apps", "android_settings") else listOf(section)
-    }
+    ).sortedByDescending { it.second }.map { it.first }
+    val after = if (settingsStrongMatch) listOf("apps") else listOf("apps", "web", "contacts")
+    return sections.toMutableList().apply { add(after.maxOf { sections.indexOf(it) } + 1, "android_settings") }
+}
 
 /** The overlay's results list: suggested actions, best match, recents, calendar, shortcuts, one-boxes, and the app, Android Settings, web, people and file sections. */
 @Composable
@@ -120,8 +130,9 @@ internal fun OverlaySearchResults(s: OverlayScope) {
 
     // These are plain values from the scope, not snapshot state, so they are keyed rather than derived: a
     // derivedStateOf over them would compute once and never again.
-    val sortedResultSections = remember(appWeight, webWeight, contactWeight, fileWeight) {
-        resultSectionOrder(appWeight, webWeight, contactWeight, fileWeight)
+    val settingsStrongMatch = uiState.androidSettings.any { it.isStrongMatch }
+    val sortedResultSections = remember(appWeight, webWeight, contactWeight, fileWeight, settingsStrongMatch) {
+        resultSectionOrder(appWeight, webWeight, contactWeight, fileWeight, settingsStrongMatch)
     }
     val matchingRecent = remember(uiState.query, uiState.recentSearches, settingsState.searchPreviousSearches) {
         val trimmed = uiState.query.trim()

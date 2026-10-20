@@ -1,81 +1,323 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Earth Day: a seedling sprouts from the top of the G and sways while a small Earth turns beside it.
+<!-- Earth Day: a smiling Earth turns below the G while a little cloud rains beside it, a seedling sprouts from
+     the top of the G and sways, and a butterfly loops past on the left.
      See doodle_halloween.xml for the layout. -->
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt">
     <aapt:attr name="android:drawable">
-        <vector
-            android:width="48dp"
-            android:height="48dp"
-            android:viewportWidth="48"
-            android:viewportHeight="48">
-
-            <!-- Seedling, rooted where it meets the G -->
-            <group
-                android:name="sprout"
-                android:pivotX="26"
-                android:pivotY="13.6">
-                <path
-                    android:pathData="M26,13.6C26.2,11.2 26.8,9 27,6.6"
-                    android:strokeColor="#FF188038"
-                    android:strokeLineCap="round"
-                    android:strokeWidth="0.9" />
-                <path
-                    android:fillColor="#FF34A853"
-                    android:pathData="M26.8,8.6C24.4,8.6 22.6,6.9 22.4,5C24.5,5 26.4,6.5 26.8,8.6Z" />
-                <path
-                    android:fillColor="#FF5BB974"
-                    android:pathData="M27,7C27.6,4.6 29.6,3 31.8,3.2C31.6,5.4 29.4,7 27,7Z" />
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+            <!-- Seedling, rooted where it meets the G; its leaves lag behind the stem -->
+            <group android:name="sprout" android:pivotX="25" android:pivotY="13.3">
+                <path android:strokeColor="#FF1E8E3E" android:strokeWidth="0.9" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M25,13.4C25.2,11.2 25.8,9 26,6.7" />
+                <group android:name="sprout_leaves" android:pivotX="26" android:pivotY="6.8">
+                    <path android:fillColor="#FF5BB974" android:pathData="M26,6.9C24.43,7.61 22.53,6.72 22.11,4.83C23.91,4.12 25.71,5.2 26,6.9ZM26.1,6.6C26.29,4.64 28.26,3.27 30.37,3.93C30.04,6.12 27.94,7.29 26.1,6.6Z" />
+                    <path android:fillColor="#FF34A853" android:pathData="M26,6.9C25.71,5.2 23.91,4.12 22.11,4.83ZM26.1,6.6C27.94,7.29 30.04,6.12 30.37,3.93Z" />
+                    <path android:strokeColor="#FF1E8E3E" android:strokeWidth="0.3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M25.72,6.75L23.03,5.32M26.41,6.41L29.36,4.57" />
+                </group>
             </group>
 
-            <!-- Earth: its land slides past behind a round window, so it seems to turn. -->
-            <group
-                android:translateX="40"
-                android:translateY="37">
-                <path
-                    android:fillColor="#FF4285F4"
-                    android:pathData="M-6,0a6,6 0,1 0,12 0a6,6 0,1 0,-12 0Z" />
+            <!-- Rain cloud -->
+            <group android:name="cloud">
+                <path android:fillColor="#FFFFFFFF" android:strokeColor="#FFAECBFA" android:strokeWidth="0.45" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M36.2,8.8C34.6,8.8 34.6,6 36.6,5.9C36.8,3.8 39.2,2.6 40.8,3.4C41.8,2 44.6,2.4 44.8,4.8C46.8,5 46.8,8.8 44.8,8.8Z" />
+                <path android:fillColor="#FFD2E3FC" android:pathData="M35.2,7.4C36.2,8 44.6,8.2 46.2,7.3C46.1,8.3 45.6,8.8 44.8,8.8L36.2,8.8C35.6,8.8 35.3,8.2 35.2,7.4Z" />
+            </group>
+
+            <group android:name="drop_1" android:translateX="37.8" android:translateY="9.6">
+                <path android:name="drop_1_shape" android:fillColor="#FF4285F4" android:fillAlpha="0" android:pathData="M0,-0.95C0.5,-0.25 0.65,0.45 0,0.7C-0.65,0.45 -0.5,-0.25 0,-0.95Z" />
+            </group>
+
+            <group android:name="drop_2" android:translateX="40.8" android:translateY="9.6">
+                <path android:name="drop_2_shape" android:fillColor="#FF4285F4" android:fillAlpha="0" android:pathData="M0,-0.95C0.5,-0.25 0.65,0.45 0,0.7C-0.65,0.45 -0.5,-0.25 0,-0.95Z" />
+            </group>
+
+            <group android:name="drop_3" android:translateX="43.6" android:translateY="9.6">
+                <path android:name="drop_3_shape" android:fillColor="#FF4285F4" android:fillAlpha="0" android:pathData="M0,-0.95C0.5,-0.25 0.65,0.45 0,0.7C-0.65,0.45 -0.5,-0.25 0,-0.95Z" />
+            </group>
+
+            <!-- Earth: its land slides past behind a round window, so it seems to turn -->
+            <group android:name="earth" android:translateX="39.5" android:translateY="38.6">
+                <path android:fillColor="#FF4285F4" android:pathData="M-6.5,0a6.5,6.5 0,1 0,13,0a6.5,6.5 0,1 0,-13,0Z" />
                 <group>
-                    <clip-path android:pathData="M-6,0a6,6 0,1 0,12 0a6,6 0,1 0,-12 0Z" />
+                    <clip-path android:pathData="M-6.5,0a6.5,6.5 0,1 0,13,0a6.5,6.5 0,1 0,-13,0Z" />
                     <group android:name="land">
-                        <path
-                            android:fillColor="#FF34A853"
-                            android:pathData="M-5,-3C-3,-5 0,-4.5 -0.5,-2.5C-1,-0.5 -2.5,0.5 -3,2.5C-4.5,2 -6.5,0 -5,-3Z M1.5,0.5C3.5,-0.5 6,0.5 5.5,2.5C5,4.5 3,5.5 2,4C1.2,3 1,1.5 1.5,0.5Z M2.5,-5C3.8,-5.6 6,-4.6 5.4,-3.4C4.9,-2.6 3.3,-2.8 2.5,-4Z M-4,4.5C-2.5,4 -1,4.6 -1.5,5.6C-2.5,6.2 -3.8,5.8 -4,4.5Z M9,-3C11,-5 14,-4.5 13.5,-2.5C13,-0.5 11.5,0.5 11,2.5C9.5,2 7.5,0 9,-3Z M15.5,0.5C17.5,-0.5 20,0.5 19.5,2.5C19,4.5 17,5.5 16,4C15.2,3 15,1.5 15.5,0.5Z M16.5,-5C17.8,-5.6 20,-4.6 19.4,-3.4C18.9,-2.6 17.3,-2.8 16.5,-4Z M10,4.5C11.5,4 13,4.6 12.5,5.6C11.5,6.2 10.2,5.8 10,4.5Z" />
+                        <path android:fillColor="#FF34A853" android:pathData="M-5.5,-4.6C-4,-5.8 -1.6,-5.4 -1.4,-3.8C-1.2,-2.6 -2.8,-2.2 -3,-1C-3.2,0.4 -1.6,1 -1.8,2.6C-2,4 -3.2,5.2 -3.8,4.6C-4.2,3.2 -4.4,1.6 -5,0.4C-5.6,-0.8 -6.8,-2 -6.4,-3.4C-6.2,-4 -5.9,-4.3 -5.5,-4.6ZM1.4,-4.2C2.6,-5.2 4.6,-5 5.4,-3.8C6,-2.8 5.2,-2 5.8,-0.8C6.4,0.6 5.6,2.6 4.4,3.4C3.4,4 2.8,3 3,1.8C3.2,0.6 1.8,0 1.4,-1C1,-2 0.8,-3.4 1.4,-4.2ZM-1.1,4.7a0.9,0.5 0 1,0 1.8,0a0.9,0.5 0 1,0 -1.8,0ZM8.5,-4.6C10,-5.8 12.4,-5.4 12.6,-3.8C12.8,-2.6 11.2,-2.2 11,-1C10.8,0.4 12.4,1 12.2,2.6C12,4 10.8,5.2 10.2,4.6C9.8,3.2 9.6,1.6 9,0.4C8.4,-0.8 7.2,-2 7.6,-3.4C7.8,-4 8.1,-4.3 8.5,-4.6ZM15.4,-4.2C16.6,-5.2 18.6,-5 19.4,-3.8C20,-2.8 19.2,-2 19.8,-0.8C20.4,0.6 19.6,2.6 18.4,3.4C17.4,4 16.8,3 17,1.8C17.2,0.6 15.8,0 15.4,-1C15,-2 14.8,-3.4 15.4,-4.2ZM12.9,4.7a0.9,0.5 0 1,0 1.8,0a0.9,0.5 0 1,0 -1.8,0Z" />
                     </group>
                 </group>
-                <path
-                    android:fillAlpha="0.35"
-                    android:fillColor="#FFFFFFFF"
-                    android:pathData="M-4.2,-2.6a1.4,0.9 0,1 0,2.8 0a1.4,0.9 0,1 0,-2.8 0Z" />
+                <path android:fillColor="#FF174EA6" android:fillAlpha="0.32" android:pathData="M5.63,-3.25A6.5,6.5 0,0 1,-5.63,3.25A8,8 0,0 0,5.63,-3.25Z" />
+                <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.35" android:pathData="M-4.05,-2.54a1.5,0.75 -40 1,0 2.3,-1.93a1.5,0.75 -40 1,0 -2.3,1.93Z" />
+                <path android:fillColor="#00000000" android:strokeColor="#FF1967D2" android:strokeWidth="0.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-6.5,0a6.5,6.5 0,1 0,13,0a6.5,6.5 0,1 0,-13,0Z" />
+                <path android:fillColor="#FFF28B82" android:fillAlpha="0.9" android:pathData="M-4.05,1.2a0.75,0.45 0 1,0 1.5,0a0.75,0.45 0 1,0 -1.5,0ZM2.55,1.2a0.75,0.45 0 1,0 1.5,0a0.75,0.45 0 1,0 -1.5,0Z" />
+                <path android:strokeColor="#FF202124" android:strokeWidth="0.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-2.9,-0.2Q-2.1,-1.3 -1.3,-0.2M1.3,-0.2Q2.1,-1.3 2.9,-0.2M-1.3,1.5Q0,2.8 1.3,1.5" />
+            </group>
+
+            <!-- Butterfly, flapping as it loops -->
+            <group android:name="butterfly" android:rotation="14" android:translateX="7" android:translateY="22">
+                <group android:name="wings">
+                    <path android:fillColor="#FFFBBC04" android:strokeColor="#FFE37400" android:strokeWidth="0.35" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M0,-0.2C-1.1,-2.6 -3.5,-2.8 -3.3,-1C-3.2,0 -1.6,0.3 0,-0.2ZM0,-0.2C1.1,-2.6 3.5,-2.8 3.3,-1C3.2,0 1.6,0.3 0,-0.2Z" />
+                    <path android:fillColor="#FFFA7B17" android:strokeColor="#FFE37400" android:strokeWidth="0.35" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M0,0.1C-1.6,0.3 -2.5,1.9 -1.4,2.4C-0.6,2.7 -0.1,1.5 0,0.1ZM0,0.1C1.6,0.3 2.5,1.9 1.4,2.4C0.6,2.7 0.1,1.5 0,0.1Z" />
+                </group>
+                <path android:fillColor="#FF8D6552" android:pathData="M-0.38,0.2a0.38,1.5 0 1,0 0.76,0a0.38,1.5 0 1,0 -0.76,0Z" />
+                <path android:strokeColor="#FF8D6552" android:strokeWidth="0.25" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-0.15,-1.1L-0.75,-2.3M0.15,-1.1L0.75,-2.3" />
             </group>
         </vector>
     </aapt:attr>
 
-    <target android:name="sprout">
-        <aapt:attr name="android:animation">
-            <objectAnimator
-                android:duration="1600"
-                android:interpolator="@android:interpolator/accelerate_decelerate"
-                android:propertyName="rotation"
-                android:repeatCount="infinite"
-                android:repeatMode="reverse"
-                android:valueFrom="-6"
-                android:valueTo="7"
-                android:valueType="floatType" />
-        </aapt:attr>
-    </target>
-
     <!-- The land repeats every 14 units, so sliding it that far loops without a seam. -->
     <target android:name="land">
         <aapt:attr name="android:animation">
-            <objectAnimator
-                android:duration="7000"
-                android:interpolator="@android:interpolator/linear"
-                android:propertyName="translateX"
-                android:repeatCount="infinite"
-                android:valueFrom="0"
-                android:valueTo="-14"
-                android:valueType="floatType" />
+            <objectAnimator android:duration="8000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueFrom="0" android:valueTo="-14" android:valueType="floatType" />
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- A gentle bob and rock. -->
+    <target android:name="earth">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2000" android:interpolator="@android:interpolator/accelerate_decelerate" android:repeatCount="infinite" android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="translateY" android:valueFrom="38.6" android:valueTo="37.8" android:valueType="floatType" />
+                <propertyValuesHolder android:propertyName="rotation" android:valueFrom="-3" android:valueTo="3" android:valueType="floatType" />
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- Stem sways; the leaves follow a beat later. -->
+    <target android:name="sprout">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="3200" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.0625" android:value="2.3" />
+                    <keyframe android:fraction="0.125" android:value="4.24" />
+                    <keyframe android:fraction="0.1875" android:value="5.54" />
+                    <keyframe android:fraction="0.25" android:value="6" />
+                    <keyframe android:fraction="0.3125" android:value="5.54" />
+                    <keyframe android:fraction="0.375" android:value="4.24" />
+                    <keyframe android:fraction="0.4375" android:value="2.3" />
+                    <keyframe android:fraction="0.5" android:value="0" />
+                    <keyframe android:fraction="0.5625" android:value="-2.3" />
+                    <keyframe android:fraction="0.625" android:value="-4.24" />
+                    <keyframe android:fraction="0.6875" android:value="-5.54" />
+                    <keyframe android:fraction="0.75" android:value="-6" />
+                    <keyframe android:fraction="0.8125" android:value="-5.54" />
+                    <keyframe android:fraction="0.875" android:value="-4.24" />
+                    <keyframe android:fraction="0.9375" android:value="-2.3" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="sprout_leaves">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="3200" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-6.24" />
+                    <keyframe android:fraction="0.0625" android:value="-4.55" />
+                    <keyframe android:fraction="0.125" android:value="-2.17" />
+                    <keyframe android:fraction="0.1875" android:value="0.55" />
+                    <keyframe android:fraction="0.25" android:value="3.18" />
+                    <keyframe android:fraction="0.3125" android:value="5.32" />
+                    <keyframe android:fraction="0.375" android:value="6.66" />
+                    <keyframe android:fraction="0.4375" android:value="6.98" />
+                    <keyframe android:fraction="0.5" android:value="6.24" />
+                    <keyframe android:fraction="0.5625" android:value="4.55" />
+                    <keyframe android:fraction="0.625" android:value="2.17" />
+                    <keyframe android:fraction="0.6875" android:value="-0.55" />
+                    <keyframe android:fraction="0.75" android:value="-3.17" />
+                    <keyframe android:fraction="0.8125" android:value="-5.32" />
+                    <keyframe android:fraction="0.875" android:value="-6.66" />
+                    <keyframe android:fraction="0.9375" android:value="-6.98" />
+                    <keyframe android:fraction="1" android:value="-6.24" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="cloud">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="3000" android:interpolator="@android:interpolator/accelerate_decelerate" android:repeatCount="infinite" android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="translateX" android:valueFrom="0" android:valueTo="-1.2" android:valueType="floatType" />
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- Raindrops fall from the cloud and fade, each on its own beat. -->
+    <target android:name="drop_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1800" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="9.6" />
+                    <keyframe android:fraction="0.55" android:interpolator="@android:interpolator/accelerate_quad" android:value="24" />
+                    <keyframe android:fraction="0.551" android:value="9.6" />
+                    <keyframe android:fraction="1" android:value="9.6" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="drop_1_shape">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1800" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.08" android:value="1" />
+                    <keyframe android:fraction="0.38" android:value="1" />
+                    <keyframe android:fraction="0.55" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="drop_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2100" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="9.6" />
+                    <keyframe android:fraction="0.55" android:interpolator="@android:interpolator/accelerate_quad" android:value="24" />
+                    <keyframe android:fraction="0.551" android:value="9.6" />
+                    <keyframe android:fraction="1" android:value="9.6" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="drop_2_shape">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2100" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.08" android:value="1" />
+                    <keyframe android:fraction="0.38" android:value="1" />
+                    <keyframe android:fraction="0.55" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="drop_3">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1950" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="9.6" />
+                    <keyframe android:fraction="0.55" android:interpolator="@android:interpolator/accelerate_quad" android:value="24" />
+                    <keyframe android:fraction="0.551" android:value="9.6" />
+                    <keyframe android:fraction="1" android:value="9.6" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="drop_3_shape">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="1950" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.08" android:value="1" />
+                    <keyframe android:fraction="0.38" android:value="1" />
+                    <keyframe android:fraction="0.55" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- A slow figure of eight on the left. -->
+    <target android:name="butterfly">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="7" />
+                    <keyframe android:fraction="0.0417" android:value="8.15" />
+                    <keyframe android:fraction="0.0833" android:value="8.99" />
+                    <keyframe android:fraction="0.125" android:value="9.3" />
+                    <keyframe android:fraction="0.1667" android:value="8.99" />
+                    <keyframe android:fraction="0.2083" android:value="8.15" />
+                    <keyframe android:fraction="0.25" android:value="7" />
+                    <keyframe android:fraction="0.2917" android:value="5.85" />
+                    <keyframe android:fraction="0.3333" android:value="5.01" />
+                    <keyframe android:fraction="0.375" android:value="4.7" />
+                    <keyframe android:fraction="0.4167" android:value="5.01" />
+                    <keyframe android:fraction="0.4583" android:value="5.85" />
+                    <keyframe android:fraction="0.5" android:value="7" />
+                    <keyframe android:fraction="0.5417" android:value="8.15" />
+                    <keyframe android:fraction="0.5833" android:value="8.99" />
+                    <keyframe android:fraction="0.625" android:value="9.3" />
+                    <keyframe android:fraction="0.6667" android:value="8.99" />
+                    <keyframe android:fraction="0.7083" android:value="8.15" />
+                    <keyframe android:fraction="0.75" android:value="7" />
+                    <keyframe android:fraction="0.7917" android:value="5.85" />
+                    <keyframe android:fraction="0.8333" android:value="5.01" />
+                    <keyframe android:fraction="0.875" android:value="4.7" />
+                    <keyframe android:fraction="0.9167" android:value="5.01" />
+                    <keyframe android:fraction="0.9583" android:value="5.85" />
+                    <keyframe android:fraction="1" android:value="7" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="22" />
+                    <keyframe android:fraction="0.0417" android:value="20.71" />
+                    <keyframe android:fraction="0.0833" android:value="19.5" />
+                    <keyframe android:fraction="0.125" android:value="18.46" />
+                    <keyframe android:fraction="0.1667" android:value="17.67" />
+                    <keyframe android:fraction="0.2083" android:value="17.17" />
+                    <keyframe android:fraction="0.25" android:value="17" />
+                    <keyframe android:fraction="0.2917" android:value="17.17" />
+                    <keyframe android:fraction="0.3333" android:value="17.67" />
+                    <keyframe android:fraction="0.375" android:value="18.46" />
+                    <keyframe android:fraction="0.4167" android:value="19.5" />
+                    <keyframe android:fraction="0.4583" android:value="20.71" />
+                    <keyframe android:fraction="0.5" android:value="22" />
+                    <keyframe android:fraction="0.5417" android:value="23.29" />
+                    <keyframe android:fraction="0.5833" android:value="24.5" />
+                    <keyframe android:fraction="0.625" android:value="25.54" />
+                    <keyframe android:fraction="0.6667" android:value="26.33" />
+                    <keyframe android:fraction="0.7083" android:value="26.83" />
+                    <keyframe android:fraction="0.75" android:value="27" />
+                    <keyframe android:fraction="0.7917" android:value="26.83" />
+                    <keyframe android:fraction="0.8333" android:value="26.33" />
+                    <keyframe android:fraction="0.875" android:value="25.54" />
+                    <keyframe android:fraction="0.9167" android:value="24.5" />
+                    <keyframe android:fraction="0.9583" android:value="23.29" />
+                    <keyframe android:fraction="1" android:value="22" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="14" />
+                    <keyframe android:fraction="0.0417" android:value="12.12" />
+                    <keyframe android:fraction="0.0833" android:value="7" />
+                    <keyframe android:fraction="0.125" android:value="0" />
+                    <keyframe android:fraction="0.1667" android:value="-7" />
+                    <keyframe android:fraction="0.2083" android:value="-12.12" />
+                    <keyframe android:fraction="0.25" android:value="-14" />
+                    <keyframe android:fraction="0.2917" android:value="-12.12" />
+                    <keyframe android:fraction="0.3333" android:value="-7" />
+                    <keyframe android:fraction="0.375" android:value="0" />
+                    <keyframe android:fraction="0.4167" android:value="7" />
+                    <keyframe android:fraction="0.4583" android:value="12.12" />
+                    <keyframe android:fraction="0.5" android:value="14" />
+                    <keyframe android:fraction="0.5417" android:value="12.12" />
+                    <keyframe android:fraction="0.5833" android:value="7" />
+                    <keyframe android:fraction="0.625" android:value="0" />
+                    <keyframe android:fraction="0.6667" android:value="-7" />
+                    <keyframe android:fraction="0.7083" android:value="-12.12" />
+                    <keyframe android:fraction="0.75" android:value="-14" />
+                    <keyframe android:fraction="0.7917" android:value="-12.12" />
+                    <keyframe android:fraction="0.8333" android:value="-7" />
+                    <keyframe android:fraction="0.875" android:value="0" />
+                    <keyframe android:fraction="0.9167" android:value="7" />
+                    <keyframe android:fraction="0.9583" android:value="12.12" />
+                    <keyframe android:fraction="1" android:value="14" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="wings">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="220" android:interpolator="@android:interpolator/accelerate_decelerate" android:repeatCount="infinite" android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueFrom="1" android:valueTo="0.3" android:valueType="floatType" />
+            </objectAnimator>
         </aapt:attr>
     </target>
 </animated-vector>

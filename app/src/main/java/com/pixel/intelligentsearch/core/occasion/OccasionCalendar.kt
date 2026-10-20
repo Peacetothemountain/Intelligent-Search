@@ -15,6 +15,9 @@ import kotlin.math.pow
  * celebrated, going by the phone's region (its language setting's country): Groundhog Day, Mother's and Father's Day,
  * Canada Day, the Fourth of July and Thanksgiving. The first day of each season is the local date of the equinox or
  * solstice, named for the hemisphere the phone's time zone is in.
+ *
+ * Local festivals, such as Diwali in India or Midsummer in Sweden and Finland, are shown only in their regions too (see
+ * [local]).
  */
 object OccasionCalendar {
 
@@ -40,7 +43,8 @@ object OccasionCalendar {
 
     /** The occasion [date] is in [zone] and [region]; when two fall on one day, the rarer one wins. */
     fun on(date: LocalDate, zone: ZoneId, region: String = ""): Occasion? =
-        movable(date, region) ?: regional(date, region) ?: fixed(date) ?: season(date, zone) ?: worldDay(date)
+        local(date, region) ?: movable(date, region) ?: regional(date, region) ?: fixed(date) ?: season(date, zone) ?:
+            worldDay(date)
 
     /** The next time the doodle changes after [from]: the start of the first later day whose occasion differs. */
     fun nextChange(from: ZonedDateTime, region: String = ""): ZonedDateTime {
@@ -84,6 +88,103 @@ object OccasionCalendar {
         704 -> Occasion.INDEPENDENCE_DAY.takeIf { region == "US" }
         else -> null
     }
+
+    /**
+     * Festivals kept in only one region or a few, on fixed or movable dates. They're the rarest days of all, so they
+     * win over anything else that falls on the same day: Songkran over Easter in 2031 and 2036, Tanabata over World
+     * Chocolate Day every year, Pancake Day and Carnival over Lunar New Year in 2026 and 2029. US federal holidays come
+     * first: Juneteenth over Father's Day in 2033 and 2039, Martin Luther King Jr. Day over National Hugging Day in
+     * 2030 and 2036.
+     */
+    private fun local(date: LocalDate, region: String): Occasion? {
+        val year = date.year
+        if (region == "US") federalHoliday(date)?.let { return it }
+        val shroveTuesday = easter(year).minusDays(47)
+        return when {
+            date == shroveTuesday && region in PANCAKE_DAY_REGIONS -> Occasion.PANCAKE_DAY
+            date == shroveTuesday && region == "BR" -> Occasion.CARNIVAL
+            date == LocalDate.of(year, 4, 13) && region == "TH" -> Occasion.SONGKRAN
+            date == LocalDate.of(year, 4, 1).with(TemporalAdjusters.lastInMonth(DayOfWeek.FRIDAY)) && region == "US" ->
+                Occasion.ARBOR_DAY
+            date == kingsDay(year) && region == "NL" -> Occasion.KINGS_DAY
+            date == LocalDate.of(year, 5, 5) && region == "JP" -> Occasion.CHILDRENS_DAY
+            date == midsummer(year, region) -> Occasion.MIDSUMMER
+            date == LocalDate.of(year, 7, 7) && region == "JP" -> Occasion.TANABATA
+            date == LocalDate.of(year, 7, 14) && region == "FR" -> Occasion.BASTILLE_DAY
+            date == nth(year, 7, DayOfWeek.SUNDAY, 3) && region == "US" -> Occasion.ICE_CREAM_DAY
+            date == MID_AUTUMN_FESTIVAL[year] && region in MID_AUTUMN_REGIONS -> Occasion.MID_AUTUMN_FESTIVAL
+            date == CHUSEOK[year] && region == "KR" -> Occasion.CHUSEOK
+            date == LocalDate.of(year, 10, 3) && region == "DE" -> Occasion.GERMAN_UNITY_DAY
+            date == LocalDate.of(year, 11, 2) && region == "MX" -> Occasion.DAY_OF_THE_DEAD
+            date == DIWALI[year] && region == "IN" -> Occasion.DIWALI
+            date == LocalDate.of(year, 11, 5) && region == "GB" -> Occasion.BONFIRE_NIGHT
+            else -> null
+        }
+    }
+
+    /**
+     * US federal holidays (5 U.S.C. 6103) that aren't doodles of their own elsewhere, on the day itself rather than the
+     * weekday they're observed on when they fall at a weekend.
+     */
+    private fun federalHoliday(date: LocalDate): Occasion? {
+        val year = date.year
+        return when (date) {
+            nth(year, 1, DayOfWeek.MONDAY, 3) -> Occasion.MLK_DAY
+            nth(year, 2, DayOfWeek.MONDAY, 3) -> Occasion.PRESIDENTS_DAY
+            LocalDate.of(year, 5, 1).with(TemporalAdjusters.lastInMonth(DayOfWeek.MONDAY)) -> Occasion.MEMORIAL_DAY
+            LocalDate.of(year, 6, 19) -> Occasion.JUNETEENTH
+            nth(year, 9, DayOfWeek.MONDAY, 1) -> Occasion.LABOR_DAY
+            LocalDate.of(year, 11, 11) -> Occasion.VETERANS_DAY
+            else -> null
+        }
+    }
+
+    /** King's Day in the Netherlands: April 27, or the 26th when the 27th is a Sunday. */
+    private fun kingsDay(year: Int): LocalDate =
+        LocalDate.of(year, 4, 27).let { if (it.dayOfWeek == DayOfWeek.SUNDAY) it.minusDays(1) else it }
+
+    /** Midsummer: in Sweden the Friday from June 19 to 25 (Midsummer Eve); in Finland the Saturday from June 20 to 26. */
+    private fun midsummer(year: Int, region: String): LocalDate? = when (region) {
+        "SE" -> LocalDate.of(year, 6, 19).with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY))
+        "FI" -> LocalDate.of(year, 6, 20).with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY))
+        else -> null
+    }
+
+    /** Where Shrove Tuesday is Pancake Day; in Brazil the same day is Carnival's. */
+    private val PANCAKE_DAY_REGIONS = setOf("GB", "IE", "AU", "NZ", "CA")
+
+    /** Where the Mid-Autumn Festival is kept on the Chinese calendar's date; Korea keeps it as Chuseok. */
+    private val MID_AUTUMN_REGIONS = setOf("CN", "HK", "MO", "TW", "SG", "MY")
+
+    /**
+     * The Mid-Autumn Festival, the 15th day of the 8th month of the Chinese calendar, as the Hong Kong Observatory's
+     * Gregorian-lunar conversion tables give it for each year; there's no doodle for it after 2040.
+     */
+    private val MID_AUTUMN_FESTIVAL = mapOf(
+        2026 to LocalDate.of(2026, 9, 25), 2027 to LocalDate.of(2027, 9, 15), 2028 to LocalDate.of(2028, 10, 3),
+        2029 to LocalDate.of(2029, 9, 22), 2030 to LocalDate.of(2030, 9, 12), 2031 to LocalDate.of(2031, 10, 1),
+        2032 to LocalDate.of(2032, 9, 19), 2033 to LocalDate.of(2033, 9, 8), 2034 to LocalDate.of(2034, 9, 27),
+        2035 to LocalDate.of(2035, 9, 16), 2036 to LocalDate.of(2036, 10, 4), 2037 to LocalDate.of(2037, 9, 24),
+        2038 to LocalDate.of(2038, 9, 13), 2039 to LocalDate.of(2039, 10, 2), 2040 to LocalDate.of(2040, 9, 20)
+    )
+
+    /**
+     * Chuseok, the same lunar date on the Korean calendar, which is reckoned at UTC+9: a day after the Chinese date in
+     * 2040, when the new moon falls just before midnight in Beijing and just after it in Seoul. No doodle after 2040.
+     */
+    private val CHUSEOK = MID_AUTUMN_FESTIVAL + (2040 to LocalDate.of(2040, 9, 21))
+
+    /**
+     * Diwali (the day of Lakshmi Puja) for New Delhi, as both Drik Panchang and AstroSage give it (and India's list of
+     * public holidays for 2026 and 2027). From 2036 the new moon ends close to sunset and the almanacs may disagree, so
+     * there's no doodle for it after 2035.
+     */
+    private val DIWALI = mapOf(
+        2026 to LocalDate.of(2026, 11, 8), 2027 to LocalDate.of(2027, 10, 29), 2028 to LocalDate.of(2028, 10, 17),
+        2029 to LocalDate.of(2029, 11, 5), 2030 to LocalDate.of(2030, 10, 26), 2031 to LocalDate.of(2031, 11, 14),
+        2032 to LocalDate.of(2032, 11, 2), 2033 to LocalDate.of(2033, 10, 22), 2034 to LocalDate.of(2034, 11, 10),
+        2035 to LocalDate.of(2035, 10, 30)
+    )
 
     private fun fixed(date: LocalDate): Occasion? = when (date.monthValue * 100 + date.dayOfMonth) {
         101 -> Occasion.NEW_YEARS_DAY

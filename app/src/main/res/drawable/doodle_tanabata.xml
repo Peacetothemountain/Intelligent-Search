@@ -1,0 +1,378 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tanabata: a bamboo branch on the right hangs paper wish strips that flutter in the breeze, while across the
+     Milky Way on the left the two star lovers twinkle at each other. See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="48dp"
+            android:height="48dp"
+            android:viewportWidth="48"
+            android:viewportHeight="48">
+
+            <!-- The Milky Way, and the stars along it -->
+            <path
+                android:pathData="M3.6,23Q11,11 25,2.6"
+                android:strokeAlpha="0.22"
+                android:strokeColor="#FF8AB4F8"
+                android:strokeLineCap="round"
+                android:strokeWidth="4.6" />
+            <path
+                android:pathData="M3.6,23Q11,11 25,2.6"
+                android:strokeAlpha="0.3"
+                android:strokeColor="#FFC58AF9"
+                android:strokeLineCap="round"
+                android:strokeWidth="2" />
+            <path
+                android:name="dust_1"
+                android:fillAlpha="1"
+                android:fillColor="#FFFDD663"
+                android:pathData="M4.9,20.2a0.3,0.3 0,1 0,0.6 0a0.3,0.3 0,1 0,-0.6 0Z M9.25,15.4a0.35,0.35 0,1 0,0.7 0a0.35,0.35 0,1 0,-0.7 0Z M14.3,9.4a0.3,0.3 0,1 0,0.6 0a0.3,0.3 0,1 0,-0.6 0Z M21.05,5.2a0.35,0.35 0,1 0,0.7 0a0.35,0.35 0,1 0,-0.7 0Z" />
+            <path
+                android:name="dust_2"
+                android:fillAlpha="0.25"
+                android:fillColor="#FFFDD663"
+                android:pathData="M7.1,18.6a0.3,0.3 0,1 0,0.6 0a0.3,0.3 0,1 0,-0.6 0Z M11.15,12.2a0.25,0.25 0,1 0,0.5 0a0.25,0.25 0,1 0,-0.5 0Z M17.3,7.8a0.3,0.3 0,1 0,0.6 0a0.3,0.3 0,1 0,-0.6 0Z M23.75,3.4a0.25,0.25 0,1 0,0.5 0a0.25,0.25 0,1 0,-0.5 0Z" />
+            <group
+                android:name="vega"
+                android:rotation="0"
+                android:scaleX="1"
+                android:scaleY="1"
+                android:translateX="6.6"
+                android:translateY="13.6">
+                <path
+                    android:fillColor="#FFF29900"
+                    android:pathData="M0,-1.9Q0.304,-0.304 1.9,0Q0.304,0.304 0,1.9Q-0.304,0.304 -1.9,0Q-0.304,-0.304 0,-1.9Z" />
+                <path
+                    android:fillColor="#FFFDD663"
+                    android:pathData="M0,-1.2Q0.192,-0.192 1.2,0Q0.192,0.192 0,1.2Q-0.192,0.192 -1.2,0Q-0.192,-0.192 0,-1.2Z" />
+            </group>
+            <group
+                android:name="altair"
+                android:rotation="0"
+                android:scaleX="1"
+                android:scaleY="1"
+                android:translateX="19"
+                android:translateY="10.6">
+                <path
+                    android:fillColor="#FFF29900"
+                    android:pathData="M0,-1.9Q0.304,-0.304 1.9,0Q0.304,0.304 0,1.9Q-0.304,0.304 -1.9,0Q-0.304,-0.304 0,-1.9Z" />
+                <path
+                    android:fillColor="#FFFDD663"
+                    android:pathData="M0,-1.2Q0.192,-0.192 1.2,0Q0.192,0.192 0,1.2Q-0.192,0.192 -1.2,0Q-0.192,-0.192 0,-1.2Z" />
+            </group>
+
+            <!-- Bamboo -->
+            <group
+                android:name="bamboo"
+                android:pivotX="44.6"
+                android:pivotY="48"
+                android:rotation="-1.5">
+                <path
+                    android:pathData="M44.6,48C44.9,34 44.3,18 41.6,3.2"
+                    android:strokeColor="#FF188038"
+                    android:strokeLineCap="round"
+                    android:strokeWidth="1.4" />
+                <path
+                    android:pathData="M44.3,48C44.6,34 44,18 41.3,3.2"
+                    android:strokeColor="#FF34A853"
+                    android:strokeLineCap="round"
+                    android:strokeWidth="0.7" />
+                <path
+                    android:pathData="M43.5,16.6C40.5,12 37.5,9.4 33.4,8.8"
+                    android:strokeColor="#FF188038"
+                    android:strokeLineCap="round"
+                    android:strokeWidth="0.7" />
+                <path
+                    android:pathData="M44,40.2L45.4,40 M44.2,29.2L45.5,29 M43.9,20.6L45.1,20.2 M42.6,11.6L43.7,11.2"
+                    android:strokeColor="#FF188038"
+                    android:strokeWidth="0.5" />
+                <path
+                    android:fillColor="#FF188038"
+                    android:pathData="M41.6,3.4C39.951,3.256 38.182,2.12 37.443,1C38.732,1.167 40.601,2.13 41.6,3.4Z M41.6,3.4C40.244,2.451 39.28,0.582 39.2,-0.757C40.233,0.032 41.37,1.801 41.6,3.4Z M41.6,3.4C41.744,1.751 42.88,-0.018 44,-0.757C43.833,0.532 42.87,2.401 41.6,3.4Z M33.6,8.9C32.746,10.121 31.064,10.988 29.859,11.06C30.569,10.13 32.161,9.107 33.6,8.9Z M33.6,8.9C32.2,9.41 30.325,9.156 29.296,8.523C30.412,8.169 32.302,8.244 33.6,8.9Z M33.6,8.9C32.133,8.642 30.636,7.484 30.061,6.422C31.204,6.673 32.804,7.683 33.6,8.9Z M44.5,23C45.612,21.888 47.519,21.295 48.785,21.44C47.876,22.277 46.034,23.048 44.5,23Z M44.5,23C46.049,22.726 47.951,23.335 48.905,24.18C47.681,24.344 45.729,23.919 44.5,23Z M44.5,23C43.388,24.112 41.481,24.705 40.215,24.56C41.124,23.723 42.966,22.952 44.5,23Z" />
+                <path
+                    android:fillColor="#FF34A853"
+                    android:pathData="M41.6,3.4C40.081,3.807 38.133,3.367 37.109,2.608C38.314,2.338 40.296,2.591 41.6,3.4Z M41.6,3.4C40.813,2.038 40.734,0.043 41.203,-1.143C41.775,-0.048 42.044,1.931 41.6,3.4Z M41.6,3.4C42.386,2.038 44.075,0.971 45.335,0.784C44.674,1.827 43.094,3.05 41.6,3.4Z M33.6,8.9C32.396,9.911 30.444,10.336 29.195,10.08C30.174,9.326 32.076,8.718 33.6,8.9Z M33.6,8.9C32.033,9.038 30.191,8.266 29.315,7.34C30.549,7.284 32.456,7.877 33.6,8.9Z M44.6,38C45.61,36.795 47.459,36.038 48.733,36.073C47.9,36.985 46.132,37.914 44.6,38Z M44.6,38C46.119,37.593 48.067,38.033 49.091,38.792C47.886,39.062 45.904,38.809 44.6,38Z M44.6,38C43.033,38.138 41.191,37.366 40.315,36.44C41.549,36.384 43.456,36.977 44.6,38Z" />
+                <group
+                    android:name="tanzaku_1"
+                    android:rotation="-10"
+                    android:translateX="35.6"
+                    android:translateY="9.6">
+                    <path
+                        android:pathData="M0,0L0,0.9"
+                        android:strokeColor="#FF9AA0A6"
+                        android:strokeWidth="0.25" />
+                    <path
+                        android:fillColor="#FFC92786"
+                        android:pathData="M-0.8,0.8L0.8,0.8L0.8,5L-0.8,5Z" />
+                    <path
+                        android:fillColor="#FFF538A0"
+                        android:pathData="M-0.8,0.8L0.3,0.8L0.3,5L-0.8,5Z" />
+                    <path
+                        android:fillAlpha="0.6"
+                        android:fillColor="#FFFFFFFF"
+                        android:pathData="M-0.35,1.7L0.05,1.7L0.05,2.1L-0.35,2.1Z M-0.35,2.6L0.05,2.6L0.05,3L-0.35,3Z M-0.35,3.5L0.05,3.5L0.05,3.9L-0.35,3.9Z" />
+                </group>
+                <group
+                    android:name="tanzaku_2"
+                    android:rotation="14"
+                    android:translateX="39.4"
+                    android:translateY="11.6">
+                    <path
+                        android:pathData="M0,0L0,0.9"
+                        android:strokeColor="#FF9AA0A6"
+                        android:strokeWidth="0.25" />
+                    <path
+                        android:fillColor="#FFF29900"
+                        android:pathData="M-0.8,0.8L0.8,0.8L0.8,5L-0.8,5Z" />
+                    <path
+                        android:fillColor="#FFFBBC04"
+                        android:pathData="M-0.8,0.8L0.3,0.8L0.3,5L-0.8,5Z" />
+                    <path
+                        android:fillAlpha="0.6"
+                        android:fillColor="#FFFFFFFF"
+                        android:pathData="M-0.35,1.7L0.05,1.7L0.05,2.1L-0.35,2.1Z M-0.35,2.6L0.05,2.6L0.05,3L-0.35,3Z M-0.35,3.5L0.05,3.5L0.05,3.9L-0.35,3.9Z" />
+                </group>
+                <group
+                    android:name="tanzaku_3"
+                    android:rotation="-10"
+                    android:translateX="42.4"
+                    android:translateY="15.4">
+                    <path
+                        android:pathData="M0,0L0,0.9"
+                        android:strokeColor="#FF9AA0A6"
+                        android:strokeWidth="0.25" />
+                    <path
+                        android:fillColor="#FF1967D2"
+                        android:pathData="M-0.8,0.8L0.8,0.8L0.8,5L-0.8,5Z" />
+                    <path
+                        android:fillColor="#FF4285F4"
+                        android:pathData="M-0.8,0.8L0.3,0.8L0.3,5L-0.8,5Z" />
+                    <path
+                        android:fillAlpha="0.6"
+                        android:fillColor="#FFFFFFFF"
+                        android:pathData="M-0.35,1.7L0.05,1.7L0.05,2.1L-0.35,2.1Z M-0.35,2.6L0.05,2.6L0.05,3L-0.35,3Z M-0.35,3.5L0.05,3.5L0.05,3.9L-0.35,3.9Z" />
+                </group>
+                <group
+                    android:name="tanzaku_4"
+                    android:rotation="14"
+                    android:translateX="43.2"
+                    android:translateY="26.6">
+                    <path
+                        android:pathData="M0,0L0,0.9"
+                        android:strokeColor="#FF9AA0A6"
+                        android:strokeWidth="0.25" />
+                    <path
+                        android:fillColor="#FF8430CE"
+                        android:pathData="M-0.8,0.8L0.8,0.8L0.8,5L-0.8,5Z" />
+                    <path
+                        android:fillColor="#FFA142F4"
+                        android:pathData="M-0.8,0.8L0.3,0.8L0.3,5L-0.8,5Z" />
+                    <path
+                        android:fillAlpha="0.6"
+                        android:fillColor="#FFFFFFFF"
+                        android:pathData="M-0.35,1.7L0.05,1.7L0.05,2.1L-0.35,2.1Z M-0.35,2.6L0.05,2.6L0.05,3L-0.35,3Z M-0.35,3.5L0.05,3.5L0.05,3.9L-0.35,3.9Z" />
+                </group>
+                <group
+                    android:name="tanzaku_5"
+                    android:rotation="-10"
+                    android:translateX="45.8"
+                    android:translateY="34.4">
+                    <path
+                        android:pathData="M0,0L0,0.9"
+                        android:strokeColor="#FF9AA0A6"
+                        android:strokeWidth="0.25" />
+                    <path
+                        android:fillColor="#FFE8710A"
+                        android:pathData="M-0.8,0.8L0.8,0.8L0.8,5L-0.8,5Z" />
+                    <path
+                        android:fillColor="#FFFA7B17"
+                        android:pathData="M-0.8,0.8L0.3,0.8L0.3,5L-0.8,5Z" />
+                    <path
+                        android:fillAlpha="0.6"
+                        android:fillColor="#FFFFFFFF"
+                        android:pathData="M-0.35,1.7L0.05,1.7L0.05,2.1L-0.35,2.1Z M-0.35,2.6L0.05,2.6L0.05,3L-0.35,3Z M-0.35,3.5L0.05,3.5L0.05,3.9L-0.35,3.9Z" />
+                </group>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <!-- The bamboo sways and every wish strip flutters on its own. -->
+    <target android:name="bamboo">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="3000"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-1.5" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.5" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="tanzaku_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1500"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-10" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="14" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="tanzaku_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1800"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="14" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-10" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="tanzaku_3">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1600"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-10" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="14" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="tanzaku_4">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1900"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="14" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-10" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="tanzaku_5">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1700"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-10" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="14" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- The two stars pulse in turn, and the dust of the Milky Way glimmers. -->
+    <target android:name="vega">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="2400"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.15" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.35" />
+                    <keyframe android:fraction="0.35" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.15" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.35" />
+                    <keyframe android:fraction="0.35" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.35" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="90" />
+                    <keyframe android:fraction="1" android:value="90" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="altair">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="2400"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.5" android:value="1" />
+                    <keyframe android:fraction="0.65" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.35" />
+                    <keyframe android:fraction="0.85" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.5" android:value="1" />
+                    <keyframe android:fraction="0.65" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1.35" />
+                    <keyframe android:fraction="0.85" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.5" android:value="0" />
+                    <keyframe android:fraction="0.85" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-90" />
+                    <keyframe android:fraction="1" android:value="-90" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="dust_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1700"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.2" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="dust_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1300"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.25" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.core.currency
 
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.time.format.DecimalStyle
 import java.time.format.FormatStyle
 import java.util.Locale
 
@@ -22,7 +23,7 @@ data class CurrencyRates(val base: String, val perBase: Map<String, Double>, val
 
     /** Where the rates come from, for the answer card: "Rates from Oct 19, 2026" or "Built-in rates". */
     fun sourceLabel(locale: Locale = Locale.getDefault()): String = date?.let {
-        "Rates from " + DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).format(it)
+        "Rates from " + DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).withDecimalStyle(DecimalStyle.of(locale)).format(it)
     } ?: "Built-in rates"
 
     companion object {

@@ -1,8 +1,12 @@
 package com.pixel.intelligentsearch.core.search
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.text.DecimalFormatSymbols
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -147,6 +151,53 @@ class DateMathEngineTest {
         assertEquals("45 days between Tuesday, December 1, 2026 and Friday, January 15, 2027", text("days between dec 1 and jan 15"))
         assertEquals("0 days between Friday, December 25, 2026 and Friday, December 25, 2026", text("days between christmas and dec 25"))
         assertEquals("66 days between Tuesday, October 20, 2026 and Friday, December 25, 2026", text("days between today and christmas"))
+    }
+
+    @Test
+    fun todayTomorrowAndYesterdayAreNeverMovedToAnotherYear() {
+        assertEquals("66 days between Friday, December 25, 2026 and Tuesday, October 20, 2026", text("days between christmas and today"))
+        assertEquals("11 days between Saturday, October 31, 2026 and Tuesday, October 20, 2026", text("days between halloween and today"))
+        assertEquals("66 days between Friday, December 25, 2026 and Tuesday, October 20, 2026", text("days from christmas to today"))
+        assertEquals("65 days between Friday, December 25, 2026 and Wednesday, October 21, 2026", text("days between christmas and tomorrow"))
+        assertEquals("73 days between Thursday, December 31, 2026 and Monday, October 19, 2026", text("days between new year's eve and yesterday"))
+    }
+
+    @Test
+    fun aSecondDateWithoutAYearIsTheFirstOneOnOrAfterTheFirstDate() {
+        assertEquals("7 days between Saturday, December 25, 2027 and Saturday, January 1, 2028", text("days between dec 25 2027 and jan 1"))
+        assertEquals("90 days between Wednesday, December 1, 2027 and Tuesday, February 29, 2028", text("days between 2027-12-01 and feb 29"))
+        // Both without a year, Feb 29 and the date beside it are the same leap year's, in the order asked.
+        assertEquals("28 days between Tuesday, February 1, 2028 and Tuesday, February 29, 2028", text("days between feb 1 and feb 29"))
+        assertEquals("1 day between Tuesday, February 29, 2028 and Wednesday, March 1, 2028", text("days between feb 29 and mar 1"))
+    }
+
+    @Test
+    fun theDayCountAndTheDatesUseTheSameDigits() {
+        val arabic = Locale.forLanguageTag("ar-EG")
+        val zero = DecimalFormatSymbols.getInstance(arabic).zeroDigit
+        assertNotEquals("this test needs a locale with its own digits", '0', zero)
+        val answer = on(locale = arabic).evaluate("days until christmas")!!
+        assertEquals("${zero + 6}${zero + 6} days", answer.title)
+        assertDigits(arabic, answer.text)
+    }
+
+    @Test
+    fun everyLocaleAnswersWithoutMixingDigits() {
+        val queries = listOf("days until christmas", "days between feb 1 and feb 29", "today + 1000 days", "3 months ago", "2 weeks before christmas")
+        for (locale in Locale.getAvailableLocales()) {
+            val engine = on(locale = locale)
+            for (query in queries) {
+                val answer = engine.evaluate(query)
+                assertNotNull("$query in $locale", answer)
+                assertDigits(locale, answer!!.text)
+            }
+        }
+    }
+
+    /** Every digit in [text] is one of [locale]'s. */
+    private fun assertDigits(locale: Locale, text: String) {
+        val zero = DecimalFormatSymbols.getInstance(locale).zeroDigit
+        assertTrue("\"$text\" in $locale mixes digits", text.filter(Char::isDigit).all { it in zero..zero + 9 })
     }
 
     @Test

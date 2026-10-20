@@ -6,6 +6,7 @@ import java.time.DateTimeException
 import java.time.LocalDate
 import java.time.MonthDay
 import java.time.format.DateTimeFormatter
+import java.time.format.DecimalStyle
 import java.time.format.FormatStyle
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -58,13 +59,31 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
         }
     }
 
-    /** "days between <date> and <date>". A second date without a year that falls before the first is next year's. */
+    /**
+     * "days between <date> and <date>". Today, tomorrow and yesterday are always those days. A second date without a
+     * year is the first time it comes round on or after the first date; when neither has a year and only a leap year
+     * has the second (Feb 29), both are that leap year's.
+     */
     private fun between(query: String): DateAnswer? {
         val match = BETWEEN_REGEX.matchEntire(query) ?: return null
         val today = today()
-        val first = parseDate(match.groupValues[1], today, Lean.THIS_YEAR) ?: return null
-        var second = parseDate(match.groupValues[2], today, Lean.THIS_YEAR) ?: return null
-        if (second < first && !hasYear(match.groupValues[2])) second = second.plusYears(1)
+        val firstWritten = read(match.groupValues[1], today) ?: return null
+        val secondWritten = read(match.groupValues[2], today) ?: return null
+        var first = when (firstWritten) {
+            is Written.Fixed -> firstWritten.date
+            is Written.Yearless -> resolve(firstWritten.monthDay, today, Lean.THIS_YEAR) ?: return null
+        }
+        val second = when (secondWritten) {
+            is Written.Fixed -> secondWritten.date
+            is Written.Yearless -> {
+                val next = onOrAfter(secondWritten.monthDay, first) ?: return null
+                // Only Feb 29 can be more than a year on; then the first date is read in the same leap year.
+                if (firstWritten is Written.Yearless && ChronoUnit.DAYS.between(first, next) > DAYS_IN_LEAP_YEAR) {
+                    first = onOrBefore(firstWritten.monthDay, next) ?: return null
+                }
+                next
+            }
+        }
         val count = dayCount(abs(ChronoUnit.DAYS.between(first, second)))
         val span = "${full(first)} and ${full(second)}"
         return DateAnswer(count, "Between $span", "$count between $span")
@@ -113,52 +132,69 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
     /** Which year a date written without one means: the next or last time it comes round, or this year's. */
     private enum class Lean { FORWARD, BACKWARD, THIS_YEAR }
 
-    private fun parseDate(text: String, today: LocalDate, lean: Lean): LocalDate? {
+    /** A date as written: a day fixed by its year or by being today, tomorrow or yesterday, or a month and day alone. */
+    private sealed interface Written {
+        data class Fixed(val date: LocalDate) : Written
+        data class Yearless(val monthDay: MonthDay) : Written
+    }
+
+    private fun parseDate(text: String, today: LocalDate, lean: Lean): LocalDate? = when (val written = read(text, today)) {
+        null -> null
+        is Written.Fixed -> written.date
+        is Written.Yearless -> resolve(written.monthDay, today, lean)
+    }
+
+    private fun read(text: String, today: LocalDate): Written? {
         when (text) {
-            "today", "now" -> return today
-            "tomorrow" -> return today.plusDays(1)
-            "yesterday" -> return today.minusDays(1)
+            "today", "now" -> return Written.Fixed(today)
+            "tomorrow" -> return Written.Fixed(today.plusDays(1))
+            "yesterday" -> return Written.Fixed(today.minusDays(1))
         }
-        NAMED_DAYS[text]?.let { return resolve(it, null, today, lean) }
+        NAMED_DAYS[text]?.let { return Written.Yearless(it) }
         ISO_DATE_REGEX.matchEntire(text)?.let { match ->
             val (year, month, day) = match.destructured
-            return date(year.toInt(), month.toInt(), day.toInt())
+            return date(year.toInt(), month.toInt(), day.toInt())?.let(Written::Fixed)
         }
         MONTH_DAY_REGEX.matchEntire(text)?.let { match ->
             val month = MONTHS[match.groupValues[1]] ?: return null
-            return monthDay(month, match.groupValues[2].toInt())?.let { resolve(it, match.groupValues[3].toIntOrNull(), today, lean) }
+            return monthDay(month, match.groupValues[2].toInt())?.let { written(it, match.groupValues[3].toIntOrNull()) }
         }
         DAY_MONTH_REGEX.matchEntire(text)?.let { match ->
             val month = MONTHS[match.groupValues[2]] ?: return null
-            return monthDay(month, match.groupValues[1].toInt())?.let { resolve(it, match.groupValues[3].toIntOrNull(), today, lean) }
+            return monthDay(month, match.groupValues[1].toInt())?.let { written(it, match.groupValues[3].toIntOrNull()) }
         }
         return null
     }
 
-    private fun hasYear(text: String): Boolean = YEAR_REGEX.containsMatchIn(text)
-
-    /**
-     * [monthDay] in [year], or without one, the year [lean] picks. Feb 29 without a year is the nearest leap
-     * year's in that direction.
-     */
-    private fun resolve(monthDay: MonthDay, year: Int?, today: LocalDate, lean: Lean): LocalDate? {
-        if (year != null) return if (monthDay.isValidYear(year) && year in 1..9999) monthDay.atYear(year) else null
-        val years = when (lean) {
-            Lean.FORWARD -> today.year..today.year + 8
-            Lean.BACKWARD -> today.year downTo today.year - 8
-            Lean.THIS_YEAR -> today.year..today.year + 8
-        }
-        for (candidate in years) {
-            if (!monthDay.isValidYear(candidate)) continue
-            val date = monthDay.atYear(candidate)
-            when (lean) {
-                Lean.FORWARD -> if (date >= today) return date
-                Lean.BACKWARD -> if (date <= today) return date
-                Lean.THIS_YEAR -> return date
-            }
-        }
-        return null
+    /** [monthDay] in [year] when one was written (null when that year hasn't the day), else the month and day alone. */
+    private fun written(monthDay: MonthDay, year: Int?): Written? = when {
+        year == null -> Written.Yearless(monthDay)
+        monthDay.isValidYear(year) && year in 1..9999 -> Written.Fixed(monthDay.atYear(year))
+        else -> null
     }
+
+    /** [monthDay] in the year [lean] picks. Feb 29 is the nearest leap year's in that direction. */
+    private fun resolve(monthDay: MonthDay, today: LocalDate, lean: Lean): LocalDate? = when (lean) {
+        Lean.FORWARD -> onOrAfter(monthDay, today)
+        Lean.BACKWARD -> onOrBefore(monthDay, today)
+        Lean.THIS_YEAR -> (today.year..today.year + 8).firstOrNull(monthDay::isValidYear)?.let(monthDay::atYear)
+    }
+
+    /** The first [monthDay] on or after [from]. */
+    private fun onOrAfter(monthDay: MonthDay, from: LocalDate): LocalDate? =
+        (from.year..from.year + 8).asSequence()
+            .filter(monthDay::isValidYear)
+            .map(monthDay::atYear)
+            .firstOrNull { it >= from }
+            ?.takeIf { it.year <= 9999 }
+
+    /** The last [monthDay] on or before [until]. */
+    private fun onOrBefore(monthDay: MonthDay, until: LocalDate): LocalDate? =
+        (until.year downTo until.year - 8).asSequence()
+            .filter(monthDay::isValidYear)
+            .map(monthDay::atYear)
+            .firstOrNull { it <= until }
+            ?.takeIf { it.year >= 1 }
 
     private fun monthDay(month: Int, day: Int): MonthDay? = runCatching { MonthDay.of(month, day) }.getOrNull()
 
@@ -173,7 +209,10 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
 
     private fun locale(): Locale = locale ?: Locale.getDefault()
 
-    private fun full(date: LocalDate): String = DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale()).format(date)
+    /** [date] in the locale's full style, with the locale's digits, the same ones [number] uses. */
+    private fun full(date: LocalDate): String = locale().let { locale ->
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale).withDecimalStyle(DecimalStyle.of(locale)).format(date)
+    }
 
     private fun number(value: Long): String = NumberFormat.getIntegerInstance(locale()).format(value)
 
@@ -205,6 +244,7 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
 
     private companion object {
         const val MAX_QUERY_LENGTH = 80
+        const val DAYS_IN_LEAP_YEAR = 366L
         val WHITESPACE = Regex("\\s+")
 
         val MONTHS: Map<String, Int> = buildMap {
@@ -232,7 +272,6 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
         val ISO_DATE_REGEX = Regex("^(\\d{4})-(\\d{1,2})-(\\d{1,2})$")
         val MONTH_DAY_REGEX = Regex("^($MONTH)\\.? (\\d{1,2})$ORDINAL(?:,? (\\d{4}))?$")
         val DAY_MONTH_REGEX = Regex("^(?:the )?(\\d{1,2})$ORDINAL(?: of)? ($MONTH)\\.?(?:,? (\\d{4}))?$")
-        val YEAR_REGEX = Regex("\\d{4}")
 
         val COUNT_REGEX = Regex("^(?:how many )?days (?:left |are there )?(until|till|til|to|before|since) (.+)$")
         val BETWEEN_REGEX = Regex("^(?:how many )?days (?:are there )?(?:between|from) (.+?) (?:and|to|until|till) (.+)$")

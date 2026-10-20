@@ -37,4 +37,15 @@ jobs:
       # Lint fails on warnings not in app/lint-baseline.xml. CI has no signing key, so assembleRelease here only
       # proves the minified build compiles.
       - name: Run Build & Check
-        run: ./gradlew lintDebug testDebugUnitTest assembleRelease -PskipScreenshots --no-daemon
+        run: ./gradlew lintDebug testDebugUnitTest assembleRelease --no-daemon
+
+      # On a failed screenshot comparison Roborazzi writes *_compare.png diffs here; keep them to look at.
+      - name: Upload test reports and screenshot diffs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-failures
+          path: |
+            app/build/reports/tests/testDebugUnitTest
+            app/build/outputs/roborazzi
+          if-no-files-found: ignore

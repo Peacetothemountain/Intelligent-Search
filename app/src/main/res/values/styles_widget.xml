@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        The doodle player over the widget's G. Starts from the plain platform ProgressBar style so the launcher's theme
+        can't tint the art; fills the G's 48dp slot; hidden from TalkBack, which reads the G's description instead.
+    -->
+    <style name="WidgetDoodle" parent="@android:style/Widget.ProgressBar">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:minWidth">48dp</item>
+        <item name="android:maxWidth">48dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:maxHeight">48dp</item>
+        <item name="android:indeterminate">true</item>
+        <item name="android:indeterminateOnly">true</item>
+        <item name="android:mirrorForRtl">false</item>
+        <item name="android:importantForAccessibility">no</item>
+        <item name="android:clickable">false</item>
+        <item name="android:focusable">false</item>
+    </style>
+</resources>

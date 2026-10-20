@@ -31,10 +31,10 @@ internal object BackupPreferenceSchema {
             "show_wallpaper", "smart_clipboard_suggestions", "tutorial_completed", "vibration_enabled",
             "widget_custom_keep_system_g", "widget_custom_sync_colors", "widget_material_custom_keep_system_g",
             "widget_material_custom_sync_colors", "widget_material_design_saved", "widget_material_lock_black",
-            "widget_material_show_g_icon", "widget_material_show_voice", "widget_show_g_icon", "widget_show_gemini",
-            "widget_show_voice", "widget_suppress_unsaved_warning", "widget_system_custom_keep_system_g",
-            "widget_system_custom_sync_colors", "widget_system_design_saved", "widget_system_show_g_icon",
-            "widget_system_show_voice", "widget_system_lock_black"
+            "widget_material_show_doodles", "widget_material_show_g_icon", "widget_material_show_voice",
+            "widget_show_g_icon", "widget_show_gemini", "widget_show_voice", "widget_suppress_unsaved_warning",
+            "widget_system_custom_keep_system_g", "widget_system_custom_sync_colors", "widget_system_design_saved",
+            "widget_system_show_doodles", "widget_system_show_g_icon", "widget_system_show_voice", "widget_system_lock_black"
         )
         // The per-design element colours the widget reads with getInt (WidgetDesignSettings).
         for (design in listOf("widget", "widget_system", "widget_material")) {

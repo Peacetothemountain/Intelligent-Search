@@ -121,6 +121,8 @@ class App : Application() {
                 // One-time: fold old setting spellings and the retired DataStore copy into the single store.
                 settingsManager.migrateToSingleStore()
                 settingsManager.startDirectBootMirror()
+                // Redraw the widgets when the day's doodle next changes (a doodle day starts or ends at midnight).
+                com.pixel.intelligentsearch.feature.widget.WidgetDoodles.scheduleNextChange(this@App)
                 // Built lazily: a process started only for a widget or the boot receiver shouldn't pay for
                 // camera, network and profile registration on the main thread.
                 systemToggleManager.get().clearLegacyAppNightModeOverride()

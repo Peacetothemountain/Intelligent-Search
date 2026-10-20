@@ -148,8 +148,11 @@ internal object ContactActions {
     /** A plus and up to 15 ASCII digits, the first not a zero: all a chat link may carry. */
     private val E164 = Regex("""\+[1-9][0-9]{1,14}""")
 
-    /** An extension and everything after it: "x", "ext", "ext." or a dialler pause, wait or hash. */
-    private val EXTENSION = Regex("""(?i)(ext|x|[,;#]).*""", RegexOption.DOT_MATCHES_ALL)
+    /**
+     * An extension and everything after it: "x", "ext", "ext." or a dialler pause, wait or hash, whether written as
+     * "," and ";" or as the letters "p" and "w". Dropping a letter alone would glue the digits after it onto the line.
+     */
+    private val EXTENSION = Regex("""(?i)(ext|x|[,;#pw]).*""", RegexOption.DOT_MATCHES_ALL)
 
     private fun withoutExtension(number: String): String = EXTENSION.replace(number, "")
 

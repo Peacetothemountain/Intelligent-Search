@@ -145,9 +145,9 @@ abstract class IntelligentSearchAppFunctions : AppFunctionService() {
 
 /**
  * The contacts [IntelligentSearchAppFunctions.searchContacts] returns: names and numbers only, so the contacts'
- * email addresses aren't read at all.
+ * email addresses and other numbers aren't read at all.
  */
 internal suspend fun contactSearchResults(context: Context, query: String, limit: Int): List<ContactSearchResult> =
-    SystemDataProvider.getContacts(context, query, withEmails = false)
+    SystemDataProvider.getContacts(context, query, forActions = false)
         .take(limit.coerceIn(1, 10))
         .map { ContactSearchResult(name = it.name, phoneNumber = it.phoneNumber) }

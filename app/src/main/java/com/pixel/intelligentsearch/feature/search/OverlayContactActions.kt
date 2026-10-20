@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.haptics.rememberTactileSonicEngine
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
+import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
 import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
@@ -74,11 +75,14 @@ internal fun ContactActionChips(actions: List<ContactAction>, activeIconPack: St
             }
             AssistChip(
                 onClick = {
-                    sensoryEngine.click(view)
-                    onLaunched()
-                    focusManager.clearFocus(force = true)
-                    keyboardController?.hide()
-                    launchSafeIntent(context, Intent(action.intent))
+                    // A double tap opens the app once, like the rows' buttons (same window as bouncyClickable).
+                    if (ClickDebouncer.canClick(120L, interactionSource)) {
+                        sensoryEngine.click(view)
+                        onLaunched()
+                        focusManager.clearFocus(force = true)
+                        keyboardController?.hide()
+                        launchSafeIntent(context, Intent(action.intent))
+                    }
                 },
                 interactionSource = interactionSource,
                 label = {

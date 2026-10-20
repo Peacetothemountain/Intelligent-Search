@@ -1,101 +1,402 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- World Oceans Day: waves roll under the G while a fish leaps out of them and dives back in, trailing bubbles.
+<!-- World Oceans Day: waves roll under the G; a whale bobs on the right and blows a spout, a clownfish leaps out
+     on the left and dives back in with a splash and a trail of bubbles, and a gull drifts over the top.
      See doodle_halloween.xml for the layout. -->
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt">
     <aapt:attr name="android:drawable">
         <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
-
-            <!-- The sea fills the bottom right; the waves repeat every 12 units, so sliding them that far loops. -->
-            <group>
-                <clip-path android:pathData="M12,48Q22,37 48,37L48,48Z" />
-                <group android:name="wave_back" android:translateY="-1.4">
-                    <path android:fillColor="#FF8AB4F8" android:pathData="M-12,40Q-9,38 -6,40T0,40T6,40T12,40T18,40T24,40T30,40T36,40T42,40T48,40T54,40T60,40L60,48L-12,48Z" />
+            <!-- Gull, flapping now and then -->
+            <group android:name="gull" android:translateX="23" android:translateY="6">
+                <group android:name="gull_turn">
+                    <group android:name="gull_wings">
+                        <path android:fillColor="#FFBDC1C6" android:strokeColor="#FF80868B" android:strokeWidth="0.35" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-0.6,-0.2C-1.4,-1.9 -2.6,-2.4 -3.6,-1.6C-2.6,-1.4 -1.6,-0.8 -1.2,0.2Z M0.6,-0.2C1.4,-1.9 2.6,-2.4 3.6,-1.6C2.6,-1.4 1.6,-0.8 1.2,0.2Z" />
+                        <path android:fillColor="#FF5F6368" android:pathData="M-3.6,-1.6C-3.2,-2.1 -2.7,-2.3 -2.4,-2.2C-2.8,-1.8 -3.1,-1.6 -3.6,-1.6Z M3.6,-1.6C3.2,-2.1 2.7,-2.3 2.4,-2.2C2.8,-1.8 3.1,-1.6 3.6,-1.6Z" />
+                    </group>
+                    <path android:fillColor="#FFFFFFFF" android:strokeColor="#FF9AA0A6" android:strokeWidth="0.35" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-1.9,0.1C-1.2,-0.7 1,-0.8 1.9,-0.3C2.3,-0.2 2.3,0.3 1.9,0.4C0.8,0.9 -1.2,0.8 -1.9,0.1Z" />
+                    <path android:fillColor="#FFFBBC04" android:pathData="M2.15,-0.15L3,0.1L2.15,0.3Z" />
                 </group>
             </group>
 
-            <group android:name="bubble_1" android:translateX="28" android:translateY="44">
-                <path android:fillColor="#00000000" android:pathData="M-0.6,0a0.6,0.6 0,1 0,1.2 0a0.6,0.6 0,1 0,-1.2 0Z" android:strokeColor="#FF4285F4" android:strokeWidth="0.35" />
-            </group>
-
-            <group android:name="fish" android:translateX="30" android:translateY="47">
-                <path android:fillColor="#FFFA7B17" android:pathData="M-3,0C-2,-1.8 1.5,-1.8 3,0C1.5,1.8 -2,1.8 -3,0Z M-2.6,0L-4.4,-1.4L-4.4,1.4Z" />
-                <path android:fillColor="#FFFFFFFF" android:pathData="M1.3,-0.4a0.45,0.45 0,1 0,0.9 0a0.45,0.45 0,1 0,-0.9 0Z" />
-                <path android:fillColor="#FF202124" android:pathData="M1.6,-0.4a0.2,0.2 0,1 0,0.4 0a0.2,0.2 0,1 0,-0.4 0Z" />
-            </group>
-
+            <!-- The sea, kept inside the pill and sloping away at the right; each layer repeats every 12 units, so sliding it that far loops -->
             <group>
-                <clip-path android:pathData="M12,48Q22,37 48,37L48,48Z" />
-                <group android:name="wave_front">
-                    <path android:fillColor="#FF4285F4" android:pathData="M-12,42Q-9,40 -6,42T0,42T6,42T12,42T18,42T24,42T30,42T36,42T42,42T48,42T54,42T60,42L60,48L-12,48Z" />
+                <clip-path android:pathData="M20,0L42,0L42,36.4C45.6,36.4 47.8,41 47.8,48L20,48A24,24 0,0 1,20 0Z" />
+                <group android:name="wave_back">
+                    <path android:fillColor="#FF8AB4F8" android:pathData="M-12,38.4C-9,37.1 -7,37.1 -6,38.4C-4.5,39.3 -1.5,39.3 0,38.4C3,37.1 5,37.1 6,38.4C7.5,39.3 10.5,39.3 12,38.4C15,37.1 17,37.1 18,38.4C19.5,39.3 22.5,39.3 24,38.4C27,37.1 29,37.1 30,38.4C31.5,39.3 34.5,39.3 36,38.4C39,37.1 41,37.1 42,38.4C43.5,39.3 46.5,39.3 48,38.4C51,37.1 53,37.1 54,38.4C55.5,39.3 58.5,39.3 60,38.4L60,48.5L-12,48.5Z" />
                 </group>
+            </group>
+
+            <!-- Whale, half out of the water -->
+            <group android:name="whale" android:translateX="39.6" android:translateY="40.6">
+                <group android:name="spout" android:scaleX="0" android:scaleY="0" android:translateX="-0.6" android:translateY="-4.4">
+                    <path android:name="spout_water" android:fillColor="#FF669DF6" android:pathData="M-0.25,0L-0.15,-2.2C-1,-2.6 -1.9,-2.4 -2.4,-1.7C-1.9,-3.4 -0.8,-3.9 0,-3.4C0.8,-3.9 1.9,-3.4 2.4,-1.7C1.9,-2.4 1,-2.6 0.15,-2.2L0.25,0Z" />
+                </group>
+                <path android:fillColor="#FF5C6BC0" android:strokeColor="#FF3949AB" android:strokeWidth="0.45" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-5.2,1.2C-5.4,-2.4 -3,-4.6 0.4,-4.5C3,-4.4 4.5,-3.1 5.1,-1.6C5.8,-2 6.3,-2.9 6.3,-3.9L5.4,-4.9C6.2,-5 6.8,-4.6 7,-4.2C7.2,-4.7 7.9,-5.2 8.5,-5L7.5,-3.8C7.3,-2.2 6.4,-0.4 5,0.6L5.2,1.2Z" />
+                <path android:fillColor="#FFC5CAE9" android:pathData="M-5.2,-0.6C-3,0 1,0 4.6,-0.8L5,1.2L-5.2,1.2Z" />
+                <path android:fillColor="#FFF8BBD0" android:pathData="M-2.3,-1.4a0.7,0.42 0 1,0 1.4,0a0.7,0.42 0 1,0 -1.4,0Z" />
+                <path android:fillColor="#FF202124" android:pathData="M-3.12,-2.4a0.42,0.42 0,1 0,0.84,0a0.42,0.42 0,1 0,-0.84,0Z" />
+                <path android:strokeColor="#FF202124" android:strokeWidth="0.35" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-4.6,-1.5Q-3.9,-0.9 -3.2,-1.4" />
+            </group>
+
+            <!-- The near side of the sea, with the fish under it -->
+            <group>
+                <clip-path android:pathData="M20,0L42,0L42,36.4C45.6,36.4 47.8,41 47.8,48L20,48A24,24 0,0 1,20 0Z" />
+                <!-- Clownfish -->
+                <group android:name="fish" android:rotation="-50" android:translateX="8.2" android:translateY="45.6">
+                    <path android:fillColor="#FFE8590C" android:pathData="M-2.1,0L-3.9,-1.5Q-3.4,0 -3.9,1.5Z M-0.6,-1.2Q0.2,-2.3 1.2,-1.1Z M-0.4,1.2Q0.2,1.9 0.9,1.1Z" />
+                    <path android:fillColor="#FFFA7B17" android:pathData="M-2.5,0a2.5,1.35 0 1,0 5,0a2.5,1.35 0 1,0 -5,0Z" />
+                    <path android:fillColor="#FFFFFFFF" android:strokeColor="#FFE8590C" android:strokeWidth="0.25" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-1.45,-1.1Q-1.17,0 -1.45,1.1L-0.75,1.29Q-0.54,0 -0.75,-1.29ZM0.45,-1.33Q0.73,0 0.45,1.33L1.15,1.2Q1.36,0 1.15,-1.2Z" />
+                    <path android:fillColor="#FF202124" android:pathData="M1.37,-0.3a0.28,0.28 0,1 0,0.56,0a0.28,0.28 0,1 0,-0.56,0Z" />
+                </group>
+                <group android:name="wave_front" android:translateX="-12">
+                    <path android:fillColor="#FF4285F4" android:pathData="M-12,40.6C-9,39.17 -7,39.17 -6,40.6C-4.5,41.59 -1.5,41.59 0,40.6C3,39.17 5,39.17 6,40.6C7.5,41.59 10.5,41.59 12,40.6C15,39.17 17,39.17 18,40.6C19.5,41.59 22.5,41.59 24,40.6C27,39.17 29,39.17 30,40.6C31.5,41.59 34.5,41.59 36,40.6C39,39.17 41,39.17 42,40.6C43.5,41.59 46.5,41.59 48,40.6C51,39.17 53,39.17 54,40.6C55.5,41.59 58.5,41.59 60,40.6L60,48.5L-12,48.5Z" />
+                    <path android:strokeColor="#FFFFFFFF" android:strokeAlpha="0.6" android:strokeWidth="0.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-10.4,40C-8.8,39.28 -7.2,39.28 -6,40.55M1.6,40C3.2,39.28 4.8,39.28 6,40.55M13.6,40C15.2,39.28 16.8,39.28 18,40.55M25.6,40C27.2,39.28 28.8,39.28 30,40.55M37.6,40C39.2,39.28 40.8,39.28 42,40.55M49.6,40C51.2,39.28 52.8,39.28 54,40.55" />
+                </group>
+                <path android:fillColor="#FF1967D2" android:fillAlpha="0.55" android:pathData="M-12,45.4C-9,44.62 -7,44.62 -6,45.4C-4.5,45.94 -1.5,45.94 0,45.4C3,44.62 5,44.62 6,45.4C7.5,45.94 10.5,45.94 12,45.4C15,44.62 17,44.62 18,45.4C19.5,45.94 22.5,45.94 24,45.4C27,44.62 29,44.62 30,45.4C31.5,45.94 34.5,45.94 36,45.4C39,44.62 41,44.62 42,45.4C43.5,45.94 46.5,45.94 48,45.4C51,44.62 53,44.62 54,45.4C55.5,45.94 58.5,45.94 60,45.4L60,48.5L-12,48.5Z" />
+            </group>
+
+            <group android:name="splash" android:scaleX="0" android:scaleY="0" android:translateX="18.6" android:translateY="40.4">
+                <path android:name="splash_water" android:fillColor="#FFFFFFFF" android:strokeColor="#FF4285F4" android:strokeWidth="0.3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-2.2,0Q-2,-1.6 -1.3,-2.2Q-1.2,-1 -0.6,0Z M-0.4,0Q0,-2.4 0.4,-3Q0.6,-1.4 0.6,0Z M0.9,0Q1.4,-1.6 2.3,-2Q1.9,-0.8 1.8,0Z" />
+            </group>
+
+            <group android:name="bubble_1" android:scaleX="0" android:scaleY="0" android:translateX="18.4" android:translateY="46">
+                <path android:name="bubble_1_ring" android:fillColor="#33FFFFFF" android:strokeColor="#FFFFFFFF" android:strokeWidth="0.3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-0.55,0a0.55,0.55 0,1 0,1.1,0a0.55,0.55 0,1 0,-1.1,0Z" />
+            </group>
+
+            <group android:name="bubble_2" android:scaleX="0" android:scaleY="0" android:translateX="19.6" android:translateY="46">
+                <path android:name="bubble_2_ring" android:fillColor="#33FFFFFF" android:strokeColor="#FFFFFFFF" android:strokeWidth="0.3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-0.75,0a0.75,0.75 0,1 0,1.5,0a0.75,0.75 0,1 0,-1.5,0Z" />
             </group>
         </vector>
     </aapt:attr>
 
     <target android:name="wave_back">
         <aapt:attr name="android:animation">
-            <objectAnimator android:duration="3000" android:interpolator="@android:interpolator/linear" android:propertyName="translateX" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="-12" android:valueType="floatType" />
-        </aapt:attr>
-    </target>
-    <target android:name="wave_front">
-        <aapt:attr name="android:animation">
-            <objectAnimator android:duration="2000" android:interpolator="@android:interpolator/linear" android:propertyName="translateX" android:repeatCount="infinite" android:valueFrom="-12" android:valueTo="0" android:valueType="floatType" />
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueFrom="0" android:valueTo="-12" android:valueType="floatType" />
+            </objectAnimator>
         </aapt:attr>
     </target>
 
-    <!-- 2.8s: under water, leap in an arc nose first, dive back under. -->
-    <target android:name="fish">
+    <target android:name="wave_front">
         <aapt:attr name="android:animation">
-            <objectAnimator android:duration="2800" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
-                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="30" />
-                    <keyframe android:fraction="0.2" android:value="30" />
-                    <keyframe android:fraction="0.8" android:value="43" />
-                    <keyframe android:fraction="1" android:value="43" />
-                </propertyValuesHolder>
+            <objectAnimator android:duration="3000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueFrom="-12" android:valueTo="0" android:valueType="floatType" />
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- 6s whale: bob, dip, rise and blow, settle. -->
+    <target android:name="whale">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
                 <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="47" />
-                    <keyframe android:fraction="0.2" android:value="47" />
-                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/decelerate_quad" android:value="32" />
-                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/accelerate_quad" android:value="47" />
-                    <keyframe android:fraction="1" android:value="47" />
+                    <keyframe android:fraction="0" android:value="40.6" />
+                    <keyframe android:fraction="0.15" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="41.1" />
+                    <keyframe android:fraction="0.3" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="40.6" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="41.4" />
+                    <keyframe android:fraction="0.56" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="39.8" />
+                    <keyframe android:fraction="0.72" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="40.4" />
+                    <keyframe android:fraction="0.85" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="41" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="40.6" />
                 </propertyValuesHolder>
                 <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="-55" />
-                    <keyframe android:fraction="0.2" android:value="-55" />
-                    <keyframe android:fraction="0.5" android:value="0" />
-                    <keyframe android:fraction="0.8" android:value="55" />
-                    <keyframe android:fraction="1" android:value="55" />
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="3" />
+                    <keyframe android:fraction="0.56" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-4" />
+                    <keyframe android:fraction="0.72" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                    <keyframe android:fraction="0.85" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
                 </propertyValuesHolder>
             </objectAnimator>
         </aapt:attr>
     </target>
-    <target android:name="bubble_1">
+
+    <target android:name="spout">
         <aapt:attr name="android:animation">
-            <objectAnimator android:duration="2800" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
-                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="44" />
-                    <keyframe android:fraction="0.25" android:value="44" />
-                    <keyframe android:fraction="0.6" android:value="36" />
-                    <keyframe android:fraction="0.601" android:value="44" />
-                    <keyframe android:fraction="1" android:value="44" />
-                </propertyValuesHolder>
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
                 <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
                     <keyframe android:fraction="0" android:value="0" />
-                    <keyframe android:fraction="0.25" android:value="0" />
-                    <keyframe android:fraction="0.3" android:value="1" />
-                    <keyframe android:fraction="0.55" android:value="1.3" />
-                    <keyframe android:fraction="0.6" android:value="0" />
+                    <keyframe android:fraction="0.55" android:value="0" />
+                    <keyframe android:fraction="0.6" android:interpolator="@android:interpolator/decelerate_quad" android:value="1.1" />
+                    <keyframe android:fraction="0.7" android:value="1" />
+                    <keyframe android:fraction="0.78" android:value="0.6" />
+                    <keyframe android:fraction="0.8" android:value="0" />
                     <keyframe android:fraction="1" android:value="0" />
                 </propertyValuesHolder>
                 <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
                     <keyframe android:fraction="0" android:value="0" />
-                    <keyframe android:fraction="0.25" android:value="0" />
-                    <keyframe android:fraction="0.3" android:value="1" />
-                    <keyframe android:fraction="0.55" android:value="1.3" />
-                    <keyframe android:fraction="0.6" android:value="0" />
+                    <keyframe android:fraction="0.55" android:value="0" />
+                    <keyframe android:fraction="0.6" android:interpolator="@android:interpolator/decelerate_quad" android:value="1.2" />
+                    <keyframe android:fraction="0.7" android:value="1.05" />
+                    <keyframe android:fraction="0.78" android:value="0.8" />
+                    <keyframe android:fraction="0.8" android:value="0" />
                     <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="spout_water">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.68" android:value="1" />
+                    <keyframe android:fraction="0.8" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- The fish leaps out on the left and dives back in. -->
+    <target android:name="fish">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="8.2" />
+                    <keyframe android:fraction="0.2" android:value="8.2" />
+                    <keyframe android:fraction="0.217" android:value="9.07" />
+                    <keyframe android:fraction="0.233" android:value="9.93" />
+                    <keyframe android:fraction="0.25" android:value="10.8" />
+                    <keyframe android:fraction="0.267" android:value="11.67" />
+                    <keyframe android:fraction="0.283" android:value="12.53" />
+                    <keyframe android:fraction="0.3" android:value="13.4" />
+                    <keyframe android:fraction="0.317" android:value="14.27" />
+                    <keyframe android:fraction="0.333" android:value="15.13" />
+                    <keyframe android:fraction="0.35" android:value="16" />
+                    <keyframe android:fraction="0.367" android:value="16.87" />
+                    <keyframe android:fraction="0.383" android:value="17.73" />
+                    <keyframe android:fraction="0.4" android:value="18.6" />
+                    <keyframe android:fraction="0.46" android:value="20.2" />
+                    <keyframe android:fraction="0.461" android:value="8.2" />
+                    <keyframe android:fraction="1" android:value="8.2" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="45.6" />
+                    <keyframe android:fraction="0.17" android:value="45.6" />
+                    <keyframe android:fraction="0.2" android:value="44.6" />
+                    <keyframe android:fraction="0.217" android:value="41.68" />
+                    <keyframe android:fraction="0.233" android:value="39.28" />
+                    <keyframe android:fraction="0.25" android:value="37.4" />
+                    <keyframe android:fraction="0.267" android:value="36.04" />
+                    <keyframe android:fraction="0.283" android:value="35.21" />
+                    <keyframe android:fraction="0.3" android:value="34.9" />
+                    <keyframe android:fraction="0.317" android:value="35.11" />
+                    <keyframe android:fraction="0.333" android:value="35.84" />
+                    <keyframe android:fraction="0.35" android:value="37.1" />
+                    <keyframe android:fraction="0.367" android:value="38.88" />
+                    <keyframe android:fraction="0.383" android:value="41.18" />
+                    <keyframe android:fraction="0.4" android:value="44" />
+                    <keyframe android:fraction="0.46" android:value="46.5" />
+                    <keyframe android:fraction="0.461" android:value="45.6" />
+                    <keyframe android:fraction="1" android:value="45.6" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-50" />
+                    <keyframe android:fraction="0.2" android:value="-50" />
+                    <keyframe android:fraction="0.217" android:value="-71.96" />
+                    <keyframe android:fraction="0.233" android:value="-67.94" />
+                    <keyframe android:fraction="0.25" android:value="-61.8" />
+                    <keyframe android:fraction="0.267" android:value="-51.62" />
+                    <keyframe android:fraction="0.283" android:value="-33.43" />
+                    <keyframe android:fraction="0.3" android:value="-3.3" />
+                    <keyframe android:fraction="0.317" android:value="28.59" />
+                    <keyframe android:fraction="0.333" android:value="48.93" />
+                    <keyframe android:fraction="0.35" android:value="60.26" />
+                    <keyframe android:fraction="0.367" android:value="66.97" />
+                    <keyframe android:fraction="0.383" android:value="71.3" />
+                    <keyframe android:fraction="0.4" android:value="74.3" />
+                    <keyframe android:fraction="0.46" android:value="60" />
+                    <keyframe android:fraction="0.461" android:value="-50" />
+                    <keyframe android:fraction="1" android:value="-50" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="splash">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.39" android:value="0" />
+                    <keyframe android:fraction="0.43" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="0.5" android:value="1.2" />
+                    <keyframe android:fraction="0.501" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.39" android:value="0" />
+                    <keyframe android:fraction="0.43" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_quad" android:value="0.6" />
+                    <keyframe android:fraction="0.501" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="splash_water">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.44" android:value="1" />
+                    <keyframe android:fraction="0.5" android:value="0" />
+                    <keyframe android:fraction="0.501" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="strokeAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.44" android:value="1" />
+                    <keyframe android:fraction="0.5" android:value="0" />
+                    <keyframe android:fraction="0.501" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- Bubbles rise from where it dived and pop at the surface. -->
+    <target android:name="bubble_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="46" />
+                    <keyframe android:fraction="0.45" android:value="46" />
+                    <keyframe android:fraction="0.63" android:interpolator="@android:interpolator/decelerate_quad" android:value="41.2" />
+                    <keyframe android:fraction="0.631" android:value="46" />
+                    <keyframe android:fraction="1" android:value="46" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="18.4" />
+                    <keyframe android:fraction="0.45" android:value="18.4" />
+                    <keyframe android:fraction="0.54" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="19.4" />
+                    <keyframe android:fraction="0.63" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="18.6" />
+                    <keyframe android:fraction="1" android:value="18.4" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.45" android:value="0" />
+                    <keyframe android:fraction="0.48" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="0.61" android:value="1" />
+                    <keyframe android:fraction="0.63" android:value="1.4" />
+                    <keyframe android:fraction="0.631" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.45" android:value="0" />
+                    <keyframe android:fraction="0.48" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="0.61" android:value="1" />
+                    <keyframe android:fraction="0.63" android:value="1.4" />
+                    <keyframe android:fraction="0.631" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="bubble_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="46" />
+                    <keyframe android:fraction="0.51" android:value="46" />
+                    <keyframe android:fraction="0.69" android:interpolator="@android:interpolator/decelerate_quad" android:value="41.2" />
+                    <keyframe android:fraction="0.691" android:value="46" />
+                    <keyframe android:fraction="1" android:value="46" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="19.6" />
+                    <keyframe android:fraction="0.51" android:value="19.6" />
+                    <keyframe android:fraction="0.6" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="20.6" />
+                    <keyframe android:fraction="0.69" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="19.8" />
+                    <keyframe android:fraction="1" android:value="19.6" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.51" android:value="0" />
+                    <keyframe android:fraction="0.54" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="0.67" android:value="1" />
+                    <keyframe android:fraction="0.69" android:value="1.4" />
+                    <keyframe android:fraction="0.691" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.51" android:value="0" />
+                    <keyframe android:fraction="0.54" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="0.67" android:value="1" />
+                    <keyframe android:fraction="0.69" android:value="1.4" />
+                    <keyframe android:fraction="0.691" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- The gull drifts back and forth over the top, turning at each end. -->
+    <target android:name="gull">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="9000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="23" />
+                    <keyframe android:fraction="0.42" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="33" />
+                    <keyframe android:fraction="0.5" android:value="33" />
+                    <keyframe android:fraction="0.92" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="23" />
+                    <keyframe android:fraction="1" android:value="23" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="6" />
+                    <keyframe android:fraction="0.0625" android:value="6.85" />
+                    <keyframe android:fraction="0.125" android:value="7.2" />
+                    <keyframe android:fraction="0.1875" android:value="6.85" />
+                    <keyframe android:fraction="0.25" android:value="6" />
+                    <keyframe android:fraction="0.3125" android:value="5.15" />
+                    <keyframe android:fraction="0.375" android:value="4.8" />
+                    <keyframe android:fraction="0.4375" android:value="5.15" />
+                    <keyframe android:fraction="0.5" android:value="6" />
+                    <keyframe android:fraction="0.5625" android:value="6.85" />
+                    <keyframe android:fraction="0.625" android:value="7.2" />
+                    <keyframe android:fraction="0.6875" android:value="6.85" />
+                    <keyframe android:fraction="0.75" android:value="6" />
+                    <keyframe android:fraction="0.8125" android:value="5.15" />
+                    <keyframe android:fraction="0.875" android:value="4.8" />
+                    <keyframe android:fraction="0.9375" android:value="5.15" />
+                    <keyframe android:fraction="1" android:value="6" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="gull_turn">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="9000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.43" android:value="1" />
+                    <keyframe android:fraction="0.48" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-1" />
+                    <keyframe android:fraction="0.93" android:value="-1" />
+                    <keyframe android:fraction="0.98" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="gull_wings">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="3000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.06" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-0.4" />
+                    <keyframe android:fraction="0.12" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                    <keyframe android:fraction="0.18" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-0.4" />
+                    <keyframe android:fraction="0.24" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
                 </propertyValuesHolder>
             </objectAnimator>
         </aapt:attr>

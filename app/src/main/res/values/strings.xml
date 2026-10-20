@@ -27,4 +27,17 @@
     <string name="widget_talkback_open_app">Open %1$s</string>
     <string name="widget_talkback_open_web">Open %1$s</string>
     <string name="search_hint">Search</string>
+    <!-- Doodle days: TalkBack reads "<day> doodle, search for <day>", and tapping the doodle searches for the day. -->
+    <string name="widget_talkback_doodle">%1$s doodle, search for %1$s</string>
+    <string name="occasion_new_years_day">New Year\'s Day</string>
+    <string name="occasion_valentines_day">Valentine\'s Day</string>
+    <string name="occasion_leap_day">Leap Day</string>
+    <string name="occasion_earth_day">Earth Day</string>
+    <string name="occasion_first_day_of_spring">First Day of Spring</string>
+    <string name="occasion_first_day_of_summer">First Day of Summer</string>
+    <string name="occasion_first_day_of_autumn">First Day of Autumn</string>
+    <string name="occasion_first_day_of_winter">First Day of Winter</string>
+    <string name="occasion_halloween">Halloween</string>
+    <string name="occasion_holidays">Happy Holidays</string>
+    <string name="occasion_new_years_eve">New Year\'s Eve</string>
 </resources>

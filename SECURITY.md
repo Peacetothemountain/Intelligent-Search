@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Only the latest release (currently 9.2) receives security fixes. Please update before reporting an issue.
+Only the latest release receives security fixes. Please update before reporting an issue.
 
 ## Reporting a Vulnerability
 

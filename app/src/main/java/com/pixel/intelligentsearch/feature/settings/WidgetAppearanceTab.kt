@@ -50,6 +50,7 @@ internal fun WidgetAppearanceTab(
     var localCustomActionColor by fields::customActionColor
     var localCustomSyncColors by fields::customSyncColors
     var localShowGIcon by fields::showGIcon
+    var localShowDoodles by fields::showDoodles
     var localShowVoice by fields::showVoice
     var localShortcut1 by fields::shortcut1
     var localShortcut2 by fields::shortcut2
@@ -88,6 +89,16 @@ internal fun WidgetAppearanceTab(
             onCheckedChange = { localShowGIcon = it },
             showDivider = true
         )
+        AnimatedVisibility(visible = localShowGIcon) {
+            SettingsRowToggle(
+                title = "Doodles",
+                subtitle = "Animates the G on Holidays and the First Day of Each Season. Tap It to Search for the Day.",
+                icon = Icons.Outlined.Celebration,
+                isChecked = localShowDoodles,
+                onCheckedChange = { localShowDoodles = it },
+                showDivider = false
+            )
+        }
     }
 
     if (isMaterialYou) {

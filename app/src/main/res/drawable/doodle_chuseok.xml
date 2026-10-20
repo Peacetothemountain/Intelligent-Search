@@ -164,7 +164,7 @@
                 </group>
             </group>
 
-            <!-- Songpyeon on a plate, on pine needles -->
+            <!-- Three half-moon songpyeon (mugwort green, pink and white) piled on a plate of pine needles -->
             <path
                 android:name="steam_1"
                 android:pathData="M40.4,38.6Q39.4,37.2 40.4,35.8Q41.4,34.4 40.4,33"
@@ -195,35 +195,27 @@
                 android:strokeLineCap="round"
                 android:strokeWidth="0.3" />
             <path
-                android:fillColor="#FF34A853"
-                android:pathData="M38.472,41.598Q38.256,39.33 40.2,39.222Q42.144,39.33 41.928,41.598Q40.2,42.03 38.472,41.598Z" />
+                android:fillColor="#FF5BB974"
+                android:pathData="M37.0,43.6 C36.9,41.8 38.0,41.1 39.2,41.1 C40.4,41.1 41.5,41.8 41.4,43.6 Q39.2,44.2 37.0,43.6Z" />
             <path
                 android:fillColor="#FFA8DAB5"
-                android:pathData="M38.6,41.3Q38.4,39.2 40.2,39.1Q42,39.2 41.8,41.3Q40.2,41.7 38.6,41.3Z" />
+                android:pathData="M37.2,43.25 C37.1,41.75 38.1,41.25 39.2,41.25 C40.3,41.25 41.05,41.75 40.8,43.15 Q39.0,43.65 37.2,43.25Z" />
             <path
-                android:fillColor="#FFF29900"
-                android:pathData="M41.472,41.398Q41.256,39.13 43.2,39.022Q45.144,39.13 44.928,41.398Q43.2,41.83 41.472,41.398Z" />
-            <path
-                android:fillColor="#FFFDE293"
-                android:pathData="M41.6,41.1Q41.4,39 43.2,38.9Q45,39 44.8,41.1Q43.2,41.5 41.6,41.1Z" />
-            <path
-                android:fillColor="#FFBDC1C6"
-                android:pathData="M36.672,43.498Q36.456,41.23 38.4,41.122Q40.344,41.23 40.128,43.498Q38.4,43.93 36.672,43.498Z" />
-            <path
-                android:fillColor="#FFF8F9FA"
-                android:pathData="M36.8,43.2Q36.6,41.1 38.4,41Q40.2,41.1 40,43.2Q38.4,43.6 36.8,43.2Z" />
-            <path
-                android:fillColor="#FFE52592"
-                android:pathData="M39.772,43.698Q39.556,41.43 41.5,41.322Q43.444,41.43 43.228,43.698Q41.5,44.13 39.772,43.698Z" />
+                android:fillColor="#FFE8709F"
+                android:pathData="M41.4,43.6 C41.3,41.8 42.4,41.1 43.6,41.1 C44.8,41.1 45.9,41.8 45.8,43.6 Q43.6,44.2 41.4,43.6Z" />
             <path
                 android:fillColor="#FFFBC4DF"
-                android:pathData="M39.9,43.4Q39.7,41.3 41.5,41.2Q43.3,41.3 43.1,43.4Q41.5,43.8 39.9,43.4Z" />
+                android:pathData="M41.6,43.25 C41.5,41.75 42.5,41.25 43.6,41.25 C44.7,41.25 45.45,41.75 45.2,43.15 Q43.4,43.65 41.6,43.25Z" />
             <path
                 android:fillColor="#FFBDC1C6"
-                android:pathData="M42.872,43.498Q42.656,41.23 44.6,41.122Q46.544,41.23 46.328,43.498Q44.6,43.93 42.872,43.498Z" />
+                android:pathData="M39.2,41.4 C39.1,39.6 40.2,38.9 41.4,38.9 C42.6,38.9 43.7,39.6 43.6,41.4 Q41.4,42.0 39.2,41.4Z" />
             <path
                 android:fillColor="#FFF8F9FA"
-                android:pathData="M43,43.2Q42.8,41.1 44.6,41Q46.4,41.1 46.2,43.2Q44.6,43.6 43,43.2Z" />
+                android:pathData="M39.4,41.05 C39.3,39.55 40.3,39.05 41.4,39.05 C42.5,39.05 43.25,39.55 43.0,40.95 Q41.2,41.45 39.4,41.05Z" />
+            <path
+                android:fillAlpha="0.75"
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M37.85,41.95a0.75,0.28 0,1 0,1.5 0a0.75,0.28 0,1 0,-1.5 0Z M42.25,41.95a0.75,0.28 0,1 0,1.5 0a0.75,0.28 0,1 0,-1.5 0Z M40.05,39.75a0.75,0.28 0,1 0,1.5 0a0.75,0.28 0,1 0,-1.5 0Z" />
         </vector>
     </aapt:attr>
 

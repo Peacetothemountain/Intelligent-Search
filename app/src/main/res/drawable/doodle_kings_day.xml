@@ -101,8 +101,11 @@
                     android:translateX="26.937"
                     android:translateY="40.727">
                     <path
-                        android:fillColor="#FFF8F9FA"
-                        android:pathData="M-1.9,0L1.9,0L0,4.2Z" />
+                        android:fillColor="#FFFFFFFF"
+                        android:pathData="M-1.9,0L1.9,0L0,4.2Z"
+                        android:strokeColor="#FFBDC1C6"
+                        android:strokeLineJoin="round"
+                        android:strokeWidth="0.35" />
                     <path
                         android:fillColor="#FFDADCE0"
                         android:pathData="M0.4,0L1.9,0L0,4.2Z" />

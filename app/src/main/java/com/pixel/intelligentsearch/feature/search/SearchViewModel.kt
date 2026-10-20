@@ -96,6 +96,20 @@ data class SearchUiState(
     val spellingSuggestion: String? = null
 )
 
+/**
+ * This state without anything from the Private Space: its apps, and the App Info rows for them in the settings
+ * results. What stays on screen once the Private Space locks, until the next search.
+ */
+internal fun SearchUiState.withoutPrivateProfile(): SearchUiState {
+    fun AppItem.isPrivate() = isPrivateProfile || profileType == ProfileType.PRIVATE
+    return copy(
+        allApps = allApps.filterNot { it.isPrivate() },
+        recentApps = recentApps.filterNot { it.isPrivate() },
+        filteredApps = filteredApps.filterNot { it.isPrivate() },
+        androidSettings = androidSettings.filterNot { it.app?.isPrivate() == true }
+    )
+}
+
 /** How long typing must pause before a query is spell checked for "Did you mean". */
 private const val SPELLING_PAUSE_MS = 450L
 
@@ -216,14 +230,7 @@ class SearchViewModel @Inject constructor(
                 val hasLocked = profiles.any { it.profileType == ProfileType.PRIVATE && it.isLocked }
                 if (hasLocked) {
                     unifiedSearchCoordinator.purgePrivateProfileItems()
-                    _uiState.update { current ->
-                        current.copy(
-                            hasLockedPrivateSpace = true,
-                            allApps = current.allApps.filterNot { it.isPrivateProfile || it.profileType == ProfileType.PRIVATE },
-                            recentApps = current.recentApps.filterNot { it.isPrivateProfile || it.profileType == ProfileType.PRIVATE },
-                            filteredApps = current.filteredApps.filterNot { it.isPrivateProfile || it.profileType == ProfileType.PRIVATE }
-                        )
-                    }
+                    _uiState.update { it.withoutPrivateProfile().copy(hasLockedPrivateSpace = true) }
                     if (!previousLocked) {
                         corpusIndexManager.reindexApps(forceRefresh = true)
                         corpusIndexManager.reindexShortcuts()

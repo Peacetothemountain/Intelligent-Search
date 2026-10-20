@@ -751,11 +751,22 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 Spacer(modifier = Modifier.width(16.dp))
+                                val contactActions = remember(contact, s.contactActionTargets, settingsState.contactActions) {
+                                    ContactActions.forContact(contact, s.contactActionTargets, settingsState.contactActions)
+                                }
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(contact.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
                                     Text(contact.phoneNumber, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
+                                    if (contactActions.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        // Pulled back by the touch target's margin so the first circle lines up with the name.
+                                        ContactActionButtons(contactActions, settingsState.activeIconPack, Modifier.offset(x = (-4).dp)) {
+                                            hasStartedTyping = false
+                                        }
+                                    }
                                 }
-                                IconButton(
+                                // The action buttons include Call; without them the row keeps its own call button.
+                                if (contactActions.isEmpty()) IconButton(
                                     onClick = {
                                         if (contact.phoneNumber.isNotBlank()) {
                                             hasStartedTyping = false

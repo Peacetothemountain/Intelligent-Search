@@ -67,6 +67,8 @@ internal class OverlayScope(
     val bestMatch: Any?,
     val bestMatchText: String?,
     val filteredContacts: List<ContactItem>,
+    /** The Call, Message, Email and chat buttons this device can answer, for contact results. */
+    val contactActionTargets: ContactActionTargets,
     val filteredApps: List<AppItem>,
     val filteredFiles: List<FileItem>,
     val distinctRecents: List<String>

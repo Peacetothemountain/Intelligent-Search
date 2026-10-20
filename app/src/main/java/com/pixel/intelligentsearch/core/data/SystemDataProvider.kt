@@ -79,7 +79,9 @@ data class CalendarEvent(
 data class ContactItem(
     val name: String,
     val phoneNumber: String,
-    val lookupUri: String
+    val lookupUri: String,
+    /** The contact's default email address (else its first), blank when it has none. */
+    val email: String = ""
 )
 
 @Immutable
@@ -308,6 +310,7 @@ object SystemDataProvider {
 
     suspend fun getContacts(context: Context, query: String): List<ContactItem> = withContext(Dispatchers.IO) {
         val contacts = mutableListOf<ContactItem>()
+        val contactIds = mutableListOf<Long>()
         if (query.isEmpty() || context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
             return@withContext contacts
         }
@@ -345,16 +348,53 @@ object SystemDataProvider {
 
                     if (name.isNotBlank() || number.isNotBlank()) {
                         contacts.add(ContactItem(name, number, lookupUri))
+                        contactIds.add(id)
                     }
                 }
             }
         } catch (_: Throwable) {}
 
-        contacts.distinctBy { it.lookupUri.ifEmpty { "${it.name}:${it.phoneNumber}" } }
+        withEmails(context, contacts, contactIds, onlyThese = true)
+            .distinctBy { it.lookupUri.ifEmpty { "${it.name}:${it.phoneNumber}" } }
+    }
+
+    /**
+     * [contacts] with each one's email address filled in, matched by [contactIds] (same order). [onlyThese] asks for
+     * just those contacts' addresses rather than reading every address on the device.
+     */
+    private fun withEmails(context: Context, contacts: List<ContactItem>, contactIds: List<Long>, onlyThese: Boolean): List<ContactItem> {
+        if (contacts.isEmpty()) return contacts
+        val emails = HashMap<Long, String>()
+        val wanted = contactIds.distinct()
+        val selection = if (onlyThese) {
+            "${ContactsContract.CommonDataKinds.Email.CONTACT_ID} IN (${wanted.joinToString(",") { "?" }})"
+        } else null
+        try {
+            context.contentResolver.query(
+                ContactsContract.CommonDataKinds.Email.CONTENT_URI,
+                arrayOf(ContactsContract.CommonDataKinds.Email.CONTACT_ID, ContactsContract.CommonDataKinds.Email.ADDRESS),
+                selection,
+                if (onlyThese) wanted.map { it.toString() }.toTypedArray() else null,
+                // The address marked as default comes first, so it is the one kept.
+                "${ContactsContract.CommonDataKinds.Email.IS_SUPER_PRIMARY} DESC, ${ContactsContract.CommonDataKinds.Email.IS_PRIMARY} DESC"
+            )?.use { cursor ->
+                val idIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Email.CONTACT_ID)
+                val addressIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Email.ADDRESS)
+                while (cursor.moveToNext()) {
+                    val address = cursor.getString(addressIndex)?.trim().orEmpty()
+                    if (address.isNotEmpty()) emails.putIfAbsent(cursor.getLong(idIndex), address)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("IntelligentSearch", "Contact emails unreadable", e)
+        }
+        if (emails.isEmpty()) return contacts
+        return contacts.mapIndexed { i, contact -> emails[contactIds[i]]?.let { contact.copy(email = it) } ?: contact }
     }
 
     suspend fun getAllContacts(context: Context): List<ContactItem> = withContext(Dispatchers.IO) {
         val contacts = mutableListOf<ContactItem>()
+        val contactIds = mutableListOf<Long>()
         if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
             return@withContext contacts
         }
@@ -387,12 +427,14 @@ object SystemDataProvider {
 
                     val lookupUri = ContactsContract.Contacts.getLookupUri(id, lookupKey)?.toString() ?: ""
                     contacts.add(ContactItem(name, number, lookupUri))
+                    contactIds.add(id)
                 }
             }
         } catch (e: Exception) {
             android.util.Log.w("IntelligentSearch", "Unexpected error", e)
         }
-        contacts.distinctBy { it.lookupUri.ifEmpty { "${it.name}:${it.phoneNumber}" } }
+        withEmails(context, contacts, contactIds, onlyThese = false)
+            .distinctBy { it.lookupUri.ifEmpty { "${it.name}:${it.phoneNumber}" } }
     }
 
     suspend fun getAllRecentFiles(context: Context, limit: Int = 300, includeHidden: Boolean = false): List<FileItem> = withContext(Dispatchers.IO) {

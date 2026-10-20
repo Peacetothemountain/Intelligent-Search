@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Assistant
 import androidx.compose.material.icons.outlined.Contacts
+import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -84,6 +85,15 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     icon = Icons.Outlined.Call,
                     isChecked = directCall,
                     onCheckedChange = { directCall = it },
+                    showDivider = true
+                )
+                var contactActions by rememberSetting(SettingsManager.CONTACT_ACTIONS)
+                SettingsRowToggle(
+                    title = "Contact Actions",
+                    subtitle = "Show Call, Message and Chat Buttons on Contacts.",
+                    icon = Icons.Outlined.Forum,
+                    isChecked = contactActions,
+                    onCheckedChange = { contactActions = it },
                     showDivider = true
                 )
                 // Android doesn't tell the app which assistant is asking, so it can't check that assistant's

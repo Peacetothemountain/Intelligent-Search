@@ -121,6 +121,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val SEARCH_WEB_SUGGESTIONS = BooleanSetting("search.web.suggestions", true)
         val SEARCH_PREVIOUS_SEARCHES = BooleanSetting("search_previous_searches", true)
         val SEARCH_CALCULATOR = BooleanSetting("search.calculator", true, "search_calculator")
+        /** Fetches the European Central Bank's rates for currency answers once a day; off, nothing is fetched. */
+        val LIVE_CURRENCY_RATES = BooleanSetting("live_currency_rates", true)
         val SEARCH_CALENDAR = BooleanSetting("search.calendar", true, "search_calendar")
         val SEARCH_SHORTCUTS = BooleanSetting("search.shortcuts", true, "search_shortcuts")
         val BACKGROUND_BLUR = IntSetting("search.background.blur", 50, 0..100, "background.blur")
@@ -195,7 +197,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** Every declared setting, for migration, backup validation and change filtering. */
         val ALL: List<SettingKey<*>> = listOf(
             THEME, SEARCH_APPS, SEARCH_CONTACTS, SEARCH_FILES, SEARCH_WEB, SEARCH_WEB_SUGGESTIONS,
-            SEARCH_PREVIOUS_SEARCHES, SEARCH_CALCULATOR, SEARCH_CALENDAR, SEARCH_SHORTCUTS, BACKGROUND_BLUR,
+            SEARCH_PREVIOUS_SEARCHES, SEARCH_CALCULATOR, LIVE_CURRENCY_RATES, SEARCH_CALENDAR, SEARCH_SHORTCUTS, BACKGROUND_BLUR,
             SHOW_WALLPAPER, BACKGROUND_TRANSPARENCY, PILL_OPACITY, SEARCH_ENGINE, CUSTOM_SEARCH_ENGINE_URL,
             CUSTOM_SEARCH_ENGINE_NAME, FILES_HIDDEN_FILES, FILES_THUMBNAILS, APP_ANIMATIONS, MORPH_ANIMATION_ENABLED,
             BOTTOM_SEARCH, BOTTOM_SEARCH_RESULT, TUTORIAL_COMPLETED, FORCE_TUTORIAL, TUTORIAL_STEP, G_ICON_ENABLED,

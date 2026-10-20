@@ -18,7 +18,7 @@ internal object BackupPreferenceSchema {
             "BOOLEAN",
             "app.fuzzy.search", "app_animations", "app_fuzzy_search", "app_quick_launch", "bottom_search",
             "bottom_search_result", "contact.direct.call", "contact_direct_call", "context_aware_quick_apps",
-            "diagnostics_overlay_enabled", "dynamic_icon_masking", "force_tutorial", "g_icon_enabled",
+            "diagnostics_overlay_enabled", "dynamic_icon_masking", "force_tutorial", "g_icon_enabled", "live_currency_rates",
             "matrix_animation_enabled", "never_show_icon_pack_warning", "quick.search.horizontal",
             "quick_search_horizontal", "quick_search_maps", "quick_search_play_store", "quick_search_wikipedia",
             "quick_search_youtube", "search.apps", "search.background.show.wall", "search.calculator",

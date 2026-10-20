@@ -1,7 +1,7 @@
 # Privacy Policy & Privacy Governance
 
 **Effective Date:** October 4, 2026  
-**Last Updated:** October 15, 2026  
+**Last Updated:** October 20, 2026  
 **Application:** Intelligent Search (`com.pixel.intelligentsearch`)  
 **Developer / Publisher:** NG Designs  
 **Contact:** [support.ngdesigns@gmail.com](mailto:support.ngdesigns@gmail.com)  
@@ -13,7 +13,7 @@
 
 **Intelligent Search** is engineered and published by **NG Designs** with a strict, non-negotiable **On-Device First Privacy Architecture**. 
 
-We believe that your personal device search queries, contacts, schedule, files, and installed applications are your private property. Intelligent Search is built so that **your personal data stays on your device**. The exceptions are things you choose to send: web searches and live web suggestions go to the search engine you pick (see Section 3), and voice input may be handled by your device's speech recognizer (see Section 2.H).
+We believe that your personal device search queries, contacts, schedule, files, and installed applications are your private property. Intelligent Search is built so that **your personal data stays on your device**. The exceptions are things you choose to send: web searches and live web suggestions go to the search engine you pick (see Section 3), and voice input may be handled by your device's speech recognizer (see Section 2.H). Live currency rates are downloaded from the European Central Bank without sending any of your data (see Section 3).
 
 * **Zero Cloud Data Exfiltration**: We do not maintain, operate, or connect to remote servers that collect, store, profile, or analyze your searches or personal information.
 * **Zero Advertising & Zero Tracking**: Intelligent Search contains **no advertisements**, **no advertising SDKs**, **no commercial tracking beacons**, and **no third-party behavioral analytics libraries** (such as Firebase Analytics, Mixpanel, or Facebook SDK).
@@ -84,6 +84,7 @@ When you execute a web search or request live autocomplete suggestions:
    * [DuckDuckGo Privacy Policy](https://duckduckgo.com/privacy)
    * [Microsoft Bing Privacy Statement](https://privacy.microsoft.com/en-us/privacystatement)
 4. **Tor Browser Integration**: If configured, web queries can be routed directly to the official Tor Browser application on your device for enhanced anonymity. Searches sent to Tor Browser are never saved to your search history.
+5. **Live Currency Rates**: After you first convert a currency in the search bar, Intelligent Search downloads the European Central Bank's public daily exchange-rate file (`https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml`) over HTTPS, then about once a day. The request is the same for every user: it contains nothing you typed and no account, identifier or other personal information. As with any internet request, the European Central Bank can see your IP address. The rates are kept on your device so conversions work offline. Nothing is downloaded while Tor is your search engine. Turn this off in **Settings -> Search Sources -> Live Currency Rates**; conversions then use rates already on your device.
 
 ---
 
@@ -96,7 +97,7 @@ When you execute a web search or request live autocomplete suggestions:
   * With a passphrase, the key is derived from it using **PBKDF2** (600,000 iterations, random salt), so the backup can be restored on any device.
   * Without a passphrase, the key is created inside this device's Android Keystore and never leaves it, so the backup can only be restored on the same device and installation.
   * Backup files are saved strictly to the storage location or cloud drive chosen by the user via the Android system file creator.
-  * Restoring a backup never switches on contact sharing, clipboard suggestions or web suggestions; those stay as you set them on this phone.
+  * Restoring a backup never switches on contact sharing, clipboard suggestions, web suggestions or live currency rates; those stay as you set them on this phone.
   * A passphrase you choose to save on the phone is encrypted with an Android Keystore key that works only while the phone is unlocked and shortly after you authenticate.
 
 ---

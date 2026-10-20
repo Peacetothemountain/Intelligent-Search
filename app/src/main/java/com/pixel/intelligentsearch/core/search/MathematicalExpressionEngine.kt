@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.search
 
+import com.pixel.intelligentsearch.core.currency.CurrencyRates
 import java.util.Locale
 import kotlin.math.*
 
@@ -15,19 +16,30 @@ object MathematicalExpressionEngine {
     sealed class MathEvaluationResult {
         data class Computation(val expression: String, val formattedResult: String, val numericValue: Double) : MathEvaluationResult()
         data class Bitwise(val expression: String, val decimalValue: Long, val hexValue: String, val binaryValue: String) : MathEvaluationResult()
-        data class UnitConversion(val fromValue: Double, val fromUnit: String, val toValue: Double, val toUnit: String, val formatted: String) : MathEvaluationResult()
+        /** [currencyRates] is the table a currency conversion used; null for other units. */
+        data class UnitConversion(
+            val fromValue: Double,
+            val fromUnit: String,
+            val toValue: Double,
+            val toUnit: String,
+            val formatted: String,
+            val currencyRates: CurrencyRates? = null
+        ) : MathEvaluationResult()
     }
 
     /**
      * Evaluates any math expression, bitwise operation, base conversion, or unit conversion.
      * Returns null if the query is not a valid mathematical or conversion expression.
+     *
+     * [currencyRates] supplies live rates; it is asked only when the query is a currency conversion. A currency
+     * it doesn't list is converted with the built-in rates instead.
      */
-    fun evaluate(rawQuery: String): MathEvaluationResult? {
+    fun evaluate(rawQuery: String, currencyRates: () -> CurrencyRates = { CurrencyRates.BUILT_IN }): MathEvaluationResult? {
         val query = rawQuery.trim()
         if (query.isEmpty()) return null
 
         // 1. Try Unit Conversion (e.g. "100 km to miles", "72 f in c", "100 usd to eur")
-        evaluateUnitConversion(query)?.let { return it }
+        evaluateUnitConversion(query, currencyRates)?.let { return it }
 
         // 2. Try Base Conversion (e.g. "255 to hex", "0xff to dec", "15 to bin")
         evaluateBaseConversion(query)?.let { return it }
@@ -467,14 +479,6 @@ object MathematicalExpressionEngine {
         "yr" to 31556952.0, "year" to 31556952.0, "years" to 31556952.0
     )
 
-    private val currencyRatios = mapOf(
-        "usd" to 1.0, "eur" to 0.92, "gbp" to 0.78, "jpy" to 155.2,
-        "cad" to 1.36, "aud" to 1.52, "chf" to 0.90, "cny" to 7.23,
-        "inr" to 83.5, "brl" to 5.40, "krw" to 1370.0, "mxn" to 18.2,
-        "sgd" to 1.35, "nzd" to 1.63, "hkd" to 7.81, "sek" to 10.5,
-        "nok" to 10.6, "zar" to 18.1, "aed" to 3.67, "sar" to 3.75
-    )
-
     /**
      * Lower-cases a unit, keeping the case distinctions that matter for data sizes: "B" is a byte, and an
      * upper-case prefix with a lower-case b ("Mb", "Gb") is bits, while "MB" and the casual "mb" are bytes.
@@ -486,7 +490,7 @@ object MathematicalExpressionEngine {
         else -> raw.lowercase(Locale.ROOT).replace("°", "")
     }
 
-    private fun evaluateUnitConversion(query: String): MathEvaluationResult.UnitConversion? {
+    private fun evaluateUnitConversion(query: String, currencyRates: () -> CurrencyRates): MathEvaluationResult.UnitConversion? {
         // Shift prefix currency symbols (e.g. "$100 to eur" -> "100 $ to eur")
         val prefixShifted = query.trim()
             .replace(REGEX_CURRENCY_PREFIX, "$2 $1")
@@ -539,23 +543,28 @@ object MathematicalExpressionEngine {
             }
         }
 
-        // 3. Currency Table
-        if (currencyRatios.containsKey(fromUnit) && currencyRatios.containsKey(toUnit)) {
-            val inUsd = value / currencyRatios[fromUnit]!!
-            val result = inUsd * currencyRatios[toUnit]!!
+        // 3. Currency Table: the live rates when they list both currencies, else the built-in ones.
+        if (isCurrencyCode(fromUnit) && isCurrencyCode(toUnit)) {
+            val live = currencyRates()
+            val rates = if (fromUnit in live.perBase && toUnit in live.perBase) live else CurrencyRates.BUILT_IN
+            val result = rates.convert(value, fromUnit, toUnit) ?: return null
             if (!result.isFinite()) return null
             return MathEvaluationResult.UnitConversion(
                 fromValue = value,
                 fromUnit = fromUnit.uppercase(Locale.ROOT),
                 toValue = result,
                 toUnit = toUnit.uppercase(Locale.ROOT),
-                // Offline reference rates, so the result is an estimate rather than a live quote.
-                formatted = "${formatNumber(value)} ${fromUnit.uppercase(Locale.ROOT)} ≈ ${formatNumber(result)} ${toUnit.uppercase(Locale.ROOT)}"
+                // Daily reference rates at best, so the result is an estimate rather than a dealing quote.
+                formatted = "${formatNumber(value)} ${fromUnit.uppercase(Locale.ROOT)} ≈ ${formatNumber(result)} ${toUnit.uppercase(Locale.ROOT)}",
+                currencyRates = rates
             )
         }
 
         return null
     }
+
+    /** Three letters, the shape of an ISO 4217 code; nothing else is looked up in the rate tables. */
+    private fun isCurrencyCode(u: String) = u.length == 3 && u.all { it in 'a'..'z' }
 
     private fun isTemperature(u: String) = u in listOf("c", "celsius", "f", "fahrenheit", "k", "kelvin")
 

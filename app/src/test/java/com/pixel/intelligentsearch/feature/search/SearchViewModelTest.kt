@@ -151,6 +151,27 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun aCurrencyAnswerSaysWhereItsRatesComeFrom() {
+        start()
+        viewModel.onQueryChanged("100 usd to eur")
+        // Nothing has been fetched here, so the built-in rates answer and the card says so.
+        val answer = await("currency answer") { it.instantAnswer != null }.instantAnswer!!
+        assertEquals("currency", answer.iconType)
+        assertEquals("100 USD ≈ 92 EUR", answer.title)
+        assertEquals("Built-in rates", answer.subtitle)
+    }
+
+    @Test
+    fun aDateQuestionIsAnsweredInline() {
+        start()
+        viewModel.onQueryChanged("how many days between 2026-03-01 and 2026-06-30")
+        val answer = await("date answer") { it.instantAnswer != null }.instantAnswer!!
+        assertEquals("date", answer.iconType)
+        assertEquals("121 days", answer.title)
+        assertEquals("Between Sunday, March 1, 2026 and Tuesday, June 30, 2026", answer.subtitle)
+    }
+
+    @Test
     fun searchHistoryIsRememberedAndCanBeRemoved() {
         start()
         viewModel.addSearchHistory("first")

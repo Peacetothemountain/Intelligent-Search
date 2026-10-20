@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.ViewModelProvider
@@ -17,6 +18,7 @@ import dagger.hilt.android.testing.HiltTestApplication
 import dagger.hilt.android.testing.UninstallModules
 import dagger.hilt.components.SingletonComponent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -70,5 +72,23 @@ class SelectedTextOverlayTest {
         val shared = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "Louvre")
         overlay.newIntent(forwarded(shared))
         assertEquals("Louvre", viewModel.uiState.value.query)
+    }
+
+    @Test
+    fun withTheOverlayOffOnlyOrdinaryOpensFallBackToAWebSearch() {
+        context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(SettingsManager.SEARCH_OVERLAY_ENABLED.name, false).commit()
+
+        // Opening search with a query, as the widget does, still hands it to a web search when there is no Google app.
+        val ordinary = Intent(context, WidgetActivity::class.java).putExtra(SearchManager.QUERY, "weather")
+        val overlay = Robolectric.buildActivity(WidgetActivity::class.java, ordinary).create().get()
+        val web = shadowOf(overlay).nextStartedActivity
+        assertEquals(Intent.ACTION_WEB_SEARCH, web.action)
+        assertEquals("weather", web.getStringExtra(SearchManager.QUERY))
+
+        // Selected text never gets that far: nothing opens, so it is never searched without being confirmed.
+        val selection = Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain").putExtra(Intent.EXTRA_PROCESS_TEXT, "private note")
+        val entry = Robolectric.buildActivity(SelectedTextSearchActivity::class.java, selection).create().get()
+        assertNull(shadowOf(entry).nextStartedActivity)
     }
 }

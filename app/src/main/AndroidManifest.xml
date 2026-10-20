@@ -226,7 +226,7 @@
             android:exported="false" />
 
         <!-- "Intelligent Search" in other apps' text selection menu and share sheet. Shows no window: it hands the
-             cleaned text to the overlay and finishes. Disabled by the Search From Selected Text setting. -->
+             cleaned text to the overlay and finishes. Disabled by the Search from Selected Text setting. -->
         <activity
             android:name="com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity"
             android:label="@string/selected_text_search_label"

@@ -141,13 +141,13 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                         var fromSelectedText by rememberSetting(SettingsManager.SEARCH_FROM_SELECTED_TEXT)
                         SettingsRowToggle(
-                            title = "Search From Selected Text",
+                            title = "Search from Selected Text",
                             subtitle = "Show Intelligent Search When You Select or Share Text.",
                             icon = Icons.Outlined.TextFields,
                             isChecked = fromSelectedText,
                             onCheckedChange = {
                                 fromSelectedText = it
-                                SelectedTextSearchActivity.setEnabled(context, it)
+                                SelectedTextSearchActivity.syncWithSetting(context)
                             },
                             showDivider = false
                         )

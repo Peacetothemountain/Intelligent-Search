@@ -21,7 +21,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** A button on a contact result. Chat apps carry the package they must open in, so no other app gets the number. */
+/**
+ * A button on a contact result. Chat apps carry the package name their intent is restricted to, so the number only
+ * goes to whatever app is installed under that name.
+ */
 internal enum class ContactActionKind(val label: String, val packageName: String? = null) {
     CALL("Call"),
     MESSAGE("Message"),
@@ -53,7 +56,18 @@ internal data class ContactActionTargets(
     companion object {
         val NONE = ContactActionTargets(emptySet())
 
-        /** Official Telegram builds (Play and direct download); only these may receive a contact's number. */
+        /**
+         * The targets last resolved in this process, so an overlay opened later has its buttons from the first frame
+         * instead of growing them in once a fresh check finishes. Refreshed each time the overlay resumes.
+         */
+        @Volatile
+        var cached: ContactActionTargets? = null
+
+        /**
+         * The package names of the official Telegram builds (Play and direct download). Telegram intents are
+         * restricted to these package names; who signed the app isn't checked, so a sideloaded app installed under
+         * one of these names would receive the number too.
+         */
         val TELEGRAM_PACKAGES = listOf("org.telegram.messenger", "org.telegram.messenger.web")
 
         // Stand-in addresses: only the scheme, host and package decide what resolves.
@@ -104,21 +118,47 @@ internal object ContactActions {
 
     /**
      * [number] in E.164 ("+14155551234"), reading numbers saved without a country code as numbers of [countryIso]
-     * (the SIM's country). Null when it can't be made international, e.g. a short code or an unknown country.
+     * (the SIM's country). An extension is dropped: a chat goes to the line itself. Null when the number isn't valid
+     * or can't be made international (a short code, an unknown country), so the chat buttons are hidden rather than
+     * opening a chat with whoever owns the digits. [format] is the platform's formatter, replaceable in tests.
      */
-    fun toE164(number: String, countryIso: String): String? {
-        val trimmed = number.trim()
-        if (trimmed.none { it.isDigit() }) return null
-        runCatching { PhoneNumberUtils.formatNumberToE164(trimmed, countryIso.uppercase(Locale.ROOT)) }
-            .getOrNull()?.let { return it }
-        // Without the platform's metadata, a number that already says its country code is still usable.
-        val digits = trimmed.filter { it.isDigit() }
-        val international = when {
-            trimmed.startsWith("+") -> digits
-            trimmed.startsWith("00") -> digits.removePrefix("00")
-            else -> return null
+    fun toE164(
+        number: String,
+        countryIso: String,
+        format: (String, String) -> String? = PhoneNumberUtils::formatNumberToE164
+    ): String? {
+        val line = asciiDigits(withoutExtension(number)).trim()
+        if (line.none { it in '0'..'9' }) return null
+        val e164 = try {
+            // Null means the platform read the number and found it invalid; that is final.
+            format(line, countryIso.uppercase(Locale.ROOT)) ?: return null
+        } catch (_: Throwable) {
+            // Only without the platform's metadata: a number that already says its country code is still usable.
+            val digits = line.filter { it in '0'..'9' }
+            val international = when {
+                line.startsWith("+") -> digits
+                line.startsWith("00") -> digits.removePrefix("00")
+                else -> return null
+            }
+            if (international.length in 8..15 && !international.startsWith("0")) "+$international" else return null
         }
-        return if (international.length in 8..15 && !international.startsWith("0")) "+$international" else null
+        return e164.takeIf { E164.matches(it) }
+    }
+
+    /** A plus and up to 15 ASCII digits, the first not a zero: all a chat link may carry. */
+    private val E164 = Regex("""\+[1-9][0-9]{1,14}""")
+
+    /** An extension and everything after it: "x", "ext", "ext." or a dialler pause, wait or hash. */
+    private val EXTENSION = Regex("""(?i)(ext|x|[,;#]).*""", RegexOption.DOT_MATCHES_ALL)
+
+    private fun withoutExtension(number: String): String = EXTENSION.replace(number, "")
+
+    /** [number] with other scripts' decimal digits (Arabic-Indic, Devanagari, full-width...) written in ASCII. */
+    private fun asciiDigits(number: String): String = buildString(number.length) {
+        for (c in number) {
+            val digit = if (c.isDigit()) Character.digit(c, 10) else -1
+            append(if (digit in 0..9) '0' + digit else c)
+        }
     }
 
     /** The country the SIM (else the network, else the locale) belongs to, as an ISO code like "US". */
@@ -131,13 +171,16 @@ internal object ContactActions {
 
     /**
      * The buttons [contact] gets: Call and Message with a number, Email with an address, and each installed chat app
-     * once the number can be written internationally. Nothing at all when the Contact Actions setting is off.
+     * once the number can be written internationally. Call and Message dial the number as saved; the chat apps get
+     * the contact's chat number (its default, else a mobile) when it has one. Nothing at all when the Contact
+     * Actions setting is off.
      */
     fun forContact(contact: ContactItem, targets: ContactActionTargets, enabled: Boolean = true): List<ContactAction> {
         if (!enabled) return emptyList()
         val who = contact.name.ifBlank { contact.phoneNumber.ifBlank { contact.email } }
         val number = contact.phoneNumber.trim()
-        val e164 = if (number.isNotEmpty()) toE164(number, targets.countryIso) else null
+        val chatNumber = contact.chatNumber.trim().ifEmpty { number }
+        val e164 = if (chatNumber.isNotEmpty()) toE164(chatNumber, targets.countryIso) else null
         val actions = mutableListOf<ContactAction>()
         fun add(kind: ContactActionKind, intent: Intent, description: String, iconPackage: String? = null) {
             if (kind in targets.available) actions += ContactAction(kind, intent, description, iconPackage)
@@ -163,17 +206,20 @@ internal object ContactActions {
 
 /**
  * The contact buttons this device can answer, checked off the main thread each time the overlay resumes (a chat app
- * may have been installed or removed meanwhile). Nothing is checked while [enabled] is false.
+ * may have been installed or removed meanwhile). Nothing is checked while [enabled] is false. Until a check finishes,
+ * the last one made in this process ([ContactActionTargets.cached]) stands in, so the buttons don't pop in on open.
  */
 @Composable
 internal fun rememberContactActionTargets(enabled: Boolean): ContactActionTargets {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var targets by remember { mutableStateOf(ContactActionTargets.NONE) }
+    var targets by remember { mutableStateOf(ContactActionTargets.cached ?: ContactActionTargets.NONE) }
     LifecycleResumeEffect(enabled) {
         val job = if (enabled) {
             scope.launch {
-                targets = withContext(Dispatchers.IO) { ContactActionTargets.resolve(context.applicationContext) }
+                val resolved = withContext(Dispatchers.IO) { ContactActionTargets.resolve(context.applicationContext) }
+                ContactActionTargets.cached = resolved
+                targets = resolved
             }
         } else null
         onPauseOrDispose { job?.cancel() }

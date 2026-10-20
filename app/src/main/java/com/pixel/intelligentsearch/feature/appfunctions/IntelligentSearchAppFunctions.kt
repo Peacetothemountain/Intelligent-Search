@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.feature.appfunctions
 
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import androidx.annotation.RequiresApi
 import androidx.appfunctions.AppFunctionDeclaration
@@ -121,9 +122,7 @@ abstract class IntelligentSearchAppFunctions : AppFunctionService() {
         if (applicationContext.checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
             return emptyList()
         }
-        return SystemDataProvider.getContacts(applicationContext, needle)
-            .take(limit.coerceIn(1, 10))
-            .map { ContactSearchResult(name = it.name, phoneNumber = it.phoneNumber) }
+        return contactSearchResults(applicationContext, needle, limit)
     }
 
     /**
@@ -143,3 +142,12 @@ abstract class IntelligentSearchAppFunctions : AppFunctionService() {
         return CalculationResult(expression = input, result = text)
     }
 }
+
+/**
+ * The contacts [IntelligentSearchAppFunctions.searchContacts] returns: names and numbers only, so the contacts'
+ * email addresses aren't read at all.
+ */
+internal suspend fun contactSearchResults(context: Context, query: String, limit: Int): List<ContactSearchResult> =
+    SystemDataProvider.getContacts(context, query, withEmails = false)
+        .take(limit.coerceIn(1, 10))
+        .map { ContactSearchResult(name = it.name, phoneNumber = it.phoneNumber) }

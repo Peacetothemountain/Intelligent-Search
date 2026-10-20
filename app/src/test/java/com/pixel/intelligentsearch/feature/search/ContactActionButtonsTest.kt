@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Intent
 import android.view.HapticFeedbackConstants
 import android.view.View
+import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusManager
@@ -25,6 +26,7 @@ import com.pixel.intelligentsearch.screenshots.confinedEffects
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
+import java.time.Duration
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -36,6 +38,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowSystemClock
 
 /** The contact buttons as TalkBack meets them: each one named for who and how, and each one opening its app. */
 @HiltAndroidTest
@@ -128,6 +131,34 @@ class ContactActionButtonsTest {
         compose.onNodeWithContentDescription("Message Alex").performClick()
         compose.waitForIdle()
         assertEquals(listOf("launched", "clearFocus(force=true)", "hide"), calls)
+    }
+
+    @Test
+    fun aDoubleTappedBestMatchChipOpensItsAppOnceLikeTheRowsButtons() {
+        val app = shadowOf(ApplicationProvider.getApplicationContext<Application>())
+        var chipLaunches = 0
+        var rowLaunches = 0
+        compose.setContent {
+            Column {
+                ContactActionChips(ContactActions.forContact(alex, targets), "system_default") { chipLaunches++ }
+                ContactActionButtons(ContactActions.forContact(alex.copy(name = "Sam"), targets), "system_default") { rowLaunches++ }
+            }
+        }
+        for (description in listOf("Message Alex on WhatsApp", "Message Sam on WhatsApp")) {
+            compose.onNodeWithContentDescription(description).performClick()
+            compose.onNodeWithContentDescription(description).performClick()
+            compose.waitForIdle()
+        }
+        assertEquals(1, chipLaunches)
+        assertEquals(1, rowLaunches)
+        val started = generateSequence { app.nextStartedActivity }.toList()
+        assertEquals(listOf("com.whatsapp", "com.whatsapp"), started.map { it.`package` })
+
+        // Once the double-tap window (120 ms) has passed, a new tap opens the app again.
+        ShadowSystemClock.advanceBy(Duration.ofMillis(121))
+        compose.onNodeWithContentDescription("Message Alex on WhatsApp").performClick()
+        compose.waitForIdle()
+        assertEquals(2, chipLaunches)
     }
 
     @Test

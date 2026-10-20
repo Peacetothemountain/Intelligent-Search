@@ -7,6 +7,7 @@ import android.content.ContentValues
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
+import android.provider.ContactsContract
 import android.provider.ContactsContract.CommonDataKinds.Email
 import android.provider.ContactsContract.CommonDataKinds.Phone
 import androidx.test.core.app.ApplicationProvider
@@ -73,6 +74,27 @@ class ContactDefaultsTest {
         assertEquals(expected, SystemDataProvider.getContacts(context, "Example").map { it.name to it.phoneNumber })
     }
 
+    @Test
+    fun aMobileBeyondTheSearchsFifteenRowsStillGetsTheChats() = runBlocking {
+        // Fifteen landlines fill the search's rows; the mobile saved after them is the sixteenth.
+        for (i in 10 until 25) SqlContacts.addPhone("Pat Busy", 5, "+1 202-555-02$i", Phone.TYPE_HOME)
+        SqlContacts.addPhone("Pat Busy", 5, "+1 202-555-0299", Phone.TYPE_MOBILE)
+        val pat = SystemDataProvider.getContacts(context, "Pat").single()
+        assertEquals("+1 202-555-0210", pat.phoneNumber)
+        assertEquals("+1 202-555-0299", pat.chatNumber)
+        // They come from a query of their own, for the found contacts only and capped.
+        val (chatQuery, _) = SqlContacts.phoneQueries.single { (uri, _) -> "filter" !in uri.pathSegments }
+        assertEquals("300", chatQuery.getQueryParameter(ContactsContract.LIMIT_PARAM_KEY))
+    }
+
+    @Test
+    fun theSearchsOwnQueryAsksOnlyForWhatItAlwaysHas() = runBlocking {
+        SystemDataProvider.getContacts(context, "Example")
+        // Extra columns could split rows the provider merges, changing which contacts are found.
+        val (_, columns) = SqlContacts.phoneQueries.single { (uri, _) -> "filter" in uri.pathSegments }
+        assertEquals(listOf(Phone.DISPLAY_NAME, Phone.NUMBER, Phone.CONTACT_ID, Phone.LOOKUP_KEY), columns)
+    }
+
     /** The phone and email rows of four made-up contacts, served from SQLite like the real contacts provider. */
     class SqlContacts : ContentProvider() {
         companion object {
@@ -103,9 +125,17 @@ class ContactDefaultsTest {
                 db.execSQL("INSERT INTO emails VALUES (1, 'robin@example.com', 1, 1)")
             }
 
+            /** Every phone query the app made: its address and the columns it asked for. */
+            val phoneQueries = mutableListOf<Pair<Uri, List<String>>>()
+
+            /** Saves one more phone row, after the ones [open] saved. */
+            fun addPhone(name: String, id: Long, number: String, type: Int) =
+                checkNotNull(db).execSQL("INSERT INTO phones VALUES (?, ?, ?, ?, ?, 0, 0)", arrayOf<Any>(name, number, id, "k$id", type))
+
             fun close() {
                 db?.close()
                 db = null
+                phoneQueries.clear()
             }
         }
 
@@ -120,7 +150,12 @@ class ContactDefaultsTest {
             }
             // A filter matches names containing its text; the real provider also matches numbers.
             val filter = if (uri.pathSegments.contains("filter")) uri.lastPathSegment.orEmpty() else ""
-            return db.query("phones", projection, "${Phone.DISPLAY_NAME} LIKE ?", arrayOf("%$filter%"), null, null, order)
+            val where = "${Phone.DISPLAY_NAME} LIKE ?" + (selection?.let { " AND ($it)" } ?: "")
+            phoneQueries += uri to projection.orEmpty().toList()
+            return db.query(
+                "phones", projection, where, arrayOf("%$filter%", *args.orEmpty()), null, null, order,
+                uri.getQueryParameter(ContactsContract.LIMIT_PARAM_KEY)
+            )
         }
 
         override fun getType(uri: Uri): String? = null

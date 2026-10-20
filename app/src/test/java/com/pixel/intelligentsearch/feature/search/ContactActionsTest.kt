@@ -115,6 +115,37 @@ class ContactActionsTest {
     }
 
     @Test
+    fun aPauseOrWaitWrittenAsALetterNeverReachesAnotherNumber() {
+        // With the 6 after the pause or wait glued on, each would be +447911123456: a valid number, someone else's.
+        for (saved in listOf("+44 7911 12345 p6", "+44 7911 12345 w6", "+44 7911 12345 P6", "+44 7911 12345 W6")) {
+            assertNull(saved, ContactActions.toE164(saved, "US"))
+            // Calls and texts still dial the number as saved; only the chat buttons go.
+            val actions = ContactActions.forContact(alex.copy(phoneNumber = saved, email = ""), everything)
+            assertEquals(saved, listOf(CALL, MESSAGE), actions.map { it.kind })
+            assertEquals(saved, saved, actions.single { it.kind == CALL }.intent.data!!.schemeSpecificPart)
+            assertEquals(saved, saved, actions.single { it.kind == MESSAGE }.intent.data!!.schemeSpecificPart)
+        }
+    }
+
+    @Test
+    fun aValidNumberKeepsWorkingWithoutItsPauseOrWait() {
+        for (saved in listOf("+44 20 7946 0018p6", "+44 20 7946 0018 w6", "+44 20 7946 0018P6", "+44 20 7946 0018 W 6")) {
+            assertEquals(saved, "+442079460018", ContactActions.toE164(saved, "US"))
+        }
+    }
+
+    @Test
+    fun onlyAPlusAndUpTo15AsciiDigitsEverReachAChatLink() {
+        // Whatever the formatter hands back, a chat link only ever carries a well-formed E.164 number.
+        for (malformed in listOf(
+            "+44 20 7946 0018", "442079460018", "+0442079460018", "+4420794600181234", "+٤٤٢٠٧٩٤٦٠٠١٨", "+44207946001x", ""
+        )) {
+            assertNull(malformed, ContactActions.toE164("+44 20 7946 0018", "US") { _, _ -> malformed })
+        }
+        assertEquals("+442079460018", ContactActions.toE164("+44 20 7946 0018", "US") { _, _ -> "+442079460018" })
+    }
+
+    @Test
     fun aNumberInNoCountryGivesNothing() {
         assertNull(ContactActions.toE164("+999 123456789", "US"))
     }

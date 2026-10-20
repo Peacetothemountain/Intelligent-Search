@@ -102,6 +102,7 @@ open class MainActivity : AppCompatActivity() {
         if (handleIntent(intent)) return
         if (checkAndForwardIfSearchOverlayDisabled()) return
         val queryExtra = (intent.getStringExtra("query") ?: intent.getStringExtra(SearchManager.QUERY) ?: intent.getStringExtra(Intent.EXTRA_TEXT))?.take(512)
+        clearConsumedQuery()
         if (!queryExtra.isNullOrBlank()) {
             searchViewModel.onQueryChanged(queryExtra)
         } else {
@@ -199,8 +200,11 @@ open class MainActivity : AppCompatActivity() {
         applyWindowBlur()
 
         if (handleIntent(intent)) return
+        // A recreated activity gets its launch query back, though the first instance already used it.
+        if (savedInstanceState != null) clearConsumedQuery()
         if (checkAndForwardIfSearchOverlayDisabled()) return
         val queryExtra = (intent?.getStringExtra("query") ?: intent?.getStringExtra(SearchManager.QUERY) ?: intent?.getStringExtra(Intent.EXTRA_TEXT))?.take(512)
+        clearConsumedQuery()
         // Only a fresh open: a restored activity still carries its launch query, which was already used and cleared.
         if (savedInstanceState == null && !queryExtra.isNullOrBlank()) {
             searchViewModel.onQueryChanged(queryExtra)
@@ -386,6 +390,22 @@ open class MainActivity : AppCompatActivity() {
             com.pixel.intelligentsearch.feature.search.clearAllUiMemoryCaches()
             com.pixel.intelligentsearch.core.data.SystemDataProvider.invalidateAppsCache()
         }
+    }
+
+    /**
+     * Drops the query from [getIntent] once it has been used, so nothing reads it again later. Otherwise turning the
+     * overlay off in Settings and coming back would hand the old query, such as selected text, to a web search on
+     * resume, searching it without the user asking.
+     */
+    private fun clearConsumedQuery() {
+        val current = intent ?: return
+        if (QUERY_EXTRAS.none { current.hasExtra(it) }) return
+        setIntent(Intent(current).apply { QUERY_EXTRAS.forEach { removeExtra(it) } })
+    }
+
+    private companion object {
+        /** Every extra a query can arrive in ([SearchManager.QUERY] is also the plain "query" extra). */
+        val QUERY_EXTRAS = listOf(SearchManager.QUERY, Intent.EXTRA_TEXT)
     }
 
     private fun checkAndForwardIfSearchOverlayDisabled(): Boolean {

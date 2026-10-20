@@ -8,6 +8,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.pixel.intelligentsearch.HiltTestActivity
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
+import com.pixel.intelligentsearch.feature.search.ContactActionTargets
+import com.pixel.intelligentsearch.feature.search.FakeContactBook
 import com.pixel.intelligentsearch.feature.search.SearchOverlayScreen
 import com.pixel.intelligentsearch.feature.search.SearchViewModel
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -24,7 +26,9 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * Golden images of the search overlay in states that don't depend on which apps are installed: the first-run
- * tutorial, empty, a calculator answer, a web-address answer, a timer action, a currency conversion and a date answer.
+ * tutorial, empty, a calculator answer, a web-address answer, a timer action, a currency conversion, a date answer
+ * and a search for two made-up contacts with their Call, Message, Email and WhatsApp buttons (the contacts and the
+ * apps behind the buttons are stand-ins the test installs).
  * See [SettingsGoldenTest] for recording.
  */
 @HiltAndroidTest
@@ -54,6 +58,13 @@ class OverlayGoldenTest(private val state: String, private val query: String, pr
         androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
             .getSharedPreferences(com.pixel.intelligentsearch.core.data.SettingsManager.PREFS_NAME, android.content.Context.MODE_PRIVATE)
             .edit().putBoolean(com.pixel.intelligentsearch.core.data.SettingsManager.SEARCH_WEB_SUGGESTIONS.name, false).commit()
+        // Buttons found by an earlier test must not stand in for this one's.
+        ContactActionTargets.cached = null
+        if (state == "contact") {
+            val app = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
+            FakeContactBook.install(app)
+            FakeContactBook.installContactApps(app)
+        }
         compose.mainClock.autoAdvance = false
         compose.setContent {
             IntelligentSearchTheme(darkTheme = dark) {
@@ -86,7 +97,9 @@ class OverlayGoldenTest(private val state: String, private val query: String, pr
             // Nothing is ever fetched in tests, so the card shows the built-in rates and says so.
             "currency" to "100 usd to eur",
             // Two dates with years, so the answer doesn't depend on the day the test runs.
-            "date" to "days between 2026-03-01 and 2026-06-30"
+            "date" to "days between 2026-03-01 and 2026-06-30",
+            // One Robin as the Best Match with chips, the other as a row with round buttons.
+            "contact" to FakeContactBook.QUERY
         ).flatMap { (state, query) -> listOf(arrayOf<Any>(state, query, false), arrayOf<Any>(state, query, true)) }
     }
 }

@@ -19,6 +19,7 @@ import dagger.hilt.android.testing.UninstallModules
 import dagger.hilt.components.SingletonComponent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -90,5 +91,55 @@ class SelectedTextOverlayTest {
         val selection = Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain").putExtra(Intent.EXTRA_PROCESS_TEXT, "private note")
         val entry = Robolectric.buildActivity(SelectedTextSearchActivity::class.java, selection).create().get()
         assertNull(shadowOf(entry).nextStartedActivity)
+    }
+
+    private fun turnOverlayOff() {
+        context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(SettingsManager.SEARCH_OVERLAY_ENABLED.name, false).commit()
+    }
+
+    /** Every activity [activity] has started so far. */
+    private fun startedBy(activity: android.app.Activity): List<Intent> =
+        generateSequence { shadowOf(activity).nextStartedActivity }.toList()
+
+    /** Whether any extra of [intent] holds [text]. */
+    private fun carries(intent: Intent, text: String): Boolean {
+        val extras = intent.extras ?: return false
+        return extras.keySet().any { extras.getString(it)?.contains(text) == true }
+    }
+
+    @Test
+    fun turningTheOverlayOffFromItsSettingsNeverWebSearchesTheSelectedText() {
+        // No Google app, so with the overlay off its fallback is a web search.
+        val selection = Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain").putExtra(Intent.EXTRA_PROCESS_TEXT, "private note")
+        val overlay = Robolectric.buildActivity(WidgetActivity::class.java, forwarded(selection)).setup()
+        val viewModel = ViewModelProvider(overlay.get())[SearchViewModel::class.java]
+        assertEquals("private note", viewModel.uiState.value.query)
+        assertEquals(emptyList<Intent>(), startedBy(overlay.get()))
+
+        // The user opens Settings from the overlay, turns the overlay off there and comes back.
+        overlay.pause().stop()
+        turnOverlayOff()
+        overlay.restart().start().resume()
+
+        val started = startedBy(overlay.get())
+        assertTrue(started.none { it.action == Intent.ACTION_WEB_SEARCH && it.hasExtra(SearchManager.QUERY) })
+        assertTrue(started.none { carries(it, "private note") })
+    }
+
+    @Test
+    fun anOverlayRestoredAfterTheOverlayIsTurnedOffNeverWebSearchesItsOldQuery() {
+        val selection = Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain").putExtra(Intent.EXTRA_PROCESS_TEXT, "private note")
+        val launch = forwarded(selection)
+        val first = Robolectric.buildActivity(WidgetActivity::class.java, launch).setup()
+        val state = android.os.Bundle()
+        first.pause().saveInstanceState(state).stop()
+
+        // Android restores the activity from its original launch intent, which still holds the query.
+        turnOverlayOff()
+        val restored = Robolectric.buildActivity(WidgetActivity::class.java, launch).create(state).get()
+        val started = startedBy(restored)
+        assertTrue(started.none { it.action == Intent.ACTION_WEB_SEARCH && it.hasExtra(SearchManager.QUERY) })
+        assertTrue(started.none { carries(it, "private note") })
     }
 }

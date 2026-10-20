@@ -297,6 +297,36 @@ class SelectedTextSearchActivityTest {
     }
 
     @Test
+    fun joinersWithNothingToJoinAreTrimmed() {
+        val zwnj = 0x200C
+        val zwj = 0x200D
+        // Only joiners and spacing is no text at all.
+        assertEquals("", SelectedTextSearchActivity.sanitize(" " + text(zwnj) + " "))
+        assertEquals("", SelectedTextSearchActivity.sanitize(text(zwj, zwnj, 0x20, zwj)))
+        assertEquals("", SelectedTextSearchActivity.sanitize(text(0x200B, zwj) + "\n"))
+        // Joiners at either end are trimmed; inside the text they stay.
+        assertEquals("ab", SelectedTextSearchActivity.sanitize(text(zwj, zwnj) + "ab" + text(zwnj, zwj)))
+        assertEquals("a b", SelectedTextSearchActivity.sanitize(" " + text(zwnj) + " a b " + text(zwj) + " "))
+        val family = text(0x1F468, zwj, 0x1F469, zwj, 0x1F467)
+        assertEquals(family, SelectedTextSearchActivity.sanitize(text(zwj) + family + text(zwj)))
+        val persian = text(0x0645, 0x06CC, zwnj, 0x062E, 0x0648, 0x0627, 0x0645)
+        assertEquals(persian, SelectedTextSearchActivity.sanitize(text(zwnj) + persian + " " + text(zwnj)))
+    }
+
+    @Test
+    fun aShareOfOnlyInvisibleJoinersSaysOnlyTextCanBeSearched() {
+        ShadowToast.reset()
+        val shared = start(share(" " + text(0x200C) + " "))
+        assertNull(shadowOf(shared).nextStartedActivity)
+        assertEquals(SelectedTextSearchActivity.NO_TEXT_MESSAGE, ShadowToast.getTextOfLatestToast())
+
+        // A selection of only a joiner opens the overlay empty rather than with an invisible query.
+        val selected = shadowOf(start(processText(text(0x200D)))).nextStartedActivity
+        assertEquals(ComponentName(context, WidgetActivity::class.java), selected.component)
+        assertFalse(selected.hasExtra(SearchManager.QUERY))
+    }
+
+    @Test
     fun syncFollowsTheSetting() {
         val pm = context.packageManager
         prefs.edit().put(SettingsManager.SEARCH_FROM_SELECTED_TEXT, false).commit()

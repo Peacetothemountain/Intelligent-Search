@@ -6,11 +6,14 @@ import android.content.ClipData
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.text.SpannableString
 import android.text.style.StyleSpan
 import androidx.test.core.app.ApplicationProvider
+import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.feature.widget.WidgetActivity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -21,6 +24,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowToast
 
 /**
  * The text selection menu and share sheet entry: which intents reach it, how their text is cleaned, and that only
@@ -198,5 +202,131 @@ class SelectedTextSearchActivityTest {
         SelectedTextSearchActivity.setEnabled(context, true)
         assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, pm.getComponentEnabledSetting(entry))
         assertTrue(resolves(Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain")))
+    }
+
+    private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+
+    private fun start(intent: Intent) = Robolectric.buildActivity(SelectedTextSearchActivity::class.java, intent).create().get()
+
+    /** Installs a Google app that takes GLOBAL_SEARCH, which only types the query in. */
+    private fun installGoogleSearch() {
+        val google = ComponentName("com.google.android.googlequicksearchbox", "com.google.android.googlequicksearchbox.SearchActivity")
+        val pm = shadowOf(context.packageManager)
+        pm.addActivityIfNotPresent(google)
+        pm.addIntentFilterForActivity(google, IntentFilter("android.search.action.GLOBAL_SEARCH").apply { addCategory(Intent.CATEGORY_DEFAULT) })
+    }
+
+    @Test
+    fun withTheOverlayOffSelectedTextIsOnlyTypedIntoGoogleSearch() {
+        prefs.edit().put(SettingsManager.SEARCH_OVERLAY_ENABLED, false).commit()
+        installGoogleSearch()
+
+        val activity = start(processText("Eiffel\nTower"))
+        val started = shadowOf(activity).nextStartedActivity
+        assertEquals("android.search.action.GLOBAL_SEARCH", started.action)
+        assertEquals("com.google.android.googlequicksearchbox", started.`package`)
+        assertEquals("Eiffel Tower", started.getStringExtra(SearchManager.QUERY))
+        assertNull(shadowOf(activity).nextStartedActivity)
+        assertTrue(activity.isFinishing)
+    }
+
+    @Test
+    fun withTheOverlayOffAndNoGoogleAppSelectedTextIsNeverSearched() {
+        prefs.edit().put(SettingsManager.SEARCH_OVERLAY_ENABLED, false).commit()
+        // A web search is available (the overlay's own fallback), but it would run the search straight away.
+        assertTrue(context.packageManager.resolveActivity(Intent(Intent.ACTION_WEB_SEARCH), 0) != null)
+
+        for (intent in listOf(processText("private note"), share("private note"))) {
+            val activity = start(intent)
+            assertNull(shadowOf(activity).nextStartedActivity)
+            assertTrue(activity.isFinishing)
+            assertEquals(SelectedTextSearchActivity.OVERLAY_OFF_MESSAGE, ShadowToast.getTextOfLatestToast())
+        }
+    }
+
+    @Test
+    fun sharingAFileOpensNothingAndSaysOnlyTextCanBeSearched() {
+        val file = Uri.parse("content://files/notes.txt")
+        for (type in listOf("text/plain", "text/*")) {
+            ShadowToast.reset()
+            val activity = start(share(null, type = type).putExtra(Intent.EXTRA_STREAM, file))
+            assertNull(shadowOf(activity).nextStartedActivity)
+            assertTrue(activity.isFinishing)
+            assertEquals(SelectedTextSearchActivity.NO_TEXT_MESSAGE, ShadowToast.getTextOfLatestToast())
+        }
+
+        // A share whose text is only spacing has nothing to search either.
+        ShadowToast.reset()
+        assertNull(shadowOf(start(share(" \n "))).nextStartedActivity)
+        assertEquals(SelectedTextSearchActivity.NO_TEXT_MESSAGE, ShadowToast.getTextOfLatestToast())
+    }
+
+    @Test
+    fun wildcardTextSharesAreSearched() {
+        assertEquals("shared", SelectedTextSearchActivity.queryFrom(share("shared", type = "text/*")))
+        assertEquals("selected", SelectedTextSearchActivity.queryFrom(processText("selected", type = "TEXT/*")))
+        assertEquals("any", SelectedTextSearchActivity.queryFrom(share("any", type = "*/*")))
+        // The text extra is still read only as text: a link or a stream is not.
+        assertEquals("", SelectedTextSearchActivity.queryFrom(share(null, type = "text/*").putExtra(Intent.EXTRA_TEXT, Uri.parse("content://x"))))
+        assertEquals("", SelectedTextSearchActivity.queryFrom(share(null, type = "text/*").putExtra(Intent.EXTRA_STREAM, Uri.parse("content://x"))))
+        assertNull(SelectedTextSearchActivity.queryFrom(share("x", type = "image/*")))
+
+        assertTrue(resolves(Intent(Intent.ACTION_SEND).setType("text/*")))
+        val started = shadowOf(start(share("pasta", type = "text/*"))).nextStartedActivity
+        assertEquals(ComponentName(context, WidgetActivity::class.java), started.component)
+        assertEquals("pasta", started.getStringExtra(SearchManager.QUERY))
+    }
+
+    @Test
+    fun sanitizeDropsInvisibleFormattingAndBrokenSurrogates() {
+        // Zero-width space, word joiner, soft hyphen and an invisible tag letter hide nothing in the query.
+        assertEquals("abcde", SelectedTextSearchActivity.sanitize("a" + text(0x200B) + "b" + text(0x2060) + "c" + text(0xAD) + "d" + text(0xE0041, 0xE007F) + "e"))
+        // Halves of a surrogate pair on their own are dropped; whole pairs are kept.
+        assertEquals("abc", SelectedTextSearchActivity.sanitize("a\uD83Db\uDE00c"))
+        assertEquals("x", SelectedTextSearchActivity.sanitize("x\uD83D"))
+        assertEquals(text(0x1F600), SelectedTextSearchActivity.sanitize(text(0x1F600)))
+        // Joiners and variation selectors shape emoji and words, so they stay.
+        val heart = text(0x2764, 0xFE0F)
+        assertEquals(heart, SelectedTextSearchActivity.sanitize(heart))
+        val family = text(0x1F468, 0x200D, 0x1F469, 0x200D, 0x1F467)
+        assertEquals(family, SelectedTextSearchActivity.sanitize(family))
+        val persian = text(0x0645, 0x06CC, 0x200C, 0x062E, 0x0648, 0x0627, 0x0645)
+        assertEquals(persian, SelectedTextSearchActivity.sanitize(persian))
+        // Invisible characters between words don't leave a double space.
+        assertEquals("a b", SelectedTextSearchActivity.sanitize("a " + text(0x200B) + " b"))
+    }
+
+    @Test
+    fun syncFollowsTheSetting() {
+        val pm = context.packageManager
+        prefs.edit().put(SettingsManager.SEARCH_FROM_SELECTED_TEXT, false).commit()
+        SelectedTextSearchActivity.syncWithSetting(context)
+        assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DISABLED, pm.getComponentEnabledSetting(entry))
+
+        prefs.edit().put(SettingsManager.SEARCH_FROM_SELECTED_TEXT, true).commit()
+        SelectedTextSearchActivity.syncWithSetting(context)
+        assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, pm.getComponentEnabledSetting(entry))
+    }
+
+    @Test
+    fun aSlowSyncAppliesTheSettingAsItIsWhenItRuns() {
+        prefs.edit().put(SettingsManager.SEARCH_FROM_SELECTED_TEXT, true).commit()
+        SelectedTextSearchActivity.setEnabled(context, true)
+
+        // The start-up sync starts while the switch is being turned off, and waits for it.
+        val worker: Thread
+        synchronized(SelectedTextSearchActivity.componentLock) {
+            worker = Thread { SelectedTextSearchActivity.syncWithSetting(context) }
+            worker.start()
+            val deadline = System.currentTimeMillis() + 5_000
+            while (worker.state != Thread.State.BLOCKED && System.currentTimeMillis() < deadline) Thread.yield()
+            assertEquals(Thread.State.BLOCKED, worker.state)
+            prefs.edit().put(SettingsManager.SEARCH_FROM_SELECTED_TEXT, false).commit()
+            SelectedTextSearchActivity.setEnabled(context, false)
+        }
+        worker.join(5_000)
+
+        // It applies the new value, not the one it would have read on starting.
+        assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DISABLED, context.packageManager.getComponentEnabledSetting(entry))
     }
 }

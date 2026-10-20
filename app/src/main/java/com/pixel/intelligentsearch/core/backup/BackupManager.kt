@@ -580,6 +580,10 @@ class BackupManager @Inject constructor(
         settingsManager.updateSetting(SettingsManager.HIDDEN_APPS, payload.hiddenApps.toSet())
         restoredCount += payload.hiddenApps.size
 
+        // Settings that switch a component on or off live outside the settings file; apply the restored value now
+        // the settings are in, so a failure restoring the history below can't leave it out of step.
+        com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity.syncWithSetting(context)
+
         // 4. Restore Search History
         if (payload.searchHistory.isNotEmpty()) {
             val now = System.currentTimeMillis()
@@ -590,11 +594,6 @@ class BackupManager @Inject constructor(
             historyDao.pruneHistory(HISTORY_LIMIT)
             restoredCount += entities.size
         }
-
-        // Settings that switch a component on or off live outside the settings file; apply the restored value.
-        com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity.setEnabled(
-            context, settingsManager[SettingsManager.SEARCH_FROM_SELECTED_TEXT]
-        )
 
         // 5. Update Home Screen Widgets immediately
         try {

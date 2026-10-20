@@ -125,9 +125,7 @@ class App : Application() {
                 settingsManager.migrateToSingleStore()
                 settingsManager.startDirectBootMirror()
                 // Component states are kept by Android, outside the app's data; keep the selection entry matching the setting.
-                com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity.setEnabled(
-                    this@App, settingsManager[SettingsManager.SEARCH_FROM_SELECTED_TEXT]
-                )
+                com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity.syncWithSetting(this@App)
                 // Redraw the widgets when the day's doodle next changes (a doodle day starts or ends at midnight).
                 com.pixel.intelligentsearch.feature.widget.WidgetDoodles.scheduleNextChange(this@App)
                 // Keep the daily currency refresh only while Live Currency Rates is on and Tor isn't the engine.

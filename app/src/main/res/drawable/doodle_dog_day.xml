@@ -1,61 +1,208 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- International Dog Day: a puppy beside the G pants happily and flaps its ears while a bone spins above.
-     See doodle_halloween.xml for the layout. -->
+<!-- International Dog Day: a puppy in a red collar sits beside the G, wagging and panting, and tilts its head at the
+     bone turning above, its floppy ears swinging behind the tilt. Paw prints trotting up the other side fade away
+     and come back one by one. See doodle_halloween.xml for the layout. -->
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt">
     <aapt:attr name="android:drawable">
         <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
 
-            <!-- Bone -->
-            <group android:name="bone" android:translateX="40" android:translateY="9">
-                <path android:fillColor="#FFF8F9FA" android:pathData="M-2.6,-0.7L2.6,-0.7C2.6,-2.2 4.4,-2.2 4.4,-1.1C5.4,-1 5.4,1 4.4,1.1C4.4,2.2 2.6,2.2 2.6,0.7L-2.6,0.7C-2.6,2.2 -4.4,2.2 -4.4,1.1C-5.4,1 -5.4,-1 -4.4,-1.1C-4.4,-2.2 -2.6,-2.2 -2.6,-0.7Z" android:strokeColor="#FFBDC1C6" android:strokeWidth="0.45" />
+            <!-- Paw prints -->
+            <group android:translateX="10.4" android:translateY="41" android:rotation="12">
+                <path android:name="print_1" android:fillColor="#FFB8763E" android:pathData="M-1.1,0.4a1.1,0.9 0,1 0,2.2 0a1.1,0.9 0,1 0,-2.2 0Z M-1.6,-0.9a0.45,0.5 0,1 0,0.9 0a0.45,0.5 0,1 0,-0.9 0Z M-0.45,-1.45a0.45,0.5 0,1 0,0.9 0a0.45,0.5 0,1 0,-0.9 0Z M0.7,-0.9a0.45,0.5 0,1 0,0.9 0a0.45,0.5 0,1 0,-0.9 0Z" />
+            </group>
+            <group android:translateX="6.4" android:translateY="35.4" android:rotation="-8">
+                <path android:name="print_2" android:fillColor="#FFB8763E" android:pathData="M-1.1,0.4a1.1,0.9 0,1 0,2.2 0a1.1,0.9 0,1 0,-2.2 0Z M-1.6,-0.9a0.45,0.5 0,1 0,0.9 0a0.45,0.5 0,1 0,-0.9 0Z M-0.45,-1.45a0.45,0.5 0,1 0,0.9 0a0.45,0.5 0,1 0,-0.9 0Z M0.7,-0.9a0.45,0.5 0,1 0,0.9 0a0.45,0.5 0,1 0,-0.9 0Z" />
+            </group>
+            <group android:translateX="10.4" android:translateY="29.6" android:rotation="12">
+                <path android:name="print_3" android:fillColor="#FFB8763E" android:pathData="M-1.1,0.4a1.1,0.9 0,1 0,2.2 0a1.1,0.9 0,1 0,-2.2 0Z M-1.6,-0.9a0.45,0.5 0,1 0,0.9 0a0.45,0.5 0,1 0,-0.9 0Z M-0.45,-1.45a0.45,0.5 0,1 0,0.9 0a0.45,0.5 0,1 0,-0.9 0Z M0.7,-0.9a0.45,0.5 0,1 0,0.9 0a0.45,0.5 0,1 0,-0.9 0Z" />
+            </group>
+            <group android:translateX="6.6" android:translateY="24" android:rotation="-8">
+                <path android:name="print_4" android:fillColor="#FFB8763E" android:pathData="M-1.1,0.4a1.1,0.9 0,1 0,2.2 0a1.1,0.9 0,1 0,-2.2 0Z M-1.6,-0.9a0.45,0.5 0,1 0,0.9 0a0.45,0.5 0,1 0,-0.9 0Z M-0.45,-1.45a0.45,0.5 0,1 0,0.9 0a0.45,0.5 0,1 0,-0.9 0Z M0.7,-0.9a0.45,0.5 0,1 0,0.9 0a0.45,0.5 0,1 0,-0.9 0Z" />
             </group>
 
-            <!-- Puppy's head -->
-            <group android:name="puppy" android:translateX="41" android:translateY="40">
-                <group android:name="ear_left" android:pivotX="-2.6" android:pivotY="-2.4">
-                    <path android:fillColor="#FF8D5524" android:pathData="M-2.6,-2.4C-4.6,-2.6 -5.6,0.4 -4.6,2.6C-3.6,2.8 -2.6,1 -2.2,-0.6Z" />
+            <!-- Bone: a soft rim, a lit top and a shaded underside -->
+            <group android:name="bone" android:translateX="39.6" android:translateY="9" android:rotation="-14">
+                <path android:fillColor="#FFF3E3C3" android:strokeColor="#FFC9A876" android:strokeWidth="0.5" android:pathData="M-2.8,-0.75L2.8,-0.75C2.8,-2.4 4.7,-2.4 4.7,-1.2C5.8,-1.1 5.8,1.1 4.7,1.2C4.7,2.4 2.8,2.4 2.8,0.75L-2.8,0.75C-2.8,2.4 -4.7,2.4 -4.7,1.2C-5.8,1.1 -5.8,-1.1 -4.7,-1.2C-4.7,-2.4 -2.8,-2.4 -2.8,-0.75Z" />
+                <path android:fillColor="#FFE3CA9C" android:pathData="M-2.8,0.15L2.8,0.15L2.8,0.75C2.85,1.95 4.5,2 4.6,1.15C5.2,1 5.4,0.6 5.45,0.2C5.6,0.9 5.3,1.15 4.7,1.2C4.7,2.4 2.8,2.4 2.8,0.75L-2.8,0.75C-2.8,2.4 -4.7,2.4 -4.7,1.2C-5.3,1.15 -5.6,0.9 -5.45,0.2C-5.4,0.6 -5.2,1 -4.6,1.15C-4.5,2 -2.85,1.95 -2.8,0.75Z" />
+                <path android:fillAlpha="0.9" android:fillColor="#FFFFFFFF" android:pathData="M-2.4,-0.45L1.6,-0.45L1.6,-0.1L-2.4,-0.1Z" />
+            </group>
+
+            <group android:translateX="-0.8">
+            <!-- Tail, wagging from behind the body -->
+            <group android:name="tail" android:pivotX="37.8" android:pivotY="44.8">
+                <path android:pathData="M37.8,44.8C35.8,44.6 34.8,43 35,41.2" android:strokeColor="#FFB8763E" android:strokeLineCap="round" android:strokeWidth="2" />
+                <path android:pathData="M37.8,44.8C35.8,44.6 34.8,43 35,41.2" android:strokeColor="#FFD99A5B" android:strokeLineCap="round" android:strokeWidth="1.3" />
+            </group>
+
+            <!-- Body sitting, cream chest, front legs -->
+            <path android:fillColor="#FFD99A5B" android:pathData="M37.2,46.8C36.6,42 37.4,38.2 41.2,37.6C45,38.2 45.8,42 45.2,46.8Z" />
+            <path android:fillColor="#FFB8763E" android:pathData="M41.2,37.6C45,38.2 45.8,42 45.2,46.8L43.6,46.8C44.2,43 43.8,39.6 41.2,37.6Z" />
+            <path android:fillColor="#FFFBE3C2" android:pathData="M39.6,40C40.4,38.8 42,38.8 42.8,40C43.2,42 42.4,44 41.2,44.4C40,44 39.2,42 39.6,40Z" />
+            <path android:fillColor="#FFE8B27A" android:strokeColor="#FFB8763E" android:strokeWidth="0.35" android:pathData="M38.7,42.6L40.3,42.6L40.3,46.5Q40.3,47.1 39.7,47.1L39.3,47.1Q38.7,47.1 38.7,46.5Z M42.1,42.6L43.7,42.6L43.7,46.5Q43.7,47.1 43.1,47.1L42.7,47.1Q42.1,47.1 42.1,46.5Z" />
+            <path android:pathData="M39.5,46.3L39.5,47 M42.9,46.3L42.9,47" android:strokeColor="#FFB8763E" android:strokeLineCap="round" android:strokeWidth="0.3" />
+            <!-- Collar and tag -->
+            <path android:fillColor="#FFEA4335" android:pathData="M38.3,37.3Q41.2,38.8 44.1,37.3L44.1,38.4Q41.2,39.9 38.3,38.4Z" />
+            <path android:fillColor="#FFE37400" android:pathData="M40.45,39.7a0.75,0.75 0,1 0,1.5 0a0.75,0.75 0,1 0,-1.5 0Z" />
+            <path android:fillColor="#FFFBBC04" android:pathData="M40.6,39.6a0.6,0.6 0,1 0,1.2 0a0.6,0.6 0,1 0,-1.2 0Z" />
+
+            <!-- Head, tilting from the neck; ears hang from it and swing a beat behind -->
+            <group android:name="head" android:pivotX="41.2" android:pivotY="36.8">
+                <path android:fillColor="#FFB8763E" android:pathData="M37.4,32.4C37.4,29.4 39,28 41.2,28C43.4,28 45,29.4 45,32.4C45,35.4 43.4,36.8 41.2,36.8C39,36.8 37.4,35.4 37.4,32.4Z" />
+                <path android:fillColor="#FFD99A5B" android:pathData="M37.5,32.1C37.5,29.3 39,28 41,28C43.1,28 44.6,29.3 44.6,32.1C44.6,34.9 43.1,36.3 41,36.3C39,36.3 37.5,34.9 37.5,32.1Z" />
+                <path android:fillColor="#FFB8763E" android:pathData="M41.6,31.2a1.25,1.15 0,1 0,2.5 0a1.25,1.15 0,1 0,-2.5 0Z" />
+                <group android:name="ear_left" android:pivotX="38.4" android:pivotY="29.4">
+                    <path android:fillColor="#FF8D5524" android:pathData="M38.6,28.9C36.5,28.5 35.2,31 35.6,33.6C35.8,34.6 36.8,34.6 37.2,33.8C37.6,32.6 38.1,31 39,29.9Z" />
                 </group>
-                <group android:name="ear_right" android:pivotX="2.6" android:pivotY="-2.4">
-                    <path android:fillColor="#FF8D5524" android:pathData="M2.6,-2.4C4.6,-2.6 5.6,0.4 4.6,2.6C3.6,2.8 2.6,1 2.2,-0.6Z" />
+                <group android:name="ear_right" android:pivotX="44" android:pivotY="29.4">
+                    <path android:fillColor="#FF8D5524" android:pathData="M43.8,28.9C45.9,28.5 47.2,31 46.8,33.6C46.6,34.6 45.6,34.6 45.2,33.8C44.8,32.6 44.3,31 43.4,29.9Z" />
                 </group>
-                <path android:fillColor="#FFD7A26B" android:pathData="M-3.4,0a3.4,3.4 0,1 0,6.8 0a3.4,3.4 0,1 0,-6.8 0Z" />
-                <path android:fillColor="#FFF3D9B1" android:pathData="M-2,1.4a2,1.5 0,1 0,4 0a2,1.5 0,1 0,-4 0Z" />
-                <group android:name="tongue" android:pivotY="2.4">
-                    <path android:fillColor="#FFF28B82" android:pathData="M-0.8,2.4L0.8,2.4L0.8,3.6C0.8,4.5 -0.8,4.5 -0.8,3.6Z" />
+                <path android:fillColor="#FFFBE3C2" android:pathData="M38.9,34.2a2.3,1.7 0,1 0,4.6 0a2.3,1.7 0,1 0,-4.6 0Z" />
+                <group android:name="tongue" android:pivotY="35">
+                    <path android:fillColor="#FFF28B82" android:pathData="M40.5,34.9L41.9,34.9L41.9,36C41.9,36.9 40.5,36.9 40.5,36Z" />
+                    <path android:pathData="M41.2,35.2L41.2,36.1" android:strokeColor="#FFE06666" android:strokeLineCap="round" android:strokeWidth="0.25" />
                 </group>
-                <path android:fillColor="#FF202124" android:pathData="M-0.7,0.6a0.7,0.5 0,1 0,1.4 0a0.7,0.5 0,1 0,-1.4 0Z M-1.65,-0.9a0.45,0.45 0,1 0,0.9 0a0.45,0.45 0,1 0,-0.9 0Z M0.75,-0.9a0.45,0.45 0,1 0,0.9 0a0.45,0.45 0,1 0,-0.9 0Z" />
-                <path android:pathData="M-1,1.6Q0,2.4 1,1.6" android:strokeColor="#FF5F3B00" android:strokeLineCap="round" android:strokeWidth="0.35" />
+                <path android:pathData="M40.1,34.6Q40.65,35.2 41.2,34.7Q41.75,35.2 42.3,34.6" android:strokeColor="#FF6D3F17" android:strokeLineCap="round" android:strokeWidth="0.3" />
+                <path android:fillColor="#FF3C4043" android:pathData="M40.3,32.95Q41.2,32.4 42.1,32.95Q41.9,33.8 41.2,34Q40.5,33.8 40.3,32.95Z M39.05,31.4a0.6,0.65 0,1 0,1.2 0a0.6,0.65 0,1 0,-1.2 0Z M42.25,31.4a0.6,0.65 0,1 0,1.2 0a0.6,0.65 0,1 0,-1.2 0Z" />
+                <path android:fillColor="#FFFFFFFF" android:pathData="M39.45,31.15a0.2,0.2 0,1 0,0.4 0a0.2,0.2 0,1 0,-0.4 0Z M42.65,31.15a0.2,0.2 0,1 0,0.4 0a0.2,0.2 0,1 0,-0.4 0Z M40.8,32.85a0.2,0.15 0,1 0,0.4 0a0.2,0.15 0,1 0,-0.4 0Z" />
+                <path android:fillAlpha="0.45" android:fillColor="#FFF28B82" android:pathData="M38.2,33.4a0.7,0.45 0,1 0,1.4 0a0.7,0.45 0,1 0,-1.4 0Z M42.8,33.4a0.7,0.45 0,1 0,1.4 0a0.7,0.45 0,1 0,-1.4 0Z" />
+            </group>
             </group>
         </vector>
     </aapt:attr>
 
-    <target android:name="bone">
+    <target android:name="tail">
         <aapt:attr name="android:animation">
-            <set>
-                <objectAnimator android:duration="2400" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="360" android:valueType="floatType" />
-                <objectAnimator android:duration="1200" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="9" android:valueTo="7.4" android:valueType="floatType" />
-            </set>
-        </aapt:attr>
-    </target>
-    <target android:name="puppy">
-        <aapt:attr name="android:animation">
-            <objectAnimator android:duration="300" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="40" android:valueTo="39.4" android:valueType="floatType" />
+            <objectAnimator android:duration="320" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-14" android:valueTo="16" android:valueType="floatType" />
         </aapt:attr>
     </target>
     <target android:name="tongue">
         <aapt:attr name="android:animation">
-            <objectAnimator android:duration="300" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="1.4" android:valueType="floatType" />
+            <objectAnimator android:duration="300" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="1.35" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <!-- 3.6s: the head tilts, holds, and straightens; the ears swing behind each move and settle. -->
+    <target android:name="head">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="3600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.2" android:value="0" />
+                    <keyframe android:fraction="0.3" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="-12" />
+                    <keyframe android:fraction="0.66" android:value="-12" />
+                    <keyframe android:fraction="0.76" android:interpolator="@android:interpolator/fast_out_slow_in" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
         </aapt:attr>
     </target>
     <target android:name="ear_left">
         <aapt:attr name="android:animation">
-            <objectAnimator android:duration="600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0" android:valueTo="18" android:valueType="floatType" />
+            <objectAnimator android:duration="3600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.22" android:value="0" />
+                    <keyframe android:fraction="0.3" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="14" />
+                    <keyframe android:fraction="0.38" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-5" />
+                    <keyframe android:fraction="0.45" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="2" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.68" android:value="0" />
+                    <keyframe android:fraction="0.76" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-14" />
+                    <keyframe android:fraction="0.84" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="5" />
+                    <keyframe android:fraction="0.91" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-2" />
+                    <keyframe android:fraction="0.96" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
         </aapt:attr>
     </target>
     <target android:name="ear_right">
         <aapt:attr name="android:animation">
-            <objectAnimator android:duration="600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0" android:valueTo="-18" android:valueType="floatType" />
+            <objectAnimator android:duration="3600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.22" android:value="0" />
+                    <keyframe android:fraction="0.3" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="12" />
+                    <keyframe android:fraction="0.39" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-4" />
+                    <keyframe android:fraction="0.46" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.5" />
+                    <keyframe android:fraction="0.51" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.68" android:value="0" />
+                    <keyframe android:fraction="0.76" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-12" />
+                    <keyframe android:fraction="0.85" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="4" />
+                    <keyframe android:fraction="0.92" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-1.5" />
+                    <keyframe android:fraction="0.97" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- The bone turns slowly and bobs. -->
+    <target android:name="bone">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="7200" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="-14" android:valueTo="346" android:valueType="floatType" />
+                <objectAnimator android:duration="1200" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="9" android:valueTo="7.6" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+
+    <!-- Paw prints, 3.6s: the oldest fade first, then they come back one step at a time. -->
+    <target android:name="print_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="3600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.08" android:value="1" />
+                    <keyframe android:fraction="0.18" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.55" android:value="0" />
+                    <keyframe android:fraction="0.58" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="print_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="3600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.16" android:value="1" />
+                    <keyframe android:fraction="0.26" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.65" android:value="0" />
+                    <keyframe android:fraction="0.68" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="print_3">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="3600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.24" android:value="1" />
+                    <keyframe android:fraction="0.34" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.75" android:value="0" />
+                    <keyframe android:fraction="0.78" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="print_4">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="3600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.32" android:value="1" />
+                    <keyframe android:fraction="0.42" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.85" android:value="0" />
+                    <keyframe android:fraction="0.88" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
         </aapt:attr>
     </target>
 </animated-vector>

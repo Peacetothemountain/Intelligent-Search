@@ -1,57 +1,154 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Moon Day: a rocket orbits the G past a crescent moon while stars twinkle.
-     See doodle_halloween.xml for the layout. -->
+<!-- Moon Day: a little rocket with a flickering flame and a trail of puffs orbits the G, passing a glowing,
+     cratered moon and a slowly turning Earth, while stars twinkle. See doodle_halloween.xml for the layout. -->
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt">
     <aapt:attr name="android:drawable">
         <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
 
-            <path android:name="star_1" android:fillColor="#FFFDD663" android:pathData="M45,25.4Q45.2,26.8 46.6,27Q45.2,27.2 45,28.6Q44.8,27.2 43.4,27Q44.8,26.8 45,25.4Z" />
-            <path android:name="star_2" android:fillAlpha="0.4" android:fillColor="#FFFDD663" android:pathData="M10,8.6Q10.15,9.85 11.4,10Q10.15,10.15 10,11.4Q9.85,10.15 8.6,10Q9.85,9.85 10,8.6Z" />
-            <path android:name="star_3" android:fillColor="#FFFDD663" android:pathData="M34,42.8Q34.15,43.85 35.2,44Q34.15,44.15 34,45.2Q33.85,44.15 32.8,44Q33.85,43.85 34,42.8Z" />
+            <!-- Stars -->
+            <group android:name="star_1" android:translateX="4.8" android:translateY="14.4" android:scaleX="1.6" android:scaleY="1.6">
+                <path android:fillColor="#FFFBBC04" android:pathData="M0,-1Q0.24,-0.24 1,0Q0.24,0.24 0,1Q-0.24,0.24 -1,0Q-0.24,-0.24 0,-1Z" />
+            </group>
+            <group android:name="star_2" android:translateX="14.6" android:translateY="2.8" android:scaleX="1.2" android:scaleY="1.2">
+                <path android:fillColor="#FF8AB4F8" android:pathData="M0,-1Q0.24,-0.24 1,0Q0.24,0.24 0,1Q-0.24,0.24 -1,0Q-0.24,-0.24 0,-1Z" />
+            </group>
+            <group android:name="star_3" android:translateX="45.6" android:translateY="30.6" android:scaleX="1.5" android:scaleY="1.5">
+                <path android:fillColor="#FFFBBC04" android:pathData="M0,-1Q0.24,-0.24 1,0Q0.24,0.24 0,1Q-0.24,0.24 -1,0Q-0.24,-0.24 0,-1Z" />
+            </group>
+            <group android:name="star_4" android:translateX="31.4" android:translateY="45.4" android:scaleX="1.1" android:scaleY="1.1">
+                <path android:fillColor="#FF8AB4F8" android:pathData="M0,-1Q0.24,-0.24 1,0Q0.24,0.24 0,1Q-0.24,0.24 -1,0Q-0.24,-0.24 0,-1Z" />
+            </group>
 
-            <!-- Crescent moon with craters -->
-            <path android:fillColor="#FFFDD663" android:pathData="M41,4A5,5 0,0 0,41 14A6.4,6.4 0,0 1,41 4Z" />
-            <path android:fillColor="#FFF9AB00" android:pathData="M37.6,7.6a0.7,0.7 0,1 0,1.4 0a0.7,0.7 0,1 0,-1.4 0Z M37.4,11a0.5,0.5 0,1 0,1 0a0.5,0.5 0,1 0,-1 0Z" />
+            <!-- Earth: oceans, turning continents, a shaded night side and a highlight -->
+            <group android:translateX="7.6" android:translateY="39">
+                <path android:fillColor="#FF4285F4" android:pathData="M-3.4,0a3.4,3.4 0,1 0,6.8 0a3.4,3.4 0,1 0,-6.8 0Z" />
+                <group android:name="continents">
+                    <path android:fillColor="#FF34A853" android:pathData="M-2.4,-2C-1.4,-2.6 -0.2,-2.2 0,-1.3C0.2,-0.5 -0.8,-0.2 -1,0.6C-1.2,1.3 -2,1.4 -2.4,0.8C-2.9,0 -3.2,-1.4 -2.4,-2Z M1,0.4C1.8,0 2.9,0.6 2.8,1.4C2.6,2.3 1.5,2.9 0.8,2.4C0.3,2 0.4,0.8 1,0.4Z M1.2,-2.7C1.8,-2.6 2.4,-2.1 2.3,-1.6C1.8,-1.5 1.2,-1.9 1.2,-2.7Z" />
+                </group>
+                <path android:fillAlpha="0.35" android:fillColor="#FF174EA6" android:pathData="M0,-3.4A3.4,3.4 0,0 1,0 3.4A4.2,4.2 0,0 0,0 -3.4Z" />
+                <path android:fillAlpha="0.75" android:fillColor="#FFFFFFFF" android:pathData="M-2.5,-1.3C-2.2,-2.2 -1.4,-2.8 -0.6,-2.9C-1.2,-2.4 -1.8,-1.9 -2,-1.2C-2.1,-0.9 -2.6,-1 -2.5,-1.3Z" />
+            </group>
 
-            <!-- The orbit: the rocket sits above the G and the whole group turns about the G's centre. -->
+            <!-- Moon: a soft glow, a shaded limb, craters with lit rims -->
+            <path android:name="moon_glow" android:fillAlpha="0.22" android:fillColor="#FFFDD663" android:pathData="M33.3,8.5a7.2,7.2 0,1 0,14.4 0a7.2,7.2 0,1 0,-14.4 0Z" />
+            <path android:fillColor="#FFFDD663" android:pathData="M34.9,8.5a5.6,5.6 0,1 0,11.2 0a5.6,5.6 0,1 0,-11.2 0Z" />
+            <path android:fillColor="#FFF6B600" android:pathData="M40.5,2.9A5.6,5.6 0,0 1,40.5 14.1A7,7 0,0 0,40.5 2.9Z" />
+            <path android:fillColor="#FFFEEFC3" android:pathData="M37.2,6.4a1.3,1.3 0,1 0,2.6 0a1.3,1.3 0,1 0,-2.6 0Z M40.1,10.6a1.05,1.05 0,1 0,2.1 0a1.05,1.05 0,1 0,-2.1 0Z M41.6,5.4a0.7,0.7 0,1 0,1.4 0a0.7,0.7 0,1 0,-1.4 0Z" />
+            <path android:fillColor="#FFF2B000" android:pathData="M37.4,6.6a1.15,1.15 0,1 0,2.3 0a1.15,1.15 0,1 0,-2.3 0Z M40.25,10.75a0.95,0.95 0,1 0,1.9 0a0.95,0.95 0,1 0,-1.9 0Z M41.7,5.5a0.62,0.62 0,1 0,1.24 0a0.62,0.62 0,1 0,-1.24 0Z" />
+
+            <!-- The orbit: the rocket sits above the G, pointing along its path, and the group turns about the G's centre -->
             <group android:name="orbit" android:pivotX="24" android:pivotY="24">
-                <group android:translateX="24" android:translateY="5.6">
-                    <group android:name="flame" android:pivotX="-3">
-                        <path android:fillColor="#FFFA7B17" android:pathData="M-3,-0.8L-5.8,0L-3,0.8Z" />
-                        <path android:fillColor="#FFFBBC04" android:pathData="M-3,-0.4L-4.6,0L-3,0.4Z" />
+                <group android:name="puff_1" android:translateX="18.9" android:translateY="6.1">
+                    <path android:fillAlpha="0.8" android:fillColor="#FFBDC1C6" android:pathData="M-0.95,0a0.95,0.95 0,1 0,1.9 0a0.95,0.95 0,1 0,-1.9 0Z" />
+                </group>
+                <group android:name="puff_2" android:translateX="16.7" android:translateY="6.9">
+                    <path android:fillAlpha="0.6" android:fillColor="#FFBDC1C6" android:pathData="M-0.75,0a0.75,0.75 0,1 0,1.5 0a0.75,0.75 0,1 0,-1.5 0Z" />
+                </group>
+                <group android:name="puff_3" android:translateX="14.7" android:translateY="7.9">
+                    <path android:fillAlpha="0.4" android:fillColor="#FFBDC1C6" android:pathData="M-0.55,0a0.55,0.55 0,1 0,1.1 0a0.55,0.55 0,1 0,-1.1 0Z" />
+                </group>
+                <group android:translateX="24" android:translateY="5.4">
+                    <group android:name="flame" android:pivotX="-3.4">
+                        <path android:fillColor="#FFFA7B17" android:pathData="M-3.4,-0.9C-4.6,-0.9 -6,-0.3 -6.5,0C-6,0.3 -4.6,0.9 -3.4,0.9Z" />
+                        <path android:fillColor="#FFFBBC04" android:pathData="M-3.4,-0.5C-4.2,-0.5 -5,-0.2 -5.3,0C-5,0.2 -4.2,0.5 -3.4,0.5Z" />
                     </group>
-                    <path android:fillColor="#FFEA4335" android:pathData="M-3,-1.2L-4.2,-2.6L-1.6,-1.2Z M-3,1.2L-4.2,2.6L-1.6,1.2Z" />
-                    <path android:fillColor="#FFF8F9FA" android:pathData="M-3,-1.2L2,-1.2C3,-1.2 4,-0.6 4.4,0C4,0.6 3,1.2 2,1.2L-3,1.2Z" android:strokeColor="#FF9AA0A6" android:strokeWidth="0.3" />
-                    <path android:fillColor="#FF4285F4" android:pathData="M0.4,0a0.6,0.6 0,1 0,1.2 0a0.6,0.6 0,1 0,-1.2 0Z" />
+                    <path android:fillColor="#FFEA4335" android:pathData="M-3,-1.1L-4.3,-3Q-3.1,-3 -1.4,-1.2Z" />
+                    <path android:fillColor="#FFC5221F" android:pathData="M-3,1.1L-4.3,3Q-3.1,3 -1.4,1.2Z" />
+                    <path android:fillColor="#FFF8F9FA" android:strokeColor="#FFBDC1C6" android:strokeWidth="0.35" android:pathData="M-3.5,-1.35L1.8,-1.35C3,-1.35 4.2,-0.7 4.8,0C4.2,0.7 3,1.35 1.8,1.35L-3.5,1.35Q-3.8,0 -3.5,-1.35Z" />
+                    <path android:fillColor="#FFDADCE0" android:pathData="M-3.6,0.45L4.2,0.45C3.6,0.95 2.8,1.2 1.8,1.2L-3.45,1.2Q-3.65,0.85 -3.6,0.45Z" />
+                    <path android:fillColor="#FFEA4335" android:pathData="M2.3,-1.3C3.3,-1.1 4.3,-0.6 4.85,0C4.3,0.6 3.3,1.1 2.3,1.3Q2.75,0 2.3,-1.3Z" />
+                    <path android:fillColor="#FFC5221F" android:pathData="M2.55,0.45L4.25,0.45C3.75,0.85 3.1,1.15 2.3,1.3Q2.5,0.9 2.55,0.45Z" />
+                    <path android:fillColor="#FF1967D2" android:pathData="M-0.75,-0.1a0.85,0.85 0,1 0,1.7 0a0.85,0.85 0,1 0,-1.7 0Z" />
+                    <path android:fillColor="#FF8AB4F8" android:pathData="M-0.5,-0.1a0.6,0.6 0,1 0,1.2 0a0.6,0.6 0,1 0,-1.2 0Z" />
+                    <path android:fillColor="#FFFFFFFF" android:pathData="M-0.2,-0.35a0.22,0.22 0,1 0,0.44 0a0.22,0.22 0,1 0,-0.44 0Z" />
                 </group>
             </group>
         </vector>
     </aapt:attr>
 
+    <!-- One calm lap every 6.4s. -->
     <target android:name="orbit">
         <aapt:attr name="android:animation">
-            <objectAnimator android:duration="5200" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="360" android:valueType="floatType" />
+            <objectAnimator android:duration="6400" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="360" android:valueType="floatType" />
         </aapt:attr>
     </target>
     <target android:name="flame">
         <aapt:attr name="android:animation">
-            <objectAnimator android:duration="120" android:interpolator="@android:interpolator/linear" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.6" android:valueType="floatType" />
+            <set>
+                <objectAnimator android:duration="180" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.65" android:valueType="floatType" />
+                <objectAnimator android:duration="260" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.8" android:valueType="floatType" />
+            </set>
         </aapt:attr>
     </target>
+    <!-- Puffs swell and shrink out of step, like exhaust. -->
+    <target android:name="puff_1">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="500" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.7" android:valueType="floatType" />
+                <objectAnimator android:duration="500" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.7" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="puff_2">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="650" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0.75" android:valueTo="1.15" android:valueType="floatType" />
+                <objectAnimator android:duration="650" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0.75" android:valueTo="1.15" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="puff_3">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="800" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.5" android:valueType="floatType" />
+                <objectAnimator android:duration="800" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.5" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+
+    <target android:name="moon_glow">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2000" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="fillAlpha" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0.22" android:valueTo="0.06" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <!-- The Earth's continents turn slowly inside its disc, once every two laps of the rocket. -->
+    <target android:name="continents">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="12800" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="360" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
     <target android:name="star_1">
         <aapt:attr name="android:animation">
-            <objectAnimator android:duration="900" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="fillAlpha" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.2" android:valueType="floatType" />
+            <set>
+                <objectAnimator android:duration="1200" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1.6" android:valueTo="0.6" android:valueType="floatType" />
+                <objectAnimator android:duration="1200" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1.6" android:valueTo="0.6" android:valueType="floatType" />
+            </set>
         </aapt:attr>
     </target>
     <target android:name="star_2">
         <aapt:attr name="android:animation">
-            <objectAnimator android:duration="1200" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="fillAlpha" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="0.4" android:valueTo="1" android:valueType="floatType" />
+            <set>
+                <objectAnimator android:duration="1500" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1.2" android:valueTo="0.5" android:valueType="floatType" />
+                <objectAnimator android:duration="1500" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1.2" android:valueTo="0.5" android:valueType="floatType" />
+            </set>
         </aapt:attr>
     </target>
     <target android:name="star_3">
         <aapt:attr name="android:animation">
-            <objectAnimator android:duration="1000" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="fillAlpha" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="0.3" android:valueType="floatType" />
+            <set>
+                <objectAnimator android:duration="1000" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1.5" android:valueTo="0.6" android:valueType="floatType" />
+                <objectAnimator android:duration="1000" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1.5" android:valueTo="0.6" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="star_4">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1700" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1.1" android:valueTo="0.4" android:valueType="floatType" />
+                <objectAnimator android:duration="1700" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1.1" android:valueTo="0.4" android:valueType="floatType" />
+            </set>
         </aapt:attr>
     </target>
 </animated-vector>

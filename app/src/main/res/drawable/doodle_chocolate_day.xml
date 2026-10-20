@@ -1,77 +1,164 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- World Chocolate Day: a bitten chocolate bar melts beside the G, dripping, while a chocolate heart beats above.
+<!-- World Chocolate Day: a bitten chocolate bar in its red wrapper melts beside the G, a drip swelling until a drop
+     falls; a strawberry-drizzled chocolate heart floats above; and a mug of cocoa steams on the other side.
      See doodle_halloween.xml for the layout. -->
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt">
     <aapt:attr name="android:drawable">
         <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
 
-            <group android:name="heart" android:translateX="39.5" android:translateY="9">
-                <path android:fillColor="#FF8D6E63" android:pathData="M0,3C-1,2.2 -3.3,0.7 -3.3,-1C-3.3,-2.2 -2.4,-3 -1.5,-3C-0.8,-3 -0.25,-2.6 0,-2C0.25,-2.6 0.8,-3 1.5,-3C2.4,-3 3.3,-2.2 3.3,-1C3.3,0.7 1,2.2 0,3Z" />
-                <path android:fillAlpha="0.5" android:fillColor="#FFFFFFFF" android:pathData="M-2.6,-1.2a0.6,0.8 0,1 0,1.2 0a0.6,0.8 0,1 0,-1.2 0Z" />
+            <!-- Steam: each wisp draws itself upward and lets go of its tail -->
+            <path android:name="steam_1" android:pathData="M7.2,28.6C6,26.9 8.4,25.4 7.2,23.6C6,21.8 7.8,20.6 7.2,19.4" android:strokeColor="#FF9AA0A6" android:strokeLineCap="round" android:strokeWidth="0.85" android:trimPathEnd="0.75" android:trimPathStart="0.083" />
+            <path android:name="steam_2" android:pathData="M9.6,28.4C10.8,26.8 8.4,25.2 9.6,23.4C10.6,21.8 9,20.6 9.6,19.4" android:strokeColor="#FF9AA0A6" android:strokeLineCap="round" android:strokeWidth="0.85" android:trimPathEnd="0.5" android:trimPathStart="0.5" />
+
+            <!-- Mug of cocoa with marshmallows -->
+            <path android:pathData="M5.3,31.4C3.1,31.2 2.9,35.2 5.3,35" android:strokeColor="#FF1967D2" android:strokeLineCap="round" android:strokeWidth="1.1" />
+            <path android:fillColor="#FF4285F4" android:pathData="M5,30L11.2,30L11,35.4C10.9,37 10,37.7 8.1,37.7C6.2,37.7 5.3,37 5.2,35.4Z" />
+            <path android:fillColor="#FF1967D2" android:pathData="M9.3,30L11.2,30L11,35.4C10.9,37 10,37.7 8.4,37.7C9.3,37 9.6,35.8 9.6,34.6Z" />
+            <path android:fillColor="#FF8AB4F8" android:pathData="M5,30a3.1,0.95 0,1 0,6.2 0a3.1,0.95 0,1 0,-6.2 0Z" />
+            <path android:fillColor="#FF8D5A3C" android:pathData="M5.55,30.05a2.55,0.62 0,1 0,5.1 0a2.55,0.62 0,1 0,-5.1 0Z" />
+            <path android:fillColor="#FFF8BBD0" android:pathData="M6.2,28.9L7.5,28.7L7.7,30L6.4,30.2Z" />
+            <path android:fillColor="#FFFFFFFF" android:strokeColor="#FFDADCE0" android:strokeWidth="0.3" android:pathData="M8.2,28.6L9.5,28.8L9.3,30.1L8,29.9Z" />
+            <path android:fillColor="#FFF8BBD0" android:pathData="M8.1,35C7.75,34.7 7,34.2 7,33.6C7,33.2 7.3,32.9 7.6,32.9C7.85,32.9 8,33.05 8.1,33.25C8.2,33.05 8.35,32.9 8.6,32.9C8.9,32.9 9.2,33.2 9.2,33.6C9.2,34.2 8.45,34.7 8.1,35Z" />
+
+            <!-- Chocolate heart, floating -->
+            <group android:name="heart" android:translateX="40" android:translateY="9.4">
+                <group android:name="heart_tilt">
+                    <path android:fillColor="#FF5D3426" android:pathData="M0,3.2C-1.1,2.35 -3.5,0.75 -3.5,-1.05C-3.5,-2.35 -2.55,-3.2 -1.6,-3.2C-0.85,-3.2 -0.27,-2.75 0,-2.1C0.27,-2.75 0.85,-3.2 1.6,-3.2C2.55,-3.2 3.5,-2.35 3.5,-1.05C3.5,0.75 1.1,2.35 0,3.2Z" />
+                    <group android:scaleX="0.87" android:scaleY="0.87" android:translateX="-0.34" android:translateY="-0.4">
+                        <path android:fillColor="#FF8D5A3C" android:pathData="M0,3.2C-1.1,2.35 -3.5,0.75 -3.5,-1.05C-3.5,-2.35 -2.55,-3.2 -1.6,-3.2C-0.85,-3.2 -0.27,-2.75 0,-2.1C0.27,-2.75 0.85,-3.2 1.6,-3.2C2.55,-3.2 3.5,-2.35 3.5,-1.05C3.5,0.75 1.1,2.35 0,3.2Z" />
+                    </group>
+                    <path android:pathData="M-2.6,-1.3L-1.5,0.4L-0.7,-1.8L0.3,1.1L1.2,-1.6L2.2,-0.2" android:strokeColor="#FFF8BBD0" android:strokeLineCap="round" android:strokeLineJoin="round" android:strokeWidth="0.5" />
+                    <path android:fillAlpha="0.8" android:fillColor="#FFD7AE8C" android:pathData="M-2.9,-1.3C-2.9,-2.1 -2.3,-2.6 -1.7,-2.6C-1.35,-2.6 -1.2,-2.35 -1.45,-2.15C-1.95,-1.9 -2.25,-1.6 -2.4,-1.15C-2.55,-0.85 -2.9,-0.9 -2.9,-1.3Z" />
+                </group>
             </group>
 
-            <group android:rotation="-14" android:translateX="40.5" android:translateY="38">
-                <!-- Drip hanging from the bar's bottom edge -->
-                <group android:name="drip" android:pivotY="3" android:scaleY="1">
-                    <path android:fillColor="#FF6D4C41" android:pathData="M0.6,3L1.8,3L1.8,4.4C1.8,5.3 0.6,5.3 0.6,4.4Z" />
+            <!-- Chocolate bar: bitten squares above, red wrapper with a torn foil edge below -->
+            <group android:translateX="40.6" android:translateY="38.2" android:rotation="-12" android:scaleX="1.15" android:scaleY="1.15">
+                <path android:fillColor="#FF5D3426" android:pathData="M-3.7,-4.1Q-3.7,-4.6 -3.2,-4.6L1.1,-4.6C0.9,-3.6 1.8,-2.8 2.6,-3.3C2.7,-2.5 3.8,-2 3.7,-1.2L3.7,0.8L-3.7,0.8Z" />
+                <path android:fillColor="#FF8D5A3C" android:pathData="M-3.3,-4.2L-0.35,-4.2L-0.35,-2.2L-3.3,-2.2Z M-3.3,-1.7L-0.35,-1.7L-0.35,0.4L-3.3,0.4Z M0.15,-1.7L3.3,-1.7L3.3,0.4L0.15,0.4Z M0.15,-4.2L0.75,-4.2C0.75,-3.1 1.7,-2.4 2.45,-2.75C2.6,-2.5 2.8,-2.3 3.05,-2.2L0.15,-2.2Z" />
+                <path android:pathData="M-3.2,-2.4L-3.2,-4.1L-0.5,-4.1 M-3.2,0.2L-3.2,-1.6L-0.5,-1.6 M0.25,0.2L0.25,-1.6L3.2,-1.6 M0.25,-2.4L0.25,-4.1L0.6,-4.1" android:strokeColor="#FFB07A55" android:strokeWidth="0.3" />
+                <path android:fillColor="#FFEA4335" android:pathData="M-4.1,0.2L4.1,0.2L4.1,4.6Q4.1,5 3.7,5L-3.7,5Q-4.1,5 -4.1,4.6Z" />
+                <path android:fillColor="#FFC5221F" android:pathData="M2.3,0.2L4.1,0.2L4.1,4.6Q4.1,5 3.7,5L2.3,5Z" />
+                <path android:fillColor="#FFFBBC04" android:pathData="M-4.1,2.5L4.1,2.5L4.1,3.4L-4.1,3.4Z" />
+                <path android:fillColor="#FFE37400" android:pathData="M2.3,2.5L4.1,2.5L4.1,3.4L2.3,3.4Z" />
+                <path android:fillColor="#FFDADCE0" android:pathData="M-4.1,0.5L-3.3,-0.3L-2.5,0.4L-1.7,-0.4L-0.9,0.4L-0.1,-0.3L0.7,0.4L1.5,-0.4L2.3,0.4L3.2,-0.3L4.1,0.5L4.1,1L-4.1,1Z" />
+                <path android:fillColor="#FFBDC1C6" android:pathData="M2.3,0.4L3.2,-0.3L4.1,0.5L4.1,1L2.3,1Z" />
+                <path android:fillColor="#FF8D5A3C" android:pathData="M4.4,-3.6a0.35,0.35 0,1 0,0.7 0a0.35,0.35 0,1 0,-0.7 0Z M3.6,-4.6a0.25,0.25 0,1 0,0.5 0a0.25,0.25 0,1 0,-0.5 0Z" />
+                <!-- Drip running over the foil, and the drop that falls from it -->
+                <group android:name="drip" android:pivotY="0.6">
+                    <path android:fillColor="#FF8D5A3C" android:pathData="M-1.4,0.4L0.2,0.4L0.2,1.7C0.2,2.65 -1.4,2.65 -1.4,1.7Z" />
+                    <path android:fillAlpha="0.7" android:fillColor="#FFB07A55" android:pathData="M-1.1,0.8L-0.75,0.8L-0.75,1.7L-1.1,1.7Z" />
                 </group>
-                <group android:name="drop" android:translateX="1.2" android:translateY="5.6">
-                    <path android:name="drop_path" android:fillAlpha="0" android:fillColor="#FF6D4C41" android:pathData="M-0.5,0a0.5,0.6 0,1 0,1 0a0.5,0.6 0,1 0,-1 0Z" />
+                <group android:name="drop" android:translateX="-0.6" android:translateY="2.6" android:scaleX="0" android:scaleY="0">
+                    <path android:fillColor="#FF8D5A3C" android:pathData="M0,-0.9C0.3,-0.4 0.6,-0.1 0.6,0.3C0.6,0.65 0.3,0.9 0,0.9C-0.3,0.9 -0.6,0.65 -0.6,0.3C-0.6,-0.1 -0.3,-0.4 0,-0.9Z" />
                 </group>
-                <!-- Bar with a bite out of its corner, and its foil -->
-                <path android:fillColor="#FF6D4C41" android:pathData="M-4,-3L1.6,-3C1.4,-1.8 2.6,-1.2 3.2,-1.9C3.4,-1.1 4.3,-0.7 4,0.1L4,3L-4,3Z" />
-                <path android:pathData="M-1.2,-3L-1.2,3 M1.4,-1.4L1.4,3 M-4,0L4,0" android:strokeColor="#FF8D6E63" android:strokeWidth="0.4" />
-                <path android:fillColor="#FFBDC1C6" android:pathData="M-4.5,-3.4L-2,-3.4L-2.4,3.4L-4.5,3.4Z" />
-                <path android:fillColor="#FFEA4335" android:pathData="M-4.5,-1L-2.2,-1L-2.3,1L-4.5,1Z" />
             </group>
         </vector>
     </aapt:attr>
 
-    <target android:name="heart">
-        <aapt:attr name="android:animation">
-            <set>
-                <objectAnimator android:duration="900" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="1.12" android:valueType="floatType" />
-                <objectAnimator android:duration="900" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="scaleY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="1.12" android:valueType="floatType" />
-            </set>
-        </aapt:attr>
-    </target>
-
-    <!-- 2.4s: the drip swells, a drop falls from it, the drip shrinks back. -->
+    <!-- 3.2s: the drip swells, a drop pinches off and falls, the drip springs back and slowly swells again. -->
     <target android:name="drip">
         <aapt:attr name="android:animation">
-            <objectAnimator android:duration="2400" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+            <objectAnimator android:duration="3200" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
                 <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
                     <keyframe android:fraction="0" android:value="1" />
-                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_quad" android:value="1.6" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.6" />
                     <keyframe android:fraction="0.56" android:interpolator="@android:interpolator/decelerate_quad" android:value="0.8" />
-                    <keyframe android:fraction="1" android:value="1" />
+                    <keyframe android:fraction="0.64" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.05" />
+                    <keyframe android:fraction="0.7" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.95" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
                 </propertyValuesHolder>
             </objectAnimator>
         </aapt:attr>
     </target>
     <target android:name="drop">
         <aapt:attr name="android:animation">
-            <objectAnimator android:duration="2400" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+            <objectAnimator android:duration="3200" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
                 <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="6.4" />
-                    <keyframe android:fraction="0.52" android:value="6.4" />
-                    <keyframe android:fraction="0.75" android:interpolator="@android:interpolator/accelerate_quad" android:value="10" />
-                    <keyframe android:fraction="1" android:value="10" />
+                    <keyframe android:fraction="0" android:value="3.2" />
+                    <keyframe android:fraction="0.52" android:value="3.2" />
+                    <keyframe android:fraction="0.76" android:interpolator="@android:interpolator/accelerate_quad" android:value="8.2" />
+                    <keyframe android:fraction="0.77" android:value="3.2" />
+                    <keyframe android:fraction="1" android:value="3.2" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.5" android:value="0" />
+                    <keyframe android:fraction="0.54" android:value="1" />
+                    <keyframe android:fraction="0.68" android:value="1" />
+                    <keyframe android:fraction="0.76" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0" />
+                    <keyframe android:fraction="0.5" android:value="0" />
+                    <keyframe android:fraction="0.54" android:value="1.1" />
+                    <keyframe android:fraction="0.68" android:value="1.15" />
+                    <keyframe android:fraction="0.76" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0" />
                 </propertyValuesHolder>
             </objectAnimator>
         </aapt:attr>
     </target>
-    <target android:name="drop_path">
+
+    <!-- The heart bobs and tilts on two different rhythms. -->
+    <target android:name="heart">
         <aapt:attr name="android:animation">
-            <objectAnimator android:duration="2400" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
-                <propertyValuesHolder android:propertyName="fillAlpha" android:valueType="floatType">
-                    <keyframe android:fraction="0" android:value="0" />
-                    <keyframe android:fraction="0.52" android:value="0" />
-                    <keyframe android:fraction="0.54" android:value="1" />
-                    <keyframe android:fraction="0.72" android:value="1" />
-                    <keyframe android:fraction="0.76" android:value="0" />
-                    <keyframe android:fraction="1" android:value="0" />
+            <objectAnimator android:duration="1600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateY" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="9.4" android:valueTo="8.3" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="heart_tilt">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="3200" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-5" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="5" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-5" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- Steam, 2.6s: the two wisps rise half a loop apart. -->
+    <target android:name="steam_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.75" />
+                    <keyframe android:fraction="0.15" android:value="1" />
+                    <keyframe android:fraction="0.45" android:value="1" />
+                    <keyframe android:fraction="0.55" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0.75" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="trimPathStart" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.083" />
+                    <keyframe android:fraction="0.45" android:value="1" />
+                    <keyframe android:fraction="0.55" android:value="0" />
+                    <keyframe android:fraction="0.95" android:value="0" />
+                    <keyframe android:fraction="1" android:value="0.083" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="steam_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="2600" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="trimPathEnd" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.5" />
+                    <keyframe android:fraction="0.05" android:value="0" />
+                    <keyframe android:fraction="0.5" android:value="0.75" />
+                    <keyframe android:fraction="0.65" android:value="1" />
+                    <keyframe android:fraction="0.95" android:value="1" />
+                    <keyframe android:fraction="1" android:value="0.5" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="trimPathStart" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.5" />
+                    <keyframe android:fraction="0.05" android:value="0" />
+                    <keyframe android:fraction="0.45" android:value="0" />
+                    <keyframe android:fraction="0.5" android:value="0.083" />
+                    <keyframe android:fraction="0.95" android:value="1" />
+                    <keyframe android:fraction="1" android:value="0.5" />
                 </propertyValuesHolder>
             </objectAnimator>
         </aapt:attr>

@@ -43,6 +43,15 @@ class BackupPreferenceSchemaTest {
     }
 
     @Test
+    fun searchFromSelectedTextIsBackedUpAsABoolean() {
+        val key = com.pixel.intelligentsearch.core.data.SettingsManager.SEARCH_FROM_SELECTED_TEXT
+        assertEquals("BOOLEAN", BackupPreferenceSchema.expectedType(key.name))
+        assertTrue(key in com.pixel.intelligentsearch.core.data.SettingsManager.ALL)
+        assertEquals(key, com.pixel.intelligentsearch.core.data.SettingsManager.keyFor("search_from_selected_text"))
+        assertTrue(key.default)
+    }
+
+    @Test
     fun debugSwitchesAreNeverImported() {
         assertTrue(BackupPreferenceSchema.isDebugKey("debug_unlocked"))
         assertTrue(BackupPreferenceSchema.isDebugKey("debug.verbose_logging"))

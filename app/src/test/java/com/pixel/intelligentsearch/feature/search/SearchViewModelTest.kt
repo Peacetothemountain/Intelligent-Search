@@ -4,9 +4,13 @@ import android.content.Context
 import android.graphics.drawable.ColorDrawable
 import android.os.Looper
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.WorkManager
+import androidx.work.testing.WorkManagerTestInitHelper
 import com.pixel.intelligentsearch.HiltTestActivity
+import com.pixel.intelligentsearch.core.currency.CurrencyRateWork
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.CalendarEvent
 import com.pixel.intelligentsearch.core.data.ContactItem
@@ -22,7 +26,9 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
 import dagger.hilt.components.SingletonComponent
 import dagger.hilt.android.testing.UninstallModules
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -169,6 +175,44 @@ class SearchViewModelTest {
         assertEquals("date", answer.iconType)
         assertEquals("121 days", answer.title)
         assertEquals("Between Sunday, March 1, 2026 and Tuesday, June 30, 2026", answer.subtitle)
+    }
+
+    /** Waits until the latest query's local results, instant answer included, have been published. */
+    private fun awaitLocalResults(): SearchUiState {
+        var done = false
+        viewModel.viewModelScope.launch { viewModel.awaitSearch(); done = true }
+        return await("local results") { done }
+    }
+
+    private fun uniqueWork(name: String) = WorkManager.getInstance(ApplicationProvider.getApplicationContext()).getWorkInfosForUniqueWork(name).get()
+
+    @Test
+    fun dateAnswersFollowTheCalculatorSwitch() {
+        prefs.edit().put(SettingsManager.SEARCH_CALCULATOR, false).commit()
+        start()
+        viewModel.onQueryChanged("how many days between 2026-03-01 and 2026-06-30")
+        assertNull(awaitLocalResults().instantAnswer)
+    }
+
+    @Test
+    fun aCurrencyAnswerStartsTheRatesDownload() {
+        WorkManagerTestInitHelper.initializeTestWorkManager(ApplicationProvider.getApplicationContext())
+        start()
+        viewModel.onQueryChanged("100 usd to eur")
+        assertEquals("currency", awaitLocalResults().instantAnswer?.iconType)
+        assertEquals(1, uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).size)
+        assertEquals(1, uniqueWork(CurrencyRateWork.DAILY_WORK).size)
+    }
+
+    @Test
+    fun withTheCalculatorOffACurrencyQueryNeverStartsTheRatesDownload() {
+        WorkManagerTestInitHelper.initializeTestWorkManager(ApplicationProvider.getApplicationContext())
+        prefs.edit().put(SettingsManager.SEARCH_CALCULATOR, false).commit()
+        start()
+        viewModel.onQueryChanged("100 usd to eur")
+        assertNull(awaitLocalResults().instantAnswer)
+        assertTrue(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).isEmpty())
+        assertTrue(uniqueWork(CurrencyRateWork.DAILY_WORK).isEmpty())
     }
 
     @Test

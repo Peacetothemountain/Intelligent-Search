@@ -145,7 +145,10 @@ class UnifiedSearchCoordinator @Inject constructor(
     /** A priority weight of 50 is neutral (x1). */
     private fun weightMultiplier(weight: Int): Float = (weight / 50f).coerceAtLeast(0.01f)
 
-    /** The calculator and converter answer, with the current currency rates; a currency answer may start a fetch. */
+    /**
+     * The calculator and converter answer, with the current currency rates. A currency answer may start a fetch, which
+     * the repository allows only while the Calculator and Live Currency Rates are on and Tor isn't the engine.
+     */
     private fun evaluateMath(query: String): MathematicalExpressionEngine.MathEvaluationResult? {
         val result = MathematicalExpressionEngine.evaluate(query, currencyRates::current)
         (result as? MathematicalExpressionEngine.MathEvaluationResult.UnitConversion)?.currencyRates

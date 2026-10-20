@@ -123,7 +123,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val SEARCH_WEB_SUGGESTIONS = BooleanSetting("search.web.suggestions", true)
         val SEARCH_PREVIOUS_SEARCHES = BooleanSetting("search_previous_searches", true)
         val SEARCH_CALCULATOR = BooleanSetting("search.calculator", true, "search_calculator")
-        /** Fetches the European Central Bank's rates for currency answers once a day; off, nothing is fetched. */
+        /** Fetches the European Central Bank's rates for currency answers once a day while the Calculator is on; off, nothing is fetched. */
         val LIVE_CURRENCY_RATES = BooleanSetting("live_currency_rates", true)
         val SEARCH_CALENDAR = BooleanSetting("search.calendar", true, "search_calendar")
         val SEARCH_SHORTCUTS = BooleanSetting("search.shortcuts", true, "search_shortcuts")

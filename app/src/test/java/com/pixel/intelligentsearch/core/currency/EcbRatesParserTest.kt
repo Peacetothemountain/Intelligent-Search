@@ -72,6 +72,35 @@ class EcbRatesParserTest {
     }
 
     @Test
+    fun aTableDatedMoreThanTwoDaysAheadIsRejected() {
+        val today = LocalDate.of(2026, 10, 20)
+        fun dated(time: String) = EcbRatesParser.parse(ecbFile(time = time).toByteArray(), today)?.date
+        assertEquals(LocalDate.of(2026, 10, 19), dated("2026-10-19"))
+        assertEquals(LocalDate.of(2026, 10, 20), dated("2026-10-20"))
+        // A time zone or a clock a little behind.
+        assertEquals(LocalDate.of(2026, 10, 22), dated("2026-10-22"))
+        assertNull(dated("2026-10-23"))
+        assertNull(dated("2099-12-31"))
+    }
+
+    @Test
+    fun ratesOutsideAPlausibleRangeAreDropped() {
+        val rates = parse(
+            ecbFile(
+                rates = """
+                <Cube currency='USD' rate='1.0812'/>
+                <Cube currency='AAA' rate='0.000001'/>
+                <Cube currency='BBB' rate='0.0000009'/>
+                <Cube currency='CCC' rate='10000000'/>
+                <Cube currency='DDD' rate='10000001'/>
+                <Cube currency='EEE' rate='999999999999'/>
+                """
+            )
+        )!!
+        assertEquals(mapOf("usd" to 1.0812, "aaa" to 0.000001, "ccc" to 10_000_000.0, "eur" to 1.0), rates.perBase)
+    }
+
+    @Test
     fun malformedInputIsRejected() {
         assertNull(EcbRatesParser.parse(ByteArray(0)))
         assertNull(parse(""))

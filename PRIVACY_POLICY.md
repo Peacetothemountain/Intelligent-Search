@@ -73,7 +73,7 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 
 ---
 
-## 3. Web Search & External Search Engines
+## 3. Web Search, External Search Engines & Live Currency Rates
 
 When you execute a web search or request live autocomplete suggestions:
 1. **Direct Communication**: Search queries are transmitted directly and securely (via HTTPS) to your chosen search engine provider (e.g., Google, DuckDuckGo, Bing, or your configured Custom Search URL).
@@ -84,7 +84,12 @@ When you execute a web search or request live autocomplete suggestions:
    * [DuckDuckGo Privacy Policy](https://duckduckgo.com/privacy)
    * [Microsoft Bing Privacy Statement](https://privacy.microsoft.com/en-us/privacystatement)
 4. **Tor Browser Integration**: If configured, web queries can be routed directly to the official Tor Browser application on your device for enhanced anonymity. Searches sent to Tor Browser are never saved to your search history.
-5. **Live Currency Rates**: After you first convert a currency in the search bar, Intelligent Search downloads the European Central Bank's public daily exchange-rate file (`https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml`) over HTTPS, then about once a day. The request is the same for every user: it contains nothing you typed and no account, identifier or other personal information. As with any internet request, the European Central Bank can see your IP address. The rates are kept on your device so conversions work offline. Nothing is downloaded while Tor is your search engine. Turn this off in **Settings -> Search Sources -> Live Currency Rates**; conversions then use rates already on your device.
+
+**Live Currency Rates** are separate from web searches and send nothing you type:
+* **On by default, and only with the Calculator**: Currency answers come from the Calculator, so rates are downloaded only while both **Settings -> Search Sources -> Calculator** and **Live Currency Rates** are on. Nothing is downloaded until you first convert a currency in the search bar.
+* **What is downloaded**: The European Central Bank's public daily exchange-rate file (`https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml`), over HTTPS, then about once a day. The rates are kept on your device so conversions work offline.
+* **What is sent**: The request is the same for every user. It contains nothing you typed and no account, identifier or other personal information, and it names the app only as the fixed User-Agent `IntelligentSearch/1.0` instead of Android's default, which would name your phone model. As with any internet request, the European Central Bank can see your IP address.
+* **Tor and turning it off**: Nothing is downloaded while Tor is your search engine. Turning off **Live Currency Rates** or the **Calculator** stops the downloads at once. With Live Currency Rates off, conversions use the rates already on your device.
 
 ---
 
@@ -130,7 +135,7 @@ Because Intelligent Search operates on an On-Device First model and does not col
 ## 8. Compliance with International Privacy Regulations
 
 ### A. General Data Protection Regulation (GDPR / UK GDPR)
-Under the GDPR, Intelligent Search acts neither as a data controller nor as a data processor for personal data on remote servers, because no personal data is transferred off your device. All data subjects retain absolute local control, rectification, and erasure capabilities directly within the app.
+Under the GDPR, Intelligent Search acts neither as a data controller nor as a data processor for personal data on remote servers, because the app sends no personal data to us or to any server we operate. What you choose to send to your search engine goes directly to that provider (see Section 3). Downloading live currency rates sends no personal data; like any internet request, it lets the European Central Bank see your IP address. All data subjects retain absolute local control, rectification, and erasure capabilities directly within the app.
 
 ### B. California Consumer Privacy Act (CCPA / CPRA)
 * We do not collect personal information for commercial sale.

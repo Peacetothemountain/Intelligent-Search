@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- New Year's Day: the G wears a party hat that wobbles while confetti falls around it. Each piece of confetti
+     falls the same way on its own phase, so the shower is steady. See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="48dp"
+            android:height="48dp"
+            android:viewportWidth="48"
+            android:viewportHeight="48">
+
+            <!-- Party hat -->
+            <group
+                android:name="hat"
+                android:rotation="18"
+                android:translateX="27"
+                android:translateY="14.5">
+                <path
+                    android:fillColor="#FF4285F4"
+                    android:pathData="M-4.5,0L0,-10L4.5,0Q0,1.4 -4.5,0Z" />
+                <group>
+                    <clip-path android:pathData="M-4.5,0L0,-10L4.5,0Q0,1.4 -4.5,0Z" />
+                    <path
+                        android:fillColor="#FFFBBC04"
+                        android:pathData="M-6,-2.6L6,-5.6L6,-4L-6,-1Z M-6,-7.4L6,-10.4L6,-8.8L-6,-5.8Z" />
+                </group>
+                <path
+                    android:fillColor="#FFEA4335"
+                    android:pathData="M-1.7,-10a1.7,1.7 0,1 0,3.4 0a1.7,1.7 0,1 0,-3.4 0Z" />
+            </group>
+
+            <!-- Confetti -->
+            <group android:name="c1" android:translateX="36" android:translateY="-2">
+                <group android:name="c1_spin">
+                    <path android:fillColor="#FFEA4335" android:pathData="M-0.6,-1.1L0.6,-1.1L0.6,1.1L-0.6,1.1Z" />
+                </group>
+            </group>
+            <group android:name="c2" android:translateX="14" android:translateY="24">
+                <group android:name="c2_spin" android:rotation="40">
+                    <path android:fillColor="#FF4285F4" android:pathData="M-0.6,-1.1L0.6,-1.1L0.6,1.1L-0.6,1.1Z" />
+                </group>
+            </group>
+            <group android:name="c3" android:translateX="45" android:translateY="6.84">
+                <group android:name="c3_spin">
+                    <path android:fillColor="#FFFBBC04" android:pathData="M-0.75,0a0.75,0.75 0,1 0,1.5 0a0.75,0.75 0,1 0,-1.5 0Z" />
+                </group>
+            </group>
+            <group android:name="c4" android:translateX="31" android:translateY="32.84">
+                <group android:name="c4_spin" android:rotation="-30">
+                    <path android:fillColor="#FF34A853" android:pathData="M-0.6,-1.1L0.6,-1.1L0.6,1.1L-0.6,1.1Z" />
+                </group>
+            </group>
+            <group android:name="c5" android:translateX="19" android:translateY="15.16">
+                <group android:name="c5_spin" android:rotation="70">
+                    <path android:fillColor="#FFA142F4" android:pathData="M-0.6,-1.1L0.6,-1.1L0.6,1.1L-0.6,1.1Z" />
+                </group>
+            </group>
+            <group android:name="c6" android:translateX="41" android:translateY="41.16">
+                <group android:name="c6_spin">
+                    <path android:fillColor="#FFE52592" android:pathData="M-0.75,0a0.75,0.75 0,1 0,1.5 0a0.75,0.75 0,1 0,-1.5 0Z" />
+                </group>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="hat">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1800"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder
+                    android:propertyName="rotation"
+                    android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="18" />
+                    <keyframe
+                        android:fraction="0.25"
+                        android:interpolator="@android:interpolator/accelerate_decelerate"
+                        android:value="9" />
+                    <keyframe
+                        android:fraction="0.5"
+                        android:interpolator="@android:interpolator/accelerate_decelerate"
+                        android:value="18" />
+                    <keyframe
+                        android:fraction="0.75"
+                        android:interpolator="@android:interpolator/accelerate_decelerate"
+                        android:value="25" />
+                    <keyframe
+                        android:fraction="1"
+                        android:interpolator="@android:interpolator/accelerate_decelerate"
+                        android:value="18" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- Falling: 2.8s from above the doodle to below it, each piece starting part way through. -->
+    <target android:name="c1">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="2800"
+                android:interpolator="@android:interpolator/linear"
+                android:propertyName="translateY"
+                android:repeatCount="infinite"
+                android:valueFrom="-2"
+                android:valueTo="50"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="c2">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="2800"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder
+                    android:propertyName="translateY"
+                    android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="24" />
+                    <keyframe android:fraction="0.5" android:value="50" />
+                    <keyframe android:fraction="0.501" android:value="-2" />
+                    <keyframe android:fraction="1" android:value="24" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="c3">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="2800"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder
+                    android:propertyName="translateY"
+                    android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="6.84" />
+                    <keyframe android:fraction="0.83" android:value="50" />
+                    <keyframe android:fraction="0.831" android:value="-2" />
+                    <keyframe android:fraction="1" android:value="6.84" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="c4">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="2800"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder
+                    android:propertyName="translateY"
+                    android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="32.84" />
+                    <keyframe android:fraction="0.33" android:value="50" />
+                    <keyframe android:fraction="0.331" android:value="-2" />
+                    <keyframe android:fraction="1" android:value="32.84" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="c5">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="2800"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder
+                    android:propertyName="translateY"
+                    android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="15.16" />
+                    <keyframe android:fraction="0.67" android:value="50" />
+                    <keyframe android:fraction="0.671" android:value="-2" />
+                    <keyframe android:fraction="1" android:value="15.16" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="c6">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="2800"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder
+                    android:propertyName="translateY"
+                    android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="41.16" />
+                    <keyframe android:fraction="0.17" android:value="50" />
+                    <keyframe android:fraction="0.171" android:value="-2" />
+                    <keyframe android:fraction="1" android:value="41.16" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- Tumbling and drifting side to side as they fall. -->
+    <target android:name="c1_spin">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="900" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="360" android:valueType="floatType" />
+                <objectAnimator android:duration="700" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-1.2" android:valueTo="1.2" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="c2_spin">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1300" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="40" android:valueTo="-320" android:valueType="floatType" />
+                <objectAnimator android:duration="800" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1.2" android:valueTo="-1.2" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="c3_spin">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="650" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-1" android:valueTo="1" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="c4_spin">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1100" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="-30" android:valueTo="330" android:valueType="floatType" />
+                <objectAnimator android:duration="750" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-1.2" android:valueTo="1.2" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="c5_spin">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1500" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="70" android:valueTo="430" android:valueType="floatType" />
+                <objectAnimator android:duration="600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="-1" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="c6_spin">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="720" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1.1" android:valueTo="-1.1" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

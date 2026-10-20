@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Earth Day: a seedling sprouts from the top of the G and sways while a small Earth turns beside it.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="48dp"
+            android:height="48dp"
+            android:viewportWidth="48"
+            android:viewportHeight="48">
+
+            <!-- Seedling, rooted where it meets the G -->
+            <group
+                android:name="sprout"
+                android:pivotX="26"
+                android:pivotY="13.6">
+                <path
+                    android:pathData="M26,13.6C26.2,11.2 26.8,9 27,6.6"
+                    android:strokeColor="#FF188038"
+                    android:strokeLineCap="round"
+                    android:strokeWidth="0.9" />
+                <path
+                    android:fillColor="#FF34A853"
+                    android:pathData="M26.8,8.6C24.4,8.6 22.6,6.9 22.4,5C24.5,5 26.4,6.5 26.8,8.6Z" />
+                <path
+                    android:fillColor="#FF5BB974"
+                    android:pathData="M27,7C27.6,4.6 29.6,3 31.8,3.2C31.6,5.4 29.4,7 27,7Z" />
+            </group>
+
+            <!-- Earth: its land slides past behind a round window, so it seems to turn. -->
+            <group
+                android:translateX="40"
+                android:translateY="37">
+                <path
+                    android:fillColor="#FF4285F4"
+                    android:pathData="M-6,0a6,6 0,1 0,12 0a6,6 0,1 0,-12 0Z" />
+                <group>
+                    <clip-path android:pathData="M-6,0a6,6 0,1 0,12 0a6,6 0,1 0,-12 0Z" />
+                    <group android:name="land">
+                        <path
+                            android:fillColor="#FF34A853"
+                            android:pathData="M-5,-3C-3,-5 0,-4.5 -0.5,-2.5C-1,-0.5 -2.5,0.5 -3,2.5C-4.5,2 -6.5,0 -5,-3Z M1.5,0.5C3.5,-0.5 6,0.5 5.5,2.5C5,4.5 3,5.5 2,4C1.2,3 1,1.5 1.5,0.5Z M2.5,-5C3.8,-5.6 6,-4.6 5.4,-3.4C4.9,-2.6 3.3,-2.8 2.5,-4Z M-4,4.5C-2.5,4 -1,4.6 -1.5,5.6C-2.5,6.2 -3.8,5.8 -4,4.5Z M9,-3C11,-5 14,-4.5 13.5,-2.5C13,-0.5 11.5,0.5 11,2.5C9.5,2 7.5,0 9,-3Z M15.5,0.5C17.5,-0.5 20,0.5 19.5,2.5C19,4.5 17,5.5 16,4C15.2,3 15,1.5 15.5,0.5Z M16.5,-5C17.8,-5.6 20,-4.6 19.4,-3.4C18.9,-2.6 17.3,-2.8 16.5,-4Z M10,4.5C11.5,4 13,4.6 12.5,5.6C11.5,6.2 10.2,5.8 10,4.5Z" />
+                    </group>
+                </group>
+                <path
+                    android:fillAlpha="0.35"
+                    android:fillColor="#FFFFFFFF"
+                    android:pathData="M-4.2,-2.6a1.4,0.9 0,1 0,2.8 0a1.4,0.9 0,1 0,-2.8 0Z" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="sprout">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1600"
+                android:interpolator="@android:interpolator/accelerate_decelerate"
+                android:propertyName="rotation"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse"
+                android:valueFrom="-6"
+                android:valueTo="7"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <!-- The land repeats every 14 units, so sliding it that far loops without a seam. -->
+    <target android:name="land">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="7000"
+                android:interpolator="@android:interpolator/linear"
+                android:propertyName="translateX"
+                android:repeatCount="infinite"
+                android:valueFrom="0"
+                android:valueTo="-14"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

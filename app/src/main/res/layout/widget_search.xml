@@ -65,19 +65,37 @@
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
                     android:baselineAligned="false"
+                    android:clipToPadding="false"
                     android:paddingStart="16dp"
                     android:paddingEnd="16dp">
 
-                    <!-- Google G logo (24dp) -->
-                    <ImageView
-                        android:id="@+id/widget_g_logo"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@drawable/ic_g_logo"
-                        android:scaleType="fitCenter"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:contentDescription="@string/widget_talkback_google_logo" />
+                    <!-- Google G logo: a 24dp G inside a 48dp slot that reaches into the padding around it, so the
+                         G sits where it always has and a doodle (see Occasion) has room to play around it. -->
+                    <FrameLayout
+                        android:id="@+id/widget_g_slot"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="-12dp"
+                        android:layout_marginEnd="-12dp">
+
+                        <ImageView
+                            android:id="@+id/widget_g_logo"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:padding="12dp"
+                            android:src="@drawable/ic_g_logo"
+                            android:scaleType="fitCenter"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:contentDescription="@string/widget_talkback_google_logo" />
+
+                        <FrameLayout
+                            android:id="@+id/widget_doodle"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:visibility="gone"
+                            android:importantForAccessibility="no" />
+                    </FrameLayout>
 
                     <!-- Spacer -->
                     <TextView

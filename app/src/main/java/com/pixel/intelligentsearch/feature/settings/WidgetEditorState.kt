@@ -43,6 +43,7 @@ internal class WidgetDraftFields(active: MutableState<WidgetDesignSettings>, mat
     var colorOpacity by draftField(active, { it.colorOpacity }) { d, v -> d.copy(colorOpacity = v) }
     var transparency by draftField(active, { it.transparency }) { d, v -> d.copy(transparency = v) }
     var showGIcon by draftField(active, { it.showGIcon }) { d, v -> d.copy(showGIcon = v) }
+    var showDoodles by draftField(active, { it.showDoodles }) { d, v -> d.copy(showDoodles = v) }
     var showVoice by draftField(active, { it.showVoice }) { d, v -> d.copy(showVoice = v) }
     var shortcut1 by draftField(active, { it.shortcut1 }) { d, v -> d.copy(shortcut1 = v) }
     var shortcut2 by draftField(active, { it.shortcut2 }) { d, v -> d.copy(shortcut2 = v) }

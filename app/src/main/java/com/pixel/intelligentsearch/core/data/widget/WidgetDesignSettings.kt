@@ -50,7 +50,9 @@ data class WidgetDesignSettings(
     val shortcut3: String,
     val slotOrder: String,
     val lockBlack: Boolean,
-    val actionIcon: String
+    val actionIcon: String,
+    /** Whether the G gets the day's animated doodle on holidays and the first day of each season (only while it's shown). */
+    val showDoodles: Boolean = true
 ) {
     /** The custom pill colour these settings produce (what the widget draws for the "Custom" subtheme). */
     val customColorInt: Int
@@ -99,8 +101,6 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
             prefs.getString("${p}_$key", if (saved) prefs.getString(legacy, default) else default) ?: default
         fun int(key: String, legacy: String, default: Int): Int =
             prefs.getInt("${p}_$key", if (saved) prefs.getInt(legacy, default) else default)
-        fun savedBoolean(key: String, legacy: String, default: Boolean): Boolean =
-            if (saved) prefs.getBoolean("${p}_$key", prefs.getBoolean(legacy, default)) else default
         // Element colours: per-design key, else the old shared key, else the fallback. The old builds wrote
         // Google blue as a placeholder; an unsaved placeholder means "use the fallback". For the slots the
         // fallback is the old single "all shortcuts" colour when one was stored, else the theme colour.
@@ -144,16 +144,24 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
             lightness = int("custom_lightness", "widget_custom_lightness", 100).toFloat(),
             colorOpacity = int("custom_color_opacity", "widget_custom_color_opacity", 100).toFloat(),
             transparency = int("background_transparency", "widget.background.transparency", if (isSystem) 0 else 28).toFloat(),
-            showGIcon = savedBoolean("show_g_icon", "widget_show_g_icon", default = true),
+            showGIcon = showsGIcon(design),
             showVoice = if (saved) prefs.getBoolean("${p}_show_voice", prefs[SettingsManager.WIDGET_SHOW_VOICE]) else true,
             shortcut1 = shortcut(1, "Google Lens"),
             shortcut2 = shortcut(2, "None"),
             shortcut3 = shortcut(3, "None"),
             slotOrder = string("shortcut_order", "widget_shortcut_order", DEFAULT_SLOT_ORDER),
             lockBlack = prefs.getBoolean("${p}_lock_black", true),
-            actionIcon = string("action_icon", "widget_action_icon", "Search")
+            actionIcon = string("action_icon", "widget_action_icon", "Search"),
+            showDoodles = prefs.getBoolean("${p}_show_doodles", true)
         )
     }
+
+    private fun showsGIcon(design: WidgetDesign): Boolean =
+        if (isSaved(design)) prefs.getBoolean("${design.prefix}_show_g_icon", prefs.getBoolean("widget_show_g_icon", true)) else true
+
+    /** Whether [design] draws the day's doodle with its G: the G is shown and doodles are on. */
+    fun showsDoodle(design: WidgetDesign): Boolean =
+        showsGIcon(design) && prefs.getBoolean("${design.prefix}_show_doodles", true)
 
     /** Writes [settings] for [design] into [editor] and marks the design saved; the caller applies the edit. */
     fun save(design: WidgetDesign, settings: WidgetDesignSettings, editor: SharedPreferences.Editor) {
@@ -178,6 +186,7 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
             .putInt("${p}_custom_color_int", settings.customColorInt)
             .putInt("${p}_background_transparency", settings.transparency.toInt())
             .putBoolean("${p}_show_g_icon", settings.showGIcon)
+            .putBoolean("${p}_show_doodles", settings.showDoodles)
             .putBoolean("${p}_show_voice", settings.showVoice)
             .putString("${p}_shortcut_1", settings.shortcut1)
             .putString("${p}_shortcut_2", settings.shortcut2)

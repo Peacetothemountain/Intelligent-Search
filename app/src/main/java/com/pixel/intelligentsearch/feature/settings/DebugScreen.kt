@@ -98,6 +98,19 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                 },
                 showDivider = true
             )
+
+            val resources = androidx.compose.ui.platform.LocalResources.current
+            SettingsRow(
+                title = "Preview Widget Doodles",
+                subtitle = "Shows each day's doodle on the widgets in turn; tap past the last one to go back to today's",
+                icon = Icons.Outlined.Celebration,
+                onClick = {
+                    val shown = com.pixel.intelligentsearch.feature.widget.WidgetDoodles.previewNext(context)
+                    val message = if (shown == null) "Doodle preview off" else "Previewing ${resources.getString(shown.title)}"
+                    android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+                },
+                showDivider = true
+            )
             
             
             

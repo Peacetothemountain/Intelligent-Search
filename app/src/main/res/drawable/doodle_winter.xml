@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- First day of winter: snow has settled on top of the G and flakes keep drifting down around it.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="48dp"
+            android:height="48dp"
+            android:viewportWidth="48"
+            android:viewportHeight="48">
+
+            <!-- Snow resting on the G's top edge: a lumpy top, and the G's own curve (radius 11 about 24,24) below. -->
+            <path
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M15.2,17.6C16,14.2 19,11.4 22,11C23,10.2 25.2,10.2 26.4,11C28.6,11.2 30.6,12.6 31.8,14.4C32.6,15.2 32.6,16.4 31.6,16.8A11,11 0,0 0,15.2 17.6Z"
+                android:strokeColor="#FFAECBFA"
+                android:strokeWidth="0.5" />
+
+            <!-- Flakes, each on its own sixth of the same fall. -->
+            <group android:name="flake_1" android:translateX="12" android:translateY="24">
+                <group android:name="flake_1_drift" android:scaleX="1.1" android:scaleY="1.1">
+                    <path android:pathData="M0,-1.6L0,1.6 M-1.39,-0.8L1.39,0.8 M-1.39,0.8L1.39,-0.8" android:strokeColor="#FF8AB4F8" android:strokeLineCap="round" android:strokeWidth="0.55" />
+                </group>
+            </group>
+            <group android:name="flake_2" android:translateX="18" android:translateY="6.67">
+                <group android:name="flake_2_drift" android:scaleX="0.8" android:scaleY="0.8">
+                    <path android:pathData="M0,-1.6L0,1.6 M-1.39,-0.8L1.39,0.8 M-1.39,0.8L1.39,-0.8" android:strokeColor="#FF8AB4F8" android:strokeLineCap="round" android:strokeWidth="0.55" />
+                </group>
+            </group>
+            <group android:name="flake_3" android:translateX="29" android:translateY="32.67">
+                <group android:name="flake_3_drift" android:scaleX="0.75" android:scaleY="0.75">
+                    <path android:pathData="M0,-1.6L0,1.6 M-1.39,-0.8L1.39,0.8 M-1.39,0.8L1.39,-0.8" android:strokeColor="#FF8AB4F8" android:strokeLineCap="round" android:strokeWidth="0.55" />
+                </group>
+            </group>
+            <group android:name="flake_4" android:translateX="35" android:translateY="-2">
+                <group android:name="flake_4_drift" android:scaleX="1.2" android:scaleY="1.2">
+                    <path android:pathData="M0,-1.6L0,1.6 M-1.39,-0.8L1.39,0.8 M-1.39,0.8L1.39,-0.8" android:strokeColor="#FF8AB4F8" android:strokeLineCap="round" android:strokeWidth="0.55" />
+                </group>
+            </group>
+            <group android:name="flake_5" android:translateX="40" android:translateY="15.33">
+                <group android:name="flake_5_drift">
+                    <path android:pathData="M0,-1.6L0,1.6 M-1.39,-0.8L1.39,0.8 M-1.39,0.8L1.39,-0.8" android:strokeColor="#FF8AB4F8" android:strokeLineCap="round" android:strokeWidth="0.55" />
+                </group>
+            </group>
+            <group android:name="flake_6" android:translateX="45" android:translateY="41.33">
+                <group android:name="flake_6_drift" android:scaleX="0.9" android:scaleY="0.9">
+                    <path android:pathData="M0,-1.6L0,1.6 M-1.39,-0.8L1.39,0.8 M-1.39,0.8L1.39,-0.8" android:strokeColor="#FF8AB4F8" android:strokeLineCap="round" android:strokeWidth="0.55" />
+                </group>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <!-- 6s from above the doodle to below it. -->
+    <target android:name="flake_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="24" />
+                    <keyframe android:fraction="0.5" android:value="50" />
+                    <keyframe android:fraction="0.501" android:value="-2" />
+                    <keyframe android:fraction="1" android:value="24" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="flake_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="6.67" />
+                    <keyframe android:fraction="0.8333" android:value="50" />
+                    <keyframe android:fraction="0.8343" android:value="-2" />
+                    <keyframe android:fraction="1" android:value="6.67" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="flake_3">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="32.67" />
+                    <keyframe android:fraction="0.3333" android:value="50" />
+                    <keyframe android:fraction="0.3343" android:value="-2" />
+                    <keyframe android:fraction="1" android:value="32.67" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="flake_4">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:propertyName="translateY" android:repeatCount="infinite" android:valueFrom="-2" android:valueTo="50" android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="flake_5">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="15.33" />
+                    <keyframe android:fraction="0.6667" android:value="50" />
+                    <keyframe android:fraction="0.6677" android:value="-2" />
+                    <keyframe android:fraction="1" android:value="15.33" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="flake_6">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="6000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="41.33" />
+                    <keyframe android:fraction="0.1667" android:value="50" />
+                    <keyframe android:fraction="0.1677" android:value="-2" />
+                    <keyframe android:fraction="1" android:value="41.33" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- Drifting side to side and turning slowly. -->
+    <target android:name="flake_1_drift">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1500" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-1.2" android:valueTo="1.2" android:valueType="floatType" />
+                <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="60" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="flake_2_drift">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1800" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1.2" android:valueTo="-1.2" android:valueType="floatType" />
+                <objectAnimator android:duration="5000" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="-60" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="flake_3_drift">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1600" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-1" android:valueTo="1.2" android:valueType="floatType" />
+                <objectAnimator android:duration="4500" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="60" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="flake_4_drift">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="2000" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1.4" android:valueTo="-1.4" android:valueType="floatType" />
+                <objectAnimator android:duration="5500" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="-60" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="flake_5_drift">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1700" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-1.2" android:valueTo="1" android:valueType="floatType" />
+                <objectAnimator android:duration="4200" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="60" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="flake_6_drift">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1900" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1" android:valueTo="-1.2" android:valueType="floatType" />
+                <objectAnimator android:duration="4800" android:interpolator="@android:interpolator/linear" android:propertyName="rotation" android:repeatCount="infinite" android:valueFrom="0" android:valueTo="-60" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+</animated-vector>

@@ -109,6 +109,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localColorOpacity by fields::colorOpacity
     var localTransparency by fields::transparency
     var localShowGIcon by fields::showGIcon
+    val localShowDoodles by fields::showDoodles
     var localShowVoice by fields::showVoice
     var localShortcut1 by fields::shortcut1
     var localShortcut2 by fields::shortcut2
@@ -533,19 +534,24 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     localCustomGIconColor
                                 }
                                 val customGColorObj = androidx.compose.ui.graphics.Color(customGColorInt)
-                                ComposeGIcon(
-                                    modifier = Modifier.size(24.dp),
-                                    primaryColor = if (isCustom) customGColorObj else gPrimary,
-                                    secondaryColor = if (isCustom) customGColorObj else gSecondary,
-                                    tertiaryColor = if (isCustom) customGColorObj else gTertiary,
-                                    isAccented = isAccented || isCustom,
-                                    accentColor = if (isCustom) customGColorObj else gPrimary,
-                                    fallbackTint = if (isCustom) customGColorObj else androidx.compose.ui.graphics.Color.Unspecified,
-                                    useOriginalColors = useOriginalGIcon,
-                                    isPillLight = isPreviewPillLight
-                                )
+                                val doodle = if (localShowDoodles) rememberWidgetDoodle() else null
+                                Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                                    ComposeGIcon(
+                                        modifier = Modifier.size(24.dp),
+                                        primaryColor = if (isCustom) customGColorObj else gPrimary,
+                                        secondaryColor = if (isCustom) customGColorObj else gSecondary,
+                                        tertiaryColor = if (isCustom) customGColorObj else gTertiary,
+                                        isAccented = isAccented || isCustom,
+                                        accentColor = if (isCustom) customGColorObj else gPrimary,
+                                        fallbackTint = if (isCustom) customGColorObj else androidx.compose.ui.graphics.Color.Unspecified,
+                                        useOriginalColors = useOriginalGIcon,
+                                        isPillLight = isPreviewPillLight
+                                    )
+                                    // On a doodle day the doodle plays around the G, spilling past it as on the widget.
+                                    if (doodle != null) WidgetDoodleOverlay(doodle)
+                                }
                             }
-                            
+
                             Spacer(Modifier.weight(1f))
                             
                             val useMaterialYouIcons = previewIsMaterialYou || effectiveGIconTheme == "Material G Icon" || effectiveGIconTheme == "Custom G Icon" || isPreviewPillLight

@@ -10,8 +10,10 @@ import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesignSettings
 import com.pixel.intelligentsearch.core.data.widget.WidgetElementColors
 import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
+import com.pixel.intelligentsearch.core.occasion.Occasion
 import androidx.core.graphics.toColorInt
 import android.app.PendingIntent
+import android.app.SearchManager
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.appwidget.AppWidgetProviderInfo
@@ -53,14 +55,21 @@ open class SearchWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         // This receiver is exported (the launcher binds widgets through it), so it ignores custom actions any
-        // app could send to force redraws; only an app update triggers a full refresh here. (Wallpaper and
-        // configuration broadcasts are never delivered to manifest receivers.)
+        // app could send to force redraws; only an app update, or the clock or time zone changing (broadcasts only
+        // the system can send), triggers a full refresh here. (Wallpaper and configuration broadcasts are never
+        // delivered to manifest receivers.)
         when (intent.action) {
             Intent.ACTION_MY_PACKAGE_REPLACED -> {
                 DynamicThemeDetector.invalidateCache()
                 clearBitmapCache()
+                WidgetDoodles.scheduleNextChange(context)
                 val pendingResult = goAsync()
                 updateAllWidgets(context, pendingResult)
+            }
+            // Which doodle the G shows depends on the date where the phone is.
+            Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED -> {
+                WidgetDoodles.scheduleNextChange(context)
+                updateAllWidgets(context, goAsync())
             }
         }
     }
@@ -70,6 +79,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
+        WidgetDoodles.scheduleNextChange(context)
         val pendingResult = goAsync()
         context.appEntryPoint.applicationScope().launch(Dispatchers.IO) {
             try {
@@ -320,6 +330,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val circleColorOpaque: Int,
             val circleAlphaInt: Int,
             val showGIcon: Boolean,
+            /** Whether the G gets the day's doodle around it on doodle days. */
+            val showDoodles: Boolean,
             val gIconRes: Int,
             val themePColor: Int,
             val themeSColor: Int,
@@ -413,13 +425,16 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             // 2. Compact (180dp / 3 cells): G logo + 1 shortcut + circle (or 2 shortcuts)
             // 3. Standard (260dp / 4 cells - default phone width): G logo + 2 shortcuts + circle (or 3 shortcuts)
             // 4. Expanded (340dp / 5 cells, foldables & tablets): G logo + all shortcuts
+            // Only placed widgets come through here; the widget picker's previews call buildRemoteViews without one.
+            val doodle = if (config.showGIcon && config.showDoodles) WidgetDoodles.current(prefs) else null
             val buildViews = { maxShortcuts: Int ->
                 buildRemoteViews(
                     context = context,
                     appWidgetId = appWidgetId,
                     prefs = prefs,
                     maxShortcuts = maxShortcuts,
-                    config = config
+                    config = config,
+                    doodle = doodle
                 )
             }
 
@@ -495,6 +510,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     circleColorOpaque = pillColorOpaque,
                     circleAlphaInt = pillAlphaInt,
                     showGIcon = settings.showGIcon,
+                    showDoodles = settings.showDoodles,
                     gIconRes = gIconRes,
                     themePColor = themePColor,
                     themeSColor = themeSColor,
@@ -576,6 +592,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     circleColorOpaque = circleColorOpaque,
                     circleAlphaInt = circleAlphaInt,
                     showGIcon = settings.showGIcon,
+                    showDoodles = settings.showDoodles,
                     gIconRes = gIconRes,
                     themePColor = themePColor,
                     themeSColor = themeSColor,
@@ -619,7 +636,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             appWidgetId: Int,
             prefs: SharedPreferences,
             maxShortcuts: Int,
-            config: WidgetDesignConfig
+            config: WidgetDesignConfig,
+            doodle: Occasion? = null
         ): RemoteViews {
             val layoutId = if (config.isMaterialYou) R.layout.widget_search else R.layout.widget_search_colorful
             val views = RemoteViews(context.packageName, layoutId)
@@ -642,7 +660,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             views.setColorStateList(R.id.widget_sound_background, "setImageTintList", ColorStateList.valueOf(config.circleColorOpaque))
             views.setInt(R.id.widget_sound_background, "setImageAlpha", config.circleAlphaInt)
 
-            bindGIcon(views, config, context)
+            bindGIcon(views, config, context, doodle)
 
             val activeItems = config.allActiveItems.take(maxShortcuts)
             val viewIdTargets = listOf(
@@ -730,31 +748,25 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             }
 
             // Tap pill -> main search overlay
-            val enableSearchOverlay = prefs[SettingsManager.SEARCH_OVERLAY_ENABLED]
-            val mainIntent = if (enableSearchOverlay) {
-                Intent(context, WidgetActivity::class.java).apply {
-                    identifier = "widget_${appWidgetId}_slot_pill"
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                }
-            } else {
-                Intent("android.search.action.GLOBAL_SEARCH").apply {
-                    setPackage("com.google.android.googlequicksearchbox")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                }.takeIf { context.packageManager.resolveActivityCompat(it) != null }
-                    ?: Intent(Intent.ACTION_WEB_SEARCH).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-            }
-
             val mainPI = PendingIntent.getActivity(
                 context,
                 getWidgetRequestCode(appWidgetId, SLOT_PILL),
-                mainIntent,
+                mainSearchIntent(context, prefs, appWidgetId),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
                 getPendingIntentActivityOptions(context)
             )
             views.setOnClickPendingIntent(R.id.widget_pill_container, mainPI)
-            views.setOnClickPendingIntent(R.id.widget_g_logo, mainPI)
+            // On a doodle day, tapping the G searches for the day.
+            views.setOnClickPendingIntent(
+                R.id.widget_g_logo,
+                if (doodle == null || !config.showGIcon) mainPI else PendingIntent.getActivity(
+                    context,
+                    getWidgetRequestCode(appWidgetId, SLOT_G_LOGO),
+                    doodleSearchIntent(context, prefs, appWidgetId, doodle),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                    getPendingIntentActivityOptions(context)
+                )
+            )
             views.setContentDescription(R.id.widget_pill_container, context.getString(R.string.widget_search_description))
 
             // Tap action button inside search pill
@@ -893,18 +905,53 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         /**
-         * Reads a design's saved custom element colour (e.g. "mic_color" -> "widget_material_custom_mic_color").
-         * A design that has never been saved falls back to the shared "widget_custom_*" key written
-         * before colours were stored per design.
+         * What tapping the search bar opens: the search overlay, or the Google app's search while the overlay is
+         * off, with [query] typed in when there is one.
          */
-        private fun bindGIcon(views: RemoteViews, config: WidgetDesignConfig, context: Context) {
+        internal fun mainSearchIntent(context: Context, prefs: SharedPreferences, appWidgetId: Int, query: String? = null): Intent {
+            val intent = if (prefs[SettingsManager.SEARCH_OVERLAY_ENABLED]) {
+                Intent(context, WidgetActivity::class.java).apply {
+                    identifier = "widget_${appWidgetId}_slot_${if (query == null) "pill" else "doodle"}"
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                }
+            } else {
+                Intent("android.search.action.GLOBAL_SEARCH").apply {
+                    setPackage("com.google.android.googlequicksearchbox")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                }.takeIf { context.packageManager.resolveActivityCompat(it) != null }
+                    ?: Intent(Intent.ACTION_WEB_SEARCH).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+            }
+            if (query != null) intent.putExtra(SearchManager.QUERY, query)
+            return intent
+        }
+
+        /** Tapping a doodle searches for its day, the same way as typing it into the search bar. */
+        internal fun doodleSearchIntent(context: Context, prefs: SharedPreferences, appWidgetId: Int, doodle: Occasion): Intent =
+            mainSearchIntent(context, prefs, appWidgetId, context.getString(doodle.title))
+
+        /**
+         * Sets the G as the design asks, and on a doodle day plays the day's doodle around it (in the G's 48dp slot,
+         * see the widget layouts), with TalkBack reading the day.
+         */
+        private fun bindGIcon(views: RemoteViews, config: WidgetDesignConfig, context: Context, doodle: Occasion?) {
             val showGIcon = config.showGIcon
             val materialGIconTheme = config.effectiveIconTheme
             val pColor = config.themePColor
             val isPillLight = config.isPillLight
-            views.setViewVisibility(R.id.widget_g_logo, if (showGIcon) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.widget_g_slot, if (showGIcon) View.VISIBLE else View.GONE)
             views.setInt(R.id.widget_g_logo, "setImageAlpha", 255)
-            views.setContentDescription(R.id.widget_g_logo, context.getString(R.string.widget_talkback_google_logo))
+            views.removeAllViews(R.id.widget_doodle)
+            if (showGIcon && doodle != null) {
+                views.addView(R.id.widget_doodle, RemoteViews(context.packageName, doodle.layout))
+                views.setViewVisibility(R.id.widget_doodle, View.VISIBLE)
+                val day = context.getString(doodle.title)
+                views.setContentDescription(R.id.widget_g_logo, context.getString(R.string.widget_talkback_doodle, day))
+            } else {
+                views.setViewVisibility(R.id.widget_doodle, View.GONE)
+                views.setContentDescription(R.id.widget_g_logo, context.getString(R.string.widget_talkback_google_logo))
+            }
 
             if (config.keepSystemG || materialGIconTheme == "System G Icon") {
                 views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo_colored)

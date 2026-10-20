@@ -22,9 +22,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
+import com.pixel.intelligentsearch.feature.widget.WidgetDoodles
+import com.pixel.intelligentsearch.core.occasion.Occasion
 
 internal val PACKAGE_NAME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$")
 
@@ -277,6 +280,27 @@ fun updateWidgets(context: Context) {
         com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(context)
     } catch (e: Throwable) {
         android.util.Log.e("SettingsScreens", "Failed to update widgets", e)
+    }
+}
+
+/** The doodle the widgets show today (or the one Developer Settings is previewing); null on an ordinary day. */
+@Composable
+fun rememberWidgetDoodle(): Occasion? {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return remember { WidgetDoodles.current(SearchWidgetProvider.getSafeSharedPreferences(context)) }
+}
+
+/**
+ * Plays a doodle around a 24dp G, from the same layout the widget uses so it moves exactly as it does there. Its art
+ * is a 48dp square centred on the G, so it's drawn at that size around the G's slot.
+ */
+@Composable
+fun WidgetDoodleOverlay(doodle: Occasion, modifier: Modifier = Modifier) {
+    key(doodle) {
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { android.view.LayoutInflater.from(it).inflate(doodle.layout, null) },
+            modifier = modifier.requiredSize(48.dp)
+        )
     }
 }
 

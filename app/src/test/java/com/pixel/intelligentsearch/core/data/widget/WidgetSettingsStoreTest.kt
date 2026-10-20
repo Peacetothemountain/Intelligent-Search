@@ -168,4 +168,31 @@ class WidgetSettingsStoreTest {
         assertEquals(edited.customColorInt, prefs.getInt("widget_material_custom_color_int", 0))
         assertFalse(store.isSaved(WidgetDesign.SYSTEM))
     }
+
+    @Test
+    fun doodlesAreOnByDefaultAndSavedPerDesign() {
+        assertTrue(store.load(WidgetDesign.SYSTEM, defaults).showDoodles)
+        assertTrue(store.showsDoodle(WidgetDesign.SYSTEM))
+        assertTrue(store.showsDoodle(WidgetDesign.MATERIAL))
+
+        val material = store.load(WidgetDesign.MATERIAL, defaults).copy(showDoodles = false)
+        val editor = prefs.edit()
+        store.save(WidgetDesign.MATERIAL, material, editor)
+        editor.commit()
+
+        assertFalse(store.load(WidgetDesign.MATERIAL, defaults).showDoodles)
+        assertFalse(store.showsDoodle(WidgetDesign.MATERIAL))
+        assertTrue(store.showsDoodle(WidgetDesign.SYSTEM))
+    }
+
+    @Test
+    fun noDoodleWhileTheGIsHidden() {
+        val system = store.load(WidgetDesign.SYSTEM, defaults).copy(showGIcon = false)
+        val editor = prefs.edit()
+        store.save(WidgetDesign.SYSTEM, system, editor)
+        editor.commit()
+
+        assertTrue(store.load(WidgetDesign.SYSTEM, defaults).showDoodles)
+        assertFalse(store.showsDoodle(WidgetDesign.SYSTEM))
+    }
 }

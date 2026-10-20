@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A doodle over the widget's G (see Occasion): an indeterminate ProgressBar is how a widget plays an animated
+     vector, starting it while it is on screen and stopping it when it isn't. -->
+<ProgressBar xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/WidgetDoodle"
+    android:indeterminateDrawable="@drawable/doodle_new_years_eve" />

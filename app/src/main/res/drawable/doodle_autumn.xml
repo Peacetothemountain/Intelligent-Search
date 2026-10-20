@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- First day of autumn: leaves see-saw down around the G, each on its own part of the same fall.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="48dp"
+            android:height="48dp"
+            android:viewportWidth="48"
+            android:viewportHeight="48">
+
+            <group android:name="leaf_1" android:translateX="46" android:translateY="-5">
+                <group android:name="leaf_1_swing">
+                    <path android:fillColor="#FFFA7B17" android:pathData="M0,-3.2C1.8,-2.2 2.6,0 1.6,1.8C1,2.8 0.4,3 0,3.4C-0.4,3 -1,2.8 -1.6,1.8C-2.6,0 -1.8,-2.2 0,-3.2Z" />
+                    <path android:pathData="M0,-2.2L0,4.3" android:strokeColor="#FFC5221F" android:strokeLineCap="round" android:strokeWidth="0.4" />
+                </group>
+            </group>
+            <group android:name="leaf_2" android:translateX="29" android:translateY="9.5">
+                <group android:name="leaf_2_swing" android:rotation="20">
+                    <path android:fillColor="#FFEA4335" android:pathData="M0,-3.2C1.8,-2.2 2.6,0 1.6,1.8C1,2.8 0.4,3 0,3.4C-0.4,3 -1,2.8 -1.6,1.8C-2.6,0 -1.8,-2.2 0,-3.2Z" />
+                    <path android:pathData="M0,-2.2L0,4.3" android:strokeColor="#FFA50E0E" android:strokeLineCap="round" android:strokeWidth="0.4" />
+                </group>
+            </group>
+            <group android:name="leaf_3" android:translateX="38" android:translateY="24">
+                <group android:name="leaf_3_swing" android:rotation="-25">
+                    <path android:fillColor="#FFFBBC04" android:pathData="M0,-3.2C1.8,-2.2 2.6,0 1.6,1.8C1,2.8 0.4,3 0,3.4C-0.4,3 -1,2.8 -1.6,1.8C-2.6,0 -1.8,-2.2 0,-3.2Z" />
+                    <path android:pathData="M0,-2.2L0,4.3" android:strokeColor="#FFE37400" android:strokeLineCap="round" android:strokeWidth="0.4" />
+                </group>
+            </group>
+            <group android:name="leaf_4" android:translateX="10" android:translateY="38.5">
+                <group android:name="leaf_4_swing" android:rotation="15">
+                    <path android:fillColor="#FFE8710A" android:pathData="M0,-3.2C1.8,-2.2 2.6,0 1.6,1.8C1,2.8 0.4,3 0,3.4C-0.4,3 -1,2.8 -1.6,1.8C-2.6,0 -1.8,-2.2 0,-3.2Z" />
+                    <path android:pathData="M0,-2.2L0,4.3" android:strokeColor="#FFB31412" android:strokeLineCap="round" android:strokeWidth="0.4" />
+                </group>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <!-- 5.2s from above the doodle to below it, drifting 8 units left. -->
+    <target android:name="leaf_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="5200" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueFrom="46" android:valueTo="38" android:valueType="floatType" />
+                <propertyValuesHolder android:propertyName="translateY" android:valueFrom="-5" android:valueTo="53" android:valueType="floatType" />
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="leaf_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="5200" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="29" />
+                    <keyframe android:fraction="0.75" android:value="23" />
+                    <keyframe android:fraction="0.751" android:value="31" />
+                    <keyframe android:fraction="1" android:value="29" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="9.5" />
+                    <keyframe android:fraction="0.75" android:value="53" />
+                    <keyframe android:fraction="0.751" android:value="-5" />
+                    <keyframe android:fraction="1" android:value="9.5" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="leaf_3">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="5200" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="38" />
+                    <keyframe android:fraction="0.5" android:value="34" />
+                    <keyframe android:fraction="0.501" android:value="42" />
+                    <keyframe android:fraction="1" android:value="38" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="24" />
+                    <keyframe android:fraction="0.5" android:value="53" />
+                    <keyframe android:fraction="0.501" android:value="-5" />
+                    <keyframe android:fraction="1" android:value="24" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="leaf_4">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="5200" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="10" />
+                    <keyframe android:fraction="0.25" android:value="8" />
+                    <keyframe android:fraction="0.251" android:value="16" />
+                    <keyframe android:fraction="1" android:value="10" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="38.5" />
+                    <keyframe android:fraction="0.25" android:value="53" />
+                    <keyframe android:fraction="0.251" android:value="-5" />
+                    <keyframe android:fraction="1" android:value="38.5" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- The see-saw: tilting one way while sliding the other, like a leaf rocking on the air. -->
+    <target android:name="leaf_1_swing">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1100" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-30" android:valueTo="30" android:valueType="floatType" />
+                <objectAnimator android:duration="1100" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="2" android:valueTo="-2" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="leaf_2_swing">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1300" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="20" android:valueTo="-35" android:valueType="floatType" />
+                <objectAnimator android:duration="1300" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-1.6" android:valueTo="2" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="leaf_3_swing">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1000" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-25" android:valueTo="30" android:valueType="floatType" />
+                <objectAnimator android:duration="1000" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="1.8" android:valueTo="-1.8" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="leaf_4_swing">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:duration="1200" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="rotation" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="15" android:valueTo="-30" android:valueType="floatType" />
+                <objectAnimator android:duration="1200" android:interpolator="@android:interpolator/accelerate_decelerate" android:propertyName="translateX" android:repeatCount="infinite" android:repeatMode="reverse" android:valueFrom="-1.4" android:valueTo="1.8" android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+</animated-vector>

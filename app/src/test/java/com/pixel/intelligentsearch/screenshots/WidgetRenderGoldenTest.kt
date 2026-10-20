@@ -8,10 +8,12 @@ import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.pixel.intelligentsearch.HiltTestActivity
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.occasion.OccasionCalendar
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -24,7 +26,8 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * Goldens of the home-screen widget itself: the RemoteViews the provider builds at a phone's default width,
  * applied the way a launcher applies them, for each design in light and dark, with default settings, with a
- * customized design, and with settings as an older version saved them (shared keys, no per-design keys).
+ * customized design, with settings as an older version saved them (shared keys, no per-design keys), and on
+ * Halloween, when the G has its doodle around it (the doodle's first frame).
  */
 @HiltAndroidTest
 @RunWith(ParameterizedRobolectricTestRunner::class)
@@ -36,6 +39,12 @@ class WidgetRenderGoldenTest(private val case: String, private val material: Boo
 
     @Before fun inject() = hilt.inject()
 
+    private val defaultNow = OccasionCalendar.now
+
+    @After fun restoreClock() {
+        OccasionCalendar.now = defaultNow
+    }
+
     private val context: Context get() = ApplicationProvider.getApplicationContext()
 
     @Test
@@ -43,6 +52,7 @@ class WidgetRenderGoldenTest(private val case: String, private val material: Boo
         val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
         val edit = prefs.edit().putString(SettingsManager.THEME.name,if (dark) "Material Dark" else "Material Light")
         val p = if (material) "widget_material" else "widget_system"
+        if (case.startsWith("doodle")) OccasionCalendar.now = { java.time.ZonedDateTime.parse("2026-10-31T09:00-04:00[America/New_York]") }
         when (case) {
             "custom" -> edit
                 .putBoolean("${p}_design_saved", true)
@@ -70,6 +80,8 @@ class WidgetRenderGoldenTest(private val case: String, private val material: Boo
                 .putString("widget_shortcut_1", "Song Search")
                 .putString("widget_shortcut_2", "Weather")
                 .putBoolean("widget_show_g_icon", true)
+            // On a doodle day with doodles switched off the widget must be exactly the default one.
+            "doodle_off" -> edit.putBoolean("${p}_show_doodles", false)
         }
         edit.commit()
 
@@ -90,7 +102,7 @@ class WidgetRenderGoldenTest(private val case: String, private val material: Boo
             }
             shadowOf(android.os.Looper.getMainLooper()).idle()
             host.captureRoboImage(
-                filePath = "src/test/screenshots/widget_render/${case}_${if (material) "material" else "system"}_${if (dark) "dark" else "light"}.png",
+                filePath = "src/test/screenshots/widget_render/${if (case == "doodle_off") "default" else case}_${if (material) "material" else "system"}_${if (dark) "dark" else "light"}.png",
                 roborazziOptions = SettingsGoldenTest.GOLDEN_OPTIONS
             )
         }
@@ -99,7 +111,7 @@ class WidgetRenderGoldenTest(private val case: String, private val material: Boo
     companion object {
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0} material={1} dark={2}")
-        fun parameters(): List<Array<Any>> = listOf("default", "custom", "legacy").flatMap { case ->
+        fun parameters(): List<Array<Any>> = listOf("default", "custom", "legacy", "doodle", "doodle_off").flatMap { case ->
             listOf(false, true).flatMap { material -> listOf(arrayOf<Any>(case, material, false), arrayOf<Any>(case, material, true)) }
         }
     }

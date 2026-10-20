@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Halloween: a bat flits above the G, a ghost bobs beside it and a jack-o'-lantern flickers below.
+
+    Every doodle is a 48dp square drawn around the widget's own 24dp G, which spans 12 to 36 here and is left alone,
+    so the doodle works with any G icon style. Colours read on light and dark pills alike. The animations loop; the
+    static values are the first frame.
+-->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="48dp"
+            android:height="48dp"
+            android:viewportWidth="48"
+            android:viewportHeight="48">
+
+            <!-- Ghost -->
+            <group
+                android:name="ghost"
+                android:translateX="7"
+                android:translateY="26">
+                <path
+                    android:fillColor="#FFF8F9FA"
+                    android:strokeColor="#FF9AA0A6"
+                    android:strokeWidth="0.7"
+                    android:pathData="M-4,5L-4,-1A4,4 0,0 1,4 -1L4,5L2.7,3.8L1.3,5L0,3.8L-1.3,5L-2.7,3.8Z" />
+                <path
+                    android:fillColor="#FF3C4043"
+                    android:pathData="M-2.1,-1.2a0.7,0.9 0,1 0,1.4 0a0.7,0.9 0,1 0,-1.4 0Z M0.7,-1.2a0.7,0.9 0,1 0,1.4 0a0.7,0.9 0,1 0,-1.4 0Z M-0.5,1.4a0.5,0.65 0,1 0,1 0a0.5,0.65 0,1 0,-1 0Z" />
+            </group>
+
+            <!-- Jack-o'-lantern -->
+            <group
+                android:translateX="41"
+                android:translateY="39">
+                <path
+                    android:fillColor="#FFE8710A"
+                    android:pathData="M-5,0a2.8,3.3 0,1 0,5.6 0a2.8,3.3 0,1 0,-5.6 0Z M-0.6,0a2.8,3.3 0,1 0,5.6 0a2.8,3.3 0,1 0,-5.6 0Z" />
+                <path
+                    android:fillColor="#FFFA7B17"
+                    android:pathData="M-2.6,0a2.6,3.5 0,1 0,5.2 0a2.6,3.5 0,1 0,-5.2 0Z" />
+                <path
+                    android:fillColor="#FF188038"
+                    android:pathData="M-0.5,-3.2L-0.3,-5L0.9,-5.3L0.6,-3.2Z" />
+                <path
+                    android:name="face"
+                    android:fillColor="#FFFDD663"
+                    android:pathData="M-2.4,-0.4L-0.9,-0.4L-1.65,-1.7Z M0.9,-0.4L2.4,-0.4L1.65,-1.7Z M-2.3,0.7L2.3,0.7C1.8,2.4 -1.8,2.4 -2.3,0.7Z" />
+            </group>
+
+            <!-- Bat -->
+            <group
+                android:name="bat"
+                android:translateX="36"
+                android:translateY="8">
+                <path
+                    android:name="bat_wing_left"
+                    android:fillColor="#FFA142F4"
+                    android:pathData="M-1.2,0C-2.4,-2.4 -4.4,-3 -5.6,-2.2C-4.9,-1.4 -4.7,-0.6 -4.9,0.2C-3.9,-0.4 -3.1,0 -2.7,0.8C-2.2,0.2 -1.7,0.3 -1.2,0.9Z" />
+                <path
+                    android:name="bat_wing_right"
+                    android:fillColor="#FFA142F4"
+                    android:pathData="M1.2,0C2.4,-2.4 4.4,-3 5.6,-2.2C4.9,-1.4 4.7,-0.6 4.9,0.2C3.9,-0.4 3.1,0 2.7,0.8C2.2,0.2 1.7,0.3 1.2,0.9Z" />
+                <path
+                    android:fillColor="#FFA142F4"
+                    android:pathData="M-1.5,0.4a1.5,1.7 0,1 0,3 0a1.5,1.7 0,1 0,-3 0Z M-1.3,-0.7L-1.1,-2.1L-0.4,-1.1Z M1.3,-0.7L1.1,-2.1L0.4,-1.1Z" />
+                <path
+                    android:fillColor="#FFFDD663"
+                    android:pathData="M-0.75,0a0.3,0.3 0,1 0,0.6 0a0.3,0.3 0,1 0,-0.6 0Z M0.15,0a0.3,0.3 0,1 0,0.6 0a0.3,0.3 0,1 0,-0.6 0Z" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="ghost">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1300"
+                android:interpolator="@android:interpolator/accelerate_decelerate"
+                android:propertyName="translateY"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse"
+                android:valueFrom="26"
+                android:valueTo="24.2"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="face">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1400"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder
+                    android:propertyName="fillAlpha"
+                    android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.2" android:value="0.55" />
+                    <keyframe android:fraction="0.35" android:value="0.95" />
+                    <keyframe android:fraction="0.55" android:value="0.7" />
+                    <keyframe android:fraction="0.8" android:value="1" />
+                    <keyframe android:fraction="1" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="bat">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="3600"
+                android:interpolator="@android:interpolator/linear"
+                android:repeatCount="infinite">
+                <propertyValuesHolder
+                    android:propertyName="translateX"
+                    android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="36" />
+                    <keyframe
+                        android:fraction="0.25"
+                        android:interpolator="@android:interpolator/accelerate_decelerate"
+                        android:value="39" />
+                    <keyframe
+                        android:fraction="0.5"
+                        android:interpolator="@android:interpolator/accelerate_decelerate"
+                        android:value="41" />
+                    <keyframe
+                        android:fraction="0.75"
+                        android:interpolator="@android:interpolator/accelerate_decelerate"
+                        android:value="38.5" />
+                    <keyframe
+                        android:fraction="1"
+                        android:interpolator="@android:interpolator/accelerate_decelerate"
+                        android:value="36" />
+                </propertyValuesHolder>
+                <propertyValuesHolder
+                    android:propertyName="translateY"
+                    android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="8" />
+                    <keyframe
+                        android:fraction="0.25"
+                        android:interpolator="@android:interpolator/accelerate_decelerate"
+                        android:value="6.2" />
+                    <keyframe
+                        android:fraction="0.5"
+                        android:interpolator="@android:interpolator/accelerate_decelerate"
+                        android:value="9" />
+                    <keyframe
+                        android:fraction="0.75"
+                        android:interpolator="@android:interpolator/accelerate_decelerate"
+                        android:value="10" />
+                    <keyframe
+                        android:fraction="1"
+                        android:interpolator="@android:interpolator/accelerate_decelerate"
+                        android:value="8" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="bat_wing_left">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="200"
+                android:interpolator="@android:interpolator/accelerate_decelerate"
+                android:propertyName="pathData"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse"
+                android:valueFrom="M-1.2,0C-2.4,-2.4 -4.4,-3 -5.6,-2.2C-4.9,-1.4 -4.7,-0.6 -4.9,0.2C-3.9,-0.4 -3.1,0 -2.7,0.8C-2.2,0.2 -1.7,0.3 -1.2,0.9Z"
+                android:valueTo="M-1.2,0C-2.4,0.8 -4,2.4 -5,3.4C-4.7,2.5 -4.4,1.9 -4.2,1.5C-3.5,1.7 -3,2 -2.7,2.4C-2.3,1.7 -1.8,1.3 -1.2,0.9Z"
+                android:valueType="pathType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="bat_wing_right">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="200"
+                android:interpolator="@android:interpolator/accelerate_decelerate"
+                android:propertyName="pathData"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse"
+                android:valueFrom="M1.2,0C2.4,-2.4 4.4,-3 5.6,-2.2C4.9,-1.4 4.7,-0.6 4.9,0.2C3.9,-0.4 3.1,0 2.7,0.8C2.2,0.2 1.7,0.3 1.2,0.9Z"
+                android:valueTo="M1.2,0C2.4,0.8 4,2.4 5,3.4C4.7,2.5 4.4,1.9 4.2,1.5C3.5,1.7 3,2 2.7,2.4C2.3,1.7 1.8,1.3 1.2,0.9Z"
+                android:valueType="pathType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

@@ -177,6 +177,78 @@ class OccasionCalendarTest {
         assertEquals(Occasion.FIRST_DAY_OF_SUMMER, on("2026-06-21", region = "XX"))
     }
 
+    // Global fun days.
+
+    @Test
+    fun globalFunDaysAreTheSameEverywhere() {
+        for (zone in listOf(newYork, london, sydney)) {
+            for (region in listOf("US", "GB", "JP", "")) {
+                assertEquals(Occasion.HUGGING_DAY, on("2027-01-21", zone, region))
+                assertEquals(Occasion.PIZZA_DAY, on("2027-02-09", zone, region))
+                assertEquals(Occasion.BOOK_DAY, on("2027-04-23", zone, region))
+                assertEquals(Occasion.PENGUIN_DAY, on("2027-04-25", zone, region))
+                assertEquals(Occasion.JAZZ_DAY, on("2027-04-30", zone, region))
+                assertEquals(Occasion.LIGHT_DAY, on("2027-05-16", zone, region))
+                assertEquals(Occasion.BICYCLE_DAY, on("2027-06-03", zone, region))
+                assertEquals(Occasion.FRIENDSHIP_DAY, on("2027-07-30", zone, region))
+                assertEquals(Occasion.LION_DAY, on("2027-08-10", zone, region))
+                assertEquals(Occasion.PHOTOGRAPHY_DAY, on("2027-08-19", zone, region))
+                assertEquals(Occasion.HELLO_DAY, on("2027-11-21", zone, region))
+            }
+        }
+        assertNull(on("2027-01-20"))
+        assertNull(on("2027-11-20"))
+    }
+
+    @Test
+    fun theDayOfTheProgrammerIsTheYearsDay256() {
+        assertEquals(Occasion.PROGRAMMERS_DAY, on("2026-09-13"))
+        assertNull(on("2026-09-12"))
+        // A leap year's 256th day is a day earlier.
+        assertEquals(Occasion.PROGRAMMERS_DAY, on("2028-09-12"))
+        assertNull(on("2028-09-13"))
+        assertEquals(Occasion.PROGRAMMERS_DAY, on("2028-09-12", sydney, "AU"))
+    }
+
+    @Test
+    fun worldSmileDayIsTheFirstFridayOfOctoberUnlessThatsAnotherDoodleDay() {
+        assertEquals(Occasion.SMILE_DAY, on("2026-10-02"))
+        assertEquals(Occasion.SMILE_DAY, on("2028-10-06", london, "GB"))
+        assertNull(on("2026-10-09"))
+        // October 1 2027 is a Friday and Coffee Day; October 5 2029 is a Friday and Teachers' Day. They keep the day.
+        assertEquals(Occasion.COFFEE_DAY, on("2027-10-01"))
+        assertNull(on("2027-10-08"))
+        assertEquals(Occasion.TEACHERS_DAY, on("2029-10-05"))
+    }
+
+    @Test
+    fun theSeasonWinsWhenItStartsOnHappinessOrMusicDay() {
+        // The March 2026 equinox is the 20th in New York but the 21st in Sydney.
+        assertEquals(Occasion.FIRST_DAY_OF_SPRING, on("2026-03-20", newYork))
+        assertEquals(Occasion.HAPPINESS_DAY, on("2026-03-20", sydney))
+        assertEquals(Occasion.FIRST_DAY_OF_AUTUMN, on("2026-03-21", sydney))
+        // In 2028 it's the evening of the 19th in New York, so the 20th is Happiness Day there.
+        assertEquals(Occasion.FIRST_DAY_OF_SPRING, on("2028-03-19", newYork))
+        assertEquals(Occasion.HAPPINESS_DAY, on("2028-03-20", newYork))
+        // The June 2026 solstice is the 21st almost everywhere; Father's Day still beats both where it's kept.
+        assertEquals(Occasion.FIRST_DAY_OF_SUMMER, on("2026-06-21", london))
+        assertEquals(Occasion.FIRST_DAY_OF_WINTER, on("2026-06-21", sydney))
+        assertEquals(Occasion.FATHERS_DAY, on("2026-06-21", newYork, "US"))
+        // In 2028 it's the evening of the 20th in New York and London, so the 21st is World Music Day.
+        assertEquals(Occasion.FIRST_DAY_OF_SUMMER, on("2028-06-20", newYork))
+        assertEquals(Occasion.MUSIC_DAY, on("2028-06-21", newYork))
+        assertEquals(Occasion.MUSIC_DAY, on("2028-06-21", london, "GB"))
+        // In 2027 it's just after midnight on the 22nd in Sydney.
+        assertEquals(Occasion.MUSIC_DAY, on("2027-06-21", sydney))
+        assertEquals(Occasion.FIRST_DAY_OF_WINTER, on("2027-06-22", sydney))
+    }
+
+    @Test
+    fun easterWinsOverWorldPenguinDay() {
+        assertEquals(Occasion.EASTER, on("2038-04-25"))
+        assertEquals(Occasion.PENGUIN_DAY, on("2039-04-25"))
+    }
+
     @Test
     fun everyDoodleHasItsOwnArt() {
         assertEquals(Occasion.entries.size, Occasion.entries.map { it.layout }.toSet().size)

@@ -65,4 +65,20 @@
     <string name="occasion_teachers_day">World Teachers\' Day</string>
     <string name="occasion_kindness_day">World Kindness Day</string>
     <string name="occasion_thanksgiving">Thanksgiving</string>
+    <!-- Global fun days, the same everywhere. -->
+    <string name="occasion_hugging_day">National Hugging Day</string>
+    <string name="occasion_pizza_day">National Pizza Day</string>
+    <string name="occasion_happiness_day">International Day of Happiness</string>
+    <string name="occasion_book_day">World Book Day</string>
+    <string name="occasion_penguin_day">World Penguin Day</string>
+    <string name="occasion_jazz_day">International Jazz Day</string>
+    <string name="occasion_light_day">International Day of Light</string>
+    <string name="occasion_bicycle_day">World Bicycle Day</string>
+    <string name="occasion_music_day">World Music Day</string>
+    <string name="occasion_friendship_day">International Day of Friendship</string>
+    <string name="occasion_lion_day">World Lion Day</string>
+    <string name="occasion_photography_day">World Photography Day</string>
+    <string name="occasion_programmers_day">Day of the Programmer</string>
+    <string name="occasion_smile_day">World Smile Day</string>
+    <string name="occasion_hello_day">World Hello Day</string>
 </resources>

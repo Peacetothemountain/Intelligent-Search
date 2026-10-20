@@ -40,7 +40,7 @@ object OccasionCalendar {
 
     /** The occasion [date] is in [zone] and [region]; when two fall on one day, the rarer one wins. */
     fun on(date: LocalDate, zone: ZoneId, region: String = ""): Occasion? =
-        movable(date, region) ?: regional(date, region) ?: fixed(date) ?: season(date, zone)
+        movable(date, region) ?: regional(date, region) ?: fixed(date) ?: season(date, zone) ?: worldDay(date)
 
     /** The next time the doodle changes after [from]: the start of the first later day whose occasion differs. */
     fun nextChange(from: ZonedDateTime, region: String = ""): ZonedDateTime {
@@ -108,6 +108,32 @@ object OccasionCalendar {
         1113 -> Occasion.KINDNESS_DAY
         1224, 1225 -> Occasion.HOLIDAYS
         1231 -> Occasion.NEW_YEARS_EVE
+        // Global fun days.
+        121 -> Occasion.HUGGING_DAY
+        209 -> Occasion.PIZZA_DAY
+        423 -> Occasion.BOOK_DAY
+        425 -> Occasion.PENGUIN_DAY
+        430 -> Occasion.JAZZ_DAY
+        516 -> Occasion.LIGHT_DAY
+        603 -> Occasion.BICYCLE_DAY
+        730 -> Occasion.FRIENDSHIP_DAY
+        810 -> Occasion.LION_DAY
+        819 -> Occasion.PHOTOGRAPHY_DAY
+        1121 -> Occasion.HELLO_DAY
+        else -> null
+    }
+
+    /**
+     * Global days that give way to everything else: the Day of the Programmer (the 256th day of the year), World Smile
+     * Day (the first Friday of October, which can fall on Coffee Day or Teachers' Day) and two fixed days that often
+     * share their date with an equinox or solstice, the International Day of Happiness (March 20) and World Music Day
+     * (June 21). Those two show only in years when the season starts on another day where the phone is.
+     */
+    private fun worldDay(date: LocalDate): Occasion? = when {
+        date.dayOfYear == 256 -> Occasion.PROGRAMMERS_DAY
+        date == nth(date.year, 10, DayOfWeek.FRIDAY, 1) -> Occasion.SMILE_DAY
+        date.monthValue == 3 && date.dayOfMonth == 20 -> Occasion.HAPPINESS_DAY
+        date.monthValue == 6 && date.dayOfMonth == 21 -> Occasion.MUSIC_DAY
         else -> null
     }
 

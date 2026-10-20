@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- National Hugging Day: two round friends hug beside the G under a beating heart, let go and rock back, then run in
+     for another squeeze while little hearts drift up the other side.
+     See doodle_halloween.xml for the layout. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+
+            <!-- Shadow -->
+            <path android:fillColor="#FFBDC1C6" android:fillAlpha="0.5" android:pathData="M31,46.5a8.4,0.8 0,1 0,16.8 0a8.4,0.8 0,1 0,-16.8 0Z" />
+
+            <!-- Blue friend; their arm goes round behind the red one -->
+            <group android:name="buddy_blue" android:translateX="35.8" android:translateY="46.4" android:rotation="12">
+                <group android:scaleX="1.3" android:scaleY="1.3">
+                    <path android:fillColor="#FF4285F4" android:strokeColor="#FF1A73E8" android:strokeWidth="0.45" android:pathData="M-3,-3.6a3,3.6 0,1 0,6 0a3,3.6 0,1 0,-6 0Z" />
+                    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.45" android:pathData="M-1.9,-5.1a0.7,1 0,1 0,1.4 0a0.7,1 0,1 0,-1.4 0Z" />
+                    <path android:fillColor="#FFF06292" android:fillAlpha="0.8" android:pathData="M-1.4,-2.9a0.5,0.3 0,1 0,1 0a0.5,0.3 0,1 0,-1 0ZM1.5,-2.9a0.5,0.3 0,1 0,1 0a0.5,0.3 0,1 0,-1 0Z" />
+                    <path android:strokeColor="#FF3C4043" android:strokeWidth="0.35" android:strokeLineCap="round" android:pathData="M-0.8,-3.9Q-0.4,-4.5 0,-3.9M0.9,-3.9Q1.3,-4.5 1.7,-3.9M0.2,-2.9Q0.55,-2.4 0.9,-2.9" />
+                    <group android:name="arm_blue" android:translateX="1.8" android:translateY="-3.3" android:rotation="-5" android:scaleX="1">
+                        <path android:strokeColor="#FF1A73E8" android:strokeWidth="1.3" android:strokeLineCap="round" android:pathData="M0,0Q2.6,-1.4 5.2,-0.4" />
+                    </group>
+                </group>
+            </group>
+
+            <!-- Red friend; their arm wraps across the front -->
+            <group android:name="buddy_red" android:translateX="43" android:translateY="46.4" android:rotation="-12">
+                <group android:scaleX="1.3" android:scaleY="1.3">
+                    <path android:fillColor="#FFEA4335" android:strokeColor="#FFC5221F" android:strokeWidth="0.45" android:pathData="M-2.8,-3.4a2.8,3.4 0,1 0,5.6 0a2.8,3.4 0,1 0,-5.6 0Z" />
+                    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.45" android:pathData="M-1.75,-4.8a0.65,0.95 0,1 0,1.3 0a0.65,0.95 0,1 0,-1.3 0Z" />
+                    <path android:fillColor="#FFF8BBD0" android:fillAlpha="0.85" android:pathData="M-2.25,-2.8a0.45,0.28 0,1 0,0.9 0a0.45,0.28 0,1 0,-0.9 0ZM0.45,-2.8a0.45,0.28 0,1 0,0.9 0a0.45,0.28 0,1 0,-0.9 0Z" />
+                    <path android:strokeColor="#FF3C4043" android:strokeWidth="0.35" android:strokeLineCap="round" android:pathData="M-1.6,-3.7Q-1.2,-4.3 -0.8,-3.7M0.1,-3.7Q0.5,-4.3 0.9,-3.7M-0.9,-2.8Q-0.55,-2.3 -0.2,-2.8" />
+                    <group android:name="arm_red" android:translateX="-1.6" android:translateY="-3.1" android:rotation="5" android:scaleX="1">
+                        <path android:strokeColor="#FFC5221F" android:strokeWidth="1.2" android:strokeLineCap="round" android:pathData="M0,0Q-2.6,-1.4 -5,-0.4" />
+                    </group>
+                </group>
+            </group>
+
+            <!-- Heart -->
+            <group android:name="heart" android:translateX="39.4" android:translateY="33.4" android:scaleX="1" android:scaleY="1">
+                <path android:fillColor="#FFF06292" android:strokeColor="#FFD81B60" android:strokeWidth="0.35" android:strokeLineJoin="round" android:pathData="M0,1.84C-2.87,0 -2.53,-2.3 -1.15,-2.3C-0.46,-2.3 0,-1.72 0,-1.15C0,-1.72 0.46,-2.3 1.15,-2.3C2.53,-2.3 2.88,0 0,1.84Z" />
+            </group>
+
+            <!-- Little hearts drifting up the left -->
+            <group android:name="float_heart_1" android:translateX="6" android:translateY="30.5" android:scaleX="1" android:scaleY="1">
+                <path android:fillColor="#FFEA4335" android:strokeColor="#FFC5221F" android:strokeWidth="0.25" android:strokeLineJoin="round" android:pathData="M0,1.28C-2,0 -1.76,-1.6 -0.8,-1.6C-0.32,-1.6 0,-1.2 0,-0.8C0,-1.2 0.32,-1.6 0.8,-1.6C1.76,-1.6 2,0 0,1.28Z" />
+            </group>
+            <group android:name="float_heart_2" android:translateX="9.18" android:translateY="33.5" android:scaleX="0.33" android:scaleY="0.33">
+                <path android:fillColor="#FFF06292" android:strokeColor="#FFD81B60" android:strokeWidth="0.25" android:strokeLineJoin="round" android:pathData="M0,1.04C-1.62,0 -1.43,-1.3 -0.65,-1.3C-0.26,-1.3 0,-0.98 0,-0.65C0,-0.98 0.26,-1.3 0.65,-1.3C1.43,-1.3 1.63,0 0,1.04Z" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <!-- 4s: hug and snuggle, let go and rock back, rest, a little hop, run in for another hug. -->
+    <target android:name="buddy_blue">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="12" />
+                    <keyframe android:fraction="0.08" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="15" />
+                    <keyframe android:fraction="0.16" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="12" />
+                    <keyframe android:fraction="0.26" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="12" />
+                    <keyframe android:fraction="0.36" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-4" />
+                    <keyframe android:fraction="0.44" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.5" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.62" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.7" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-5" />
+                    <keyframe android:fraction="0.79" android:interpolator="@android:interpolator/decelerate_quad" android:value="15" />
+                    <keyframe android:fraction="0.86" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="11" />
+                    <keyframe android:fraction="0.92" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="12" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="12" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="35.8" />
+                    <keyframe android:fraction="0.26" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="35.8" />
+                    <keyframe android:fraction="0.36" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="34.6" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="35" />
+                    <keyframe android:fraction="0.62" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="35" />
+                    <keyframe android:fraction="0.7" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="34.5" />
+                    <keyframe android:fraction="0.79" android:interpolator="@android:interpolator/decelerate_quad" android:value="36.1" />
+                    <keyframe android:fraction="0.88" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="35.8" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="35.8" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="46.4" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="46.4" />
+                    <keyframe android:fraction="0.53" android:interpolator="@android:interpolator/decelerate_quad" android:value="45.4" />
+                    <keyframe android:fraction="0.57" android:interpolator="@android:interpolator/accelerate_quad" android:value="46.4" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="46.4" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="buddy_red">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-12" />
+                    <keyframe android:fraction="0.08" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-15" />
+                    <keyframe android:fraction="0.16" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-12" />
+                    <keyframe android:fraction="0.26" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-12" />
+                    <keyframe android:fraction="0.36" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="4" />
+                    <keyframe android:fraction="0.44" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-1.5" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.62" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.7" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="5" />
+                    <keyframe android:fraction="0.79" android:interpolator="@android:interpolator/decelerate_quad" android:value="-15" />
+                    <keyframe android:fraction="0.86" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-11" />
+                    <keyframe android:fraction="0.92" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-12" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-12" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="43" />
+                    <keyframe android:fraction="0.26" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="43" />
+                    <keyframe android:fraction="0.36" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="44.2" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="43.8" />
+                    <keyframe android:fraction="0.62" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="43.8" />
+                    <keyframe android:fraction="0.7" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="44.3" />
+                    <keyframe android:fraction="0.79" android:interpolator="@android:interpolator/decelerate_quad" android:value="42.7" />
+                    <keyframe android:fraction="0.88" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="43" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="43" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="46.4" />
+                    <keyframe android:fraction="0.5" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="46.4" />
+                    <keyframe android:fraction="0.53" android:interpolator="@android:interpolator/decelerate_quad" android:value="45.4" />
+                    <keyframe android:fraction="0.57" android:interpolator="@android:interpolator/accelerate_quad" android:value="46.4" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="46.4" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="arm_blue">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="-5" />
+                    <keyframe android:fraction="0.26" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-5" />
+                    <keyframe android:fraction="0.34" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="80" />
+                    <keyframe android:fraction="0.74" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="80" />
+                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-12" />
+                    <keyframe android:fraction="0.86" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-5" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-5" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.26" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.34" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.6" />
+                    <keyframe android:fraction="0.74" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.6" />
+                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="arm_red">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="rotation" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="5" />
+                    <keyframe android:fraction="0.26" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="5" />
+                    <keyframe android:fraction="0.34" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-80" />
+                    <keyframe android:fraction="0.74" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="-80" />
+                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="12" />
+                    <keyframe android:fraction="0.86" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="5" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="5" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.26" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.34" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.6" />
+                    <keyframe android:fraction="0.74" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0.6" />
+                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <!-- The heart beats, floats off shrinking when they let go, and pops back with the next hug. -->
+    <target android:name="heart">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.05" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.15" />
+                    <keyframe android:fraction="0.1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.15" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.12" />
+                    <keyframe android:fraction="0.2" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.28" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.42" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.87" android:interpolator="@android:interpolator/decelerate_quad" android:value="1.25" />
+                    <keyframe android:fraction="0.93" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.05" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.15" />
+                    <keyframe android:fraction="0.1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.15" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1.12" />
+                    <keyframe android:fraction="0.2" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.28" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.42" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.8" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="0" />
+                    <keyframe android:fraction="0.87" android:interpolator="@android:interpolator/decelerate_quad" android:value="1.25" />
+                    <keyframe android:fraction="0.93" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="33.4" />
+                    <keyframe android:fraction="0.28" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="33.4" />
+                    <keyframe android:fraction="0.42" android:interpolator="@android:interpolator/decelerate_quad" android:value="28.6" />
+                    <keyframe android:fraction="0.43" android:interpolator="@android:interpolator/linear" android:value="33.4" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="33.4" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="39.4" />
+                    <keyframe android:fraction="0.28" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="39.4" />
+                    <keyframe android:fraction="0.42" android:interpolator="@android:interpolator/decelerate_quad" android:value="40.8" />
+                    <keyframe android:fraction="0.43" android:interpolator="@android:interpolator/linear" android:value="39.4" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="39.4" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="float_heart_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="30.5" />
+                    <keyframe android:fraction="0.448" android:interpolator="@android:interpolator/linear" android:value="26" />
+                    <keyframe android:fraction="0.45" android:interpolator="@android:interpolator/linear" android:value="36" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/linear" android:value="30.5" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="6" />
+                    <keyframe android:fraction="0.11" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="5.4" />
+                    <keyframe android:fraction="0.448" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="6.4" />
+                    <keyframe android:fraction="0.45" android:interpolator="@android:interpolator/linear" android:value="6" />
+                    <keyframe android:fraction="0.78" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="7.2" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/linear" android:value="6" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.15" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.448" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="0.45" android:interpolator="@android:interpolator/linear" android:value="0" />
+                    <keyframe android:fraction="0.6" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/linear" android:value="1" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="1" />
+                    <keyframe android:fraction="0.15" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.448" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="0.45" android:interpolator="@android:interpolator/linear" android:value="0" />
+                    <keyframe android:fraction="0.6" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/linear" android:value="1" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+    <target android:name="float_heart_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:duration="4000" android:interpolator="@android:interpolator/linear" android:repeatCount="infinite">
+                <propertyValuesHolder android:propertyName="translateY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="33.5" />
+                    <keyframe android:fraction="0.948" android:interpolator="@android:interpolator/linear" android:value="24" />
+                    <keyframe android:fraction="0.95" android:interpolator="@android:interpolator/linear" android:value="34" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/linear" android:value="33.5" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="translateX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="9.18" />
+                    <keyframe android:fraction="0.28" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="10.2" />
+                    <keyframe android:fraction="0.61" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="8.4" />
+                    <keyframe android:fraction="0.948" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="9.4" />
+                    <keyframe android:fraction="0.95" android:interpolator="@android:interpolator/linear" android:value="9" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/linear" android:value="9.18" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.33" />
+                    <keyframe android:fraction="0.1" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="0.65" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.948" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="0.95" android:interpolator="@android:interpolator/linear" android:value="0" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/linear" android:value="0.33" />
+                </propertyValuesHolder>
+                <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+                    <keyframe android:fraction="0" android:value="0.33" />
+                    <keyframe android:fraction="0.1" android:interpolator="@android:interpolator/decelerate_quad" android:value="1" />
+                    <keyframe android:fraction="0.65" android:interpolator="@android:interpolator/accelerate_decelerate" android:value="1" />
+                    <keyframe android:fraction="0.948" android:interpolator="@android:interpolator/accelerate_quad" android:value="0" />
+                    <keyframe android:fraction="0.95" android:interpolator="@android:interpolator/linear" android:value="0" />
+                    <keyframe android:fraction="1" android:interpolator="@android:interpolator/linear" android:value="0.33" />
+                </propertyValuesHolder>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

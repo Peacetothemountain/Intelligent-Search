@@ -404,6 +404,9 @@ class OccasionCalendarTest {
         }
         assertNull(on("2026-09-25", region = "US"))
         assertNull(on("2026-09-25", region = "JP"))
+        // Vietnam reckons the lunar calendar at UTC+7, so its Tet Trung Thu can differ: September 26 in 2034, a day
+        // before China's. The table doesn't apply there.
+        assertNull(on("2034-09-27", region = "VN"))
         // It wins over International Coffee Day in 2031 and Talk Like a Pirate Day in 2032.
         assertEquals(Occasion.MID_AUTUMN_FESTIVAL, on("2031-10-01", shanghai, "CN"))
         assertEquals(Occasion.COFFEE_DAY, on("2031-10-01", region = "US"))
@@ -446,6 +449,10 @@ class OccasionCalendarTest {
         val kolkata = ZoneId.of("Asia/Kolkata")
         assertEquals(diwali, daysOf(Occasion.DIWALI, "IN", "2026-01-01", "2040-12-31", kolkata))
         assertNull(on("2026-11-08", region = "US"))
+        // Singapore and Malaysia keep Deepavali by the South Indian reckoning, a day earlier in 2027 (October 28), so
+        // the table is India's alone.
+        assertNull(on("2027-10-29", region = "SG"))
+        assertNull(on("2027-10-29", region = "MY"))
         // The doodle changes for it at midnight in India, earlier than for Veterans Day or World Kindness Day elsewhere.
         val from = LocalDate.parse("2026-11-03").atTime(9, 0).atZone(kolkata)
         fun next(region: String) = OccasionCalendar.nextChange(from, region).toLocalDate().toString()

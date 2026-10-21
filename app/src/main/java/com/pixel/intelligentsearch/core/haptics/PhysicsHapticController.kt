@@ -1,12 +1,11 @@
 package com.pixel.intelligentsearch.core.haptics
 
-import androidx.compose.runtime.getValue
 import android.view.View
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalView
 import kotlin.math.abs
 
@@ -47,7 +46,8 @@ class ScrollDetentController(
 }
 
 /**
- * Attaches a physics-driven haptic scroll detent observer to a LazyListState.
+ * Attaches a physics-driven haptic scroll detent observer to a LazyListState. The scroll position is watched from
+ * an effect, never read during composition, so scrolling doesn't recompose the screen that calls this.
  */
 @Composable
 fun rememberScrollDetentController(
@@ -57,13 +57,11 @@ fun rememberScrollDetentController(
     val view = LocalView.current
     val controller = remember(engine, view) { ScrollDetentController(engine, view) }
 
-    val firstVisibleItemIndex by remember(lazyListState) { derivedStateOf { lazyListState.firstVisibleItemIndex } }
-    val firstVisibleItemScrollOffset by remember(lazyListState) { derivedStateOf { lazyListState.firstVisibleItemScrollOffset } }
-
-    LaunchedEffect(firstVisibleItemIndex, firstVisibleItemScrollOffset) {
-        if (lazyListState.isScrollInProgress) {
-            controller.onScrollUpdate(firstVisibleItemIndex, firstVisibleItemScrollOffset)
-        }
+    LaunchedEffect(lazyListState, controller) {
+        snapshotFlow { lazyListState.firstVisibleItemIndex to lazyListState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) ->
+                if (lazyListState.isScrollInProgress) controller.onScrollUpdate(index, offset)
+            }
     }
 
     return controller

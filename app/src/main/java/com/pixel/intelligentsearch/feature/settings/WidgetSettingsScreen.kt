@@ -129,7 +129,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val view = androidx.compose.ui.platform.LocalView.current
     val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
     val coroutineScope = rememberCoroutineScope()
-    var selectedTab by ui::selectedTab
+    var selectedTabName by ui::selectedTabName
 
     // What was last loaded or saved, to tell whether there are unsaved changes.
     var savedThemeStyle by remember { mutableStateOf(localThemeStyle) }
@@ -754,15 +754,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 }
             }
 
-            LaunchedEffect(isCustomActive) {
-                if (!isCustomActive) {
-                    if (selectedTab == 1) {
-                        selectedTab = 0
-                    } else if (selectedTab > 1) {
-                        selectedTab = 1
-                    }
-                }
-            }
+            // The tab is kept by name, so a design without the open tab (Color Studio needs the Custom subtheme)
+            // falls back to Appearance and the other tabs stay put.
+            val activeTabName = selectedTabName.takeIf { name -> tabs.any { it.first == name } } ?: "Appearance"
 
             Row(
                 modifier = Modifier
@@ -773,8 +767,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                tabs.forEachIndexed { index, tab ->
-                    val isSel = selectedTab == index
+                tabs.forEach { tab ->
+                    val isSel = activeTabName == tab.first
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -785,7 +779,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             )
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
                                 hapticEngine.performPredictiveBackHaptic(view)
-                                selectedTab = index
+                                selectedTabName = tab.first
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -828,7 +822,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                val activeTabName = tabs.getOrNull(selectedTab)?.first ?: "Appearance"
                 when (activeTabName) {
                     "Appearance" -> WidgetAppearanceTab(fields = fields, ui = ui, colors = colors, themeStyle = themeStyleState, computedCustomColorInt = computedCustomColorInt, view = view, hapticEngine = hapticEngine)
 

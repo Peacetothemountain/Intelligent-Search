@@ -178,7 +178,8 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
 
 /**
  * Shows any doodle on the widgets, whatever the date: the switch turns the preview on and off, and tapping the row
- * picks which doodle from all of them. Off, the widgets show today's doodle (if any) again.
+ * opens the doodle gallery to browse, play and test all of them (see [DoodleGallery]). Off, the widgets show today's
+ * doodle (if any) again.
  */
 @Composable
 private fun DoodlePreviewRow() {
@@ -188,7 +189,7 @@ private fun DoodlePreviewRow() {
     val prefs = remember(context) { com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.getSafeSharedPreferences(context) }
     var shown by remember { mutableStateOf(doodles.previewing(prefs)) }
     var lastPicked by remember { mutableStateOf(shown ?: com.pixel.intelligentsearch.core.occasion.Occasion.entries.first()) }
-    var picking by remember { mutableStateOf(false) }
+    var browsing by remember { mutableStateOf(false) }
 
     fun show(doodle: com.pixel.intelligentsearch.core.occasion.Occasion?) {
         doodles.preview(context, doodle, prefs)
@@ -196,34 +197,17 @@ private fun DoodlePreviewRow() {
         if (doodle != null) lastPicked = doodle
     }
 
-    Box {
-        SettingsRowToggle(
-            title = "Preview Widget Doodles",
-            subtitle = shown?.let { "Showing ${resources.getString(it.title)} on Your Widgets. Tap to Pick Another." }
-                ?: "Off. Tap to Pick a Doodle to Show on Your Widgets.",
-            icon = Icons.Outlined.Celebration,
-            isChecked = shown != null,
-            onCheckedChange = { on -> show(if (on) lastPicked else null) },
-            onClick = { picking = true },
-            showDivider = true
-        )
-        DropdownMenu(
-            expanded = picking,
-            onDismissRequest = { picking = false },
-            modifier = Modifier.heightIn(max = 420.dp)
-        ) {
-            com.pixel.intelligentsearch.core.occasion.Occasion.entries.forEach { doodle ->
-                DropdownMenuItem(
-                    text = { Text(resources.getString(doodle.title)) },
-                    trailingIcon = if (doodle == shown) {
-                        { Icon(Icons.Default.Check, contentDescription = "Showing", tint = MaterialTheme.colorScheme.primary) }
-                    } else null,
-                    onClick = {
-                        picking = false
-                        show(doodle)
-                    }
-                )
-            }
-        }
+    SettingsRowToggle(
+        title = "Preview Widget Doodles",
+        subtitle = shown?.let { "Showing ${resources.getString(it.title)} on Your Widgets. Tap to Open the Gallery." }
+            ?: "Off. Tap to Browse and Test All ${com.pixel.intelligentsearch.core.occasion.Occasion.entries.size} Doodles.",
+        icon = Icons.Outlined.Celebration,
+        isChecked = shown != null,
+        onCheckedChange = { on -> show(if (on) lastPicked else null) },
+        onClick = { browsing = true },
+        showDivider = true
+    )
+    if (browsing) {
+        DoodleGalleryDialog(previewing = shown, onPreview = ::show, onDismiss = { browsing = false })
     }
 }

@@ -292,14 +292,26 @@ fun rememberWidgetDoodle(): Occasion? {
 
 /**
  * Plays a doodle around a 24dp G, from the same layout the widget uses so it moves exactly as it does there. Its art
- * is a 48dp square centred on the G, so it's drawn at that size around the G's slot.
+ * is a 48dp square centred on the G, so it's drawn at that size around the G's slot. A larger [size] draws it larger
+ * (around a G scaled by the same amount), still sharp, as Developer Settings' doodle gallery does.
  */
 @Composable
-fun WidgetDoodleOverlay(doodle: Occasion, modifier: Modifier = Modifier) {
-    key(doodle) {
+fun WidgetDoodleOverlay(doodle: Occasion, modifier: Modifier = Modifier, size: androidx.compose.ui.unit.Dp = 48.dp) {
+    val px = with(androidx.compose.ui.platform.LocalDensity.current) { size.roundToPx() }
+    key(doodle, px) {
         androidx.compose.ui.viewinterop.AndroidView(
-            factory = { android.view.LayoutInflater.from(it).inflate(doodle.layout, null) },
-            modifier = modifier.requiredSize(48.dp)
+            factory = {
+                android.view.LayoutInflater.from(it).inflate(doodle.layout, null).apply {
+                    // The widget style caps the player at 48dp.
+                    (this as? android.widget.ProgressBar)?.let { bar ->
+                        bar.minWidth = px
+                        bar.maxWidth = px
+                        bar.minHeight = px
+                        bar.maxHeight = px
+                    }
+                }
+            },
+            modifier = modifier.requiredSize(size)
         )
     }
 }

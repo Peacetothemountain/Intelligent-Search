@@ -34,6 +34,12 @@ import kotlin.random.Random
  * shape is given only as many bounces as it makes, with the flight after them, by [PLAN_TIME] (fewer in a tall area,
  * where flights are long); past that age knocks no longer reach it, since shapes knocking each other up could keep
  * one in the air for ever, and the bed throws it no higher than its lowest bounce until it has made the rest.
+ *
+ * How each shape looks as it moves (its morph, squash, scale-in and fade out, see [animateLook]) runs on the springs
+ * of Material 3 Expressive's motion scheme (androidx.compose.material3 ExpressiveMotionTokens; spatial springs, which
+ * overshoot, for shape and size, effects springs, which never do, for fading;
+ * https://m3.material.io/styles/motion/overview), stepped with the physics so a seed always gives the same run. None of
+ * it feeds back into the motion: the bounces, the haptics and every rule above are the physics' alone.
  */
 internal class MorphBouncePhysics(
     private val random: Random = Random.Default,
@@ -61,10 +67,29 @@ internal class MorphBouncePhysics(
         var penetration = 0f
         /** Which shape the body is changing into, counted up on every bounce. */
         var shapeIndex = 0
-        /** 0 at the moment of a bounce, easing to 1 once the new shape has formed. */
+        /**
+         * 0 at the moment of a bounce, springing to 1 once the new shape has formed, on Material 3 Expressive's fast
+         * spatial spring ([MORPH_DAMPING], [MORPH_STIFFNESS]): it overshoots 1 a little and settles, as Google's
+         * morphing loading indicator does. Exactly 1 once settled.
+         */
         var morphProgress = 1f
+        internal var morphVelocity = 0f
         /** 1 at the moment of a bounce, fading back to 0: the shape's brief brightening. */
         var glow = 0f
+        /**
+         * How flat the shape is drawn: positive squashed flat and wide on the trampoline, negative stretched tall in
+         * the soft wobble after it lifts off; never past [MAX_SQUASH] or [MAX_JELLY_STRETCH]. Drawn with its area kept.
+         */
+        var squash = 0f
+        internal var squashVelocity = 0f
+        /** 0 as the shape appears from under the card, springing to 1 (its full size) on the default spatial spring. */
+        var appear = 0f
+        internal var appearVelocity = 0f
+        /** 0 until the shape reaches the edge it leaves by, then easing to 1 as it shrinks and fades out. */
+        var leave = 0f
+        internal var leaveVelocity = 0f
+        /** +1 if the shape turns clockwise as it morphs (it came in heading right), -1 if anticlockwise. */
+        var turnDirection = 1f
         /** True once the shape has come fully out from under the bottom card. */
         internal var entered = false
         /** Set by [step] on the step a shape leaves the trampoline. */
@@ -143,6 +168,7 @@ internal class MorphBouncePhysics(
             if (autoSpawn) schedule(STEP)
             for (body in bodies) {
                 step(body, STEP, listener)
+                animateLook(body, STEP)
                 body.age += STEP
                 if (!body.justLifted) continue
                 if (body.exiting || body.bounces >= body.plannedBounces || body.age > MAX_AGE) {
@@ -287,6 +313,8 @@ internal class MorphBouncePhysics(
         val towardsRight = if (body.x < width / 2f) random.nextFloat() < 0.75f else random.nextFloat() < 0.25f
         val distanceToEdge = if (towardsRight) width - body.x else body.x
         body.vx = (if (towardsRight) 1f else -1f) * planSidewaysSpeed(body, body.plannedBounces, distanceToEdge, towardsRight)
+        // A shape rolling right turns clockwise, so its quarter turn on each morph goes the way it rolls.
+        body.turnDirection = if (towardsRight) 1f else -1f
         bodies += body
         return body
     }
@@ -451,9 +479,54 @@ internal class MorphBouncePhysics(
             body.glow *= exp(-dt / GLOW_TIME_CONSTANT)
             if (body.glow < 0.01f) body.glow = 0f
         }
-        if (body.morphProgress < 1f) {
-            body.morphProgress += (1f - body.morphProgress) * (1f - exp(-dt / MORPH_TIME_CONSTANT))
-            if (body.morphProgress > 0.999f) body.morphProgress = 1f
+    }
+
+    /**
+     * Moves what the shape looks like on by [dt], on Material 3 Expressive springs; nothing here changes how it moves.
+     * - The morph to its new shape springs on the fast spatial spring, overshooting a touch and settling.
+     * - On the trampoline it squashes as deep as it sinks into the bed; as it lifts off, the squash springs back on
+     *   the fast spatial spring with part of its speed, so the shape wobbles tall once, softly, and settles round.
+     * - It scales in from nothing as it comes out from under the card, on the default spatial spring.
+     * - Reaching the edge it leaves by, it shrinks and fades on the default effects spring, which never overshoots.
+     */
+    internal fun animateLook(body: Body, dt: Float) {
+        if (body.morphProgress != 1f || body.morphVelocity != 0f) {
+            body.morphVelocity += springAcceleration(body.morphProgress - 1f, body.morphVelocity, MORPH_STIFFNESS, MORPH_DAMPING) * dt
+            body.morphProgress += body.morphVelocity * dt
+            if (abs(body.morphProgress - 1f) < MORPH_SETTLE && abs(body.morphVelocity) < MORPH_SETTLE_SPEED) {
+                body.morphProgress = 1f
+                body.morphVelocity = 0f
+            }
+        }
+
+        if (body.penetration > 0f) {
+            val pressed = (body.penetration / (2f * body.radius) * SQUASH_PER_DEPTH).coerceIn(0f, MAX_SQUASH)
+            // Pressed into the bed the shape is as flat as the bed is deep; the spring takes over as it lets go.
+            body.squashVelocity = (pressed - body.squash) / dt * JELLY_CARRY
+            body.squash = pressed
+        } else if (body.squash != 0f || body.squashVelocity != 0f) {
+            body.squashVelocity += springAcceleration(body.squash, body.squashVelocity, JELLY_STIFFNESS, JELLY_DAMPING) * dt
+            body.squash = (body.squash + body.squashVelocity * dt).coerceIn(-MAX_JELLY_STRETCH, MAX_SQUASH)
+            if (abs(body.squash) < 1e-3f && abs(body.squashVelocity) < 1e-2f) {
+                body.squash = 0f
+                body.squashVelocity = 0f
+            }
+        }
+
+        if (body.appear < 1f || body.appearVelocity != 0f) {
+            body.appearVelocity += springAcceleration(body.appear - 1f, body.appearVelocity, APPEAR_STIFFNESS, APPEAR_DAMPING) * dt
+            body.appear = (body.appear + body.appearVelocity * dt).coerceAtMost(MAX_APPEAR)
+            if (abs(body.appear - 1f) < 1e-3f && abs(body.appearVelocity) < 1e-2f) {
+                body.appear = 1f
+                body.appearVelocity = 0f
+            }
+        }
+
+        // From a shape's width short of the edge, so it has faded by the time it is past it.
+        val atItsEdge = body.exiting && if (body.exitTowardsRight) body.x + 2f * body.radius >= width else body.x - 2f * body.radius <= 0f
+        if (atItsEdge || body.leave > 0f) {
+            body.leaveVelocity += springAcceleration(body.leave - 1f, body.leaveVelocity, LEAVE_STIFFNESS, LEAVE_DAMPING) * dt
+            body.leave = (body.leave + body.leaveVelocity * dt).coerceIn(0f, 1f)
         }
     }
 
@@ -467,8 +540,40 @@ internal class MorphBouncePhysics(
         const val BED_OMEGA = 40f
         const val CONTACT_GRIP = 30f
         const val SPIN_AIR_DECAY = 0.35f
-        /** The new shape is 90% formed about 100 ms after touching down, i.e. during the bounce. */
-        const val MORPH_TIME_CONSTANT = 0.045f
+        /**
+         * The morph's spring: Material 3 Expressive's fast spatial spring (MotionScheme.expressive() fastSpatialSpec,
+         * damping ratio 0.6, stiffness 800). Its damping is that of Google's morphing LoadingIndicator (0.6, there at
+         * stiffness 200, one morph every 650 ms); here a morph must be formed within the 80 ms a bounce spends on the
+         * bed, so it is the expressive scheme's faster spring of the same feel: the new shape is about 85% formed at
+         * lift-off, overshoots by under 10% and has settled about 0.35 s after the bounce.
+         */
+        const val MORPH_DAMPING = 0.6f
+        const val MORPH_STIFFNESS = 800f
+        /**
+         * The morph counts as settled, and is set to exactly 1, this close to it and this slow (Google's loading
+         * indicator likewise raises its morph spring's visibility threshold so the low-damping spring ends sooner).
+         */
+        const val MORPH_SETTLE = 0.01f
+        const val MORPH_SETTLE_SPEED = 0.1f
+        /** A shape at the bottom of a bounce is squashed by this share of its sink into the bed, over its diameter. */
+        const val SQUASH_PER_DEPTH = 0.55f
+        /** The flattest a shape gets on the trampoline: 32% shorter, and wider to keep its area. */
+        const val MAX_SQUASH = 0.32f
+        /** The tallest it gets in the wobble after lifting off: 12% taller, and narrower. */
+        const val MAX_JELLY_STRETCH = 0.12f
+        /** The share of its unsquashing speed a shape carries into the wobble after lifting off. */
+        const val JELLY_CARRY = 0.5f
+        /** The wobble's spring: the expressive fast spatial spring again, so it rings once, softly, and settles. */
+        const val JELLY_DAMPING = 0.6f
+        const val JELLY_STIFFNESS = 800f
+        /** The scale-in from under the card: the expressive default spatial spring (0.8, 380), about 0.4 s. */
+        const val APPEAR_DAMPING = 0.8f
+        const val APPEAR_STIFFNESS = 380f
+        /** The scale-in's overshoot (about 1.5% for this spring) is never more than this. */
+        const val MAX_APPEAR = 1.03f
+        /** The fade out at the edge: the expressive default effects spring (1.0, 1600), no overshoot, about 0.1 s. */
+        const val LEAVE_DAMPING = 1f
+        const val LEAVE_STIFFNESS = 1600f
         const val HAPTIC_MIN_SPEED = 1.0f
         /** The brightening on a bounce fades over roughly a fifth of a second. */
         const val GLOW_TIME_CONSTANT = 0.12f
@@ -504,6 +609,13 @@ internal class MorphBouncePhysics(
         const val MIN_REBOUND_SHARE = 0.35f
         /** Launch a little faster than the drag-free figure, since air resistance takes some of the height. */
         const val MIN_REBOUND_DRAG_ALLOWANCE = 1.06f
+
+        /**
+         * The acceleration of a spring of [stiffness] and [dampingRatio] (as Compose's `spring()` takes them, unit
+         * mass) at [offset] from its rest with [velocity].
+         */
+        fun springAcceleration(offset: Float, velocity: Float, stiffness: Float, dampingRatio: Float): Float =
+            -stiffness * offset - 2f * dampingRatio * sqrt(stiffness) * velocity
 
         /** Damping ratio of a spring contact that returns [restitution] of the impact speed. */
         fun dampingFor(restitution: Float): Float {

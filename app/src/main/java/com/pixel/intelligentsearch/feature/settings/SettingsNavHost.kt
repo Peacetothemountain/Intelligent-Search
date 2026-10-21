@@ -20,7 +20,6 @@ import androidx.compose.animation.*
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.animation.core.*
 import androidx.compose.material.icons.filled.*
@@ -34,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.navigation.compose.NavHost
@@ -294,7 +294,8 @@ fun SettingsScreensHub(
             }
             
             if (showTutorial) {
-                val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+                // The app's theme, like the tutorial card above it, not the system's.
+                val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
                 val overlayColor = if (isDark) Color.Black.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.5f)
                 
                 Box(

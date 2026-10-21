@@ -20,7 +20,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -77,6 +76,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.changedToUp
@@ -127,6 +127,28 @@ data class TutorialStepInfo(
 
 /** Room a centred tutorial card leaves for the overlay's search bar. */
 private val SEARCH_BAR_RESERVE = 88.dp
+
+/** The tutorial card's background, its text and the "STEP x OF y" label above the title. */
+internal data class TutorialCardColors(val container: Color, val content: Color, val stepLabel: Color)
+
+/**
+ * [dark] is the app's theme, not the system's, so the card matches the screen it covers. The light card is an
+ * inverse (dark) surface, so its label takes the inverse primary, which is made to be read on it.
+ */
+internal fun tutorialCardColors(scheme: androidx.compose.material3.ColorScheme, dark: Boolean): TutorialCardColors =
+    if (dark) {
+        TutorialCardColors(
+            container = scheme.surfaceContainerHighest.copy(alpha = 0.94f),
+            content = scheme.onSurface,
+            stepLabel = scheme.primary
+        )
+    } else {
+        TutorialCardColors(
+            container = scheme.inverseSurface.copy(alpha = 0.92f),
+            content = scheme.inverseOnSurface,
+            stepLabel = scheme.inversePrimary
+        )
+    }
 
 @Composable
 fun TutorialSpotlightOverlay(
@@ -185,18 +207,6 @@ fun TutorialSpotlightOverlay(
     LaunchedEffect(currentStep) {
         delay(350)
         isAdvancing = false
-    }
-
-
-    // Screen reader TalkBack live announcement on step change
-    @Suppress("DEPRECATION")
-    LaunchedEffect(currentStep, stepInfo.title) {
-        val cleanSpeech = stepInfo.text
-            .replace("[three_bars]", "three bar settings icon")
-            .replace("[bugdroid]", "")
-            .replace(":)", "")
-        val announcement = "Tutorial step ${currentStep + 1} of ${TutorialManager.TOTAL_STEPS}: ${stepInfo.title}. $cleanSpeech"
-        localView.announceForAccessibility(announcement)
     }
 
     var overlayRootOffset by remember { mutableStateOf(Offset.Zero) }
@@ -258,8 +268,9 @@ fun TutorialSpotlightOverlay(
             .semantics {
                 isTraversalGroup = true
                 // The only pane title here: a second one nested inside (on the card) makes Compose throw when the
-                // accessibility tree is built, i.e. as soon as TalkBack is on.
-                paneTitle = "Tutorial step ${currentStep + 1} of ${TutorialManager.TOTAL_STEPS}: ${stepInfo.title}"
+                // accessibility tree is built, i.e. as soon as TalkBack is on. It stays the same on every step, so
+                // a step change isn't announced as a new pane; the card's live region reads each step.
+                paneTitle = "Tutorial"
             }
             .onGloballyPositioned { coordinates ->
                 if (coordinates.isAttached) {
@@ -453,17 +464,10 @@ fun TutorialSpotlightOverlay(
             }
         }
 
-        val isDarkTheme = isSystemInDarkTheme()
-        val cardBgColor = if (isDarkTheme) {
-            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.94f)
-        } else {
-            MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.92f)
-        }
-        val cardTextColor = if (isDarkTheme) {
-            MaterialTheme.colorScheme.onSurface
-        } else {
-            MaterialTheme.colorScheme.inverseOnSurface
-        }
+        val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+        val cardColors = tutorialCardColors(MaterialTheme.colorScheme, isDarkTheme)
+        val cardBgColor = cardColors.container
+        val cardTextColor = cardColors.content
 
         val (topPadding, bottomPadding) = remember(
             localTargetRect,
@@ -568,7 +572,7 @@ fun TutorialSpotlightOverlay(
                                 text = "STEP ${currentStep + 1} OF ${TutorialManager.TOTAL_STEPS}",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = cardColors.stepLabel,
                                 letterSpacing = 1.2.sp
                             )
                         }

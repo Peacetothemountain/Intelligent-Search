@@ -119,6 +119,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     val fileWeight = s.fileWeight
     val suggestionsEnabled = s.suggestionsEnabled
     val performAppLaunch = s.performAppLaunch
+    val launchOptions = s.launchOptions
     val launchWebSearch = s.launchWebSearch
     val openWebAddress = s.openWebAddress
     val visibleApps = s.visibleApps
@@ -550,7 +551,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         keyboardController?.hide()
                         val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? android.content.pm.LauncherApps
                         try {
-                            launcherApps?.startShortcut(shortcut.packageName, shortcut.id, null, null, shortcut.userHandle)
+                            launcherApps?.startShortcut(shortcut.packageName, shortcut.id, null, launchOptions(), shortcut.userHandle)
                             viewModel.onQueryChanged("")
                         } catch (e: Exception) { android.util.Log.w("IntelligentSearch", "Unexpected error", e) }
                     }.padding(horizontal = 16.dp, vertical = 14.dp),

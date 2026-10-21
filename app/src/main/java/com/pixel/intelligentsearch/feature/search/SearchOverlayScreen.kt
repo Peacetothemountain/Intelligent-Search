@@ -96,8 +96,11 @@ internal val OverlayTutorialSteps = mapOf(
 @Composable
 fun SearchOverlayScreen(
     onOpenSettings: (String) -> Unit,
-    /** Launches an app in its own profile: package, profile (null = personal) and launcher activity if known. */
-    onLaunchApp: (packageName: String, user: android.os.UserHandle?, activityName: String?) -> Unit,
+    /**
+     * Launches an app in its own profile: package, profile (null = personal), launcher activity if known, and the
+     * launch's ActivityOptions (null for the system's default animation).
+     */
+    onLaunchApp: (packageName: String, user: android.os.UserHandle?, activityName: String?, options: android.os.Bundle?) -> Unit,
     viewModel: SearchViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel(),
     isKeyboardDisabled: Boolean = false
@@ -195,13 +198,19 @@ fun SearchOverlayScreen(
         }
     }
 
-    val performLaunch: (String, android.os.UserHandle?, String?) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController, focusManager) {
+    // App Animations: apps opened here scale up out of the touch that opened them.
+    val launchOrigin = remember { LaunchOrigin() }
+    val appAnimations = settingsState.appAnimations
+    val launchOptions: () -> android.os.Bundle? = remember(view, appAnimations) {
+        { AppLaunchAnimation.options(view, appAnimations, launchOrigin.point) }
+    }
+    val performLaunch: (String, android.os.UserHandle?, String?) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController, focusManager, launchOptions) {
         { packageName, user, activityName ->
             hasStartedTyping = false
             focusManager.clearFocus(force = true)
             keyboardController?.hide()
             sensoryEngine.appLaunch(view)
-            onLaunchApp(packageName, user, activityName)
+            onLaunchApp(packageName, user, activityName, launchOptions())
         }
     }
     // Work and Private Space copies of an app share its package name, so launches carry the profile too.
@@ -647,6 +656,7 @@ fun SearchOverlayScreen(
         listState = searchResultsListState,
         performLaunch = performLaunch,
         performAppLaunch = performAppLaunch,
+        launchOptions = launchOptions,
         closeOverlay = closeOverlay,
         launchWebSearch = launchWebSearch,
         openWebAddress = openWebAddress,
@@ -672,6 +682,7 @@ fun SearchOverlayScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .recordLaunchOrigin(launchOrigin)
             .pointerInput(Unit) {
                 var dragJob: kotlinx.coroutines.Job? = null
                 val act = context.findActivity()

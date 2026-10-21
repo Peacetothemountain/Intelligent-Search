@@ -157,7 +157,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** Call, Message, Email and chat-app buttons on contact results. */
         val CONTACT_ACTIONS = BooleanSetting("contact_actions", true)
         val SHORTCUT_INLINE = BooleanSetting("shortcut.inline", true, "shortcut_inline")
-        val SHORTCUT_RECENT = BooleanSetting("shortcut.recent", true)
         val APP_FUZZY_SEARCH = BooleanSetting("app.fuzzy.search", true, "app_fuzzy_search")
         val QUICK_SEARCH_HORIZONTAL = BooleanSetting("quick_search_horizontal", false, "quick.search.horizontal")
         val WEB_RESULTS_COUNT = IntSetting("web_results_count", 5, 0..20)
@@ -208,7 +207,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             BOTTOM_SEARCH, BOTTOM_SEARCH_RESULT, TUTORIAL_COMPLETED, FORCE_TUTORIAL, TUTORIAL_STEP, G_ICON_ENABLED,
             WIDGET_SHOW_VOICE, WIDGET_SHOW_GEMINI, QUICK_SEARCH_YOUTUBE, QUICK_SEARCH_WIKIPEDIA,
             QUICK_SEARCH_PLAY_STORE, QUICK_SEARCH_MAPS, SEARCH_PILLS, WIDGET_THEME_STYLE, HIDDEN_APPS,
-            APP_QUICK_LAUNCH, CONTACT_DIRECT_CALL, CONTACT_ACTIONS, SHORTCUT_INLINE, SHORTCUT_RECENT, APP_FUZZY_SEARCH,
+            APP_QUICK_LAUNCH, CONTACT_DIRECT_CALL, CONTACT_ACTIONS, SHORTCUT_INLINE, APP_FUZZY_SEARCH,
             QUICK_SEARCH_HORIZONTAL, WEB_RESULTS_COUNT, CONTACT_RESULTS_COUNT, FILE_RESULTS_COUNT,
             SHORTCUT_RESULTS_COUNT, SEARCH_WEIGHT_APPS, SEARCH_WEIGHT_CONTACTS, SEARCH_WEIGHT_FILES,
             SEARCH_WEIGHT_WEB, CONTEXT_AWARE_QUICK_APPS, SMART_CLIPBOARD_SUGGESTIONS, ASSISTANT_STARTS_WITH_VOICE,

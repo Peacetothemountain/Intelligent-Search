@@ -279,7 +279,7 @@ open class MainActivity : AppCompatActivity() {
                                         android.util.Log.e("MainActivity", "Failed to open settings", e)
                                     }
                                 },
-                                onLaunchApp = { packageName, user, activityName ->
+                                onLaunchApp = { packageName, user, activityName, options ->
                                     searchViewModel.notifyAppLaunch(packageName)
                                     searchViewModel.onQueryChanged("")
                                     try {
@@ -287,6 +287,7 @@ open class MainActivity : AppCompatActivity() {
                                             packageName = packageName,
                                             userHandle = user,
                                             activityName = activityName,
+                                            opts = options,
                                             activity = this@MainActivity
                                         )
                                     } catch (e: Throwable) {

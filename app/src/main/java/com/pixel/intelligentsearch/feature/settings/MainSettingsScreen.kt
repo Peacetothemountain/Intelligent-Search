@@ -57,7 +57,6 @@ fun MainSettingsScreen(
 ) {
     var showInfoDialog by remember { mutableStateOf(false) }
 
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.lifecycle.compose.LifecycleResumeEffect(exoPlayer) {
         exoPlayer?.play()
         onPauseOrDispose { exoPlayer?.pause() }
@@ -81,8 +80,6 @@ fun MainSettingsScreen(
         }
     ) { padding ->
         val scrollState = rememberScrollState()
-        
-        val isTutorialActive = TutorialManager.isTutorialActive(prefs)
 
         if (showInfoDialog) SearchRoleInfoDialog(context = context, onDismiss = { showInfoDialog = false })
         

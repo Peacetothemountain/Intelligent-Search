@@ -24,10 +24,6 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class SettingsActivity : AppCompatActivity() {
-    companion object {
-        private const val ROLE_SEARCH_ENGINE = "android.app.role.SEARCH_ENGINE"
-    }
-
     var isExitingToHome: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -119,28 +115,8 @@ class SettingsActivity : AppCompatActivity() {
                             initialRoute = initialRoute,
                             fromSearchOverlay = fromSearchOverlay,
                             prefs = prefs,
-                            onBackToLauncher = {
-                                val isBackToOverlay = prefs[SettingsManager.BACK_TO_SEARCH_OVERLAY]
-                                if (isBackToOverlay) {
-                                    if (isTaskRoot || !fromSearchOverlay) {
-                                        val searchIntent = Intent(this@SettingsActivity, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java).apply {
-                                            putExtra("FROM_BACK_SWIPE", true)
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                        }
-                                        startActivity(searchIntent)
-                                    }
-                                    finish()
-                                } else {
-                                    isExitingToHome = true
-                                    sendBroadcast(Intent("com.pixel.intelligentsearch.DISMISS_OVERLAY").setPackage(packageName))
-                                    val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                                        addCategory(Intent.CATEGORY_HOME)
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    }
-                                    startActivity(homeIntent)
-                                    finishAffinity()
-                                }
-                            },
+                            // The hub leaves through this activity itself; this is only its fallback.
+                            onBackToLauncher = { finish() },
                             context = this@SettingsActivity
                         )
                     }

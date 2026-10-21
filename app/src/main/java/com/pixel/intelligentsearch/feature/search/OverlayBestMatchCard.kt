@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -189,9 +190,14 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                             }
                         }
                     }
-                    val fallbackBitmap = remember(match.packageName) {
-                        runCatching { match.icon.toBitmap().asImageBitmap() }.getOrNull()
-                    }
+                    val appIcon = appIconState.value
+                    // Rasterised only while the themed icon loads, and at the size shown (see AppGridItem).
+                    val iconPx = with(LocalDensity.current) { 52.dp.roundToPx() }
+                    val fallbackBitmap = if (appIcon == null) {
+                        remember(match.packageName, iconPx) {
+                            runCatching { match.icon.toBitmap(iconPx, iconPx).asImageBitmap() }.getOrNull()
+                        }
+                    } else null
 
                     Column {
                         Row(
@@ -201,7 +207,6 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                 .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val appIcon = appIconState.value
                             if (appIcon != null) {
                                 Image(
                                     bitmap = appIcon.bitmap,

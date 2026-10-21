@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,9 +55,15 @@ fun AppGridItem(app: AppItem, onClick: () -> Unit) {
         }
     }
     val appIcon = appIconState.value
-    val fallbackBitmap = remember(app.packageName) {
-        runCatching { app.icon.toBitmap().asImageBitmap() }.getOrNull()
-    }
+    // The app's own icon fills the slot only while the themed one loads, so it is rasterised only then, and at the
+    // size shown rather than full size: on the main thread, for every result, the full-size copy was wasted work.
+    // It stays on the main thread so a cold cache never leaves the slot blank for a frame.
+    val iconPx = with(LocalDensity.current) { 48.dp.roundToPx() }
+    val fallbackBitmap = if (appIcon == null) {
+        remember(app.packageName, iconPx) {
+            runCatching { app.icon.toBitmap(iconPx, iconPx).asImageBitmap() }.getOrNull()
+        }
+    } else null
 
     Column(
         modifier = Modifier

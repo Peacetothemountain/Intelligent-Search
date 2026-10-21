@@ -136,6 +136,8 @@ class WidgetEditorAccessibilityTest {
         prefs.edit()
             .putBoolean("widget_system_design_saved", true)
             .putString("widget_system_subtheme", "Custom")
+            // Saved by this version (an older one's HSV hue would be read as the colour it showed).
+            .putBoolean("widget_system_custom_color_hct", true)
             .putInt("widget_system_custom_hue", 180)
             .commit()
         openEditor()

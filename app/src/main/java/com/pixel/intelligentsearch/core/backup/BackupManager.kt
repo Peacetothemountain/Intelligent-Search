@@ -15,6 +15,8 @@ import com.pixel.intelligentsearch.core.data.HistoryDao
 import com.pixel.intelligentsearch.core.data.HistoryEntity
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.UserGrantedFiles
+import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
+import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
 import com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -570,6 +572,13 @@ class BackupManager @Inject constructor(
                         setting?.legacyNames?.forEach(editor::remove)
                         typedRestored++
                     }
+                }
+                // A widget design's colour sliders from a file older than the HCT seed are HSV, so they mustn't be
+                // read as a seed because of a flag this phone set.
+                for (design in WidgetDesign.entries) {
+                    val flag = WidgetSettingsStore.hctFlagKey(design)
+                    val restoresSliders = listOf("hue", "saturation", "lightness").any { spObj.has("${design.prefix}_custom_$it") }
+                    if (restoresSliders && !spObj.has(flag)) editor.remove(flag)
                 }
                 if (editor.commit()) {
                     restoredCount += typedRestored

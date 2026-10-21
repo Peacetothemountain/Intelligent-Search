@@ -23,9 +23,19 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 
 /** The hue slider's track: the colour wheel unrolled, red to red. */
 internal val HUE_GRADIENT = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red)
+
+/** The Color Studio's hue track: the custom colour's HCT hues round the wheel, at full saturation and mid lightness. */
+private val SEED_HUE_GRADIENT: List<Color> by lazy {
+    (0..12).map { Color(MaterialYouPaletteHelper.seedColor(it * 30f, 100f, 60f)) }
+}
+
+/** The custom colour's [hue] and [saturation] at each of [lightnesses]. */
+private fun seedTrack(hue: Float, saturation: Float, lightnesses: List<Float>): List<Color> =
+    lightnesses.map { Color(MaterialYouPaletteHelper.seedColor(hue, saturation, it)) }
 
 /** The space between two of the editor's colour sliders, below the room the slider leaves under its track. */
 internal val SLIDER_ROW_GAP = 4.dp
@@ -115,7 +125,7 @@ internal fun WidgetColorStudioTab(
                 icon = Icons.Default.Palette,
                 label = "Hue",
                 valueText = "${localHue.toInt()}°",
-                gradient = HUE_GRADIENT,
+                gradient = SEED_HUE_GRADIENT,
                 value = localHue,
                 onValueChange = {
                     localSubtheme = "Custom"
@@ -131,10 +141,10 @@ internal fun WidgetColorStudioTab(
                 icon = Icons.Default.WaterDrop,
                 label = "Saturation",
                 valueText = "${localSaturation.toInt()}%",
-                gradient = listOf(
-                    androidx.compose.ui.graphics.Color.White,
-                    androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(localHue, 1f, 1f)))
-                ),
+                // Grey to the most colourful at this lightness (kept off black and white, where no hue shows).
+                gradient = listOf(0f, 100f).map {
+                    Color(MaterialYouPaletteHelper.seedColor(localHue, it, localLightness.coerceIn(15f, 85f)))
+                },
                 value = localSaturation,
                 onValueChange = {
                     localSubtheme = "Custom"
@@ -150,10 +160,8 @@ internal fun WidgetColorStudioTab(
                 icon = Icons.Outlined.BrightnessMedium,
                 label = "Lightness",
                 valueText = "${localLightness.toInt()}%",
-                gradient = listOf(
-                    androidx.compose.ui.graphics.Color.Black,
-                    androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(localHue, (localSaturation / 100f).coerceIn(0f, 1f), 1f)))
-                ),
+                // Black through the colour to white.
+                gradient = seedTrack(localHue, localSaturation, listOf(0f, 25f, 50f, 75f, 100f)),
                 value = localLightness,
                 onValueChange = {
                     localSubtheme = "Custom"
@@ -171,7 +179,7 @@ internal fun WidgetColorStudioTab(
                 valueText = "${localColorOpacity.toInt()}%",
                 gradient = listOf(
                     androidx.compose.ui.graphics.Color.Transparent,
-                    androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(localHue, localSaturation / 100f, 1f)))
+                    dynamicCustomColor.copy(alpha = 1f)
                 ),
                 value = localColorOpacity,
                 onValueChange = {

@@ -2,7 +2,9 @@ package com.pixel.intelligentsearch.core.data.widget
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Color
 import androidx.test.core.app.ApplicationProvider
+import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -10,6 +12,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import kotlin.math.abs
 
 /**
  * The store must reproduce exactly what the widget settings screen used to load, including every fallback to
@@ -41,8 +44,7 @@ class WidgetSettingsStoreTest {
         assertEquals(WidgetSettingsStore.DEFAULT_SLOT_ORDER, system.slotOrder)
         assertTrue(system.showGIcon)
         assertTrue(system.showVoice)
-        assertEquals(defaults.hue.toFloat(), system.hue)
-        assertEquals(defaults.saturation.toFloat(), system.saturation)
+        assertEquals(shown(defaults.hue, defaults.saturation), system.seed)
         assertEquals(primary, system.elementColors.gIcon)
 
         val material = store.load(WidgetDesign.MATERIAL, defaults)
@@ -82,7 +84,7 @@ class WidgetSettingsStoreTest {
         assertTrue(store.isSaved(WidgetDesign.SYSTEM))
         val system = store.load(WidgetDesign.SYSTEM, defaults)
         assertEquals("Dark", system.subtheme)
-        assertEquals(120f, system.hue)
+        assertEquals(shown(120, defaults.saturation), system.seed)
         assertEquals("Weather", system.shortcut1)
         // The shared hue says nothing about the Material design; its own keys do.
         assertFalse(store.isSaved(WidgetDesign.MATERIAL))
@@ -115,16 +117,50 @@ class WidgetSettingsStoreTest {
             .putInt("widget_custom_g_icon_color", 0xFF4285F4.toInt())
             .commit()
         val loaded = store.load(WidgetDesign.SYSTEM, defaults)
-        assertEquals(defaults.hue.toFloat(), loaded.hue)
-        assertEquals(defaults.saturation.toFloat(), loaded.saturation)
+        assertEquals(shown(defaults.hue, defaults.saturation), loaded.seed)
         assertEquals(primary, loaded.elementColors.gIcon)
 
         // Stored for the design itself, the same values are real choices.
         prefs.edit().putInt("widget_system_custom_hue", 277).putInt("widget_system_custom_g_icon_color", 0xFF4285F4.toInt()).commit()
         val explicit = store.load(WidgetDesign.SYSTEM, defaults)
-        assertEquals(277f, explicit.hue)
+        assertEquals(shown(277, defaults.saturation), explicit.seed)
         assertEquals(0xFF4285F4.toInt(), explicit.elementColors.gIcon)
     }
+
+    @Test
+    fun anOlderVersionsHsvColourIsReadAsTheSameColour() {
+        // Older versions read Hue, Saturation and Lightness as HSV; this one reads them as an HCT seed.
+        prefs.edit()
+            .putBoolean("widget_material_design_saved", true)
+            .putInt("widget_material_custom_hue", 200)
+            .putInt("widget_material_custom_saturation", 60)
+            .putInt("widget_material_custom_lightness", 90)
+            .commit()
+        val old = Color.HSVToColor(floatArrayOf(200f, 0.6f, 0.9f))
+        val loaded = store.load(WidgetDesign.MATERIAL, defaults)
+        assertEquals(shown(200, 60, 90), loaded.seed)
+        val now = loaded.customColorInt
+        for (shift in listOf(16, 8, 0)) {
+            val diff = abs((old shr shift and 0xFF) - (now shr shift and 0xFF))
+            assertTrue("#%06X shows as #%06X".format(old and 0xFFFFFF, now and 0xFFFFFF), diff <= 3)
+        }
+
+        // Saved by this version, the values are the seed itself, and stay as they are.
+        val editor = prefs.edit()
+        store.save(WidgetDesign.MATERIAL, loaded.copy(hue = 200f, saturation = 60f, lightness = 90f), editor)
+        editor.commit()
+        assertTrue(prefs.getBoolean(WidgetSettingsStore.hctFlagKey(WidgetDesign.MATERIAL), false))
+        assertEquals(MaterialYouPaletteHelper.SeedSliders(200f, 60f, 90f), store.load(WidgetDesign.MATERIAL, defaults).seed)
+        // The other design still has its old values, read as before.
+        assertFalse(prefs.contains(WidgetSettingsStore.hctFlagKey(WidgetDesign.SYSTEM)))
+    }
+
+    /** The slider values an older version's HSV hue, saturation and value are read as: the colour they showed. */
+    private fun shown(hue: Int, saturation: Int, value: Int = 100) = MaterialYouPaletteHelper.wholeSeedSliders(
+        Color.HSVToColor(floatArrayOf(hue.toFloat(), saturation / 100f, value / 100f)), greyHue = hue.toFloat()
+    )
+
+    private val WidgetDesignSettings.seed get() = MaterialYouPaletteHelper.SeedSliders(hue, saturation, lightness)
 
     @Test
     fun voiceSearchShortcutsBecomeNoneAndShowVoiceFollowsTheOldSetting() {

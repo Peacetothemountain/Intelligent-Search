@@ -67,10 +67,12 @@ fun ComposeActionIcon(
     tertiaryColor: androidx.compose.ui.graphics.Color,
     quaternaryColor: androidx.compose.ui.graphics.Color = primaryColor,
     isMaterialTheme: Boolean = false,
-    isPillLight: Boolean = false
+    isPillLight: Boolean = false,
+    /** The Custom subtheme's three tones; without them they're worked out from the colours above. */
+    tiers: MaterialYouPaletteHelper.ThreeTierAccentedPalette? = null
 ) {
-    val palette = remember(primaryColor, secondaryColor, isPillLight) {
-        com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper.getThreeTierAccentedPalette(
+    val palette = remember(primaryColor, secondaryColor, isPillLight, tiers) {
+        tiers ?: MaterialYouPaletteHelper.getThreeTierAccentedPalette(
             primaryColor.toArgb(),
             secondaryColor.toArgb(),
             isPillLight
@@ -170,10 +172,12 @@ fun ComposeThemedShortcutIcon(
     isMaterialTheme: Boolean,
     modifier: Modifier = Modifier,
     quaternaryColor: androidx.compose.ui.graphics.Color = primaryColor,
-    isPillLight: Boolean = false
+    isPillLight: Boolean = false,
+    /** The Custom subtheme's three tones; without them they're worked out from the colours above. */
+    tiers: MaterialYouPaletteHelper.ThreeTierAccentedPalette? = null
 ) {
-    val palette = remember(primaryColor, secondaryColor, isPillLight) {
-        com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper.getThreeTierAccentedPalette(
+    val palette = remember(primaryColor, secondaryColor, isPillLight, tiers) {
+        tiers ?: MaterialYouPaletteHelper.getThreeTierAccentedPalette(
             primaryColor.toArgb(),
             secondaryColor.toArgb(),
             isPillLight
@@ -303,7 +307,9 @@ fun ComposeGIcon(
     accentColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
     fallbackTint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
     useOriginalColors: Boolean = false,
-    isPillLight: Boolean = false
+    isPillLight: Boolean = false,
+    /** The Custom subtheme's arcs; without them they're worked out from the colours above. */
+    customPalette: MaterialYouPaletteHelper.FourColorMaterialGPalette? = null
 ) {
     if (useOriginalColors) {
         Image(
@@ -332,8 +338,8 @@ fun ComposeGIcon(
         )
         return
     }
-    val palette = remember(primaryColor, secondaryColor, tertiaryColor, isPillLight) {
-        com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper.getFourColorMaterialGPalette(
+    val palette = remember(primaryColor, secondaryColor, tertiaryColor, isPillLight, customPalette) {
+        customPalette ?: MaterialYouPaletteHelper.getFourColorMaterialGPalette(
             primaryColor.toArgb(),
             secondaryColor.toArgb(),
             tertiaryColor.toArgb(),

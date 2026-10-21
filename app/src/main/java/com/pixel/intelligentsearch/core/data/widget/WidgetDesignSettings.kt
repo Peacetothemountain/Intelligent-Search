@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import android.graphics.Color
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 
 /** The two widget designs, each with its own saved customization under its own key prefix. */
 enum class WidgetDesign(val prefix: String, val themeStyle: String) {
@@ -50,12 +51,13 @@ data class WidgetDesignSettings(
     /** Whether the G gets the day's animated doodle on holidays and the first day of each season (only while it's shown). */
     val showDoodles: Boolean = true
 ) {
-    /** The custom pill colour these settings produce (what the widget draws for the "Custom" subtheme). */
+    /**
+     * The custom pill colour these settings produce (what the widget draws for the "Custom" subtheme): the HCT seed
+     * Hue, Saturation and Lightness pick ([MaterialYouPaletteHelper.seedColor]), as opaque as Color Opacity says.
+     */
     val customColorInt: Int
-        get() = Color.HSVToColor(
-            (colorOpacity / 100f * 255).toInt().coerceIn(0, 255),
-            floatArrayOf(hue, (saturation / 100f).coerceIn(0f, 1f), (lightness / 100f).coerceIn(0f, 1f))
-        )
+        get() = (MaterialYouPaletteHelper.seedColor(hue, saturation, lightness) and 0xFFFFFF) or
+            ((colorOpacity / 100f * 255).toInt().coerceIn(0, 255) shl 24)
 }
 
 /**
@@ -118,6 +120,19 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
         fun shortcut(n: Int, default: String): String =
             string("shortcut_$n", "widget_shortcut_$n", default).let { if (it == "Voice Search") "None" else it }
 
+        // Hue, Saturation and Lightness pick an HCT seed. Versions before the seed's flag read them as HSV, so values
+        // they left (or none, for the defaults they showed) are read as the colour they showed, in the whole numbers
+        // the sliders hold.
+        val hue = themed("custom_hue", "widget_custom_hue", 277, defaults.hue)
+        val saturation = themed("custom_saturation", "widget_custom_saturation", 51, defaults.saturation)
+        val lightness = int("custom_lightness", "widget_custom_lightness", 100)
+        val seed = if (prefs.getBoolean(hctFlagKey(design), false)) {
+            MaterialYouPaletteHelper.SeedSliders(hue.toFloat(), saturation.toFloat(), lightness.toFloat())
+        } else {
+            val shown = Color.HSVToColor(floatArrayOf(hue.toFloat(), (saturation / 100f).coerceIn(0f, 1f), (lightness / 100f).coerceIn(0f, 1f)))
+            MaterialYouPaletteHelper.wholeSeedSliders(shown, greyHue = hue.toFloat())
+        }
+
         val defaultGIcon = if (isSystem) {
             if (defaults.isDynamicColorActive) "Material G Icon" else "System G Icon"
         } else "Material G Icon"
@@ -135,9 +150,9 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
             ),
             syncColors = prefs.getBoolean("${p}_custom_sync_colors", prefs.getBoolean("widget_custom_sync_colors", false)),
             keepSystemG = prefs.getBoolean("${p}_custom_keep_system_g", prefs.getBoolean("widget_custom_keep_system_g", false)),
-            hue = themed("custom_hue", "widget_custom_hue", 277, defaults.hue).toFloat(),
-            saturation = themed("custom_saturation", "widget_custom_saturation", 51, defaults.saturation).toFloat(),
-            lightness = int("custom_lightness", "widget_custom_lightness", 100).toFloat(),
+            hue = seed.hue,
+            saturation = seed.saturation,
+            lightness = seed.lightness,
             colorOpacity = int("custom_color_opacity", "widget_custom_color_opacity", 100).toFloat(),
             transparency = int("background_transparency", "widget.background.transparency", if (isSystem) 0 else 28).toFloat(),
             showGIcon = showsGIcon(design),
@@ -175,6 +190,7 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
             .putInt("${p}_custom_action_icon_color", c.action)
             .putBoolean("${p}_custom_sync_colors", settings.syncColors)
             .putBoolean("${p}_custom_keep_system_g", settings.keepSystemG)
+            .putBoolean(hctFlagKey(design), true)
             .putInt("${p}_custom_hue", settings.hue.toInt())
             .putInt("${p}_custom_saturation", settings.saturation.toInt())
             .putInt("${p}_custom_lightness", settings.lightness.toInt())
@@ -197,6 +213,9 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
 
     companion object {
         const val DEFAULT_SLOT_ORDER = "shortcut1,mic,shortcut2,shortcut3"
+
+        /** Set once [design]'s Hue, Saturation and Lightness are stored as an HCT seed rather than as HSV. */
+        fun hctFlagKey(design: WidgetDesign): String = "${design.prefix}_custom_color_hct"
         private const val GOOGLE_BLUE_PLACEHOLDER = 0xFF4285F4.toInt()
     }
 }

@@ -2,11 +2,13 @@ package com.pixel.intelligentsearch.feature.widget
 
 import android.app.Activity
 import android.content.Context
-import android.graphics.Color
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.test.core.app.ApplicationProvider
+import com.google.android.material.color.utilities.Contrast
+import com.google.android.material.color.utilities.DynamicColor
+import com.google.android.material.color.utilities.Hct
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
@@ -23,8 +25,10 @@ import kotlin.math.abs
 /**
  * Every Color Studio slider, set to values across its range, changes what its label says on the widget the launcher
  * draws, and only that: for each design, subtheme and inner pill state, in light and dark. The expected colours are
- * worked out here from what the sliders mean (the custom colour is HSV: hue, saturation, and lightness as value;
- * Color Opacity is the custom colour's opacity; Transparency the whole bar's background), not from the widget's code.
+ * worked out here from what the sliders mean (the custom colour is an HCT seed: hue, saturation as the share of the
+ * chroma that hue reaches at the tone, and lightness as tone; the Custom subtheme's accent is the seed's hue and
+ * saturation at the tone keeping 7:1 with the pill, on the side Material's foreground rule picks; Color Opacity is the
+ * custom colour's opacity; Transparency the whole bar's background), not from the widget's code.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(qualifiers = "w412dp-h915dp-xhdpi")
@@ -62,7 +66,8 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
             Slider.TRANSPARENCY -> copy(transparency = value)
         }
 
-        val customColor: Int get() = Color.HSVToColor(floatArrayOf(hue.toFloat(), saturation / 100f, lightness / 100f))
+        /** The HCT seed: hue, the saturation's share of the most chroma that hue reaches at the tone, and tone. */
+        val customColor: Int get() = colorAtShare(hue.toDouble(), saturation / 100.0, lightness.toDouble())
         val backgroundAlpha: Double get() = (100 - transparency) / 100.0
         val customAlpha: Double get() = opacity / 100.0 * backgroundAlpha
     }
@@ -83,6 +88,7 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
             .putBoolean("${p}_design_saved", true)
             .putString("${p}_subtheme", bar.subtheme)
             .putString("${p}_material_g_icon", gStyle)
+            .putBoolean("${p}_custom_color_hct", true)
             .putInt("${p}_custom_hue", s.hue)
             .putInt("${p}_custom_saturation", s.saturation)
             .putInt("${p}_custom_lightness", s.lightness)
@@ -114,8 +120,7 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
     private fun alpha(value: Double) = (value * 255).toInt()
 
     private fun expectedPillLight(s: Sliders): Boolean {
-        val c = s.customColor
-        val customIsLight = (0.299 * Color.red(c) + 0.587 * Color.green(c) + 0.114 * Color.blue(c)) / 255.0 > 0.5
+        val customIsLight = iconsGoDarkOn(s.customColor)
         return when {
             bar.material && bar.lockBlack -> false
             bar.isCustom -> customIsLight
@@ -146,14 +151,18 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
         if (bar.isCustom) Layer(s.customColor and 0xFFFFFF, alpha(s.customAlpha))
         else Layer(widgetColors(dark || bar.lockBlack).primaryContainer and 0xFFFFFF, alpha(s.backgroundAlpha))
 
-    /** The Accented G's colour: the theme's (or the custom hue's) accent for the pill's shade, darker on a light Material pill. */
+    /**
+     * The Accented G's colour. Custom: the seed's hue and saturation at the tone keeping 7:1 with the pill it sits on.
+     * Otherwise the theme's accent for the pill's shade, darker on a light Material pill.
+     */
     private fun expectedAccent(s: Sliders): Int {
         val light = expectedPillLight(s)
-        val raw = if (bar.isCustom) {
-            MaterialYouPaletteHelper.getMaterialYouTonalColors(s.hue.toFloat(), s.saturation.toFloat(), isDarkSurface = !light).primary
-        } else {
-            widgetColors(!light).primary
+        if (bar.isCustom) {
+            val pillTone = Hct.fromInt(if (bar.material && bar.lockBlack) 0xFF121212.toInt() else s.customColor).tone
+            val tone = if (light) Contrast.darkerUnsafe(pillTone, 7.0) else Contrast.lighterUnsafe(pillTone, 7.0)
+            return colorAtShare(s.hue.toDouble(), s.saturation / 100.0, tone)
         }
+        val raw = widgetColors(!light).primary
         return if (bar.material && !bar.lockBlack && light) MaterialYouPaletteHelper.darkenForContrast(raw, 32.0) else raw
     }
 
@@ -189,11 +198,11 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
         val customLayers = rendered.map { (_, pill, rim) -> if (bar.isCustom && !(bar.material && bar.lockBlack)) pill else rim }
         when (slider) {
             Slider.HUE -> if (bar.isCustom) rendered.zip(customLayers).forEach { (r, layer) ->
-                val hsv = FloatArray(3).also { Color.colorToHSV(layer!!.rgb, it) }
-                val distance = abs(hsv[0] - r.first % 360).let { minOf(it, 360 - it) }
-                assertTrue("$bar hue ${r.first} paints hue ${hsv[0]}", distance <= 2f)
+                val hue = hct(layer!!).hue
+                val distance = abs(hue - r.first % 360).let { minOf(it, 360 - it) }
+                assertTrue("$bar hue ${r.first} paints HCT hue $hue", distance <= 3.0)
             }
-            Slider.SATURATION -> if (bar.isCustom) assertIncreasing("saturation", customLayers.map { hsv(it!!)[1] })
+            Slider.SATURATION -> if (bar.isCustom) assertIncreasing("chroma", customLayers.map { hct(it!!).chroma.toFloat() })
             Slider.LIGHTNESS -> if (bar.isCustom) assertIncreasing("lightness", customLayers.map { luminance(it!!) })
             Slider.COLOR_OPACITY -> if (bar.isCustom) assertIncreasing("opacity", customLayers.map { it!!.alpha.toFloat() })
             Slider.TRANSPARENCY -> {
@@ -203,7 +212,7 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
         }
     }
 
-    private fun hsv(layer: Layer) = FloatArray(3).also { Color.colorToHSV(layer.rgb, it) }
+    private fun hct(layer: Layer) = Hct.fromInt(layer.rgb or 0xFF000000.toInt())
 
     private fun luminance(layer: Layer) = MaterialYouPaletteHelper.calculateLuminance(layer.rgb).toFloat()
 
@@ -212,6 +221,18 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
     }
 
     companion object {
+        /** [hue] at [tone] with [share] of the most chroma that hue reaches there. */
+        fun colorAtShare(hue: Double, share: Double, tone: Double): Int {
+            val most = Hct.from(hue, 200.0, tone).chroma
+            return Hct.from(hue % 360.0, share * most, tone).toInt() or 0xFF000000.toInt()
+        }
+
+        /** Whether icons go dark on [color]: Material's foreground rule picks a darker tone than its own. */
+        fun iconsGoDarkOn(color: Int): Boolean {
+            val tone = Hct.fromInt(color or 0xFF000000.toInt()).tone
+            return DynamicColor.foregroundTone(tone, 7.0) < tone
+        }
+
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0} {1} dark={2}")
         fun parameters(): List<Array<Any>> = Bar.entries.flatMap { bar ->

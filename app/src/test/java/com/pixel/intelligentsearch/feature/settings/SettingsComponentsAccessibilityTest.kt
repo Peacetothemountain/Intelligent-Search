@@ -64,6 +64,24 @@ class SettingsComponentsAccessibilityTest {
     }
 
     @Test
+    fun aToggleRowIsOneSwitchThatSaysWhetherItIsOn() {
+        show {
+            var checked by remember { mutableStateOf(true) }
+            SettingsRowToggle(
+                title = "Fuzzy Search",
+                subtitle = "Allow Typos When Searching for Apps.",
+                isChecked = checked,
+                onCheckedChange = { checked = it }
+            )
+        }
+        compose.onAllNodes(isToggleable()).assertCountEquals(1)
+        compose.onNode(isToggleable()).assertTextContains("Fuzzy Search").assertIsOn()
+
+        compose.onNode(isToggleable()).performClick()
+        compose.onNode(isToggleable()).assertIsOff()
+    }
+
+    @Test
     fun aDropdownDrawsItsOptionIconsAndHasNoStrayLabel() {
         show {
             SettingsDropdownRow(

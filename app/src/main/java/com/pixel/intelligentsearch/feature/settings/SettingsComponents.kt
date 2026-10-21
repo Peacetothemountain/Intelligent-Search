@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.*
 import androidx.compose.foundation.Image
@@ -353,6 +354,11 @@ fun SettingsRowToggle(
         }
     }
 
+    // A row that only toggles is one switch to TalkBack: its title, subtitle and on/off state in a single stop. A row
+    // that opens a sub-page is a button, and its switch stays a separate stop named after the row.
+    val isPlainToggle = onClick == null
+    val rowRole = if (isPlainToggle) Role.Switch else Role.Button
+
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val pressScale by androidx.compose.animation.core.animateFloatAsState(
@@ -389,6 +395,7 @@ fun SettingsRowToggle(
                         Modifier.combinedClickable(
                             interactionSource = interactionSource,
                             indication = androidx.compose.material3.ripple(bounded = true),
+                            role = rowRole,
                             onLongClick = onLongClick,
                             onClick = toggleAction
                         )
@@ -396,9 +403,13 @@ fun SettingsRowToggle(
                         Modifier.clickable(
                             interactionSource = interactionSource,
                             indication = androidx.compose.material3.ripple(bounded = true),
+                            role = rowRole,
                             onClick = toggleAction
                         )
                     }
+                )
+                .then(
+                    if (isPlainToggle) Modifier.semantics { toggleableState = ToggleableState(isChecked) } else Modifier
                 )
                 .graphicsLayer {
                     scaleX = pressScale
@@ -458,11 +469,14 @@ fun SettingsRowToggle(
                 }
             }
             Spacer(modifier = Modifier.width(16.dp))
-            com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(
-                checked = isChecked,
-                onCheckedChange = { next -> applyToggle(next) },
-                label = title
-            )
+            // On a plain toggle row the switch still takes taps and drags, but TalkBack hears the row instead.
+            Box(modifier = if (isPlainToggle) Modifier.clearAndSetSemantics {} else Modifier) {
+                com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(
+                    checked = isChecked,
+                    onCheckedChange = { next -> applyToggle(next) },
+                    label = title
+                )
+            }
         }
         if (showDivider && containerColor == Color.Transparent) {
             HorizontalDivider(

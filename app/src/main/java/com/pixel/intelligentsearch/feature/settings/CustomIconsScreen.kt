@@ -336,7 +336,8 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                         activatePack("system_default")
                                                     }
                                                 }
-                                            }
+                                            },
+                                            label = packLabel
                                         )
                                         Spacer(modifier = Modifier.width(12.dp))
                                         val currentPkg by rememberUpdatedState(packageName)

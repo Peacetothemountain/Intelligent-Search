@@ -89,10 +89,6 @@ object SetupChecklist {
         context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
 }
 
-private const val SEARCH_BAR_ADB_COMMANDS =
-    "adb shell settings put secure user_setup_search_engine com.pixel.intelligentsearch\n" +
-        "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch"
-
 /**
  * "Finish Setting Up": each kind of access Intelligent Search can use, why it helps, and one tap to grant it.
  * Everything here stays on the phone; the page says so where it matters.
@@ -158,7 +154,7 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
             confirmButton = {
                 TextButton(onClick = {
                     val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
-                    clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", SEARCH_BAR_ADB_COMMANDS))
+                    clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", SearchRoleManager.ADB_ACTIVATION_COMMANDS))
                     Toast.makeText(context, "Commands copied", Toast.LENGTH_SHORT).show()
                     showSearchBarHelp = false
                 }) { Text("Copy Commands") }

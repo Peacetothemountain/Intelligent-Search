@@ -270,11 +270,10 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                         }
-                                        val adbCommands = "adb shell settings put secure user_setup_search_engine com.pixel.intelligentsearch\nadb shell settings put secure selected_search_engine com.pixel.intelligentsearch"
                                         IconButton(
                                             onClick = {
                                                 val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                                clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", adbCommands))
+                                                clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS))
                                                 Toast.makeText(context, "ADB commands copied to clipboard", Toast.LENGTH_SHORT).show()
                                             },
                                             modifier = Modifier.size(32.dp)
@@ -469,10 +468,11 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                         }
                         TextButton(onClick = {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                            val clip = android.content.ClipData.newPlainText("ADB Command", "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch")
+                            // Both commands: selecting the app alone fails while it isn't on the search engine list.
+                            val clip = android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS)
                             clipboard?.setPrimaryClip(clip)
                             com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click(view)
-                            Toast.makeText(context, "ADB command copied to clipboard", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "ADB commands copied to clipboard", Toast.LENGTH_SHORT).show()
                         }) {
                             Text("Copy Command")
                         }

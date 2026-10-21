@@ -26,6 +26,17 @@ import dagger.hilt.android.AndroidEntryPoint
 class SettingsActivity : AppCompatActivity() {
     var isExitingToHome: Boolean = false
 
+    @javax.inject.Inject
+    lateinit var widgetUpdater: com.pixel.intelligentsearch.core.system.WidgetUpdater
+
+    // The settings the widgets were last drawn with, so leaving Settings redraws them only after a change. Null
+    // when opened to configure a widget, so it is drawn on the way out whatever happened.
+    private var lastPushedFingerprint: Int? = null
+
+    private fun settingsFingerprint(): Int = runCatching {
+        com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.getSafeSharedPreferences(this).all.hashCode()
+    }.getOrDefault(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
@@ -67,6 +78,7 @@ class SettingsActivity : AppCompatActivity() {
             val resultValue = android.content.Intent().putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             setResult(RESULT_OK, resultValue)
         }
+        if (!isWidgetConfigure) lastPushedFingerprint = settingsFingerprint()
 
         // This activity is exported (launcher, widget setup), so page and overlay extras are honoured only when
         // they carry this app's own launch token. Other apps always land on the main settings page.
@@ -128,7 +140,11 @@ class SettingsActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         try {
-            com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(this)
+            val fingerprint = settingsFingerprint()
+            if (fingerprint != lastPushedFingerprint) {
+                widgetUpdater.updateAll()
+                lastPushedFingerprint = fingerprint
+            }
         } catch (e: Throwable) {
             android.util.Log.e("SettingsActivity", "Failed to update widgets on pause", e)
         }

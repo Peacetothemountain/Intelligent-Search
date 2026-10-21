@@ -30,7 +30,7 @@ object DoodleCatalog {
         val regions: Set<String>,
         /** When [nextHere] is null, the next day it shows anywhere, and the region showing it then. */
         val nextElsewhere: Pair<LocalDate, String>?,
-        /** Whether a phone in any region gets it in this time zone. */
+        /** Whether a phone with no region set gets it in this time zone (what the gallery calls shown everywhere). */
         val everywhere: Boolean
     )
 

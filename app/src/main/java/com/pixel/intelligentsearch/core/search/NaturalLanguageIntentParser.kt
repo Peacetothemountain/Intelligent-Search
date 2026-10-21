@@ -444,10 +444,13 @@ object NaturalLanguageIntentParser {
 
     private data class TemporalResult(val timestampMs: Long, val cleanText: String)
 
+    /** The day word a phrase named, which decides how a bare hour like "at 3" is read. */
+    private enum class NamedDay { NONE, TODAY, TONIGHT, TOMORROW, WEEKDAY }
+
     private fun extractTemporalInfo(rawText: String, baseTimeMs: Long): TemporalResult {
         val cal = Calendar.getInstance().apply { timeInMillis = baseTimeMs }
         var text = rawText
-        var hasExplicitDay = false
+        var namedDay = NamedDay.NONE
         val isTonight = text.contains("tonight", ignoreCase = true)
 
         // Check relative days
@@ -455,15 +458,15 @@ object NaturalLanguageIntentParser {
         if (text.contains("tomorrow", ignoreCase = true)) {
             cal.add(Calendar.DAY_OF_YEAR, 1)
             text = text.replace("tomorrow", "", ignoreCase = true)
-            hasExplicitDay = true
+            namedDay = NamedDay.TOMORROW
         } else if (text.contains("tonight", ignoreCase = true)) {
             cal.set(Calendar.HOUR_OF_DAY, 20)
             cal.set(Calendar.MINUTE, 0)
             text = text.replace("tonight", "", ignoreCase = true)
-            hasExplicitDay = true
+            namedDay = NamedDay.TONIGHT
         } else if (text.contains("today", ignoreCase = true)) {
             text = text.replace("today", "", ignoreCase = true)
-            hasExplicitDay = true
+            namedDay = NamedDay.TODAY
         } else if (weekdayMatch != null) {
             // "on Friday" means the next Friday; naming today's weekday means a week from today.
             val target = WEEKDAYS.indexOf(weekdayMatch.groupValues[1].lowercase(Locale.ROOT)) + Calendar.SUNDAY
@@ -471,7 +474,7 @@ object NaturalLanguageIntentParser {
             if (daysAhead == 0) daysAhead = 7
             cal.add(Calendar.DAY_OF_YEAR, daysAhead)
             text = text.replace(weekdayMatch.value, "")
-            hasExplicitDay = true
+            namedDay = NamedDay.WEEKDAY
         }
 
         // Relative duration "in X minutes / hours"
@@ -498,15 +501,22 @@ object NaturalLanguageIntentParser {
 
             if (amPm == "pm" && hour < 12) hour += 12
             if (amPm == "am" && hour == 12) hour = 0
-            // "tonight at 9" is 21:00; without am/pm or a named day, "at 3" is the next 3 o'clock still ahead.
+            // Without am/pm: "tonight at 9" is 21:00. With no day or "today", "at 3" is the next 3 o'clock still
+            // ahead. Tomorrow or a weekday has no "already passed" to go by, so 1-7 is read as the afternoon or
+            // evening people mean ("tomorrow at 3") and 8-11 as the morning.
             if (amPm.isEmpty() && hour in 1..11) {
                 if (isTonight) {
                     hour += 12
-                } else if (!hasExplicitDay && relativeMatch == null) {
-                    val morning = (cal.clone() as Calendar).apply {
-                        set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute.coerceIn(0, 59)); set(Calendar.SECOND, 0)
+                } else if (relativeMatch == null) {
+                    when (namedDay) {
+                        NamedDay.TOMORROW, NamedDay.WEEKDAY -> if (hour <= 7) hour += 12
+                        else -> {
+                            val morning = (cal.clone() as Calendar).apply {
+                                set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute.coerceIn(0, 59)); set(Calendar.SECOND, 0)
+                            }
+                            if (morning.timeInMillis < baseTimeMs && morning.timeInMillis + 12 * 3_600_000L > baseTimeMs) hour += 12
+                        }
                     }
-                    if (morning.timeInMillis < baseTimeMs && morning.timeInMillis + 12 * 3_600_000L > baseTimeMs) hour += 12
                 }
             }
 
@@ -516,7 +526,7 @@ object NaturalLanguageIntentParser {
             cal.set(Calendar.SECOND, 0)
             text = text.replace(timeMatch.value, "")
 
-            if (!hasExplicitDay && relativeMatch == null && cal.timeInMillis < baseTimeMs) {
+            if (namedDay == NamedDay.NONE && relativeMatch == null && cal.timeInMillis < baseTimeMs) {
                 cal.add(Calendar.DAY_OF_YEAR, 1)
             }
         }

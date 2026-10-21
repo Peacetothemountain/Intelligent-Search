@@ -159,6 +159,27 @@ class NaturalLanguageIntentParserTest {
     }
 
     @Test
+    fun bareHoursWithANamedDayPickTheLikelyHalfOfTheDay() {
+        // 2026-03-10 is a Tuesday.
+        val tomorrow = NaturalLanguageIntentParser.parse("meeting tomorrow at 3", currentTimeMs = at(10)) as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
+        assertEquals(15, hourOf(tomorrow.startMillis))
+        assertEquals(11, dayOf(tomorrow.startMillis))
+
+        val today = NaturalLanguageIntentParser.parse("meeting today at 3", currentTimeMs = at(13)) as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
+        assertEquals(15, hourOf(today.startMillis))
+        assertEquals(10, dayOf(today.startMillis))
+
+        val friday = NaturalLanguageIntentParser.parse("meeting friday at 2", currentTimeMs = at(10)) as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
+        assertEquals(14, hourOf(friday.startMillis))
+        assertEquals(13, dayOf(friday.startMillis))
+
+        // From 8 on, a bare hour on a named day is the morning.
+        val breakfast = NaturalLanguageIntentParser.parse("meeting tomorrow at 9", currentTimeMs = at(10)) as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
+        assertEquals(9, hourOf(breakfast.startMillis))
+        assertEquals(11, dayOf(breakfast.startMillis))
+    }
+
+    @Test
     fun messagesAcceptColonAndCommaRightAfterTheName() {
         val colon = NaturalLanguageIntentParser.parse("text Sarah: running late") as NaturalLanguageIntentParser.ParsedIntent.DirectMessage
         assertEquals("Sarah", colon.recipientName)

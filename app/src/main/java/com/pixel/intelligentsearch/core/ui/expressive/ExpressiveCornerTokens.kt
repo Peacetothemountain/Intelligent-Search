@@ -12,10 +12,11 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.min
 
 /**
- * Material 3 Expressive Squircle and Continuous Curvature Tokens.
+ * Rounded rectangle with its own radius per corner, behind the app's corner tokens.
  *
- * Implements Android 17 / Pixel design language continuous corner geometry,
- * providing mathematically smooth cubic Bézier transitions without curvature pinching.
+ * Despite the name, the corners are not continuous-curvature squircles: each is a circular arc, drawn as the usual
+ * cubic Bézier approximation, with an effective radius of r × (1 + [smoothing] / 2), capped at half the shorter
+ * side. Smoothing only makes the corner larger.
  */
 class SquircleShape(
     val topStart: Dp,
@@ -159,7 +160,7 @@ class SquircleShape(
 }
 
 /**
- * Material 3 Expressive Squircle Corner Radius Tokens.
+ * Corner radius tokens and their [SquircleShape]s.
  */
 object ExpressiveCornerTokens {
     val Medium: Dp = 16.dp

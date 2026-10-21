@@ -4,27 +4,22 @@ import android.app.Activity
 import android.content.Context
 import android.hardware.display.DisplayManager
 import android.os.Build
-import android.view.Choreographer
 import android.view.Display
-import android.view.Surface
 import android.view.View
 import android.view.WindowManager
 import kotlin.math.abs
 
 /**
- * Hardware-Synchronized Window & Surface Frame Pacing Engine.
- *
- * Implements 120Hz / 144Hz LTPO OLED dynamic refresh rate adaptation (1Hz to 120Hz),
- * Velocity-Driven frame rate category escalation (Android 14+ / API 34+),
- * Hardware touch boost & power savings tuning (Android 15+ / API 35+ / Android 17 Canary ZP11),
- * Surface.CHANGE_FRAME_RATE_ALWAYS overrides, and Choreographer VSYNC deadline tracking.
- *
- * Modernized for Android 17 (Canary ZP11 2610) / Kotlin 2.1 / compileSdk 37.
- * Eliminates reflection, utilizes official platform APIs, zero allocations on main thread,
- * and provides cancellable frame callbacks.
+ * Refresh-rate hints for the app's windows, used while gestures and animations run:
+ * - Frame-rate category (Android 15+, API 35): the window's decor view asks for a high, normal or low rate, and
+ *   scrolling reports its velocity, so an LTPO panel rises with motion and falls back when it stops.
+ * - Touch boost (Android 15+): the rate rises as soon as a finger lands, for the length of a gesture.
+ * - Mode lock (before Android 14, API 34, which have no per-view hint): a gesture locks the window to the fastest
+ *   display mode at the current resolution, and the lock is released when it ends.
  */
 object WindowFramePacing {
 
+    /** The app's own category ids, translated to the platform's View.REQUESTED_FRAME_RATE_CATEGORY_* values. */
     const val FRAME_RATE_CATEGORY_HIGH = 4
     const val FRAME_RATE_CATEGORY_NORMAL = 2
     const val FRAME_RATE_CATEGORY_LOW = 1

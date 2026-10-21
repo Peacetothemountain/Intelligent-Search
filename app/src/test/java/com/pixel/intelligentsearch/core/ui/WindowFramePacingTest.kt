@@ -9,7 +9,8 @@ class WindowFramePacingTest {
 
     @Test
     fun testFrameRateCategoryConstants() {
-        // Must match View.REQUESTED_FRAME_RATE_CATEGORY_* on API 35+.
+        // The app's own category ids, which WindowFramePacing translates to View.REQUESTED_FRAME_RATE_CATEGORY_*
+        // on API 35+; they are not the platform's values.
         assertEquals(4, WindowFramePacing.FRAME_RATE_CATEGORY_HIGH)
         assertEquals(2, WindowFramePacing.FRAME_RATE_CATEGORY_NORMAL)
         assertEquals(1, WindowFramePacing.FRAME_RATE_CATEGORY_LOW)

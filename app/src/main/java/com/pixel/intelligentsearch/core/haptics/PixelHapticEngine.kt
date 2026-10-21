@@ -85,18 +85,7 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
         return primitives.all { isPrimitiveSupported(it) }
     }
 
-    /**
-     * Perform high-fidelity tactile feedback with dynamic amplitude scaling and velocity coupling.
-     *
-     * @param view Optional View for system haptic feedback fallback.
-     * @param type Semantic tactile profile to execute.
-     * @param amplitudeScale Dynamic scaling factor [0.0f .. 1.0f] to modulate waveform intensity.
-     * @param velocity Optional gesture velocity (px/sec) to couple mechanical impedance.
-     */
-    /**
-     * Perform high-fidelity tactile feedback with dynamic amplitude scaling and velocity coupling.
-     * Standardized to the subtle predictive back vibration across the entire application.
-     */
+    /** [performHaptic] without a view for the system haptic feedback fallback. */
     fun performHaptic(
         type: PixelHapticType,
         amplitudeScale: Float = 1.0f,
@@ -105,6 +94,14 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
         performHaptic(view = null, type = type, amplitudeScale = amplitudeScale, velocity = velocity)
     }
 
+    /**
+     * Perform high-fidelity tactile feedback with dynamic amplitude scaling and velocity coupling.
+     *
+     * @param view Optional View for system haptic feedback fallback.
+     * @param type Semantic tactile profile to execute.
+     * @param amplitudeScale Dynamic scaling factor [0.0f .. 1.0f] to modulate waveform intensity.
+     * @param velocity Optional gesture velocity (px/sec) to couple mechanical impedance.
+     */
     fun performHaptic(
         view: View? = null,
         type: PixelHapticType = PixelHapticType.LOW_TICK,

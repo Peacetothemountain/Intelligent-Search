@@ -15,11 +15,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 
 /**
- * Unified Tactile & Sonic Sensory Coordinator
- *
- * Orchestrates linear resonant actuator (LRA) hardware primitive waveforms
- * with ultra-low-latency procedural acoustic micro-feedback for an authentic
- * mechanical physical sensation.
+ * The app's haptic feedback by occasion: clicks, ticks, scroll detents, toggles, app launches and the like. Each call
+ * checks the Vibration setting and plays its [PixelHapticEngine] waveform. It is haptics only; nothing is played as
+ * sound.
  */
 @Singleton
 class TactileSonicEngine @Inject constructor(

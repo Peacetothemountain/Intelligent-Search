@@ -19,6 +19,7 @@ import android.app.SearchManager
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.appwidget.AppWidgetProviderInfo
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -36,6 +37,7 @@ import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Modernized AppWidgetProvider for Intelligent Search.
@@ -226,7 +228,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
                     // Android 15+ (API 35) / Android 16 / Android 17 (Canary ZP11 / API 37)
                     // Push dynamic personalized previews to system widget picker
-                    updateWidgetPickerPreviews(appContext, appWidgetManager, prefs, isDark, widgetColors)
+                    if (Build.VERSION.SDK_INT >= 35) {
+                        updateWidgetPickerPreviews(appContext, prefs, isDark, widgetColors) { provider, preview ->
+                            appWidgetManager.setWidgetPreview(provider, AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN, preview)
+                        }
+                    }
                 } catch (e: Throwable) {
                     Log.e(TAG, "Failed to update all widgets asynchronously", e)
                 } finally {
@@ -236,62 +242,63 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         /**
-         * Android 15+ (API 35+) dynamic widget preview pushing.
-         * Updates the system widget picker with personalized RemoteViews representing current user styling.
+         * What each widget's picker preview was drawn from when the picker last took it, by provider class name. Kept
+         * in memory only, so a new process (after an app update, say) pushes the previews once more.
          */
-        private fun updateWidgetPickerPreviews(
+        internal val publishedPreviews = ConcurrentHashMap<String, List<Any?>>()
+
+        /**
+         * Gives the Android 15+ widget picker a preview of each widget as the user has styled it. The picker takes
+         * only a few previews an hour and refuses the rest, so a widget's preview is pushed only when what it's drawn
+         * from has changed since the picker last took one, and a refused one is pushed again on the next redraw.
+         * [publish] hands a preview to the picker and says whether it was taken.
+         */
+        internal fun updateWidgetPickerPreviews(
             context: Context,
-            appWidgetManager: AppWidgetManager,
             prefs: SharedPreferences,
             isDark: Boolean,
-            widgetColors: DynamicThemeDetector.ResolvedWidgetColors
+            widgetColors: DynamicThemeDetector.ResolvedWidgetColors,
+            publish: (ComponentName, RemoteViews) -> Boolean
         ) {
-            if (Build.VERSION.SDK_INT >= 35) {
+            for (design in WidgetDesign.entries) {
+                val isMaterialYou = design == WidgetDesign.MATERIAL
+                val provider = if (isMaterialYou) SearchWidgetMaterialProvider::class.java else SearchWidgetProvider::class.java
                 try {
-                    val systemConfig = resolveWidgetConfig(
-                        context = context,
-                        prefs = prefs,
-                        isMaterialYou = false,
-                        isDark = isDark,
-                        widgetColors = widgetColors
-                    )
-                    val systemPreview = buildRemoteViews(
+                    val inputs = previewInputs(context, prefs, design, isDark, widgetColors)
+                    if (publishedPreviews[provider.name] == inputs) continue
+                    val preview = buildRemoteViews(
                         context = context,
                         appWidgetId = 0,
                         prefs = prefs,
-                        maxShortcuts = 3,
-                        config = systemConfig
+                        maxShortcuts = if (isMaterialYou) 2 else 3,
+                        config = resolveWidgetConfig(context, prefs, isMaterialYou, isDark, widgetColors)
                     )
-                    appWidgetManager.setWidgetPreview(
-                        android.content.ComponentName(context, SearchWidgetProvider::class.java),
-                        AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN,
-                        systemPreview
-                    )
-
-                    val materialConfig = resolveWidgetConfig(
-                        context = context,
-                        prefs = prefs,
-                        isMaterialYou = true,
-                        isDark = isDark,
-                        widgetColors = widgetColors
-                    )
-                    val materialPreview = buildRemoteViews(
-                        context = context,
-                        appWidgetId = 0,
-                        prefs = prefs,
-                        maxShortcuts = 2,
-                        config = materialConfig
-                    )
-                    appWidgetManager.setWidgetPreview(
-                        android.content.ComponentName(context, SearchWidgetMaterialProvider::class.java),
-                        AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN,
-                        materialPreview
-                    )
+                    if (publish(ComponentName(context, provider), preview)) {
+                        publishedPreviews[provider.name] = inputs
+                    } else {
+                        Log.w(TAG, "The widget picker refused the ${provider.simpleName} preview (rate limited); pushing it again next redraw")
+                    }
                 } catch (e: Throwable) {
-                    Log.w(TAG, "Dynamic widget preview update skipped or rate-limited", e)
+                    Log.w(TAG, "Couldn't update the ${provider.simpleName} widget picker preview", e)
                 }
             }
         }
+
+        /** Everything a picker preview of [design] is drawn from, so an unchanged widget isn't pushed again. */
+        private fun previewInputs(
+            context: Context,
+            prefs: SharedPreferences,
+            design: WidgetDesign,
+            isDark: Boolean,
+            widgetColors: DynamicThemeDetector.ResolvedWidgetColors
+        ): List<Any?> = listOf(
+            WidgetSettingsStore(prefs).load(design, WidgetDefaults(widgetColors.primary, widgetColors.isDynamicActive)),
+            isDark,
+            widgetColors,
+            context.resources.displayMetrics.densityDpi,
+            // A shortcut set to open an app or a website is described by that app or site.
+            prefs.all.filterKeys { it.endsWith("_custom_type") || it.endsWith("_custom_value") }
+        )
 
         fun updateWidgetsAsync(
             context: Context,

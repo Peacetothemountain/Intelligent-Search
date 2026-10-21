@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.UserManager
 import android.util.Log
+import androidx.core.content.edit
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.datastore.preferences.preferencesDataStoreFile
@@ -125,7 +126,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val BACKGROUND_BLUR = IntSetting("search.background.blur", 50, 0..100, "background.blur")
         val SHOW_WALLPAPER = BooleanSetting("search.background.show.wall", true, "show_wallpaper", "show.wallpaper")
         val BACKGROUND_TRANSPARENCY = IntSetting("search.background.transparency", 50, 0..100, "background.transparency")
-        val PILL_OPACITY = IntSetting("search.pill.opacity", 50, 0..100, "pill.opacity")
+        /** The search pill's opacity in percent; see [PILL_OPACITY_LINEAR_KEY] for what older versions stored. */
+        val PILL_OPACITY = IntSetting("search.pill.opacity", 100, 0..100, "pill.opacity")
         val SEARCH_ENGINE = StringSetting("search.engine", "Google")
         val CUSTOM_SEARCH_ENGINE_URL = StringSetting("custom_search_engine_url", "")
         val CUSTOM_SEARCH_ENGINE_NAME = StringSetting("custom_search_engine_name", "Custom")
@@ -227,6 +229,16 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
 
         /** Settings keys retired with their features; removed by the migration. */
         private val RETIRED_NAMES = listOf("search_sections_config_json", "datastore_migration_v1_completed")
+
+        /**
+         * Set once [PILL_OPACITY] holds the pill's real opacity. Older versions drew their default, 50, fully
+         * opaque, so a store (or backup) without this flag reads 50 as 100. Backups carry it, so a restore can
+         * tell which kind of value a file holds; restores never write it.
+         */
+        const val PILL_OPACITY_LINEAR_KEY = "pill_opacity_linear_v1"
+
+        /** A [PILL_OPACITY] value saved before [PILL_OPACITY_LINEAR_KEY], as the pill's real opacity. */
+        fun pillOpacityFromOldScale(stored: Int): Int = if (stored == 50) 100 else stored
     }
 
     /**
@@ -378,11 +390,17 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
     /**
      * One-time move to the single store (run after the user is unlocked): imports values only the old
      * DataStore copy still held, folds every legacy spelling into its canonical name, normalizes the theme,
-     * drops retired keys, and deletes the DataStore file. Safe to call repeatedly.
+     * drops retired keys, and deletes the DataStore file. Then moves the pill opacity to its linear meaning (see
+     * [migratePillOpacity]). Safe to call repeatedly.
      */
     suspend fun migrateToSingleStore() = withContext(Dispatchers.IO) {
         val sp = prefs
-        if (sp.getInt(STORAGE_VERSION_KEY, 0) >= CURRENT_STORAGE_VERSION) return@withContext
+        if (sp.getInt(STORAGE_VERSION_KEY, 0) < CURRENT_STORAGE_VERSION && !foldIntoSingleStore(sp)) return@withContext
+        migratePillOpacity(sp)
+    }
+
+    /** The single-store move itself; false if it couldn't be saved, so it runs again at the next start. */
+    private suspend fun foldIntoSingleStore(sp: SharedPreferences): Boolean {
         val editor = sp.edit()
         importLegacyDataStore(sp, editor)
         for (key in ALL) {
@@ -398,8 +416,21 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         editor.putInt(STORAGE_VERSION_KEY, CURRENT_STORAGE_VERSION)
         // The old store may hold the only copy of what was imported: keep it until the import is on disk, and the
         // migration runs again at the next start.
-        if (!editor.commit()) return@withContext
+        if (!editor.commit()) return false
         runCatching { context.preferencesDataStoreFile(LEGACY_DATASTORE_NAME).delete() }
+        return true
+    }
+
+    /**
+     * Once per install: older versions drew a pill opacity of 50 (their default) fully opaque, so a stored 50 becomes
+     * 100 and the pill looks the same after the update. Any other value already meant its own opacity.
+     */
+    private fun migratePillOpacity(sp: SharedPreferences) {
+        if (sp.getBoolean(PILL_OPACITY_LINEAR_KEY, false)) return
+        sp.edit {
+            if (PILL_OPACITY.allNames.any(sp::contains)) put(PILL_OPACITY, pillOpacityFromOldScale(sp[PILL_OPACITY]))
+            putBoolean(PILL_OPACITY_LINEAR_KEY, true)
+        }
     }
 
     /**

@@ -74,6 +74,9 @@ internal fun ghostText(typed: String, bestMatchName: String?): androidx.compose.
     }
 }
 
+/** The search pill's alpha for the Search Pill Opacity setting: [opacity] percent, so a higher setting is never more see-through. */
+internal fun pillAlpha(opacity: Int): Float = (opacity / 100f).coerceIn(0f, 1f)
+
 /** The overlay's search bar: the text field, its ghost text, the pills around it and the engine chip. */
 @Composable
 internal fun OverlaySearchBar(s: OverlayScope) {
@@ -166,7 +169,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                 // interior, light tone pooling along the bottom edge, ambient rim glow, bottom bevel
                 .materialYouGeminiPlate(
                     cornerRadius = searchBarCornerRadius,
-                    alpha = if (settingsState.pillOpacity == 50) 1f else (settingsState.pillOpacity / 100f).coerceIn(0f, 1f)
+                    alpha = pillAlpha(settingsState.pillOpacity)
                 )
                 .listeningGlow(active = voice.active, level = { voice.level }, cornerRadius = searchBarCornerRadius)
                 .clickable(

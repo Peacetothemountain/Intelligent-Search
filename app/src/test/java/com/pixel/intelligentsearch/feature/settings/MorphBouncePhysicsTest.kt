@@ -243,6 +243,47 @@ class MorphBouncePhysicsTest {
     }
 
     @Test
+    fun aKnockNeverPushesAShapeComingInBackUnderTheCard() {
+        val physics = quietWorld(2)
+        val coming = physics.spawn(bounces = 3, slot = 0, slots = 1)!!
+        val below = physics.spawn(bounces = 3, slot = 0, slots = 1)!!
+        // A shape just in the area, rising fast, right under one that is still coming in.
+        coming.x = 2f; coming.y = -coming.radius; coming.vx = 0f; coming.vy = 0.5f
+        below.x = 2f; below.y = below.radius + 0.01f; below.vx = 0f; below.vy = -4f
+        var highest = coming.y
+        run(physics, 0.5f, onFrame = { highest = minOf(highest, coming.y) })
+        assertTrue("pushed up to ${highest + coming.radius} m above where it came in", highest >= -coming.radius - 1e-3f)
+    }
+
+    @Test
+    fun whenTheAreaShrinksEveryShapeIsKeptInsideIt() {
+        for (seed in 1..20) {
+            val physics = world(seed)
+            run(physics, 2f)
+            assertTrue("seed $seed: no shapes in the air", physics.bodies.isNotEmpty())
+            // As when the phone turns to landscape or the text grows while the page is open.
+            physics.resize(4.11f, 0.9f, listOf(0.085f, 0.10f, 0.115f, 0.13f))
+            for (b in physics.bodies) {
+                assertTrue("seed $seed: shape ${b.id} too big for the area", b.radius <= physics.height * MorphBouncePhysics.MAX_RADIUS_SHARE)
+                assertTrue("seed $seed: shape ${b.id} at ${b.y} under a ${physics.height} m floor", b.y + b.radius <= physics.height + 1e-4f)
+                if (!b.exiting) assertTrue("seed $seed: shape ${b.id} at ${b.x}", b.x >= b.radius - 1e-4f && b.x <= physics.width - b.radius + 1e-4f)
+            }
+            // Every bounce after it, the first included, is a real one: felt as a tap.
+            val bouncesBefore = physics.bodies.associateWith { it.bounces }
+            val seen = physics.bodies.toMutableSet()
+            var felt = 0
+            run(physics, 10f, onFrame = {
+                seen += physics.bodies
+                for (b in physics.bodies) {
+                    assertTrue("seed $seed: shape ${b.id} ${b.penetration} m into the bed", b.penetration < 0.3f)
+                    if (b.entered) assertTrue("seed $seed: shape ${b.id} rose to ${b.y - b.radius}", b.y - b.radius >= -1e-3f)
+                }
+            }, listener = { _, _ -> felt++ })
+            assertEquals("seed $seed: bounces felt", seen.sumOf { it.bounces - (bouncesBefore[it] ?: 0) }, felt)
+        }
+    }
+
+    @Test
     fun aRestitutionOfPoint75KeepsThreeQuartersOfTheImpactSpeed() {
         val physics = MorphBouncePhysics(Random(1)).apply { resize(4f, 2f, listOf(0.1f)) }
         val body = MorphBouncePhysics.Body(0, 0.1f, 0.06f, 0.75f, 1).apply { x = 2f; y = 1.9f - 0.0001f; vy = 6f }

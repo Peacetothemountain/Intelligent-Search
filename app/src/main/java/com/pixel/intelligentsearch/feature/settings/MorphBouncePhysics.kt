@@ -11,8 +11,8 @@ import kotlin.random.Random
  * The physics behind the Material Morph animation: shapes that drop in from under the bottom card, bounce on the
  * bottom edge of the screen as if it were a trampoline, change shape on every bounce and leave by the sides.
  *
- * The scene is simulated in metres, drawn at one dp per centimetre, so a 20 dp shape behaves like a light
- * inflatable ball 20 cm across:
+ * The scene is simulated in metres, drawn at one dp per centimetre (smaller in an area too short for that, see
+ * [morphSceneFor]), so a 20 dp shape behaves like a light inflatable ball 20 cm across:
  * - gravity is real gravity, 9.81 m/s²;
  * - air resistance grows with the square of speed (drag coefficient of a sphere, density of air), so shapes have a
  *   natural top speed and slow down sideways as they fly;
@@ -91,8 +91,13 @@ internal class MorphBouncePhysics(
     private var idleTimer = 0f
     private var accumulator = 0f
 
-    /** Sizes the area, in metres. The first call starts the opening wave. */
+    /**
+     * Sizes the area, in metres. The first call starts the opening wave. A later one (the phone turned, or the text
+     * grew while the page is open) keeps the shapes in the air inside the new area: one now under the floor is thrown
+     * back up from it, one past a side wall is set against it, and one too big for the area leaves.
+     */
     fun resize(widthMetres: Float, heightMetres: Float, radiiMetres: List<Float>) {
+        if (widthMetres == width && heightMetres == height && radiiMetres == radii) return
         val first = width == 0f
         width = widthMetres
         height = heightMetres
@@ -102,6 +107,20 @@ internal class MorphBouncePhysics(
             waveSlots = (0 until pendingWave).shuffled(random)
             waveTimer = 0f
             idleTimer = IDLE_FIRST_DELAY
+        }
+        bodies.removeAll { it.radius > height * MAX_RADIUS_SHARE }
+        for (body in bodies) {
+            if (body.y > height - body.radius) {
+                // The bed throws it straight back up, like any bounce, so it never lands softly from nowhere.
+                body.y = height - body.radius
+                body.vy = -minimumRebound(body)
+                body.penetration = 0f
+                body.inContact = false
+                body.contactTime = 0f
+                body.sinceLift = 0f
+            }
+            if (!body.exiting) body.x = body.x.clampSafely(body.radius, width - body.radius)
+            capRise(body)
         }
     }
 
@@ -150,8 +169,12 @@ internal class MorphBouncePhysics(
                 val share = overlap / (inverseA + inverseB)
                 a.x -= nx * share * inverseA; a.y -= ny * share * inverseA
                 b.x += nx * share * inverseB; b.y += ny * share * inverseB
-                // The push never lifts a shape that was inside the area out of it.
-                for (body in arrayOf(a, b)) if (body.entered && body.y - body.radius < 0f) body.y = body.radius
+                // The push never lifts a shape that was inside the area out of it, nor one still coming in back
+                // under the card.
+                for (body in arrayOf(a, b)) {
+                    if (body.entered && body.y - body.radius < 0f) body.y = body.radius
+                    if (!body.entered && body.y < -body.radius) body.y = -body.radius
+                }
                 val approach = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny
                 if (approach >= 0f) continue
                 val e = (a.restitution + b.restitution) / 2f
@@ -218,7 +241,7 @@ internal class MorphBouncePhysics(
     /** Drops a new shape in from just under the bottom card, aimed to leave after [bounces] bounces. */
     internal fun spawn(bounces: Int, slot: Int?, slots: Int): Body? {
         if (bodies.size >= maxBodies || radii.isEmpty()) return null
-        val radius = radii[nextId % radii.size].coerceAtMost(height * 0.3f)
+        val radius = radii[nextId % radii.size].coerceAtMost(height * MAX_RADIUS_SHARE)
         // Light inflatable shells: mass grows with surface area.
         val mass = BASE_MASS * (radius / 0.1f) * (radius / 0.1f)
         val body = Body(
@@ -407,6 +430,8 @@ internal class MorphBouncePhysics(
         /** The brightening on a bounce fades over roughly a fifth of a second. */
         const val GLOW_TIME_CONSTANT = 0.12f
         const val TOP_MARGIN = 0.02f
+        /** No shape's radius is more than this share of the area's height. */
+        const val MAX_RADIUS_SHARE = 0.3f
         const val STEP = 1f / 240f
         const val MAX_FRAME = 1f / 20f
         const val WAVE_GAP_MIN = 0.14f

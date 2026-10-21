@@ -32,6 +32,7 @@ import android.view.View
 import android.widget.RemoteViews
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
+import com.pixel.intelligentsearch.core.theme.SearchIconColors
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -338,9 +339,10 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val showGIcon: Boolean,
             /** Whether the G is Google's four-colour one: the System G style, or the Custom style with Keep System G. */
             val useOriginalG: Boolean,
+            /** The Accented G style's G, mic, shortcuts and circle icon. */
             val themePColor: Int,
-            val themeSColor: Int,
-            val themeTColor: Int,
+            /** What the Material G style's icons are worked out from, the search overlay's way ([SearchIconColors]). */
+            val iconAccents: SearchIconColors.Accents,
             val effectiveIconTheme: String,
             val actionIconStr: String,
             val allActiveItems: List<ActiveShortcutItem>,
@@ -489,13 +491,10 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     else -> !isDark
                 }
 
-                val (themePColor, themeSColor, themeTColor) = if (customBar != null) {
-                    Triple(customBar.accent, customBar.secondary, customBar.tertiary)
-                } else {
-                    // The theme's accents for the pill's shade: the Light and Dark pills keep it whatever the theme.
-                    val accents = if (isPillLight == !isDark) widgetColors else DynamicThemeDetector.resolveWidgetColors(context, !isPillLight)
-                    Triple(accents.primary, accents.secondary, accents.tertiary)
-                }
+                // The theme's accent for the pill's shade: the Light and Dark pills keep it whatever the theme.
+                val themePColor = customBar?.accent
+                    ?: (if (isPillLight == !isDark) widgetColors else DynamicThemeDetector.resolveWidgetColors(context, !isPillLight)).primary
+                val iconAccents = WidgetColorRules.materialIconAccents(settings, isPillLight) { SearchIconColors.themeAccents(context, it) }
 
                 val useMaterialYouIcons = WidgetColorRules.usesMaterialYouIcons(false, effectiveIconTheme, isPillLight, settings.subtheme)
                 val micIcon = if (useMaterialYouIcons) R.drawable.ic_mic else R.drawable.ic_mic_original
@@ -512,8 +511,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     showGIcon = settings.showGIcon,
                     useOriginalG = useOriginalG,
                     themePColor = themePColor,
-                    themeSColor = themeSColor,
-                    themeTColor = themeTColor,
+                    iconAccents = iconAccents,
                     effectiveIconTheme = effectiveIconTheme,
                     actionIconStr = "None",
                     allActiveItems = activeItems(context, settings, micIcon, useMaterialYouIcons),
@@ -554,17 +552,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
                 val isPillLight = customBar?.darkIcons ?: (!isDark && !lockBlack)
 
-                // The Custom subtheme's icons already keep their contrast on the pill; the theme's are darkened on a
+                // The Custom subtheme's accent already keeps its contrast on the pill; the theme's is darkened on a
                 // light one.
-                val (themePColor, themeSColor, themeTColor) = if (customBar != null) {
-                    Triple(customBar.accent, customBar.secondary, customBar.tertiary)
-                } else {
-                    Triple(
-                        WidgetColorRules.iconColor(effectiveWidgetColors.primary, true, lockBlack, isPillLight, targetTone = 32.0),
-                        WidgetColorRules.iconColor(effectiveWidgetColors.secondary, true, lockBlack, isPillLight, targetTone = 34.0),
-                        WidgetColorRules.iconColor(effectiveWidgetColors.tertiary, true, lockBlack, isPillLight, targetTone = 32.0)
-                    )
-                }
+                val themePColor = customBar?.accent
+                    ?: WidgetColorRules.iconColor(effectiveWidgetColors.primary, true, lockBlack, isPillLight, targetTone = 32.0)
+                val iconAccents = WidgetColorRules.materialIconAccents(settings, isPillLight) { SearchIconColors.themeAccents(context, it) }
 
                 WidgetDesignConfig(
                     isMaterialYou = true,
@@ -577,8 +569,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     showGIcon = settings.showGIcon,
                     useOriginalG = useOriginalG,
                     themePColor = themePColor,
-                    themeSColor = themeSColor,
-                    themeTColor = themeTColor,
+                    iconAccents = iconAccents,
                     effectiveIconTheme = effectiveIconTheme,
                     actionIconStr = settings.actionIcon,
                     allActiveItems = activeItems(context, settings, R.drawable.ic_mic, useMaterialYouIcons = true),
@@ -683,9 +674,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             views.setInt(targetViewId, "setImageAlpha", 255)
                         }
                         "Material G Icon" -> {
-                            val themedBitmap = createThemedShortcutBitmap(
-                                context, item.iconRes, config.themePColor, config.themeSColor, config.isPillLight, config.customBar?.iconTiers
-                            )
+                            val a = config.iconAccents
+                            val themedBitmap = createThemedShortcutBitmap(context, item.iconRes, a.primary, a.secondary, config.isPillLight, a.tertiary)
                             if (themedBitmap != null) {
                                 views.setImageViewBitmap(targetViewId, themedBitmap)
                                 views.setColorStateList(targetViewId, "setImageTintList", null)
@@ -802,9 +792,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", ColorStateList.valueOf(config.themePColor))
                     }
                     "Material G Icon" -> {
-                        val themedBitmap = createThemedActionIconBitmap(
-                            context, circleActionIconRes, config.themePColor, config.themeSColor, config.isPillLight, config.customBar?.iconTiers
-                        )
+                        val a = config.iconAccents
+                        val themedBitmap = createThemedActionIconBitmap(context, circleActionIconRes, a.primary, a.secondary, config.isPillLight, a.tertiary)
                         if (themedBitmap != null) {
                             views.setImageViewBitmap(R.id.widget_sound_icon, themedBitmap)
                             views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", null)
@@ -929,7 +918,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo_colored)
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
             } else if (materialGIconTheme == "Material G Icon") {
-                val gBitmap = createCustomMaterialGBitmap(pColor, config.themeSColor, config.themeTColor, isPillLight, context, config.customBar?.gPalette)
+                val a = config.iconAccents
+                val gBitmap = createCustomMaterialGBitmap(a.primary, a.secondary, a.tertiary, isPillLight, context)
                 if (gBitmap != null) {
                     views.setImageViewBitmap(R.id.widget_g_logo, gBitmap)
                     views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)

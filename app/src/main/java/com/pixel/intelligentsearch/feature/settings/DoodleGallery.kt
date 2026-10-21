@@ -466,15 +466,10 @@ private fun DoodleWidgetMock(occasion: Occasion, scale: Float, light: Boolean, f
     val alpha = 0.72f
     val rim = scheme.primaryContainer.copy(alpha = alpha)
     val pill = if (light) scheme.surfaceContainer.copy(alpha = alpha) else Color(0xFF121212)
+    // The widget's Material icons are the search overlay's, worked out from the overlay's accents for the pill's shade.
     val (gPrimary, gSecondary, gTertiary) = remember(context, light) {
-        val widget = com.pixel.intelligentsearch.core.theme.DynamicThemeDetector.resolveWidgetColors(context, !light)
-        val helper = com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
-        // On a light pill the widget darkens its colours to stay readable.
-        listOf(
-            if (light) helper.darkenForContrast(widget.primary, 32.0) else widget.primary,
-            if (light) helper.darkenForContrast(widget.secondary, 34.0) else widget.secondary,
-            if (light) helper.darkenForContrast(widget.tertiary, 32.0) else widget.tertiary
-        ).map { Color(it) }
+        val accents = com.pixel.intelligentsearch.core.theme.SearchIconColors.themeAccents(context, light)
+        listOf(accents.primary, accents.secondary, accents.tertiary).map { Color(it) }
     }
     Row(
         modifier = modifier

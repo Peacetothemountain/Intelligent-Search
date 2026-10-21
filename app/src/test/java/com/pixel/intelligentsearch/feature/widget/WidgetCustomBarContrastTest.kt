@@ -12,9 +12,10 @@ import org.robolectric.RobolectricTestRunner
 
 /**
  * Across the whole range of the Custom subtheme's Hue, Saturation and Lightness sliders, on both designs and with the
- * Material pill locked black or not, every colour an icon is drawn in keeps at least 3:1 contrast with the pill it sits
- * on: the accent (Accented G style), the plain icons (System G style) and every part of the Material G style's G and
- * icons. The icons go dark exactly where the pill counts as light.
+ * Material pill locked black or not, every colour the Accented and System G styles draw an icon in keeps at least 3:1
+ * contrast with the pill it sits on: the accent (Accented G style) and the plain icons (System G style). The icons go
+ * dark exactly where the pill counts as light. (The Material G style's icons are the search overlay's, in the
+ * overlay's colours: see WidgetMaterialIconsMatchOverlayTest.)
  */
 @RunWith(RobolectricTestRunner::class)
 class WidgetCustomBarContrastTest {
@@ -39,14 +40,7 @@ class WidgetCustomBarContrastTest {
                 assertEquals("$label background", pill, bar.background)
                 val icons = mapOf(
                     "accent" to bar.accent,
-                    "plain icon" to bar.plainIcon,
-                    "G right arc" to bar.gPalette.rightArcAndBar,
-                    "G bottom arc" to bar.gPalette.bottomArc,
-                    "G left arc" to bar.gPalette.leftArc,
-                    "G top arc" to bar.gPalette.topArc,
-                    "icon first tone" to bar.iconTiers.primaryDarker,
-                    "icon second tone" to bar.iconTiers.secondLighter,
-                    "icon third tone" to bar.iconTiers.thirdLighter
+                    "plain icon" to bar.plainIcon
                 )
                 val pillTone = Hct.fromInt(pill).tone
                 for ((what, icon) in icons) {

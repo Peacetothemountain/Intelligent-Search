@@ -24,8 +24,11 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.R
-import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
+import com.pixel.intelligentsearch.core.theme.SearchIconColors
 import com.pixel.intelligentsearch.core.occasion.Occasion
+import com.pixel.intelligentsearch.feature.search.SearchIconPaths
+import com.pixel.intelligentsearch.feature.search.SearchLensDrawing
+import com.pixel.intelligentsearch.feature.search.SparkleMicDrawing
 
 internal val PACKAGE_NAME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$")
 
@@ -44,10 +47,10 @@ internal fun isValidShortcutUrl(raw: String): Boolean {
     return host.contains('.') && !host.startsWith('.') && !host.endsWith('.')
 }
 
-private val searchActionPath1 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10.5,4 A 6.5,6.5 0 0 0 4,10.5 A 6.5,6.5 0 0 0 10.5,17 A 6.5,6.5 0 0 0 15,15").toPath() }
-private val searchActionPath2 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 14,5 A 6.5,6.5 0 0 0 10.5,4 A 6.5,6.5 0 0 0 5,7.5").toPath() }
-private val searchActionPath3 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 15.5,15.5 L 20,20").toPath() }
-private val searchActionPath4 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 18,0.5 C 18,4 21,6.5 24,6.5 C 21,6.5 18,9 18,12.5 C 18,9 15,6.5 12,6.5 C 15,6.5 18,4 18,0.5 Z").toPath() }
+private val searchActionPath1 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString(SearchIconPaths.LENS_RIM).toPath() }
+private val searchActionPath2 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString(SearchIconPaths.LENS_TOP).toPath() }
+private val searchActionPath3 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString(SearchIconPaths.LENS_HANDLE).toPath() }
+private val searchActionPath4 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString(SearchIconPaths.LENS_SPARKLE).toPath() }
 
 private val assistantActionPath1 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M11.5,9.5 L9.0,4.0 L6.5,9.5 L1.0,12.0 l5.5,2.5 L9.0,20.0 l2.5,-5.5 L17.0,12.0 l-5.5,-2.5 Z").toPath() }
 private val assistantActionPath2 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M19.0,9.0 l1.25,-2.75 L23.0,5.0 l-2.75,-1.25 L19.0,1.0 l-1.25,2.75 L15.0,5.0 l2.75,1.25 L19.0,9.0 Z").toPath() }
@@ -58,6 +61,27 @@ private val nowPlayingActionPath2 by lazy { androidx.compose.ui.graphics.vector.
 private val nowPlayingActionPath3 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10,7 L 10,16").toPath() }
 private val nowPlayingActionPath4 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 11.6,16.5 C 11.6,19.26 9.36,21.5 6.6,21.5 C 3.84,21.5 1.6,19.26 1.6,16.5 C 1.6,13.74 3.84,11.5 6.6,11.5 C 8.6,11.5 10.3,12.7 11.1,14.4 Z").toPath() }
 
+/** The search overlay's icon colours ([SearchIconColors]) from [primary], [secondary] and [tertiary] on a light or dark pill. */
+@Composable
+private fun rememberSearchIconColors(primary: Color, secondary: Color, tertiary: Color, isPillLight: Boolean): SearchIconColors =
+    remember(primary, secondary, tertiary, isPillLight) {
+        SearchIconColors.of(SearchIconColors.Accents(primary.toArgb(), secondary.toArgb(), tertiary.toArgb()), isPillLight)
+    }
+
+/** The search overlay's lens in its colours. */
+@Composable
+private fun OverlayLens(colors: SearchIconColors, modifier: Modifier) = SearchLensDrawing(
+    rim = Color(colors.lensRim), top = Color(colors.lensTop), handle = Color(colors.lensHandle),
+    sparkle = Color(colors.lensSparkle), modifier = modifier
+)
+
+/** The search overlay's sparkle mic in its colours. */
+@Composable
+private fun OverlaySparkleMic(colors: SearchIconColors, modifier: Modifier) = SparkleMicDrawing(
+    capsule = Color(colors.micCapsule), stem = Color(colors.micStem), leftCradle = Color(colors.micLeftCradle),
+    rightCradle = Color(colors.micRightCradle), sparkle = Color(colors.micSparkle), modifier = modifier
+)
+
 @Composable
 fun ComposeActionIcon(
     iconType: String,
@@ -67,49 +91,42 @@ fun ComposeActionIcon(
     tertiaryColor: androidx.compose.ui.graphics.Color,
     quaternaryColor: androidx.compose.ui.graphics.Color = primaryColor,
     isMaterialTheme: Boolean = false,
-    isPillLight: Boolean = false,
-    /** The Custom subtheme's three tones; without them they're worked out from the colours above. */
-    tiers: MaterialYouPaletteHelper.ThreeTierAccentedPalette? = null
+    isPillLight: Boolean = false
 ) {
-    val palette = remember(primaryColor, secondaryColor, isPillLight, tiers) {
-        tiers ?: MaterialYouPaletteHelper.getThreeTierAccentedPalette(
-            primaryColor.toArgb(),
-            secondaryColor.toArgb(),
-            isPillLight
-        )
-    }
-    val pDarker = remember(palette) { androidx.compose.ui.graphics.Color(palette.primaryDarker) }
-    val sLighter = remember(palette) { androidx.compose.ui.graphics.Color(palette.secondLighter) }
-    val tLighter = remember(palette) { androidx.compose.ui.graphics.Color(palette.thirdLighter) }
+    // The Material G style draws the search overlay's icons in the overlay's colours, from these accents.
+    val colors = rememberSearchIconColors(primaryColor, secondaryColor, tertiaryColor, isPillLight)
+    val pDarker = remember(colors) { androidx.compose.ui.graphics.Color(colors.tiers.primaryDarker) }
+    val sLighter = remember(colors) { androidx.compose.ui.graphics.Color(colors.tiers.secondLighter) }
+    val tLighter = remember(colors) { androidx.compose.ui.graphics.Color(colors.tiers.thirdLighter) }
 
+    if (isMaterialTheme && iconType == "Search") {
+        OverlayLens(colors, modifier)
+        return
+    }
     androidx.compose.foundation.Canvas(modifier = modifier) {
         val scaleX = size.width / 24f
         val scaleY = size.height / 24f
         scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
             when (iconType) {
                 "Search" -> {
-                    val rimColor = if (isMaterialTheme) tLighter else primaryColor
-                    val arc2Color = if (isMaterialTheme) tLighter else tertiaryColor
-                    val handleColor = if (isMaterialTheme) sLighter else secondaryColor
-                    val starColor = if (isMaterialTheme) pDarker else primaryColor
                     drawPath(
                         path = searchActionPath1,
-                        color = rimColor,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                        color = primaryColor,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = SearchIconPaths.LENS_RIM_WIDTH, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                     )
                     drawPath(
                         path = searchActionPath2,
-                        color = arc2Color,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                        color = tertiaryColor,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = SearchIconPaths.LENS_RIM_WIDTH, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                     )
                     drawPath(
                         path = searchActionPath3,
-                        color = handleColor,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                        color = secondaryColor,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = SearchIconPaths.LENS_HANDLE_WIDTH, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                     )
                     drawPath(
                         path = searchActionPath4,
-                        color = starColor
+                        color = primaryColor
                     )
                 }
                 "Assistant", "Gemini", "Voice" -> {
@@ -172,37 +189,16 @@ fun ComposeThemedShortcutIcon(
     isMaterialTheme: Boolean,
     modifier: Modifier = Modifier,
     quaternaryColor: androidx.compose.ui.graphics.Color = primaryColor,
-    isPillLight: Boolean = false,
-    /** The Custom subtheme's three tones; without them they're worked out from the colours above. */
-    tiers: MaterialYouPaletteHelper.ThreeTierAccentedPalette? = null
+    isPillLight: Boolean = false
 ) {
-    val palette = remember(primaryColor, secondaryColor, isPillLight, tiers) {
-        tiers ?: MaterialYouPaletteHelper.getThreeTierAccentedPalette(
-            primaryColor.toArgb(),
-            secondaryColor.toArgb(),
-            isPillLight
-        )
-    }
-    val pDarker = remember(palette) { androidx.compose.ui.graphics.Color(palette.primaryDarker) }
-    val sLighter = remember(palette) { androidx.compose.ui.graphics.Color(palette.secondLighter) }
-    val tLighter = remember(palette) { androidx.compose.ui.graphics.Color(palette.thirdLighter) }
+    // The Material G style draws the search overlay's icons in the overlay's colours, from these accents.
+    val colors = rememberSearchIconColors(primaryColor, secondaryColor, tertiaryColor, isPillLight)
+    val pDarker = remember(colors) { androidx.compose.ui.graphics.Color(colors.tiers.primaryDarker) }
+    val sLighter = remember(colors) { androidx.compose.ui.graphics.Color(colors.tiers.secondLighter) }
+    val tLighter = remember(colors) { androidx.compose.ui.graphics.Color(colors.tiers.thirdLighter) }
 
     if (isMaterialTheme && resId == com.pixel.intelligentsearch.R.drawable.ic_mic) {
-        val path1 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,15c1.66,0 2.99,-1.34 2.99,-3L15,5c0,-1.66 -1.34,-3 -3,-3S9,3.34 9,5v7c0,1.66 1.34,3 3,3z").toPath() }
-        val path2 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M11,18.92h2V22h-2z").toPath() }
-        val path3 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M7,12H5c0,1.93 0.78,3.68 2.05,4.95l1.41,-1.41C7.56,14.63 7,13.38 7,12z").toPath() }
-        val path4 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M12,17c-1.38,0 -2.63,-0.56 -3.54,-1.47l-1.41,1.41C8.32,18.21 10.07,19 12.01,19c3.87,0 6.98,-3.14 6.98,-7h-2c0,2.76 -2.23,5 -4.99,5z").toPath() }
-
-        androidx.compose.foundation.Canvas(modifier = modifier) {
-            val scaleX = size.width / 24f
-            val scaleY = size.height / 24f
-            scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
-                drawPath(path = path1, color = tLighter)
-                drawPath(path = path2, color = sLighter)
-                drawPath(path = path3, color = sLighter)
-                drawPath(path = path4, color = pDarker)
-            }
-        }
+        OverlaySparkleMic(colors, modifier)
     } else if (isMaterialTheme && resId == com.pixel.intelligentsearch.R.drawable.ic_camera) {
         val path1 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M75.0365 83.3333C79.6388 83.3333 83.3698 79.6023 83.3698 75C83.3698 70.3976 79.6388 66.6666 75.0365 66.6666C70.4341 66.6666 66.7031 70.3976 66.7031 75C66.7031 79.6023 70.4341 83.3333 75.0365 83.3333Z").toPath() }
         val path2 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M50.0364 66.6666C56.9399 66.6666 62.5364 61.0702 62.5364 54.1666C62.5364 47.2631 56.9399 41.6666 50.0364 41.6666C43.1328 41.6666 37.5364 47.2631 37.5364 54.1666C37.5364 61.0702 43.1328 66.6666 50.0364 66.6666Z").toPath() }
@@ -232,16 +228,7 @@ fun ComposeThemedShortcutIcon(
             }
         }
     } else if (isMaterialTheme && resId == com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive) {
-        androidx.compose.foundation.Canvas(modifier = modifier) {
-            val scaleX = size.width / 24f
-            val scaleY = size.height / 24f
-            scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
-                drawPath(path = searchActionPath1, color = tLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                drawPath(path = searchActionPath2, color = tLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                drawPath(path = searchActionPath3, color = sLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                drawPath(path = searchActionPath4, color = pDarker)
-            }
-        }
+        OverlayLens(colors, modifier)
     } else if (isMaterialTheme && resId == com.pixel.intelligentsearch.R.drawable.ic_music) {
         androidx.compose.foundation.Canvas(modifier = modifier) {
             val scaleX = size.width / 24f
@@ -307,9 +294,7 @@ fun ComposeGIcon(
     accentColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
     fallbackTint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
     useOriginalColors: Boolean = false,
-    isPillLight: Boolean = false,
-    /** The Custom subtheme's arcs; without them they're worked out from the colours above. */
-    customPalette: MaterialYouPaletteHelper.FourColorMaterialGPalette? = null
+    isPillLight: Boolean = false
 ) {
     if (useOriginalColors) {
         Image(
@@ -338,14 +323,8 @@ fun ComposeGIcon(
         )
         return
     }
-    val palette = remember(primaryColor, secondaryColor, tertiaryColor, isPillLight, customPalette) {
-        customPalette ?: MaterialYouPaletteHelper.getFourColorMaterialGPalette(
-            primaryColor.toArgb(),
-            secondaryColor.toArgb(),
-            tertiaryColor.toArgb(),
-            isPillLight
-        )
-    }
+    // The search overlay's lens colours, which are the Material G's.
+    val palette = rememberSearchIconColors(primaryColor, secondaryColor, tertiaryColor, isPillLight).g
     val rightColor = remember(palette) { androidx.compose.ui.graphics.Color(palette.rightArcAndBar) }
     val bottomColor = remember(palette) { androidx.compose.ui.graphics.Color(palette.bottomArc) }
     val leftColor = remember(palette) { androidx.compose.ui.graphics.Color(palette.leftArc) }

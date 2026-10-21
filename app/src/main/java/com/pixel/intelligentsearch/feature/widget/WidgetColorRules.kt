@@ -4,6 +4,7 @@ import com.google.android.material.color.utilities.Hct
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesignSettings
 import com.pixel.intelligentsearch.core.data.widget.WidgetElementColors
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
+import com.pixel.intelligentsearch.core.theme.SearchIconColors
 
 /**
  * The colour rules the widget and the widget editor's live preview share, so the preview paints what the widget
@@ -21,19 +22,15 @@ internal object WidgetColorRules {
     /** The contrast the System G style's plain icons keep with the bar: Material's high-contrast level for on-surface. */
     private const val PLAIN_CONTRAST = 11.0
 
-    /** The least contrast any part of an icon keeps with the bar: WCAG's 3:1 for icons, with room for rounding. */
-    private const val ICON_MIN_CONTRAST = 3.2
-
-    /** Chroma of the custom palette's other roles against its accent's, as Material's tonal-spot scheme relates them. */
-    private const val SECONDARY_SHARE = 0.45
-    private const val TERTIARY_SHARE = 0.65
+    /** Chroma of the System G style's plain icons against the custom colour's, as Material's tonal-spot neutrals. */
     private const val PLAIN_SHARE = 1.0 / 6.0
 
     /**
      * The Custom subtheme's whole bar, themed from one seed as Google's search bar editor themes its bar: Hue,
      * Saturation and Lightness pick the seed ([MaterialYouPaletteHelper.seedColor]), which fills the pill, the circle
-     * and the rim, and every icon takes the seed's hue and saturation at a tone that keeps its contrast with what it
-     * sits on ([background]): dark icons on a light pill and light ones on a dark pill, flipping as Material does.
+     * and the rim. The Accented and System G styles' icons take the seed's hue and saturation at a tone that keeps its
+     * contrast with what they sit on ([background]); the Material G style's are the search overlay's
+     * ([materialIconAccents]). Dark icons on a light pill and light ones on a dark pill, flipping as Material does.
      */
     data class CustomBarColors(
         /** The seed, opaque: the pill, the circle and the Material design's rim. */
@@ -42,16 +39,10 @@ internal object WidgetColorRules {
         val background: Int,
         /** Whether the icons are darker than [background] (it counts as a light pill). */
         val darkIcons: Boolean,
-        /** The Accented G style's G, mic, shortcuts and circle icon; the Material G style's anchor colour. */
+        /** The Accented G style's G, mic, shortcuts and circle icon. */
         val accent: Int,
-        val secondary: Int,
-        val tertiary: Int,
         /** The System G style's mic, shortcuts and circle icon (its G stays Google's). */
-        val plainIcon: Int,
-        /** The Material G style's G. */
-        val gPalette: MaterialYouPaletteHelper.FourColorMaterialGPalette,
-        /** The Material G style's mic, shortcuts and circle icon. */
-        val iconTiers: MaterialYouPaletteHelper.ThreeTierAccentedPalette
+        val plainIcon: Int
     )
 
     /**
@@ -66,8 +57,7 @@ internal object WidgetColorRules {
     /**
      * [settings]' Custom subtheme colours on the Material ([isMaterialDesign]) or System design. The accent keeps 7:1
      * with the pill and the plain icons 11:1 (Material's high-contrast levels for primary and on-surface; a mid-tone
-     * pill that can't reach them gets the better of white and black), and the Material G style's lighter parts step
-     * from the accent towards the pill but keep at least 3:1.
+     * pill that can't reach them gets the better of white and black).
      */
     fun customBarColors(settings: WidgetDesignSettings, isMaterialDesign: Boolean): CustomBarColors {
         val seed = settings.customColorInt or 0xFF000000.toInt()
@@ -77,37 +67,30 @@ internal object WidgetColorRules {
         val darkIcons = iconsGoDark(background)
         fun toneFor(ratio: Double) =
             MaterialYouPaletteHelper.keepContrast(if (darkIcons) 100.0 else 0.0, backgroundTone, darkIcons, ratio)
-        val accentTone = toneFor(ACCENT_CONTRAST)
-        fun stepped(by: Double) = MaterialYouPaletteHelper.keepContrast(
-            accentTone + if (darkIcons) by else -by, backgroundTone, darkIcons, ICON_MIN_CONTRAST
-        )
         val hue = settings.hue.toDouble()
         val share = (settings.saturation / 100.0).coerceIn(0.0, 1.0)
-        fun color(hueOffset: Double, shareOf: Double, tone: Double) =
-            MaterialYouPaletteHelper.colorAtShare(hue + hueOffset, share * shareOf, tone)
-
-        val accent = color(0.0, 1.0, accentTone)
         return CustomBarColors(
             seed = seed,
             background = background,
             darkIcons = darkIcons,
-            accent = accent,
-            secondary = color(0.0, SECONDARY_SHARE, accentTone),
-            tertiary = color(60.0, TERTIARY_SHARE, accentTone),
-            plainIcon = color(0.0, PLAIN_SHARE, toneFor(PLAIN_CONTRAST)),
-            gPalette = MaterialYouPaletteHelper.FourColorMaterialGPalette(
-                rightArcAndBar = accent,
-                bottomArc = color(0.0, SECONDARY_SHARE, stepped(8.0)),
-                leftArc = color(60.0, TERTIARY_SHARE, stepped(16.0)),
-                topArc = color(0.0, 0.75, stepped(24.0))
-            ),
-            iconTiers = MaterialYouPaletteHelper.ThreeTierAccentedPalette(
-                primaryDarker = accent,
-                secondLighter = color(0.0, SECONDARY_SHARE, stepped(12.0)),
-                thirdLighter = color(0.0, 0.8, stepped(24.0))
-            )
+            accent = MaterialYouPaletteHelper.colorAtShare(hue, share, toneFor(ACCENT_CONTRAST)),
+            plainIcon = MaterialYouPaletteHelper.colorAtShare(hue, share * PLAIN_SHARE, toneFor(PLAIN_CONTRAST))
         )
     }
+
+    /**
+     * The accents the Material G style's icons (its G, mic, shortcuts and circle icon) are worked out from, the search
+     * overlay's way ([SearchIconColors]), for a light ([isPillLight]) or dark pill: the theme's ([themeAccents]), or
+     * for the Custom subtheme those a wallpaper of the custom colour would give, so the icons are the overlay's in
+     * that hue.
+     */
+    fun materialIconAccents(
+        settings: WidgetDesignSettings,
+        isPillLight: Boolean,
+        themeAccents: (isLight: Boolean) -> SearchIconColors.Accents
+    ): SearchIconColors.Accents =
+        if (settings.subtheme == "Custom") SearchIconColors.seedAccents(settings.hue, settings.saturation, isPillLight)
+        else themeAccents(isPillLight)
 
     /** How opaque the bar's background is: Transparency 0 is fully opaque, 100 invisible. */
     fun backgroundAlpha(settings: WidgetDesignSettings): Float =

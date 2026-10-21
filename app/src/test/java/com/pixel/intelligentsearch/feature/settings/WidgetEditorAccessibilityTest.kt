@@ -132,6 +132,36 @@ class WidgetEditorAccessibilityTest {
     }
 
     @Test
+    fun colorStudioHueIsReadInDegrees() {
+        prefs.edit()
+            .putBoolean("widget_system_design_saved", true)
+            .putString("widget_system_subtheme", "Custom")
+            .putInt("widget_system_custom_hue", 180)
+            .commit()
+        openEditor()
+        tap("Color Studio")
+
+        // Without its own value, TalkBack read the share of 0..360: "50 percent".
+        compose.onNode(hasContentDescription("Hue") and isAdjustable)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "180°"))
+    }
+
+    @Test
+    fun customIconHueIsReadInDegrees() {
+        prefs.edit()
+            .putBoolean("widget_system_design_saved", true)
+            .putString("widget_system_material_g_icon", "Custom G Icon")
+            .putBoolean("widget_system_custom_sync_colors", true)
+            .putInt("widget_system_custom_g_icon_color", 0xFF00FFFF.toInt())
+            .commit()
+        openEditor()
+
+        // Cyan is hue 180.
+        compose.onNode(hasContentDescription("Hue") and isAdjustable)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "180°"))
+    }
+
+    @Test
     fun customIconColorControlsAreNamed() {
         prefs.edit()
             .putBoolean("widget_system_design_saved", true)

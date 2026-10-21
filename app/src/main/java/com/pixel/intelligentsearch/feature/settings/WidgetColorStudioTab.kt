@@ -35,7 +35,8 @@ internal val SLIDER_ROW_GAP = 4.dp
 /**
  * One of the widget editor's colour sliders: an icon, the [label] and [valueText] above, and the slider over an 8dp
  * [gradient] track. The slider keeps its full 48dp height, with the track centred in it, so its 36dp thumb stays
- * clear of the text above; it is named [label] for TalkBack, so the icon beside it isn't announced.
+ * clear of the text above; it is named [label] for TalkBack, so the icon beside it isn't announced, and reads
+ * [valueText] as its value ("180°" rather than a share of the range).
  */
 @Composable
 internal fun GradientSliderRow(
@@ -70,7 +71,8 @@ internal fun GradientSliderRow(
                     onValueChange = onValueChange,
                     valueRange = valueRange,
                     modifier = Modifier.fillMaxWidth(),
-                    label = label
+                    label = label,
+                    valueDescription = valueText
                 )
             }
         }

@@ -5,10 +5,12 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.SweepGradient
 import android.util.Log
 import android.util.LruCache
 import androidx.core.graphics.PathParser
+import androidx.core.graphics.createBitmap
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 
@@ -117,289 +119,117 @@ internal fun createCustomMaterialGBitmap(
     }
 }
 
+/** Works out a themed icon's three tones from the theme's colours. Tests replace it to count the calls. */
+internal var themedIconPalette: (Int, Int, Boolean) -> MaterialYouPaletteHelper.ThreeTierAccentedPalette =
+    { primary, secondary, isPillLight -> MaterialYouPaletteHelper.getThreeTierAccentedPalette(primary, secondary, isPillLight) }
+
+/** A shortcut's icon in three tones of the theme (the Material G style), or null when it has no such drawing. */
 internal fun createThemedShortcutBitmap(
     context: Context,
     resId: Int,
     pColor: Int,
     sColor: Int,
-    tColor: Int,
     isPillLight: Boolean = false
-): Bitmap? {
-    val metrics = context.resources.displayMetrics
-    val density = metrics.density
-    val densityDpi = metrics.densityDpi
-    val sizePx = (24 * density).toInt().coerceAtLeast(48)
-    val palette = MaterialYouPaletteHelper.getThreeTierAccentedPalette(pColor, sColor, isPillLight)
-    val cacheKey = "shortcut_${resId}_${palette.primaryDarker}_${palette.secondLighter}_${palette.thirdLighter}_${isPillLight}_${sizePx}_${densityDpi}"
-    bitmapCache.get(cacheKey)?.let { return it }
+): Bitmap? = renderThemedIcon(context, "shortcut", resId, pColor, sColor, isPillLight, musicStroke = 2.5f)
 
-    return try {
-        when (resId) {
-            R.drawable.ic_mic -> {
-                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-                val canvas = Canvas(bitmap)
-                val scale = sizePx / 24f
-                canvas.scale(scale, scale)
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.FILL
-                }
-
-                // Capsule is third lighter (grounded in darker accented, never white)
-                paint.color = palette.thirdLighter
-                canvas.drawPath(PATH_MIC_1, paint)
-                // Base stem is second lighter
-                paint.color = palette.secondLighter
-                canvas.drawPath(PATH_MIC_2, paint)
-                // Left cradle is second lighter
-                paint.color = palette.secondLighter
-                canvas.drawPath(PATH_MIC_3, paint)
-                // Right / bottom cradle is primary darker
-                paint.color = palette.primaryDarker
-                canvas.drawPath(PATH_MIC_4, paint)
-
-                bitmapCache.put(cacheKey, bitmap)
-                bitmap
-            }
-            R.drawable.ic_camera -> {
-                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-                val canvas = Canvas(bitmap)
-                val scale = sizePx / 100f
-                canvas.scale(scale, scale)
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.FILL
-                }
-
-                // Dot is second lighter
-                paint.color = palette.secondLighter
-                canvas.drawPath(PATH_LENS_1, paint)
-                // Center aperture is primary darker
-                paint.color = palette.primaryDarker
-                canvas.drawPath(PATH_LENS_2, paint)
-                // Outer camera brackets are third lighter (grounded in darker accented, never white)
-                paint.color = palette.thirdLighter
-                canvas.drawPath(PATH_LENS_3, paint)
-                paint.color = palette.thirdLighter
-                canvas.drawPath(PATH_LENS_4, paint)
-                paint.color = palette.thirdLighter
-                canvas.drawPath(PATH_LENS_5, paint)
-
-                bitmapCache.put(cacheKey, bitmap)
-                bitmap
-            }
-            R.drawable.ic_lens_action -> {
-                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-                val canvas = Canvas(bitmap)
-                val scale = sizePx / 24f
-                canvas.scale(scale, scale)
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.FILL
-                }
-
-                // Main center star is third lighter (grounded in darker accented, never white)
-                paint.color = palette.thirdLighter
-                canvas.drawPath(PATH_GEMINI_1, paint)
-                // Top sparkle is primary darker
-                paint.color = palette.primaryDarker
-                canvas.drawPath(PATH_GEMINI_2, paint)
-                // Side sparkle is second lighter
-                paint.color = palette.secondLighter
-                canvas.drawPath(PATH_GEMINI_3, paint)
-
-                bitmapCache.put(cacheKey, bitmap)
-                bitmap
-            }
-            R.drawable.ic_search_lens_expressive -> {
-                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-                val canvas = Canvas(bitmap)
-                val scale = sizePx / 24f
-                canvas.scale(scale, scale)
-                val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.STROKE
-                    strokeCap = Paint.Cap.ROUND
-                }
-                val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.FILL
-                }
-
-                strokePaint.strokeWidth = 2.5f
-                strokePaint.color = palette.thirdLighter
-                canvas.drawPath(PATH_SEARCH_EXPR_1, strokePaint)
-
-                strokePaint.strokeWidth = 2.5f
-                strokePaint.color = palette.thirdLighter
-                canvas.drawPath(PATH_SEARCH_EXPR_2, strokePaint)
-
-                strokePaint.strokeWidth = 3.0f
-                strokePaint.color = palette.secondLighter
-                canvas.drawPath(PATH_SEARCH_EXPR_3, strokePaint)
-
-                fillPaint.color = palette.primaryDarker
-                canvas.drawPath(PATH_SEARCH_EXPR_4, fillPaint)
-
-                bitmapCache.put(cacheKey, bitmap)
-                bitmap
-            }
-            R.drawable.ic_music -> {
-                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-                val canvas = Canvas(bitmap)
-                val scale = sizePx / 24f
-                canvas.scale(scale, scale)
-                val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.STROKE
-                    strokeCap = Paint.Cap.ROUND
-                    strokeWidth = 2.5f
-                }
-                val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.FILL
-                }
-
-                strokePaint.color = palette.thirdLighter
-                canvas.drawPath(PATH_MUSIC_1, strokePaint)
-
-                strokePaint.color = palette.secondLighter
-                canvas.drawPath(PATH_MUSIC_2, strokePaint)
-
-                strokePaint.color = palette.primaryDarker
-                canvas.drawPath(PATH_MUSIC_3, strokePaint)
-
-                fillPaint.color = palette.thirdLighter
-                canvas.drawPath(PATH_MUSIC_4, fillPaint)
-
-                bitmapCache.put(cacheKey, bitmap)
-                bitmap
-            }
-            else -> null
-        }
-    } catch (e: Throwable) {
-        Log.w(TAG, "Failed to create themed shortcut bitmap", e)
-        null
-    }
-}
-
+/** The circle button's icon, drawn as a shortcut's is but with the music note's strokes bolder. */
 internal fun createThemedActionIconBitmap(
     context: Context,
     resId: Int,
     pColor: Int,
     sColor: Int,
-    tColor: Int,
     isPillLight: Boolean = false
+): Bitmap? = renderThemedIcon(context, "action", resId, pColor, sColor, isPillLight, musicStroke = 3.2f)
+
+/**
+ * Draws [resId] in the three tones [themedIconPalette] works out, or returns null for an icon without a themed drawing
+ * (the caller tints the plain icon instead). Cached by what it's drawn from, so a redraw with nothing changed skips the
+ * palette maths; [kind] keeps the shortcut and circle button drawings apart.
+ */
+private fun renderThemedIcon(
+    context: Context,
+    kind: String,
+    resId: Int,
+    pColor: Int,
+    sColor: Int,
+    isPillLight: Boolean,
+    musicStroke: Float
 ): Bitmap? {
+    // The size of the square the icon's paths are drawn on: Lens's is 100 units, the others' 24.
+    val viewport = when (resId) {
+        R.drawable.ic_camera -> 100f
+        R.drawable.ic_mic, R.drawable.ic_lens_action, R.drawable.ic_search_lens_expressive, R.drawable.ic_music -> 24f
+        else -> return null
+    }
     val metrics = context.resources.displayMetrics
-    val density = metrics.density
     val densityDpi = metrics.densityDpi
-    val sizePx = (24 * density).toInt().coerceAtLeast(48)
-    val palette = MaterialYouPaletteHelper.getThreeTierAccentedPalette(pColor, sColor, isPillLight)
-    val cacheKey = "action_${resId}_${palette.primaryDarker}_${palette.secondLighter}_${palette.thirdLighter}_${isPillLight}_${sizePx}_${densityDpi}"
+    val sizePx = (24 * metrics.density).toInt().coerceAtLeast(48)
+    val cacheKey = "${kind}_${resId}_${pColor}_${sColor}_${isPillLight}_${musicStroke}_${sizePx}_${densityDpi}"
     bitmapCache.get(cacheKey)?.let { return it }
 
     return try {
+        val palette = themedIconPalette(pColor, sColor, isPillLight)
+        val bitmap = createBitmap(sizePx, sizePx).apply {
+            this.density = densityDpi
+        }
+        val canvas = Canvas(bitmap)
+        val scale = sizePx / viewport
+        canvas.scale(scale, scale)
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
+            style = Paint.Style.FILL
+        }
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+        }
+        fun fill(path: Path, color: Int) {
+            fillPaint.color = color
+            canvas.drawPath(path, fillPaint)
+        }
+        fun stroke(path: Path, color: Int, width: Float) {
+            strokePaint.strokeWidth = width
+            strokePaint.color = color
+            canvas.drawPath(path, strokePaint)
+        }
+
+        // The largest part of each icon is the third tone (grounded in the darker accent, never white).
         when (resId) {
-            R.drawable.ic_search_lens_expressive -> {
-                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-                val canvas = Canvas(bitmap)
-                val scale = sizePx / 24f
-                canvas.scale(scale, scale)
-                val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.STROKE
-                    strokeCap = Paint.Cap.ROUND
-                }
-                val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.FILL
-                }
-
-                // Lens rim is third lighter (grounded in darker accented, never white)
-                strokePaint.strokeWidth = 2.5f
-                strokePaint.color = palette.thirdLighter
-                canvas.drawPath(PATH_SEARCH_EXPR_1, strokePaint)
-
-                strokePaint.strokeWidth = 2.5f
-                strokePaint.color = palette.thirdLighter
-                canvas.drawPath(PATH_SEARCH_EXPR_2, strokePaint)
-
-                // Handle is second lighter
-                strokePaint.strokeWidth = 3.0f
-                strokePaint.color = palette.secondLighter
-                canvas.drawPath(PATH_SEARCH_EXPR_3, strokePaint)
-
-                // Sparkle star is primary darker
-                fillPaint.color = palette.primaryDarker
-                canvas.drawPath(PATH_SEARCH_EXPR_4, fillPaint)
-
-                bitmapCache.put(cacheKey, bitmap)
-                bitmap
+            R.drawable.ic_mic -> {
+                fill(PATH_MIC_1, palette.thirdLighter) // capsule
+                fill(PATH_MIC_2, palette.secondLighter) // stem
+                fill(PATH_MIC_3, palette.secondLighter) // left of the cradle
+                fill(PATH_MIC_4, palette.primaryDarker) // right and bottom of the cradle
             }
-            R.drawable.ic_music -> {
-                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-                val canvas = Canvas(bitmap)
-                val scale = sizePx / 24f
-                canvas.scale(scale, scale)
-                val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.STROKE
-                    strokeCap = Paint.Cap.ROUND
-                    strokeWidth = 3.2f
-                }
-                val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.FILL
-                }
-
-                strokePaint.color = palette.thirdLighter
-                canvas.drawPath(PATH_MUSIC_1, strokePaint)
-
-                strokePaint.color = palette.secondLighter
-                canvas.drawPath(PATH_MUSIC_2, strokePaint)
-
-                strokePaint.color = palette.primaryDarker
-                canvas.drawPath(PATH_MUSIC_3, strokePaint)
-
-                // Note head is third lighter (grounded in darker accented, never white)
-                fillPaint.color = palette.thirdLighter
-                canvas.drawPath(PATH_MUSIC_4, fillPaint)
-
-                bitmapCache.put(cacheKey, bitmap)
-                bitmap
+            R.drawable.ic_camera -> {
+                fill(PATH_LENS_1, palette.secondLighter) // dot
+                fill(PATH_LENS_2, palette.primaryDarker) // aperture
+                fill(PATH_LENS_3, palette.thirdLighter) // camera brackets
+                fill(PATH_LENS_4, palette.thirdLighter)
+                fill(PATH_LENS_5, palette.thirdLighter)
             }
             R.drawable.ic_lens_action -> {
-                val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
-                    this.density = densityDpi
-                }
-                val canvas = Canvas(bitmap)
-                val scale = sizePx / 24f
-                canvas.scale(scale, scale)
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    style = Paint.Style.FILL
-                }
-
-                // Main center star is third lighter (grounded in darker accented, never white)
-                paint.color = palette.thirdLighter
-                canvas.drawPath(PATH_GEMINI_1, paint)
-                // Top sparkle is primary darker
-                paint.color = palette.primaryDarker
-                canvas.drawPath(PATH_GEMINI_2, paint)
-                // Side sparkle is second lighter
-                paint.color = palette.secondLighter
-                canvas.drawPath(PATH_GEMINI_3, paint)
-
-                bitmapCache.put(cacheKey, bitmap)
-                bitmap
+                fill(PATH_GEMINI_1, palette.thirdLighter) // main star
+                fill(PATH_GEMINI_2, palette.primaryDarker) // top sparkle
+                fill(PATH_GEMINI_3, palette.secondLighter) // side sparkle
             }
-            else -> null
+            R.drawable.ic_search_lens_expressive -> {
+                stroke(PATH_SEARCH_EXPR_1, palette.thirdLighter, 2.5f) // lens rim
+                stroke(PATH_SEARCH_EXPR_2, palette.thirdLighter, 2.5f)
+                stroke(PATH_SEARCH_EXPR_3, palette.secondLighter, 3.0f) // handle
+                fill(PATH_SEARCH_EXPR_4, palette.primaryDarker) // sparkle
+            }
+            R.drawable.ic_music -> {
+                stroke(PATH_MUSIC_1, palette.thirdLighter, musicStroke)
+                stroke(PATH_MUSIC_2, palette.secondLighter, musicStroke)
+                stroke(PATH_MUSIC_3, palette.primaryDarker, musicStroke)
+                fill(PATH_MUSIC_4, palette.thirdLighter) // note head
+            }
         }
+
+        bitmapCache.put(cacheKey, bitmap)
+        bitmap
     } catch (e: Throwable) {
-        Log.w(TAG, "Failed to create themed action icon bitmap", e)
+        Log.w(TAG, "Failed to create themed $kind icon bitmap", e)
         null
     }
 }

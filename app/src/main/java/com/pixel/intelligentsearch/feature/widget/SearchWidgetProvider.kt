@@ -698,7 +698,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                             views.setInt(targetViewId, "setImageAlpha", 255)
                         }
                         "Material G Icon" -> {
-                            val themedBitmap = createThemedShortcutBitmap(context, item.iconRes, config.themePColor, config.themeSColor, config.themeTColor, config.isPillLight)
+                            val themedBitmap = createThemedShortcutBitmap(context, item.iconRes, config.themePColor, config.themeSColor, config.isPillLight)
                             if (themedBitmap != null) {
                                 views.setImageViewBitmap(targetViewId, themedBitmap)
                                 views.setColorStateList(targetViewId, "setImageTintList", null)
@@ -815,7 +815,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", ColorStateList.valueOf(config.themePColor))
                     }
                     "Material G Icon" -> {
-                        val themedBitmap = createThemedActionIconBitmap(context, circleActionIconRes, config.themePColor, config.themeSColor, config.themeTColor, config.isPillLight)
+                        val themedBitmap = createThemedActionIconBitmap(context, circleActionIconRes, config.themePColor, config.themeSColor, config.isPillLight)
                         if (themedBitmap != null) {
                             views.setImageViewBitmap(R.id.widget_sound_icon, themedBitmap)
                             views.setColorStateList(R.id.widget_sound_icon, "setImageTintList", null)

@@ -67,6 +67,20 @@ class DoodleCatalogTest {
         assertNotNull(india.getValue(Occasion.THANKSGIVING).nextElsewhere)
     }
 
+    /**
+     * In London the March equinox falls on March 20 every year in the horizon, so the first day of spring always takes
+     * the International Day of Happiness's place: it shows nowhere in that time zone, and isn't shown everywhere.
+     */
+    @Test
+    fun aDayShownNowhereInThisTimeZoneIsNotShownEverywhere() {
+        val london = DoodleCatalog.entries(today, ZoneId.of("Europe/London"), "GB").associateBy { it.occasion }
+        val everywhereButNowhere = london.values.filter { it.everywhere && it.nextHere == null && it.nextElsewhere == null }
+        assertTrue("Shown everywhere but never shown: ${everywhereButNowhere.map { it.occasion }}", everywhereButNowhere.isEmpty())
+        val happiness = london.getValue(Occasion.HAPPINESS_DAY)
+        assertNull(happiness.nextHere)
+        assertTrue(happiness.regions.isEmpty())
+    }
+
     @Test
     fun groups() {
         for (holiday in listOf(Occasion.MLK_DAY, Occasion.PRESIDENTS_DAY, Occasion.MEMORIAL_DAY, Occasion.JUNETEENTH,

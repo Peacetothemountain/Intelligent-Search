@@ -581,6 +581,7 @@ internal fun longWhen(entry: DoodleCatalog.Entry, today: LocalDate, region: Stri
 /** The stage's region line. */
 internal fun whereText(entry: DoodleCatalog.Entry, region: String): String {
     if (entry.everywhere) return "Shown Everywhere"
+    if (entry.regions.isEmpty()) return "Not Shown in This Time Zone"
     // This phone's region first, then the rest alphabetically by name.
     val names = entry.regions.sortedWith(compareBy<String> { it != region }.thenBy { countryName(it) }).map(::countryName)
     return when (names.size) {

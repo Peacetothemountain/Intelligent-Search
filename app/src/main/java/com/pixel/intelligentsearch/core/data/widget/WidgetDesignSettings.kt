@@ -11,10 +11,6 @@ enum class WidgetDesign(val prefix: String, val themeStyle: String) {
     MATERIAL("widget_material", "Material You (Minimal)");
 
     val savedFlagKey: String get() = "${prefix}_design_saved"
-
-    companion object {
-        fun fromThemeStyle(style: String): WidgetDesign = if (style == SYSTEM.themeStyle) SYSTEM else MATERIAL
-    }
 }
 
 /** Custom colours for each widget element (used by the "Custom" G icon style). */

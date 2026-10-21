@@ -268,8 +268,8 @@ fun Modifier.materialYouEdgeGlowMesh(
     val context = androidx.compose.ui.platform.LocalContext.current
     val adpfThermalManager = remember(context) { ADPFThermalManager.getInstance(context) }
     val throttleLevelState = adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
-    // Still drifts with animations removed: stopping it changes the overlay's screenshot goldens, which needs the
-    // owner's approval first.
+    // Unlike the other mesh backgrounds, this one keeps drifting with animations removed; the overlay screenshots
+    // are recorded with it drifting.
     val timeState = rememberMeshClock(isPaused, stopsWithAnimationsRemoved = false)
 
     val meshPainter = remember {

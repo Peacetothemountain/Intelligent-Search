@@ -117,7 +117,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localKeepSystemG by fields::keepSystemG
     // Material-only settings.
     var localLockBlack by fields::lockBlack
-    var matLockBlack by fields::lockBlack
     var localActionIcon by fields::actionIcon
 
     val computedCustomColorInt = remember(localHue, localSaturation, localLightness, localColorOpacity) {
@@ -720,9 +719,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .background(if (!isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
                                 hapticEngine.performPredictiveBackHaptic(view)
+                                // Only shows the Material design; its own settings, like Inner Pill & Circle
+                                // State, stay as the user left them.
                                 localThemeStyle = "Material You (Minimal)"
-                                localLockBlack = true
-                                matLockBlack = true
                             },
                         contentAlignment = Alignment.Center
                     ) {

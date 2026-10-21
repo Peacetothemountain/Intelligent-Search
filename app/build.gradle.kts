@@ -88,10 +88,12 @@ android {
 
     testOptions {
       unitTests {
-        // Screenshot tests record goldens with -Proborazzi.record and compare against them otherwise.
+        // Screenshot tests record goldens with -Proborazzi.record (or =true) and compare against them otherwise,
+        // =false included: any value but true used to switch the comparison off without recording either.
+        val recordScreenshots = project.findProperty("roborazzi.record")?.toString()?.let { it.isEmpty() || it.toBoolean() } ?: false
         all { test ->
-          test.systemProperty("roborazzi.test.record", project.findProperty("roborazzi.record")?.toString() ?: "false")
-          test.systemProperty("roborazzi.test.verify", if (project.hasProperty("roborazzi.record")) "false" else "true")
+          test.systemProperty("roborazzi.test.record", recordScreenshots.toString())
+          test.systemProperty("roborazzi.test.verify", (!recordScreenshots).toString())
           // Goldens are inputs: replacing an image must re-run the comparison instead of reusing a cached result.
           test.inputs.files(project.fileTree("src/test/screenshots")).withPropertyName("screenshotGoldens")
           // Goldens are recorded on Windows and match on CI's Linux runners; -PskipScreenshots leaves them out of a run.

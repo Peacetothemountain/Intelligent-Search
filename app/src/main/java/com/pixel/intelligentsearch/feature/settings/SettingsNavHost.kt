@@ -3,7 +3,6 @@ package com.pixel.intelligentsearch.feature.settings
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
-import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.util.findActivity
 import androidx.compose.ui.graphics.graphicsLayer
@@ -14,16 +13,13 @@ import com.pixel.intelligentsearch.R
 import android.app.Activity
 import android.content.Context
 import android.os.Build
-import androidx.compose.ui.platform.LocalView
 import android.content.Intent
 import android.content.SharedPreferences
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.animation.*
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.animation.core.*
 import androidx.compose.material.icons.filled.*
@@ -37,8 +33,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -61,23 +57,6 @@ val LocalSettingsState = compositionLocalOf<com.pixel.intelligentsearch.core.dat
 
 @Composable
 fun SettingsScreensHub(
-    initialScreen: String,
-    fromSearchOverlay: Boolean = false,
-    prefs: SharedPreferences,
-    onBackToLauncher: () -> Unit,
-    context: Context
-) {
-    SettingsScreensHub(
-        initialRoute = com.pixel.intelligentsearch.core.navigation.Route.fromKey(initialScreen),
-        fromSearchOverlay = fromSearchOverlay,
-        prefs = prefs,
-        onBackToLauncher = onBackToLauncher,
-        context = context
-    )
-}
-
-@Composable
-fun SettingsScreensHub(
     initialRoute: com.pixel.intelligentsearch.core.navigation.Route = com.pixel.intelligentsearch.core.navigation.Route.Main,
     fromSearchOverlay: Boolean = false,
     prefs: SharedPreferences,
@@ -85,7 +64,6 @@ fun SettingsScreensHub(
     context: Context
 ) {
     val viewModel: SettingsViewModel = LocalSettingsViewModel.current ?: androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel()
-    val view = LocalView.current
     val localSettings = LocalSettingsState.current
     val settingsState by if (localSettings != null) {
         rememberUpdatedState(localSettings)
@@ -150,8 +128,9 @@ fun SettingsScreensHub(
         }
 
         val currentBackStackEntry by navController.currentBackStackEntryAsState()
-        val hasSubScreensInNavHost = navController.previousBackStackEntry != null
-        val isAtRoot = !hasSubScreensInNavHost || currentBackStackEntry?.destination?.hasRoute<com.pixel.intelligentsearch.core.navigation.Route.Main>() == true
+        // Reading the current entry makes the shell recompose on every navigation, so the exit gesture below is
+        // switched on and off as the user moves between Main and the sub-pages.
+        val hasSubScreensInNavHost = currentBackStackEntry.let { navController.previousBackStackEntry != null }
 
         val onBack: () -> Unit = onBack@{
             // A quick double tap would pop the sub-page, then see the root and exit Settings entirely.
@@ -164,10 +143,12 @@ fun SettingsScreensHub(
         }
 
         val exitBackProgress = remember { Animatable(0f) }
+        val exitSwipes = remember { java.util.concurrent.atomic.AtomicInteger() }
         var predictiveBackSwipeEdge by remember { mutableIntStateOf(androidx.activity.BackEventCompat.EDGE_LEFT) }
 
         androidx.activity.compose.PredictiveBackHandler(enabled = !hasSubScreensInNavHost) { progressFlow ->
             val act = context.findActivity()
+            val swipe = exitSwipes.incrementAndGet()
             try {
                 com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(act)
                 progressFlow.collect { backEvent ->
@@ -176,10 +157,19 @@ fun SettingsScreensHub(
                 }
                 exitBackProgress.snapTo(0f)
                 handleExitBack()
-            } catch (_: java.util.concurrent.CancellationException) {
-                exitBackProgress.animateTo(0f, spring(dampingRatio = 0.85f, stiffness = 300f))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // A cancelled swipe arrives as cancellation, so the page is sprung back outside it; otherwise the
+                // animation would end at once and leave the page shrunk. A new swipe's snapTo still cuts it short.
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    exitBackProgress.animateTo(0f, spring(dampingRatio = 0.85f, stiffness = 300f))
+                }
+                throw e
             } finally {
-                com.pixel.intelligentsearch.core.ui.WindowFramePacing.setNormalRefreshRateCategory(act)
+                // A swipe started while this one sprang back is already running at the high rate; resetting here
+                // would drop it to the normal rate (and switch touch boost off) for the rest of that swipe.
+                if (exitSwipes.get() == swipe) {
+                    com.pixel.intelligentsearch.core.ui.WindowFramePacing.setNormalRefreshRateCategory(act)
+                }
             }
         }
 
@@ -225,8 +215,6 @@ fun SettingsScreensHub(
                     showTutorial = true
                 }
             }
-
-            val morphAnimationEnabled by rememberSetting(SettingsManager.MORPH_ANIMATION_ENABLED) {}
 
             Box(
                 modifier = Modifier
@@ -296,7 +284,7 @@ fun SettingsScreensHub(
                                 prefs = prefs,
                                 onBack = onBack,
                                 onDisableDebug = {
-                                    prefs.edit().put(SettingsManager.DEBUG_UNLOCKED, false).apply()
+                                    disableDebugMode(context, prefs)
                                     if (!navController.popBackStack()) {
                                         navController.navigate(com.pixel.intelligentsearch.core.navigation.Route.Main) {
                                             popUpTo(0)
@@ -312,7 +300,8 @@ fun SettingsScreensHub(
             }
             
             if (showTutorial) {
-                val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+                // The app's theme, like the tutorial card above it, not the system's.
+                val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
                 val overlayColor = if (isDark) Color.Black.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.5f)
                 
                 Box(

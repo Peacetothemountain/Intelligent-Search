@@ -27,12 +27,9 @@ enum class PixelHapticType {
     HEAVY_IMPACT,
     TOGGLE_ON,
     TOGGLE_OFF,
-    CONFIRM,
-    REJECT,
     APP_LAUNCH,
     DELETE_THUD,
     SCROLL_DETENT,
-    MAGNETIC_RESISTANCE,
     SPRING_RELEASE,
 }
 
@@ -88,18 +85,7 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
         return primitives.all { isPrimitiveSupported(it) }
     }
 
-    /**
-     * Perform high-fidelity tactile feedback with dynamic amplitude scaling and velocity coupling.
-     *
-     * @param view Optional View for system haptic feedback fallback.
-     * @param type Semantic tactile profile to execute.
-     * @param amplitudeScale Dynamic scaling factor [0.0f .. 1.0f] to modulate waveform intensity.
-     * @param velocity Optional gesture velocity (px/sec) to couple mechanical impedance.
-     */
-    /**
-     * Perform high-fidelity tactile feedback with dynamic amplitude scaling and velocity coupling.
-     * Standardized to the subtle predictive back vibration across the entire application.
-     */
+    /** [performHaptic] without a view for the system haptic feedback fallback. */
     fun performHaptic(
         type: PixelHapticType,
         amplitudeScale: Float = 1.0f,
@@ -108,6 +94,14 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
         performHaptic(view = null, type = type, amplitudeScale = amplitudeScale, velocity = velocity)
     }
 
+    /**
+     * Perform high-fidelity tactile feedback with dynamic amplitude scaling and velocity coupling.
+     *
+     * @param view Optional View for system haptic feedback fallback.
+     * @param type Semantic tactile profile to execute.
+     * @param amplitudeScale Dynamic scaling factor [0.0f .. 1.0f] to modulate waveform intensity.
+     * @param velocity Optional gesture velocity (px/sec) to couple mechanical impedance.
+     */
     fun performHaptic(
         view: View? = null,
         type: PixelHapticType = PixelHapticType.LOW_TICK,
@@ -262,17 +256,6 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
                 }
             }
 
-            PixelHapticType.MAGNETIC_RESISTANCE -> {
-                // Progressive magnetic resistance near threshold
-                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_SLOW_RISE)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_SLOW_RISE, 0.50f * scale)
-                    return composition.compose()
-                } else if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.35f * scale)
-                    return composition.compose()
-                }
-            }
-
             PixelHapticType.GESTURE_THRESHOLD -> {
                 if (arePrimitivesSupported(
                         VibrationEffect.Composition.PRIMITIVE_QUICK_RISE,
@@ -353,21 +336,6 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
                 }
             }
 
-            PixelHapticType.CONFIRM -> {
-                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_CLICK)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.70f * scale)
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.40f * scale, 40)
-                    return composition.compose()
-                }
-            }
-
-            PixelHapticType.REJECT -> {
-                if (isPrimitiveSupported(VibrationEffect.Composition.PRIMITIVE_THUD)) {
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.70f * scale)
-                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.50f * scale, 30)
-                    return composition.compose()
-                }
-            }
 
 
 
@@ -385,10 +353,6 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
                 HapticFeedbackConstants.KEYBOARD_TAP
             PixelHapticType.HEAVY_IMPACT, PixelHapticType.DELETE_THUD ->
                 HapticFeedbackConstants.LONG_PRESS
-            PixelHapticType.CONFIRM ->
-                HapticFeedbackConstants.CONFIRM
-            PixelHapticType.REJECT ->
-                HapticFeedbackConstants.REJECT
             PixelHapticType.GESTURE_THRESHOLD ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE else HapticFeedbackConstants.CONTEXT_CLICK
             PixelHapticType.REORDER_SWAP ->

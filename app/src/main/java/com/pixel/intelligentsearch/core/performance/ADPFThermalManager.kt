@@ -23,6 +23,22 @@ import java.io.File
 import kotlin.math.abs
 
 /**
+ * One frame's work split between CPU and GPU for the performance hint session, or null when a figure is missing
+ * (zero): the session rejects a split without a start time with an exception, and a frame without GPU time is
+ * better reported as a plain total. The CPU share is the total less the GPU time.
+ */
+@androidx.annotation.RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+internal fun frameWorkDuration(startNanos: Long, totalNanos: Long, gpuNanos: Long): android.os.WorkDuration? {
+    if (startNanos <= 0L || totalNanos <= 0L || gpuNanos <= 0L) return null
+    return android.os.WorkDuration().apply {
+        workPeriodStartTimestampNanos = startNanos
+        actualTotalDurationNanos = totalNanos
+        actualCpuDurationNanos = (totalNanos - gpuNanos).coerceAtLeast(0L)
+        actualGpuDurationNanos = gpuNanos
+    }
+}
+
+/**
  * Thermal state and frame-time hints (Android Dynamic Performance Framework).
  *
  * - Publishes a [ThermalThrottleLevel] from the thermal status listener and, while the overlay is visible,
@@ -150,9 +166,15 @@ class ADPFThermalManager @Inject constructor(@param:ApplicationContext private v
 
     /**
      * Reports one frame. [deadlineNanos] is the time the frame had (it changes with the refresh rate); the
-     * session's target follows it, but never faster than the current thermal limit allows.
+     * session's target follows it, but never faster than the current thermal limit allows. [frameStartNanos] is
+     * when the frame's work began, which a CPU and GPU split must carry.
      */
-    fun reportFrameMetrics(totalDurationNanos: Long, gpuDurationNanos: Long = 0L, deadlineNanos: Long = 0L) {
+    fun reportFrameMetrics(
+        totalDurationNanos: Long,
+        gpuDurationNanos: Long = 0L,
+        deadlineNanos: Long = 0L,
+        frameStartNanos: Long = 0L
+    ) {
         if (totalDurationNanos <= 0) return
         if (renderThreadTid == -1) monitorHandler.post { ensureRenderThreadRegistered() }
         val session = hintSession ?: return
@@ -169,12 +191,13 @@ class ADPFThermalManager @Inject constructor(@param:ApplicationContext private v
         try {
             // WorkDuration and Session.reportActualWorkDuration(WorkDuration) were added in API 35. Guarding
             // on API 34 would throw NoClassDefFoundError on every frame report on Android 14.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM && gpuDurationNanos > 0L) {
-                session.reportActualWorkDuration(android.os.WorkDuration().apply {
-                    actualTotalDurationNanos = totalDurationNanos
-                    actualCpuDurationNanos = (totalDurationNanos - gpuDurationNanos).coerceAtLeast(0L)
-                    actualGpuDurationNanos = gpuDurationNanos
-                })
+            val work = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                frameWorkDuration(frameStartNanos, totalDurationNanos, gpuDurationNanos)
+            } else {
+                null
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM && work != null) {
+                session.reportActualWorkDuration(work)
             } else {
                 session.reportActualWorkDuration(totalDurationNanos)
             }

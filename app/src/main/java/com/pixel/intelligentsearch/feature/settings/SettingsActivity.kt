@@ -24,11 +24,18 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class SettingsActivity : AppCompatActivity() {
-    companion object {
-        private const val ROLE_SEARCH_ENGINE = "android.app.role.SEARCH_ENGINE"
-    }
-
     var isExitingToHome: Boolean = false
+
+    @javax.inject.Inject
+    lateinit var widgetUpdater: com.pixel.intelligentsearch.core.system.WidgetUpdater
+
+    // The settings the widgets were last drawn with, so leaving Settings redraws them only after a change. Null
+    // when opened to configure a widget, so it is drawn on the way out whatever happened.
+    private var lastPushedFingerprint: Int? = null
+
+    private fun settingsFingerprint(): Int = runCatching {
+        com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.getSafeSharedPreferences(this).all.hashCode()
+    }.getOrDefault(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -71,6 +78,7 @@ class SettingsActivity : AppCompatActivity() {
             val resultValue = android.content.Intent().putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             setResult(RESULT_OK, resultValue)
         }
+        if (!isWidgetConfigure) lastPushedFingerprint = settingsFingerprint()
 
         // This activity is exported (launcher, widget setup), so page and overlay extras are honoured only when
         // they carry this app's own launch token. Other apps always land on the main settings page.
@@ -119,28 +127,8 @@ class SettingsActivity : AppCompatActivity() {
                             initialRoute = initialRoute,
                             fromSearchOverlay = fromSearchOverlay,
                             prefs = prefs,
-                            onBackToLauncher = {
-                                val isBackToOverlay = prefs[SettingsManager.BACK_TO_SEARCH_OVERLAY]
-                                if (isBackToOverlay) {
-                                    if (isTaskRoot || !fromSearchOverlay) {
-                                        val searchIntent = Intent(this@SettingsActivity, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java).apply {
-                                            putExtra("FROM_BACK_SWIPE", true)
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                        }
-                                        startActivity(searchIntent)
-                                    }
-                                    finish()
-                                } else {
-                                    isExitingToHome = true
-                                    sendBroadcast(Intent("com.pixel.intelligentsearch.DISMISS_OVERLAY").setPackage(packageName))
-                                    val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                                        addCategory(Intent.CATEGORY_HOME)
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    }
-                                    startActivity(homeIntent)
-                                    finishAffinity()
-                                }
-                            },
+                            // The hub leaves through this activity itself; this is only its fallback.
+                            onBackToLauncher = { finish() },
                             context = this@SettingsActivity
                         )
                     }
@@ -152,7 +140,11 @@ class SettingsActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         try {
-            com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(this)
+            val fingerprint = settingsFingerprint()
+            if (fingerprint != lastPushedFingerprint) {
+                widgetUpdater.updateAll()
+                lastPushedFingerprint = fingerprint
+            }
         } catch (e: Throwable) {
             android.util.Log.e("SettingsActivity", "Failed to update widgets on pause", e)
         }

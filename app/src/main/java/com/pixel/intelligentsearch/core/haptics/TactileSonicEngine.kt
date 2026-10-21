@@ -15,11 +15,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 
 /**
- * Unified Tactile & Sonic Sensory Coordinator
- *
- * Orchestrates linear resonant actuator (LRA) hardware primitive waveforms
- * with ultra-low-latency procedural acoustic micro-feedback for an authentic
- * mechanical physical sensation.
+ * The app's haptic feedback by occasion: clicks, ticks, scroll detents, toggles, app launches and the like. Each call
+ * checks the Vibration setting and plays its [PixelHapticEngine] waveform. It is haptics only; nothing is played as
+ * sound.
  */
 @Singleton
 class TactileSonicEngine @Inject constructor(
@@ -43,7 +41,6 @@ class TactileSonicEngine @Inject constructor(
 
     // High-frequency debouncing timestamps
     private var lastScrollDetentTimestamp: Long = 0L
-    private var lastMagneticResistanceTimestamp: Long = 0L
 
     /**
      * Standard interactive click (buttons, list items, search pills).
@@ -74,40 +71,6 @@ class TactileSonicEngine @Inject constructor(
 
         if (isHapticEnabled) {
             hapticEngine.performHaptic(view, PixelHapticType.SCROLL_DETENT, 1.0f, velocity)
-        }
-    }
-
-    /**
-     * Magnetic resistance tick as the user drags towards a dismiss or boundary threshold.
-     * Modulated dynamically by normalized progress [0.0 .. 1.0].
-     */
-    fun magneticResistance(view: View? = null, progress: Float) {
-        val now = SystemClock.uptimeMillis()
-        val p = progress.coerceIn(0f, 1f)
-        val minInterval = (65L - (p * 35L).toLong()).coerceAtLeast(30L)
-        if (now - lastMagneticResistanceTimestamp < minInterval) return
-        lastMagneticResistanceTimestamp = now
-
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.MAGNETIC_RESISTANCE, p)
-        }
-    }
-
-    /**
-     * Tactile snap when crossing the magnetic dismiss barrier.
-     */
-    fun magneticThresholdSnap(view: View? = null) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.GESTURE_THRESHOLD)
-        }
-    }
-
-    /**
-     * Spring-release snap sensation when an overlay snaps shut or flings closed.
-     */
-    fun springReleaseSnap(view: View? = null) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.SPRING_RELEASE)
         }
     }
 

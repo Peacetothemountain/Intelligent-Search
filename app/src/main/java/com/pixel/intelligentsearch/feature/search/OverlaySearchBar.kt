@@ -58,6 +58,22 @@ import com.pixel.intelligentsearch.core.ui.materialYouGeminiPlate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * The Best Match completion drawn behind the search field: the [typed] text, invisible, then the rest of
+ * [bestMatchName]. The hidden part is the typed text itself rather than the name's start, which can differ in case
+ * ("gm" for "Gmail") and so in width, pushing the visible rest out of line with the letters typed. Null when the name
+ * doesn't go on from the typed text.
+ */
+internal fun ghostText(typed: String, bestMatchName: String?): androidx.compose.ui.text.AnnotatedString? {
+    if (bestMatchName == null || bestMatchName.length <= typed.length || !bestMatchName.startsWith(typed, ignoreCase = true)) {
+        return null
+    }
+    return androidx.compose.ui.text.buildAnnotatedString {
+        withStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent)) { append(typed) }
+        withStyle(androidx.compose.ui.text.SpanStyle(color = Color.Unspecified)) { append(bestMatchName.substring(typed.length)) }
+    }
+}
+
 /** The overlay's search bar: the text field, its ghost text, the pills around it and the engine chip. */
 @Composable
 internal fun OverlaySearchBar(s: OverlayScope) {
@@ -198,19 +214,8 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.Center
             ) {
-                val ghostTextAnnotated = remember(uiState.query, bestMatchText) {
-                    val bmt = bestMatchText
-                    if (bmt != null && bmt.startsWith(uiState.query, ignoreCase = true) && bmt.length > uiState.query.length) {
-                        androidx.compose.ui.text.buildAnnotatedString {
-                            withStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent)) {
-                                append(bmt.substring(0, minOf(uiState.query.length, bmt.length)))
-                            }
-                            withStyle(androidx.compose.ui.text.SpanStyle(color = Color.Unspecified)) {
-                                append(bmt.substring(uiState.query.length))
-                            }
-                        }
-                    } else null
-                }
+                // From the field's own text, so the hidden part lines up with exactly what the field draws.
+                val ghostTextAnnotated = remember(textFieldValue.text, bestMatchText) { ghostText(textFieldValue.text, bestMatchText) }
 
                 androidx.compose.foundation.text.BasicTextField(
                     value = textFieldValue,
@@ -250,7 +255,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                         hasStartedTyping = false
                         keyboardController?.hide()
                         // The collected uiState can lag a keystroke behind; read the live value so Enter
-                        // never acts on a query missing its last character.
+                        // never acts on a query missing its last character. submitQuery waits for its results.
                         submitQuery(viewModel.uiState.value.query, false)
                     }),
                     decorationBox = { innerTextField ->

@@ -42,7 +42,6 @@ data class IntelligentSearchSettings(
     val searchWeb: Boolean = SettingsManager.SEARCH_WEB.default,
     val searchCalculator: Boolean = SettingsManager.SEARCH_CALCULATOR.default,
     val searchCalendar: Boolean = SettingsManager.SEARCH_CALENDAR.default,
-    val searchShortcuts: Boolean = SettingsManager.SEARCH_SHORTCUTS.default,
     val searchAndroidSettings: Boolean = SettingsManager.SEARCH_ANDROID_SETTINGS.default,
     val backgroundBlur: Int = SettingsManager.BACKGROUND_BLUR.default,
     val showWallpaper: Boolean = SettingsManager.SHOW_WALLPAPER.default,
@@ -120,6 +119,11 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** Fetches the European Central Bank's rates for currency answers once a day while the Calculator is on; off, nothing is fetched. */
         val LIVE_CURRENCY_RATES = BooleanSetting("live_currency_rates", true)
         val SEARCH_CALENDAR = BooleanSetting("search.calendar", true, "search_calendar")
+        /**
+         * Switched app shortcut results on; nothing reads it any more. Android lets only the home screen app read
+         * other apps' shortcuts, so they never showed, and the row became the Quick App Panel switch
+         * ([QUICK_SEARCH_HORIZONTAL]). Stays declared so the migration and older backups recognise it.
+         */
         val SEARCH_SHORTCUTS = BooleanSetting("search.shortcuts", true, "search_shortcuts")
         /** Offers Android Settings pages ("battery", "app info chrome") among the results. */
         val SEARCH_ANDROID_SETTINGS = BooleanSetting("search.android.settings", true)
@@ -158,10 +162,15 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val CONTACT_ACTIONS = BooleanSetting("contact_actions", true)
         val SHORTCUT_INLINE = BooleanSetting("shortcut.inline", true, "shortcut_inline")
         val APP_FUZZY_SEARCH = BooleanSetting("app.fuzzy.search", true, "app_fuzzy_search")
+        /** The overlay's quick-app panel; switched from Search Behavior and from App & Shortcut Search. */
         val QUICK_SEARCH_HORIZONTAL = BooleanSetting("quick_search_horizontal", false, "quick.search.horizontal")
         val WEB_RESULTS_COUNT = IntSetting("web_results_count", 5, 0..20)
         val CONTACT_RESULTS_COUNT = IntSetting("contact_results_count", 5, 0..20)
         val FILE_RESULTS_COUNT = IntSetting("file_results_count", 5, 0..20)
+        /**
+         * Max Quick Panel Apps: how many apps the quick-app panel shows, chosen or recent. Named for the shortcut
+         * results it once capped; the name stays so backups keep restoring it. See [QUICK_PANEL_CAPS_CHOSEN_APPS_KEY].
+         */
         val SHORTCUT_RESULTS_COUNT = IntSetting("shortcut_results_count", 6, 1..20)
         val SEARCH_WEIGHT_APPS = IntSetting("search_weight_apps", 50, 0..100)
         val SEARCH_WEIGHT_CONTACTS = IntSetting("search_weight_contacts", 50, 0..100)
@@ -238,6 +247,24 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
 
         /** A [PILL_OPACITY] value saved before [PILL_OPACITY_LINEAR_KEY], as the pill's real opacity. */
         fun pillOpacityFromOldScale(stored: Int): Int = if (stored == 50) 100 else stored
+
+        /**
+         * Set once [SHORTCUT_RESULTS_COUNT] caps the chosen Quick Launch apps too. Older versions capped only recent
+         * apps and showed every chosen one, so a store (or backup) without this flag has the max raised to fit its
+         * chosen apps. Backups carry it, so a restore can tell which kind of file it has; restores never write it.
+         */
+        const val QUICK_PANEL_CAPS_CHOSEN_APPS_KEY = "quick_panel_caps_chosen_apps_v1"
+
+        /**
+         * Raises [SHORTCUT_RESULTS_COUNT] in [editor] to the number of chosen Quick Launch apps in [sp] when the panel
+         * shows them (Context Aware Quick Apps off) and the max is lower, so the panel shows what it did before the
+         * max applied to them.
+         */
+        fun fitQuickPanelToChosenApps(sp: SharedPreferences, editor: SharedPreferences.Editor) {
+            if (sp[CONTEXT_AWARE_QUICK_APPS]) return
+            val chosen = sp[SEARCH_PILLS].split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct().size
+            if (chosen > sp[SHORTCUT_RESULTS_COUNT]) editor.put(SHORTCUT_RESULTS_COUNT, chosen)
+        }
     }
 
     /**
@@ -290,7 +317,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         searchWeb = sp[SEARCH_WEB],
         searchCalculator = sp[SEARCH_CALCULATOR],
         searchCalendar = sp[SEARCH_CALENDAR],
-        searchShortcuts = sp[SEARCH_SHORTCUTS],
         searchAndroidSettings = sp[SEARCH_ANDROID_SETTINGS],
         backgroundBlur = sp[BACKGROUND_BLUR],
         showWallpaper = sp[SHOW_WALLPAPER],
@@ -390,12 +416,14 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
      * One-time move to the single store (run after the user is unlocked): imports values only the old
      * DataStore copy still held, folds every legacy spelling into its canonical name, normalizes the theme,
      * drops retired keys, and deletes the DataStore file. Then moves the pill opacity to its linear meaning (see
-     * [migratePillOpacity]). Safe to call repeatedly.
+     * [migratePillOpacity]) and fits the quick panel's max to the chosen apps (see [migrateQuickPanelMax]). Safe to
+     * call repeatedly.
      */
     suspend fun migrateToSingleStore() = withContext(Dispatchers.IO) {
         val sp = prefs
         if (sp.getInt(STORAGE_VERSION_KEY, 0) < CURRENT_STORAGE_VERSION && !foldIntoSingleStore(sp)) return@withContext
         migratePillOpacity(sp)
+        migrateQuickPanelMax(sp)
     }
 
     /** The single-store move itself; false if it couldn't be saved, so it runs again at the next start. */
@@ -429,6 +457,18 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         sp.edit {
             if (PILL_OPACITY.allNames.any(sp::contains)) put(PILL_OPACITY, pillOpacityFromOldScale(sp[PILL_OPACITY]))
             putBoolean(PILL_OPACITY_LINEAR_KEY, true)
+        }
+    }
+
+    /**
+     * Once per install: Max Quick Panel Apps used to cap only recent apps, so an install that chose more Quick Launch
+     * apps than its max has the max raised to fit them, and the panel looks the same after the update.
+     */
+    private fun migrateQuickPanelMax(sp: SharedPreferences) {
+        if (sp.getBoolean(QUICK_PANEL_CAPS_CHOSEN_APPS_KEY, false)) return
+        sp.edit {
+            fitQuickPanelToChosenApps(sp, this)
+            putBoolean(QUICK_PANEL_CAPS_CHOSEN_APPS_KEY, true)
         }
     }
 

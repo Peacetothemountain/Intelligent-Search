@@ -64,8 +64,8 @@ class SettingsTitleLayoutTest {
     fun appSearchHeadersUseTitleCase() {
         compose.setContent { IntelligentSearchTheme(darkTheme = false) { AppSearchScreen(prefs, {}, {}) } }
         compose.waitForIdle()
-        compose.onNodeWithText("Include in Search Results").assertExists()
+        compose.onNodeWithText("Quick Panel Apps").assertExists()
         compose.onNodeWithText("Results Preferences").assertExists()
-        compose.onNodeWithText("Max Shortcut Suggestions").assertExists()
+        compose.onNodeWithText("Max Quick Panel Apps").assertExists()
     }
 }

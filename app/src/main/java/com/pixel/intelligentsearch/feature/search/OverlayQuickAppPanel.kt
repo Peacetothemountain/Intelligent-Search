@@ -25,7 +25,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pixel.intelligentsearch.core.data.*
 
-/** The row of quick-app pills under the search bar; each searches its app for the current query. */
+/**
+ * The row of quick-app pills beside the search bar; each searches its app for the current query. Shown while the
+ * Quick App Panel setting is on, with up to Max Quick Panel Apps pills (see [quickPanelApps]).
+ */
 @Composable
 internal fun OverlayQuickAppPanel(s: OverlayScope) {
     val viewModel = s.viewModel
@@ -38,12 +41,12 @@ internal fun OverlayQuickAppPanel(s: OverlayScope) {
     if (settingsState.quickSearchHorizontal) {
         // Keyed on plain scope values (not snapshot state), so it follows recent apps and settings as they change.
         val pillPackages = remember(settingsState.contextAwareQuickApps, settingsState.searchPills, settingsState.shortcutResultsCount, uiState.recentApps) {
-            // Chosen pills are shown as listed; recent apps are capped by the shortcut count.
-            if (settingsState.contextAwareQuickApps) {
-                uiState.recentApps.map { it.packageName }.distinct().take(settingsState.shortcutResultsCount)
-            } else {
-                settingsState.searchPills.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
-            }
+            quickPanelApps(
+                settingsState.contextAwareQuickApps,
+                settingsState.searchPills,
+                uiState.recentApps.map { it.packageName },
+                settingsState.shortcutResultsCount
+            )
         }
         // Names the overlay already has for its apps, so most pills never ask PackageManager for one.
         val knownNames = remember(uiState.recentApps, uiState.allApps) {
@@ -75,6 +78,16 @@ internal fun OverlayQuickAppPanel(s: OverlayScope) {
                     }
         }
     }
+}
+
+/**
+ * The packages the quick-app panel shows: the recent apps with Context Aware Quick Apps on, otherwise the chosen
+ * Quick Launch apps ([chosenApps], comma separated) in their order. Either way at most [maxApps], the Max Quick Panel
+ * Apps setting; past six the pills shrink to fit, and the row scrolls for the rest.
+ */
+internal fun quickPanelApps(contextAware: Boolean, chosenApps: String, recentApps: List<String>, maxApps: Int): List<String> {
+    val apps = if (contextAware) recentApps else chosenApps.split(",").map { it.trim() }.filter { it.isNotBlank() }
+    return apps.distinct().take(maxApps)
 }
 
 /**

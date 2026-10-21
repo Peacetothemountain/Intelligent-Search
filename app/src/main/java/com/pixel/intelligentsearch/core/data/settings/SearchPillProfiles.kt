@@ -16,12 +16,20 @@ class SearchPillProfiles(private val prefs: SharedPreferences) {
     /** The active profile's pills, in order. */
     fun pills(): List<String> = split(prefs[SettingsManager.SEARCH_PILLS])
 
-    /** Replaces the active profile's pills. */
+    /**
+     * Replaces the active profile's pills. Adding apps past Max Quick Panel Apps raises it to fit them, so an app just
+     * added shows in the panel; removing or reordering apps, or a lower max chosen since, is left alone. With Context
+     * Aware Quick Apps on the panel shows recent apps instead, so the max is left alone then too.
+     */
     fun setPills(pills: List<String>) {
         val value = pills.joinToString(",")
+        val added = pills.size > pills().size
         prefs.edit {
             putString(workingKey(activeProfile), value)
             put(SettingsManager.SEARCH_PILLS, value)
+            if (added && !prefs[SettingsManager.CONTEXT_AWARE_QUICK_APPS] && pills.size > prefs[SettingsManager.SHORTCUT_RESULTS_COUNT]) {
+                put(SettingsManager.SHORTCUT_RESULTS_COUNT, pills.size)
+            }
         }
     }
 

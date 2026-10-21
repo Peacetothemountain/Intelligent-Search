@@ -109,7 +109,7 @@ class SettingsSectionHeaderTest {
     @Test
     fun appSearchHeadersUseTheSharedStyle() {
         show { AppSearchScreen(prefs, {}, {}) }
-        listOf("App Settings", "Include in Search Results", "Results Preferences").forEach(::assertSectionHeader)
+        listOf("App Settings", "Quick Panel Apps", "Results Preferences").forEach(::assertSectionHeader)
     }
 
     @Test

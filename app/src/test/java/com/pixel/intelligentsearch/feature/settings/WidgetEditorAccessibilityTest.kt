@@ -22,7 +22,6 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -34,7 +33,6 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -117,6 +115,37 @@ class WidgetEditorAccessibilityTest {
         compose.onNodeWithText("Search").assertIsSelected()
         compose.onNodeWithText("Playing").assertIsNotSelected()
         compose.onNodeWithText("WIDGET ACTION ICON").assert(isHeading)
+    }
+
+    @Test
+    fun colorStudioSlidersAreNamedFullHeightAdjustables() {
+        openEditor()
+        tap("Custom")
+        tap("Color Studio")
+
+        for (name in listOf("Hue", "Saturation", "Lightness", "Color Opacity", "Transparency")) {
+            compose.onNode(hasContentDescription(name) and isAdjustable).assertExists()
+        }
+        // The 36dp thumb was drawn inside an 8dp box, over the value text above it.
+        compose.onNodeWithContentDescription("Hue").assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithText("CUSTOM COLOR PALETTE").assert(isHeading)
+    }
+
+    @Test
+    fun customIconColorControlsAreNamed() {
+        prefs.edit()
+            .putBoolean("widget_system_design_saved", true)
+            .putString("widget_system_material_g_icon", "Custom G Icon")
+            .commit()
+        openEditor()
+
+        compose.onNode(hasContentDescription("Sync All Colors") and isToggleable()).assertExists()
+        compose.onNode(hasContentDescription("Default Google Color Palette") and isToggleable()).assertExists()
+        compose.onNodeWithText("Default Google Color Palette").assertExists()
+        for (name in listOf("Hue", "Saturation", "Brightness")) {
+            compose.onNode(hasContentDescription(name) and isAdjustable).assertExists()
+        }
+        compose.onNodeWithText("CUSTOM ICON COLORS").assert(isHeading)
     }
 
     @Test

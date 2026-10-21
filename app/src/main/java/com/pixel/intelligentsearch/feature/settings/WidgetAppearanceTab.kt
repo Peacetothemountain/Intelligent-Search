@@ -597,126 +597,67 @@ internal fun WidgetAppearanceTab(
                 }
 
                 // 3. Hue Slider (matching Color Studio)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Palette, contentDescription = "Hue", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Hue", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                            Spacer(modifier = Modifier.weight(1f))
-                            Text("${customIconHue.toInt()}°", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
-                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                colors = listOf(
-                                    androidx.compose.ui.graphics.Color.Red,
-                                    androidx.compose.ui.graphics.Color.Yellow,
-                                    androidx.compose.ui.graphics.Color.Green,
-                                    androidx.compose.ui.graphics.Color.Cyan,
-                                    androidx.compose.ui.graphics.Color.Blue,
-                                    androidx.compose.ui.graphics.Color.Magenta,
-                                    androidx.compose.ui.graphics.Color.Red
-                                )
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        )) {
-                            Android17Slider(
-                                showTrack = false,
-                                enableHaptics = false,
-                                value = customIconHue,
-                                onValueChange = { 
-                                    customIconHue = it
-                                    val newCol = android.graphics.Color.HSVToColor(
-                                        floatArrayOf(it, (customIconSat / 100f).coerceIn(0f, 1f), (customIconVal / 100f).coerceIn(0f, 1f))
-                                    )
-                                    updateTargetColor(newCol)
-                                },
-                                valueRange = 0f..360f,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
+                GradientSliderRow(
+                    icon = Icons.Default.Palette,
+                    label = "Hue",
+                    valueText = "${customIconHue.toInt()}°",
+                    gradient = HUE_GRADIENT,
+                    value = customIconHue,
+                    onValueChange = {
+                        customIconHue = it
+                        val newCol = android.graphics.Color.HSVToColor(
+                            floatArrayOf(it, (customIconSat / 100f).coerceIn(0f, 1f), (customIconVal / 100f).coerceIn(0f, 1f))
+                        )
+                        updateTargetColor(newCol)
+                    },
+                    valueRange = 0f..360f
+                )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
 
                 // 4. Saturation Slider (matching Color Studio)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.WaterDrop, contentDescription = "Saturation", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Saturation", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                            Spacer(modifier = Modifier.weight(1f))
-                            Text("${customIconSat.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
-                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                colors = listOf(
-                                    androidx.compose.ui.graphics.Color.White,
-                                    androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(customIconHue, 1f, 1f)))
-                                )
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        )) {
-                            Android17Slider(
-                                showTrack = false,
-                                enableHaptics = false,
-                                value = customIconSat,
-                                onValueChange = { 
-                                    customIconSat = it
-                                    val newCol = android.graphics.Color.HSVToColor(
-                                        floatArrayOf(customIconHue, (it / 100f).coerceIn(0f, 1f), (customIconVal / 100f).coerceIn(0f, 1f))
-                                    )
-                                    updateTargetColor(newCol)
-                                },
-                                valueRange = 0f..100f,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
+                GradientSliderRow(
+                    icon = Icons.Default.WaterDrop,
+                    label = "Saturation",
+                    valueText = "${customIconSat.toInt()}%",
+                    gradient = listOf(
+                        androidx.compose.ui.graphics.Color.White,
+                        androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(customIconHue, 1f, 1f)))
+                    ),
+                    value = customIconSat,
+                    onValueChange = {
+                        customIconSat = it
+                        val newCol = android.graphics.Color.HSVToColor(
+                            floatArrayOf(customIconHue, (it / 100f).coerceIn(0f, 1f), (customIconVal / 100f).coerceIn(0f, 1f))
+                        )
+                        updateTargetColor(newCol)
+                    },
+                    valueRange = 0f..100f
+                )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
 
                 // 5. Brightness Slider (matching Color Studio)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Outlined.BrightnessMedium, contentDescription = "Brightness", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Brightness", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                            Spacer(modifier = Modifier.weight(1f))
-                            Text("${customIconVal.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
-                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                colors = listOf(
-                                    androidx.compose.ui.graphics.Color.Black,
-                                    androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(customIconHue, (customIconSat / 100f).coerceIn(0f, 1f), 1f)))
-                                )
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        )) {
-                            Android17Slider(
-                                showTrack = false,
-                                enableHaptics = false,
-                                value = customIconVal,
-                                onValueChange = { 
-                                    customIconVal = it
-                                    val newCol = android.graphics.Color.HSVToColor(
-                                        floatArrayOf(customIconHue, (customIconSat / 100f).coerceIn(0f, 1f), (it / 100f).coerceIn(0f, 1f))
-                                    )
-                                    updateTargetColor(newCol)
-                                },
-                                valueRange = 0f..100f,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
+                GradientSliderRow(
+                    icon = Icons.Outlined.BrightnessMedium,
+                    label = "Brightness",
+                    valueText = "${customIconVal.toInt()}%",
+                    gradient = listOf(
+                        androidx.compose.ui.graphics.Color.Black,
+                        androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(customIconHue, (customIconSat / 100f).coerceIn(0f, 1f), 1f)))
+                    ),
+                    value = customIconVal,
+                    onValueChange = {
+                        customIconVal = it
+                        val newCol = android.graphics.Color.HSVToColor(
+                            floatArrayOf(customIconHue, (customIconSat / 100f).coerceIn(0f, 1f), (it / 100f).coerceIn(0f, 1f))
+                        )
+                        updateTargetColor(newCol)
+                    },
+                    valueRange = 0f..100f
+                )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
 
                 // 6. Hex Color Pill Bar (matching Color Studio)
                 val activeHex = String.format("#%06X", (0xFFFFFF and activeColor))

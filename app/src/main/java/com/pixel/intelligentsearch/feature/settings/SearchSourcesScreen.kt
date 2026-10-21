@@ -156,7 +156,11 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                                 viewModel?.reindexContacts()
                             } else {
                                 searchContacts = false
-                                showContactsSettingsDialog = true
+                                // As with Calendar: declining once just leaves Contacts off. Only when Android won't
+                                // ask again (declined for good) is Android settings the way to allow it.
+                                if (context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS) == false) {
+                                    showContactsSettingsDialog = true
+                                }
                             }
                         }
 

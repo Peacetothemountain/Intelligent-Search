@@ -66,6 +66,9 @@ object MathematicalExpressionEngine {
     /** Two currency codes with no amount, "usd to inr", which asks what one unit is worth. */
     private val REGEX_BARE_CURRENCY_CONVERSION = Regex("^([a-zA-Z]{3})\\s+(?:to|in)\\s+([a-zA-Z]{3})$")
     private val REGEX_SCIENTIFIC_NUMBER = Regex("^[+-]?[0-9]+(?:\\.[0-9]+)?[eE][+-]?[0-9]+$")
+    // A number with only a sign in front ("+14155552671", "-5") has nothing to work out; answering it would
+    // echo every international phone number back as a calculation, with a haptic on each keystroke.
+    private val REGEX_SIGNED_NUMBER = Regex("^[+-]+[0-9.]+$")
     private val REGEX_SPACE_SEPARATED_NUMBERS = Regex("\\d\\s+\\d")
     // Phone numbers and dates look like subtraction ("555-1234" would show -679). Matched after
     // whitespace is stripped, so these shapes never become a calculator card.
@@ -134,6 +137,7 @@ object MathematicalExpressionEngine {
         if (expr.isEmpty()) return false
         val lower = expr.lowercase(Locale.ROOT)
         if (REGEX_SCIENTIFIC_NUMBER.matches(lower)) return true
+        if (REGEX_SIGNED_NUMBER.matches(lower)) return false
         if (REGEX_PHONE_OR_DATE.matches(lower)) return false
 
         // Must contain at least one arithmetic operator or parenthesized function call;

@@ -65,13 +65,15 @@ internal fun createCustomMaterialGBitmap(
     sColor: Int,
     tColor: Int,
     isPillLight: Boolean,
-    context: Context
+    context: Context,
+    /** The Custom subtheme's arcs; without them they're worked out from the theme's colours. */
+    customPalette: MaterialYouPaletteHelper.FourColorMaterialGPalette? = null
 ): Bitmap? {
     val metrics = context.resources.displayMetrics
     val density = metrics.density
     val densityDpi = metrics.densityDpi
     val sizePx = (24 * density).toInt().coerceAtLeast(48)
-    val palette = MaterialYouPaletteHelper.getFourColorMaterialGPalette(pColor, sColor, tColor, isPillLight)
+    val palette = customPalette ?: MaterialYouPaletteHelper.getFourColorMaterialGPalette(pColor, sColor, tColor, isPillLight)
     val cacheKey = "material_g_v2_${palette.rightArcAndBar}_${palette.bottomArc}_${palette.leftArc}_${palette.topArc}_${isPillLight}_${sizePx}_${densityDpi}"
     bitmapCache.get(cacheKey)?.let { return it }
 
@@ -129,8 +131,9 @@ internal fun createThemedShortcutBitmap(
     resId: Int,
     pColor: Int,
     sColor: Int,
-    isPillLight: Boolean = false
-): Bitmap? = renderThemedIcon(context, "shortcut", resId, pColor, sColor, isPillLight, musicStroke = 2.5f)
+    isPillLight: Boolean = false,
+    tiers: MaterialYouPaletteHelper.ThreeTierAccentedPalette? = null
+): Bitmap? = renderThemedIcon(context, "shortcut", resId, pColor, sColor, isPillLight, tiers, musicStroke = 2.5f)
 
 /** The circle button's icon, drawn as a shortcut's is but with the music note's strokes bolder. */
 internal fun createThemedActionIconBitmap(
@@ -138,12 +141,13 @@ internal fun createThemedActionIconBitmap(
     resId: Int,
     pColor: Int,
     sColor: Int,
-    isPillLight: Boolean = false
-): Bitmap? = renderThemedIcon(context, "action", resId, pColor, sColor, isPillLight, musicStroke = 3.2f)
+    isPillLight: Boolean = false,
+    tiers: MaterialYouPaletteHelper.ThreeTierAccentedPalette? = null
+): Bitmap? = renderThemedIcon(context, "action", resId, pColor, sColor, isPillLight, tiers, musicStroke = 3.2f)
 
 /**
- * Draws [resId] in the three tones [themedIconPalette] works out, or returns null for an icon without a themed drawing
- * (the caller tints the plain icon instead). Cached by what it's drawn from, so a redraw with nothing changed skips the
+ * Draws [resId] in [tiers] (the Custom subtheme's), else in the three tones [themedIconPalette] works out, or returns
+ * null for an icon without a themed drawing (the caller tints the plain icon instead). Cached by what it's drawn from, so a redraw with nothing changed skips the
  * palette maths; [kind] keeps the shortcut and circle button drawings apart.
  */
 private fun renderThemedIcon(
@@ -153,6 +157,7 @@ private fun renderThemedIcon(
     pColor: Int,
     sColor: Int,
     isPillLight: Boolean,
+    tiers: MaterialYouPaletteHelper.ThreeTierAccentedPalette?,
     musicStroke: Float
 ): Bitmap? {
     // The size of the square the icon's paths are drawn on: Lens's is 100 units, the others' 24.
@@ -164,11 +169,11 @@ private fun renderThemedIcon(
     val metrics = context.resources.displayMetrics
     val densityDpi = metrics.densityDpi
     val sizePx = (24 * metrics.density).toInt().coerceAtLeast(48)
-    val cacheKey = "${kind}_${resId}_${pColor}_${sColor}_${isPillLight}_${musicStroke}_${sizePx}_${densityDpi}"
+    val cacheKey = "${kind}_${resId}_${pColor}_${sColor}_${isPillLight}_${tiers}_${musicStroke}_${sizePx}_${densityDpi}"
     bitmapCache.get(cacheKey)?.let { return it }
 
     return try {
-        val palette = themedIconPalette(pColor, sColor, isPillLight)
+        val palette = tiers ?: themedIconPalette(pColor, sColor, isPillLight)
         val bitmap = createBitmap(sizePx, sizePx).apply {
             this.density = densityDpi
         }

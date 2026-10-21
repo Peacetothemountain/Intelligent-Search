@@ -2,6 +2,8 @@ package com.pixel.intelligentsearch.feature.settings
 
 import android.app.Activity
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -15,6 +17,9 @@ import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
 import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
+import com.pixel.intelligentsearch.feature.widget.createCustomMaterialGBitmap
+import com.pixel.intelligentsearch.feature.widget.createThemedActionIconBitmap
+import com.pixel.intelligentsearch.feature.widget.createThemedShortcutBitmap
 import com.pixel.intelligentsearch.feature.widget.WidgetColorSlidersTest.Bar
 import com.pixel.intelligentsearch.feature.widget.WidgetColorSlidersTest.Sliders
 import org.junit.Assert.assertEquals
@@ -25,14 +30,17 @@ import org.robolectric.ParameterizedRobolectricTestRunner
 import org.robolectric.Robolectric
 import org.robolectric.Shadows
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import kotlin.math.abs
 
 /**
  * The editor's live preview paints what the widget draws for the same settings: the rim, the pill, the circle, the G
- * and every icon, for each design, subtheme, inner pill state and G style, with the Color Studio sliders at several
- * values. The preview is drawn with the colour scheme of the theme the widget follows.
+ * and every icon, for each design, subtheme, inner pill state and G style (the Material G style's drawings compared
+ * pixel for pixel), with the Color Studio sliders at several values. The preview is drawn with the colour scheme of
+ * the theme the widget follows.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(qualifiers = "w412dp-h915dp-xhdpi")
 class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: String, private val dark: Boolean) {
 
@@ -48,6 +56,7 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
             .putBoolean("${p}_design_saved", true)
             .putString("${p}_subtheme", bar.subtheme)
             .putString("${p}_material_g_icon", gStyle)
+            .putBoolean("${p}_custom_color_hct", true)
             .putInt("${p}_custom_hue", s.hue)
             .putInt("${p}_custom_saturation", s.saturation)
             .putInt("${p}_custom_lightness", s.lightness)
@@ -105,13 +114,23 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
         assertEquals("$what", hex(preview.toArgb()), hex(widget.findViewById<ImageView>(id).imageTintList!!.defaultColor))
     }
 
+    private fun assertBitmap(what: String, preview: Bitmap?, widget: View, id: Int) {
+        val drawn = (widget.findViewById<ImageView>(id).drawable as BitmapDrawable).bitmap
+        assertTrue("$what bitmap differs from the preview's palette", preview != null && drawn.sameAs(preview))
+    }
+
     @Test
     fun previewMatchesWidget() {
         val settings = listOf(
             Sliders(),
             Sliders(lightness = 30, opacity = 100, transparency = 0),
             Sliders(hue = 40, saturation = 20, lightness = 100, opacity = 45, transparency = 35),
-            Sliders(hue = 300, saturation = 100, lightness = 60, opacity = 100, transparency = 70)
+            Sliders(hue = 300, saturation = 100, lightness = 60, opacity = 100, transparency = 70),
+            // Black, mid-tone, grey and white seeds, where the icons flip or run out of colour.
+            Sliders(hue = 120, saturation = 80, lightness = 0),
+            Sliders(hue = 20, saturation = 90, lightness = 50),
+            Sliders(hue = 250, saturation = 0, lightness = 45),
+            Sliders(hue = 60, saturation = 70, lightness = 100)
         )
         for (s in settings) {
             store(s)
@@ -120,12 +139,15 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
             val label = "$bar $gStyle ${if (dark) "dark" else "light"} $s"
 
             assertLayer("$label pill", preview.pill.fill, widget, R.id.widget_pill_background)
-            val mic = Shadows.shadowOf(widget.findViewById<ImageView>(R.id.widget_voice_search).drawable).createdFromResId
-            assertEquals(
-                "$label mic drawing",
-                context.resources.getResourceEntryName(if (preview.usesMaterialYouIcons) R.drawable.ic_mic else R.drawable.ic_mic_original),
-                context.resources.getResourceEntryName(mic)
-            )
+            // The Material G style draws its mic as a bitmap, compared below.
+            if (gStyle != "Material G Icon") {
+                val mic = Shadows.shadowOf(widget.findViewById<ImageView>(R.id.widget_voice_search).drawable).createdFromResId
+                assertEquals(
+                    "$label mic drawing",
+                    context.resources.getResourceEntryName(if (preview.usesMaterialYouIcons) R.drawable.ic_mic else R.drawable.ic_mic_original),
+                    context.resources.getResourceEntryName(mic)
+                )
+            }
             if (bar.material) {
                 assertLayer("$label rim", preview.rim, widget, R.id.widget_outer_background)
                 assertLayer("$label circle", preview.pill.fill, widget, R.id.widget_sound_background)
@@ -143,6 +165,26 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
                     assertTint("$label shortcut", Color(preview.customIcons.shortcut1), widget, R.id.widget_lens_search)
                     if (bar.material) assertTint("$label circle icon", Color(preview.customIcons.action), widget, R.id.widget_sound_icon)
                 }
+                "Material G Icon" -> {
+                    // The widget draws these as bitmaps from the palettes the preview draws them with.
+                    val accents = listOf(preview.accentPrimary, preview.accentSecondary, preview.accentTertiary).map { it.toArgb() }
+                    val light = preview.pill.isLight
+                    assertBitmap(
+                        "$label G",
+                        createCustomMaterialGBitmap(accents[0], accents[1], accents[2], light, context, preview.customBar?.gPalette),
+                        widget, R.id.widget_g_logo
+                    )
+                    assertBitmap(
+                        "$label mic",
+                        createThemedShortcutBitmap(context, R.drawable.ic_mic, accents[0], accents[1], light, preview.customBar?.iconTiers),
+                        widget, R.id.widget_voice_search
+                    )
+                    if (bar.material) assertBitmap(
+                        "$label circle icon",
+                        createThemedActionIconBitmap(context, R.drawable.ic_lens_action, accents[0], accents[1], light, preview.customBar?.iconTiers),
+                        widget, R.id.widget_sound_icon
+                    )
+                }
                 "System G Icon" -> {
                     assertTint("$label mic", preview.systemIconTint, widget, R.id.widget_voice_search)
                     assertTint("$label shortcut", preview.systemIconTint, widget, R.id.widget_lens_search)
@@ -156,7 +198,7 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0} {1} dark={2}")
         fun parameters(): List<Array<Any>> = Bar.entries.flatMap { bar ->
-            listOf("Accented G Icon", "Custom G Icon", "System G Icon").flatMap { style ->
+            listOf("Accented G Icon", "Custom G Icon", "System G Icon", "Material G Icon").flatMap { style ->
                 listOf(arrayOf<Any>(bar, style, false), arrayOf<Any>(bar, style, true))
             }
         }

@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import android.content.SharedPreferences
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -34,6 +35,14 @@ internal fun parseHexColor(raw: String): Int? {
     if (!HEX_COLOR_REGEX.matches(hex)) return null
     return (0xFF000000.toInt() or hex.removePrefix("#").toInt(16))
 }
+
+/**
+ * The Color Studio's Hue, Saturation and Lightness for the hex colour [color]: the seed's HCT coordinates
+ * ([MaterialYouPaletteHelper.seedSliders]), a grey keeping [currentHue]. They're saved as whole numbers, so they're
+ * whole here: the preview and the hex field then show the colour that will be saved.
+ */
+internal fun slidersForHex(color: Int, currentHue: Float): MaterialYouPaletteHelper.SeedSliders =
+    MaterialYouPaletteHelper.wholeSeedSliders(color, greyHue = currentHue)
 
 /** The widget editor's shortcut sheet and its hex, URL and app dialogs. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -214,13 +223,10 @@ internal fun WidgetEditorDialogs(
             confirmButton = {
                 TextButton(enabled = parsed != null, onClick = {
                     if (parsed != null) {
-                        val hsv = FloatArray(3)
-                        android.graphics.Color.colorToHSV(parsed, hsv)
-                        // Saved as whole numbers, so they're rounded here: the preview then shows the colour that
-                        // will be saved.
-                        localHue = Math.round(hsv[0]).toFloat()
-                        localSaturation = Math.round(hsv[1] * 100).toFloat()
-                        localLightness = Math.round(hsv[2] * 100).toFloat()
+                        val sliders = slidersForHex(parsed, localHue)
+                        localHue = sliders.hue
+                        localSaturation = sliders.saturation
+                        localLightness = sliders.lightness
                         localSubtheme = "Custom"
                     }
                     showHexInput = false

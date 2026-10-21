@@ -46,7 +46,6 @@ import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
-import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
 
 // WIDGET SETTINGS SCREEN
@@ -94,7 +93,7 @@ internal fun previewPill(
 ): PreviewPill {
     val themed = themedSurface.copy(alpha = containerAlpha)
     val custom = accentColor.copy(alpha = effectiveColorAlpha)
-    val customIsLight = WidgetColorRules.isLight(accentColor.toArgb())
+    val customIsLight = WidgetColorRules.iconsGoDark(accentColor.toArgb())
     val light = Color(0xFFF1F3F4).copy(alpha = containerAlpha)
     val dark = Color(0xFF303134).copy(alpha = containerAlpha)
     return if (isMaterialDesign) {
@@ -136,6 +135,8 @@ internal data class WidgetPreviewColors(
     val accentPrimary: Color,
     val accentSecondary: Color,
     val accentTertiary: Color,
+    /** The Custom subtheme's bar from its seed, whose palettes the Material G style draws with; null otherwise. */
+    val customBar: WidgetColorRules.CustomBarColors?,
     /** What the System G style tints the shortcuts and the circle's icon. */
     val systemIconTint: Color,
     /** The Custom G style's colours as drawn: Sync All Colors applied, and darker where the widget darkens them. */
@@ -194,21 +195,22 @@ internal fun widgetPreviewColors(
 
     val isDarkSurface = if (isMaterialDesign) lockBlack || !isPillLight else !isPillLight
     val surfaceColors = widgetColors(isDarkSurface)
-    val (rawP, rawS, rawT) = if (isCustomTheme) {
-        val m3 = MaterialYouPaletteHelper.getMaterialYouTonalColors(hue = draft.hue, saturation = draft.saturation, isDarkSurface = isDarkSurface)
-        Triple(m3.primary, m3.secondary, m3.tertiary)
-    } else {
-        Triple(surfaceColors.primary, surfaceColors.secondary, surfaceColors.tertiary)
-    }
+    // The Custom subtheme's icons come from its seed, already in contrast with the pill.
+    val customBar = if (isCustomTheme) WidgetColorRules.customBarColors(draft, isMaterialDesign) else null
     fun accent(color: Int, tone: Double) = Color(WidgetColorRules.iconColor(color, isMaterialDesign, lockBlack, isPillLight, tone))
 
-    val systemIconTint = if (isPillLight && (!isMaterialDesign || !lockBlack)) Color(surfaceColors.onSurface) else Color.White
+    val systemIconTint = when {
+        customBar != null -> Color(customBar.plainIcon)
+        isPillLight && (!isMaterialDesign || !lockBlack) -> Color(surfaceColors.onSurface)
+        else -> Color.White
+    }
     return WidgetPreviewColors(
         rim = rim,
         pill = pill,
-        accentPrimary = accent(rawP, 32.0),
-        accentSecondary = accent(rawS, 34.0),
-        accentTertiary = accent(rawT, 32.0),
+        accentPrimary = customBar?.let { Color(it.accent) } ?: accent(surfaceColors.primary, 32.0),
+        accentSecondary = customBar?.let { Color(it.secondary) } ?: accent(surfaceColors.secondary, 34.0),
+        accentTertiary = customBar?.let { Color(it.tertiary) } ?: accent(surfaceColors.tertiary, 32.0),
+        customBar = customBar,
         systemIconTint = systemIconTint,
         customIcons = WidgetColorRules.customIconColors(draft, isMaterialDesign, isPillLight),
         usesMaterialYouIcons = WidgetColorRules.usesMaterialYouIcons(isMaterialDesign, draft.gIconTheme, isPillLight, draft.subtheme)
@@ -580,7 +582,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     accentColor = if (isCustom) customGColorObj else gPrimary,
                                     fallbackTint = if (isCustom) customGColorObj else androidx.compose.ui.graphics.Color.Unspecified,
                                     useOriginalColors = useOriginalGIcon,
-                                    isPillLight = isPreviewPillLight
+                                    isPillLight = isPreviewPillLight,
+                                    customPalette = previewColors.customBar?.gPalette
                                 )
                             }
 
@@ -651,7 +654,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     quaternaryColor = scQuaternary,
                                     isMaterialTheme = isMaterial,
                                     modifier = Modifier.size(24.dp),
-                                    isPillLight = isPreviewPillLight
+                                    isPillLight = isPreviewPillLight,
+                                    tiers = previewColors.customBar?.iconTiers
                                 )
                             }
                         }
@@ -685,7 +689,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     tertiaryColor = actTertiary,
                                     quaternaryColor = actQuaternary,
                                     isMaterialTheme = (effectiveGIconTheme == "Material G Icon"),
-                                    isPillLight = isPreviewPillLight
+                                    isPillLight = isPreviewPillLight,
+                                    tiers = previewColors.customBar?.iconTiers
                                 )
                             }
                         }

@@ -2,7 +2,6 @@ package com.pixel.intelligentsearch.feature.widget
 
 import android.app.Activity
 import android.content.Context
-import android.graphics.Color
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -45,6 +44,7 @@ class WidgetCustomIconColorsTest(private val bar: Bar, private val dark: Boolean
             .putBoolean("${p}_design_saved", true)
             .putString("${p}_subtheme", bar.subtheme)
             .putString("${p}_material_g_icon", "Custom G Icon")
+            .putBoolean("${p}_custom_color_hct", true)
             .putInt("${p}_custom_hue", 200)
             .putInt("${p}_custom_saturation", 60)
             .putInt("${p}_custom_lightness", lightness)
@@ -69,8 +69,7 @@ class WidgetCustomIconColorsTest(private val bar: Bar, private val dark: Boolean
 
     private val pillIsLight: Boolean
         get() {
-            val c = Color.HSVToColor(floatArrayOf(200f, 0.6f, lightness / 100f))
-            val customIsLight = (0.299 * Color.red(c) + 0.587 * Color.green(c) + 0.114 * Color.blue(c)) / 255.0 > 0.5
+            val customIsLight = WidgetColorSlidersTest.iconsGoDarkOn(WidgetColorSlidersTest.colorAtShare(200.0, 0.6, lightness.toDouble()))
             return when {
                 bar.material && bar.lockBlack -> false
                 bar.isCustom -> customIsLight

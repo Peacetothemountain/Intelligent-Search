@@ -2,6 +2,8 @@ package com.pixel.intelligentsearch.core.theme
 
 import androidx.annotation.ColorInt
 import androidx.compose.ui.graphics.Color
+import com.google.android.material.color.utilities.Contrast
+import com.google.android.material.color.utilities.DynamicColor
 import com.google.android.material.color.utilities.DynamicScheme
 import com.google.android.material.color.utilities.Hct
 import com.google.android.material.color.utilities.SchemeContent
@@ -225,6 +227,92 @@ object MaterialYouPaletteHelper {
 
         return result
     }
+
+    /** The most chroma [hue] reaches at [tone] in sRGB (none at black and white). */
+    fun maxChroma(hue: Double, tone: Double): Double = Hct.from(hue, 200.0, tone).chroma
+
+    /**
+     * The colour of [hue] at [tone] with [share] (0..1) of the most chroma that hue reaches at that tone: the custom
+     * colour's tonal palette, where Saturation is the share at every tone, so it never runs out of range.
+     */
+    @ColorInt
+    fun colorAtShare(hue: Double, share: Double, tone: Double): Int {
+        val chroma = share.coerceIn(0.0, 1.0) * maxChroma(hue, tone)
+        return Hct.from(((hue % 360.0) + 360.0) % 360.0, chroma, tone.coerceIn(0.0, 100.0)).toInt() or 0xFF000000.toInt()
+    }
+
+    /**
+     * The seed colour the widget editor's Hue, Saturation and Lightness sliders pick, as Google's search bar editor
+     * themes its bar from one HCT colour: [hue] is the HCT hue (0..360), [saturation] the share (0..100) of the most
+     * chroma that hue reaches at the tone, and [lightness] the tone (0..100, black to white).
+     */
+    @ColorInt
+    fun seedColor(hue: Float, saturation: Float, lightness: Float): Int =
+        colorAtShare(hue.toDouble(), saturation / 100.0, lightness.toDouble())
+
+    /** The Hue, Saturation and Lightness slider values ([seedColor]'s inputs) that pick [color]. */
+    data class SeedSliders(val hue: Float, val saturation: Float, val lightness: Float)
+
+    /**
+     * The slider values that pick [color] (the inverse of [seedColor]). A grey has no hue of its own, so it keeps
+     * [greyHue].
+     */
+    fun seedSliders(@ColorInt color: Int, greyHue: Float = 0f): SeedSliders {
+        val hct = Hct.fromInt(color or 0xFF000000.toInt())
+        val most = maxChroma(hct.hue, hct.tone)
+        val isGrey = (color shr 16 and 0xFF) == (color and 0xFF) && (color shr 8 and 0xFF) == (color and 0xFF)
+        val share = if (isGrey || most < 1.0) 0.0 else (hct.chroma / most).coerceIn(0.0, 1.0)
+        return SeedSliders(
+            hue = if (share == 0.0) greyHue else hct.hue.toFloat(),
+            saturation = (share * 100.0).toFloat(),
+            lightness = hct.tone.toFloat()
+        )
+    }
+
+    /**
+     * The whole-number slider values (as they're saved) whose seed is nearest [color]: [seedSliders] rounded, then
+     * nudged a step or two where that lands closer, as a whole degree of hue moves the most colourful colours furthest.
+     */
+    fun wholeSeedSliders(@ColorInt color: Int, greyHue: Float = 0f): SeedSliders {
+        val exact = seedSliders(color, greyHue)
+        val start = SeedSliders(Math.round(exact.hue).toFloat(), Math.round(exact.saturation).toFloat(), Math.round(exact.lightness).toFloat())
+        fun distance(s: SeedSliders): Int {
+            val seed = seedColor(s.hue, s.saturation, s.lightness)
+            return listOf(16, 8, 0).sumOf { shift ->
+                val d = (seed shr shift and 0xFF) - (color shr shift and 0xFF)
+                d * d
+            }
+        }
+        var best = start
+        var bestDistance = distance(start)
+        for (dh in -2..2) for (ds in -2..2) for (dl in -1..1) {
+            val candidate = SeedSliders(
+                ((start.hue + dh + 360f) % 360f),
+                (start.saturation + ds).coerceIn(0f, 100f),
+                (start.lightness + dl).coerceIn(0f, 100f)
+            )
+            val d = distance(candidate)
+            if (d < bestDistance) {
+                best = candidate
+                bestDistance = d
+            }
+        }
+        return best
+    }
+
+    /**
+     * The tone for something drawn on a background of [backgroundTone] that keeps [ratio] contrast with it, by
+     * Material's own rule: darker on light backgrounds and lighter on dark ones, flipping where white and black
+     * contrast equally (about tone 50). Where neither side reaches [ratio] it's the better of white and black.
+     */
+    fun foregroundTone(backgroundTone: Double, ratio: Double): Double =
+        DynamicColor.foregroundTone(backgroundTone.coerceIn(0.0, 100.0), ratio)
+
+    /**
+     * [tone] moved, if it must be, to keep at least [ratio] contrast with [backgroundTone] on the [darker] side of it.
+     */
+    fun keepContrast(tone: Double, backgroundTone: Double, darker: Boolean, ratio: Double): Double =
+        if (darker) min(tone, Contrast.darkerUnsafe(backgroundTone, ratio)) else max(tone, Contrast.lighterUnsafe(backgroundTone, ratio))
 
     /**
      * Calculates the standard relative luminance of an sRGB color.

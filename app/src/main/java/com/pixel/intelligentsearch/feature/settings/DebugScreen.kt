@@ -177,6 +177,20 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
 }
 
 /**
+ * Locks Developer Settings again. A widget doodle preview ends first: its switch is on the page being hidden, so
+ * left on it could never be turned off. The widgets are redrawn ([redraw]) only when a preview was showing.
+ */
+internal fun disableDebugMode(
+    context: android.content.Context,
+    prefs: SharedPreferences,
+    redraw: () -> Unit = { com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(context) }
+) {
+    val doodles = com.pixel.intelligentsearch.feature.widget.WidgetDoodles
+    if (doodles.previewing(prefs) != null) doodles.preview(context, null, prefs, redraw)
+    prefs.edit().put(SettingsManager.DEBUG_UNLOCKED, false).apply()
+}
+
+/**
  * Shows any doodle on the widgets, whatever the date: the switch turns the preview on and off, and tapping the row
  * opens the doodle gallery to browse, play and test all of them (see [DoodleGallery]). Off, the widgets show today's
  * doodle (if any) again.

@@ -3,7 +3,6 @@ package com.pixel.intelligentsearch.feature.settings
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
-import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.util.findActivity
 import androidx.compose.ui.graphics.graphicsLayer
@@ -279,7 +278,7 @@ fun SettingsScreensHub(
                                 prefs = prefs,
                                 onBack = onBack,
                                 onDisableDebug = {
-                                    prefs.edit().put(SettingsManager.DEBUG_UNLOCKED, false).apply()
+                                    disableDebugMode(context, prefs)
                                     if (!navController.popBackStack()) {
                                         navController.navigate(com.pixel.intelligentsearch.core.navigation.Route.Main) {
                                             popUpTo(0)

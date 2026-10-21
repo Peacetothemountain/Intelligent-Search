@@ -50,6 +50,20 @@ fun clearThemedIconCache() {
     themedIconCache.evictAll()
 }
 
+/**
+ * Forgets [packageName]'s cached icon under every icon pack, so an app that was updated, reinstalled or came back
+ * is drawn with its current icon. When [packageName] is an icon pack that drew cached icons, all of those (and its
+ * parsed appfilter) go instead.
+ */
+fun evictThemedAppIcon(packageName: String) {
+    val keys = themedIconCache.snapshot().keys
+    if (keys.any { it.startsWith("$packageName:") }) {
+        IconPackManager.clearCache()
+        return
+    }
+    keys.filter { it.endsWith(":$packageName") }.forEach { themedIconCache.remove(it) }
+}
+
 fun peekThemedAppIcon(packageName: String, activePackOverride: String? = null): AppIconResult? {
     val activePack = activePackOverride ?: cachedActivePack ?: "system_default"
     return themedIconCache.get("$activePack:$packageName")

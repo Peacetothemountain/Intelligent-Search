@@ -20,6 +20,7 @@ import android.util.Log
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ProfileType
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
+import com.pixel.intelligentsearch.core.ui.evictThemedAppIcon
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,30 +57,37 @@ class MultiProfileManager @Inject constructor(
     private val _profilesState = MutableStateFlow<List<ProfileDescriptor>>(emptyList())
     val profilesState: StateFlow<List<ProfileDescriptor>> = _profilesState.asStateFlow()
 
+    // An install, update or removal can change an app's icon, and nothing else drops a cached icon while the
+    // process lives, so those events forget the package's icon along with the app list.
     private val launcherCallback = object : LauncherApps.Callback() {
         override fun onPackageRemoved(packageName: String, user: UserHandle) {
             refreshProfiles()
             SystemDataProvider.invalidateAppsCache()
+            evictThemedAppIcon(packageName)
         }
 
         override fun onPackageAdded(packageName: String, user: UserHandle) {
             refreshProfiles()
             SystemDataProvider.invalidateAppsCache()
+            evictThemedAppIcon(packageName)
         }
 
         override fun onPackageChanged(packageName: String, user: UserHandle) {
             refreshProfiles()
             SystemDataProvider.invalidateAppsCache()
+            evictThemedAppIcon(packageName)
         }
 
         override fun onPackagesAvailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) {
             refreshProfiles()
             SystemDataProvider.invalidateAppsCache()
+            packageNames.forEach(::evictThemedAppIcon)
         }
 
         override fun onPackagesUnavailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) {
             refreshProfiles()
             SystemDataProvider.invalidateAppsCache()
+            packageNames.forEach(::evictThemedAppIcon)
         }
 
         override fun onPackagesSuspended(packageNames: Array<out String>, user: UserHandle) {

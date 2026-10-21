@@ -74,7 +74,7 @@ class SettingsGoldenTest(private val page: String, private val dark: Boolean) {
             "search_behavior" -> SearchBehaviorScreen(prefs, back)
             "launch_portal" -> LaunchPortalScreen(prefs, back)
             "app_search" -> AppSearchScreen(prefs, {}, back)
-            "search_pills" -> SearchPillsScreen(prefs, back, {})
+            "search_pills" -> SearchPillsScreen(prefs, back)
             "web_search" -> WebSearchScreen(prefs, back)
             "contact_search" -> ContactSearchScreen(prefs, back)
             "file_search" -> FileSearchScreen(prefs, back)

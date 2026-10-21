@@ -94,8 +94,7 @@ data class AppPickerItem(
 @Composable
 fun SearchPillsScreen(
     prefs: SharedPreferences,
-    onBack: () -> Unit,
-    onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = {}
+    onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val viewModel = LocalSettingsViewModel.current

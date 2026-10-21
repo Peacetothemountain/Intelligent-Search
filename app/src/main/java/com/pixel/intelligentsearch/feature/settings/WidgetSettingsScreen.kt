@@ -701,7 +701,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .background(if (isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
                             .semantics { selected = isSystem }
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
-                                hapticEngine.performPredictiveBackHaptic(view)
                                 localThemeStyle = "System Default"
                             },
                         contentAlignment = Alignment.Center
@@ -723,7 +722,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .background(if (!isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
                             .semantics { selected = !isSystem }
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
-                                hapticEngine.performPredictiveBackHaptic(view)
                                 // Only shows the Material design; its own settings, like Inner Pill & Circle
                                 // State, stay as the user left them.
                                 localThemeStyle = "Material You (Minimal)"
@@ -789,7 +787,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             )
                             .semantics { selected = isSel }
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
-                                hapticEngine.performPredictiveBackHaptic(view)
                                 selectedTabName = tab.first
                             },
                         contentAlignment = Alignment.Center

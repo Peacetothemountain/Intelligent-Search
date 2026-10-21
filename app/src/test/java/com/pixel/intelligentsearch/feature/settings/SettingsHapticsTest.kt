@@ -7,15 +7,19 @@ import android.os.VibratorManager
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.screenshots.confinedEffects
+import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
+import com.pixel.intelligentsearch.screenshots.settle
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -88,6 +92,66 @@ class SettingsHapticsTest {
         compose.onAllNodesWithContentDescription("Reset", substring = true).onLast().performClick()
         compose.waitForIdle()
         assertEquals(1, haptics)
+    }
+
+    /** The widget editor, whose animations never end, so its clock is driven by hand instead of waiting for idle. */
+    private fun showWidgetEditor() {
+        disableHandRolledAnimations()
+        compose.mainClock.autoAdvance = false
+        compose.setContent { IntelligentSearchTheme(darkTheme = false) { WidgetSettingsScreen(prefs) {} } }
+        compose.settle()
+        haptics = 0
+    }
+
+    /**
+     * Taps the first control showing [label] and returns the haptics played as the finger lifts, which is when the
+     * click happens. Touching down gives its own light tick (outside a scrolling page, where a press shows at once),
+     * so that is left out.
+     */
+    private fun clickHapticsOf(label: String): Int {
+        val control = compose.onAllNodesWithText(label, useUnmergedTree = true)[0]
+        control.performTouchInput { down(center) }
+        compose.settle(steps = 1)
+        haptics = 0
+        control.performTouchInput { up() }
+        compose.settle(steps = 5)
+        return haptics
+    }
+
+    @Test
+    fun aWidgetEditorTabGivesOneHaptic() {
+        // The Custom subtheme adds the Color Studio tab.
+        prefs.edit().putBoolean("widget_system_design_saved", true).putString("widget_system_subtheme", "Custom").commit()
+        showWidgetEditor()
+        assertEquals(1, clickHapticsOf("Color Studio"))
+    }
+
+    @Test
+    fun theWidgetDesignSwitcherGivesOneHaptic() {
+        showWidgetEditor()
+        assertEquals(1, clickHapticsOf("Material Design"))
+    }
+
+    @Test
+    fun widgetEditorOptionsGiveOneHaptic() {
+        showWidgetEditor()
+        // A G icon style.
+        assertEquals(1, clickHapticsOf("Accented"))
+        // An action icon, which only the Material design has.
+        clickHapticsOf("Material Design")
+        assertEquals(1, clickHapticsOf("Playing"))
+    }
+
+    @Test
+    fun theWidgetElementPickerGivesOneHaptic() {
+        // Custom icon colours, set one element at a time.
+        prefs.edit()
+            .putBoolean("widget_system_design_saved", true)
+            .putString("widget_system_material_g_icon", "Custom G Icon")
+            .putBoolean("widget_system_custom_sync_colors", false)
+            .commit()
+        showWidgetEditor()
+        assertEquals(1, clickHapticsOf("G Icon"))
     }
 
     @Test

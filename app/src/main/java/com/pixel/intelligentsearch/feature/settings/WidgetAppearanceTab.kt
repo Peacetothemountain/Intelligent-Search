@@ -150,7 +150,6 @@ internal fun WidgetAppearanceTab(
                             )
                             .semantics { selected = isSel }
                             .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
-                                hapticEngine.performPredictiveBackHaptic(view)
                                 localActionIcon = optionKey
                             },
                         contentAlignment = Alignment.Center
@@ -319,7 +318,6 @@ internal fun WidgetAppearanceTab(
                         .background(if (isSel) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
                         .semantics { selected = isSel }
                         .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
-                            hapticEngine.performPredictiveBackHaptic(view)
                             localMaterialGIconTheme = opt
                         },
                     contentAlignment = Alignment.Center
@@ -479,7 +477,6 @@ internal fun WidgetAppearanceTab(
                                     shape = RoundedCornerShape(20.dp)
                                 )
                                 .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
-                                    hapticEngine.performPredictiveBackHaptic(view)
                                     elementDropdownExpanded = true
                                 }
                                 .padding(horizontal = 16.dp),

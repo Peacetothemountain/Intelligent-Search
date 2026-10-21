@@ -51,6 +51,22 @@ class LiveCurrencyConversionTest {
     }
 
     @Test
+    fun twoCurrenciesWithNoAmountGiveTheRateForOne() {
+        val result = convert("USD to INR", CurrencyRates.BUILT_IN)!!
+        assertEquals(1.0, result.fromValue, 0.0)
+        assertEquals("USD", result.fromUnit)
+        assertEquals("INR", result.toUnit)
+        assertEquals(83.5, result.toValue, 1e-9)
+        assertEquals(0.64, convert("usd in gbp")!!.toValue, 1e-9)
+        assertSame(live, convert("usd in gbp")!!.currencyRates)
+        assertEquals(83.5, convert("$ to ₹", CurrencyRates.BUILT_IN)!!.toValue, 1e-9)
+        // Codes no table lists, and other units without an amount, are still not answers.
+        assertNull(convert("abc to xyz"))
+        assertNull(MathematicalExpressionEngine.evaluate("km to mi"))
+        assertNull(MathematicalExpressionEngine.evaluate("usd to"))
+    }
+
+    @Test
     fun otherUnitsNeverAskForRates() {
         val noRates: () -> CurrencyRates = { throw AssertionError("rates were read for a unit conversion") }
         val length = MathematicalExpressionEngine.evaluate("1 km to m", noRates) as UnitConversion

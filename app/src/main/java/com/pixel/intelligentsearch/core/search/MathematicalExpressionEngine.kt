@@ -63,6 +63,8 @@ object MathematicalExpressionEngine {
     private val REGEX_BITWISE = Regex("^([0-9a-fA-FxXbB]+)\\s+(AND|OR|XOR|SHL|SHR|USHR|<<|>>|>>>|&|\\|)\\s+([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
     private val REGEX_BITWISE_NOT = Regex("^(?:NOT|~)\\s*([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
     private val REGEX_UNIT_CONVERSION = Regex("^([-+]?[0-9.]+(?:[eE][-+]?[0-9]+)?)\\s*([a-zA-Z/_°]+)\\s*(?:to|in)\\s*([a-zA-Z/_°]+)$", RegexOption.IGNORE_CASE)
+    /** Two currency codes with no amount, "usd to inr", which asks what one unit is worth. */
+    private val REGEX_BARE_CURRENCY_CONVERSION = Regex("^([a-zA-Z]{3})\\s+(?:to|in)\\s+([a-zA-Z]{3})$")
     private val REGEX_SCIENTIFIC_NUMBER = Regex("^[+-]?[0-9]+(?:\\.[0-9]+)?[eE][+-]?[0-9]+$")
     private val REGEX_SPACE_SEPARATED_NUMBERS = Regex("\\d\\s+\\d")
     // Phone numbers and dates look like subtraction ("555-1234" would show -679). Matched after
@@ -504,7 +506,11 @@ object MathematicalExpressionEngine {
             .replace(REGEX_WHITESPACE, " ")
             .trim()
 
-        val match = REGEX_UNIT_CONVERSION.find(normalizedQuery) ?: return null
+        val match = REGEX_UNIT_CONVERSION.find(normalizedQuery)
+            ?: return REGEX_BARE_CURRENCY_CONVERSION.find(normalizedQuery)?.let { bare ->
+                val (from, to) = bare.destructured
+                convertCurrency(1.0, from.lowercase(Locale.ROOT), to.lowercase(Locale.ROOT), currencyRates)
+            }
 
         val value = match.groupValues[1].toDoubleOrNull() ?: return null
         if (!value.isFinite()) return null
@@ -543,7 +549,17 @@ object MathematicalExpressionEngine {
             }
         }
 
-        // 3. Currency Table: the live rates when they list both currencies, else the built-in ones.
+        // 3. Currency Table
+        return convertCurrency(value, fromUnit, toUnit, currencyRates)
+    }
+
+    /** A currency conversion, with the live rates when they list both currencies, else the built-in ones. */
+    private fun convertCurrency(
+        value: Double,
+        fromUnit: String,
+        toUnit: String,
+        currencyRates: () -> CurrencyRates
+    ): MathEvaluationResult.UnitConversion? {
         if (isCurrencyCode(fromUnit) && isCurrencyCode(toUnit)) {
             val live = currencyRates()
             val rates = if (fromUnit in live.perBase && toUnit in live.perBase) live else CurrencyRates.BUILT_IN

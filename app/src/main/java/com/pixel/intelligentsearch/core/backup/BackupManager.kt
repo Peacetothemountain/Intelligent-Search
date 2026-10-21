@@ -495,6 +495,7 @@ class BackupManager @Inject constructor(
                 require(spObj.length() <= BackupPreferenceSchema.MAX_KEYS) { "Backup has too many settings" }
                 val editor = sharedPrefs.edit()
                 val localValues = sharedPrefs.all
+                var typedRestored = 0
                 val keys = spObj.keys()
                 while (keys.hasNext()) {
                     val key = keys.next()
@@ -553,10 +554,15 @@ class BackupManager @Inject constructor(
                         }
                         // The restored canonical value replaces any old spelling still stored locally.
                         setting?.legacyNames?.forEach(editor::remove)
-                        restoredCount++
+                        typedRestored++
                     }
                 }
-                editor.commit()
+                if (editor.commit()) {
+                    restoredCount += typedRestored
+                } else {
+                    // None of them reached storage, so none count as restored.
+                    Log.w("BackupManager", "Restored typed SharedPreferences could not be saved")
+                }
             } catch (e: Throwable) {
                 android.util.Log.w("BackupManager", "Failed to restore typed SharedPreferences", e)
             }

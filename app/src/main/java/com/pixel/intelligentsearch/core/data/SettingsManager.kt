@@ -408,7 +408,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         }
         RETIRED_NAMES.forEach(editor::remove)
         editor.putInt(STORAGE_VERSION_KEY, CURRENT_STORAGE_VERSION)
-        editor.commit()
+        // The old store may hold the only copy of what was imported: keep it until the import is on disk, and the
+        // migration runs again at the next start.
+        if (!editor.commit()) return@withContext
         runCatching { context.preferencesDataStoreFile(LEGACY_DATASTORE_NAME).delete() }
     }
 

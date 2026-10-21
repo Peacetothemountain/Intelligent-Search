@@ -91,6 +91,20 @@ internal fun resultSectionOrder(
     return sections.toMutableList().apply { add(after.maxOf { sections.indexOf(it) } + 1, "android_settings") }
 }
 
+/** The icon on a suggested action, by its [DirectAction.iconType]; clipboard suggestions show the clipboard. */
+internal fun directActionIcon(type: String): androidx.compose.ui.graphics.vector.ImageVector = when (type) {
+    "link" -> Icons.Default.Link
+    "phone" -> Icons.Default.Call
+    "search" -> Icons.Default.Search
+    "calendar" -> Icons.Default.Event
+    "message" -> Icons.AutoMirrored.Filled.Message
+    "timer" -> Icons.Default.Timer
+    "alarm" -> Icons.Default.Alarm
+    "navigation" -> Icons.Default.Directions
+    "private_space" -> Icons.Default.Lock
+    else -> Icons.Default.ContentPaste
+}
+
 /** The overlay's results list: suggested actions, best match, recents, calendar, shortcuts, one-boxes, and the app, Android Settings, web, people and file sections. */
 @Composable
 internal fun OverlaySearchResults(s: OverlayScope) {
@@ -294,14 +308,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         )
                         .swipeOffset(swipe)
                 ) {
-                    val actionIcon = when (action.iconType) {
-                        "link" -> Icons.Default.Link
-                        "phone" -> Icons.Default.Call
-                        "search" -> Icons.Default.Search
-                        "calendar" -> Icons.Default.Event
-                        "message" -> Icons.AutoMirrored.Filled.Message
-                        else -> Icons.Default.ContentPaste
-                    }
+                    val actionIcon = directActionIcon(action.iconType)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

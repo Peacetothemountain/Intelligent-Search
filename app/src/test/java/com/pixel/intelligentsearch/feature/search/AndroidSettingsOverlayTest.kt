@@ -64,7 +64,7 @@ class AndroidSettingsOverlayTest {
                 LaunchedEffect(Unit) { viewModel.onQueryChanged(query) }
                 SearchOverlayScreen(
                     onOpenSettings = {},
-                    onLaunchApp = { _, _, _ -> },
+                    onLaunchApp = { _, _, _, _ -> },
                     viewModel = viewModel,
                     isKeyboardDisabled = true
                 )

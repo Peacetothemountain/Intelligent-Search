@@ -58,6 +58,8 @@ internal class OverlayScope(
     /** Launches an app: package, profile (null = personal) and launcher activity if known. */
     val performLaunch: (String, android.os.UserHandle?, String?) -> Unit,
     val performAppLaunch: (AppItem) -> Unit,
+    /** ActivityOptions for opening an app's shortcut, per the App Animations setting (null = system default). */
+    val launchOptions: () -> android.os.Bundle?,
     val closeOverlay: () -> Unit,
     val launchWebSearch: (String) -> Unit,
     val openWebAddress: (String) -> Unit,

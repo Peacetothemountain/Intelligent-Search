@@ -73,7 +73,7 @@ class OverlayAccessibilityTest {
                     if (query.isNotEmpty()) viewModel.onQueryChanged(query)
                 }
                 val screen = @androidx.compose.runtime.Composable {
-                    SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _ -> }, viewModel = viewModel, isKeyboardDisabled = true)
+                    SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> }, viewModel = viewModel, isKeyboardDisabled = true)
                 }
                 if (accessibility != null) CompositionLocalProvider(LocalAccessibilityManager provides accessibility) { screen() } else screen()
             }

@@ -52,7 +52,6 @@ object NaturalLanguageIntentParser {
             val title: String,
             val startMillis: Long,
             val endMillis: Long,
-            val description: String? = null,
             val intent: Intent
         ) : ParsedIntent()
 
@@ -94,10 +93,10 @@ object NaturalLanguageIntentParser {
         ) : ParsedIntent()
     }
 
+    /** [contactLookup] resolves a name in "call ..." and "text ..." to a contact; without it only numbers resolve. */
     fun parse(
         rawQuery: String,
         currentTimeMs: Long = System.currentTimeMillis(),
-        contacts: List<com.pixel.intelligentsearch.core.data.ContactItem> = emptyList(),
         contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)? = null
     ): ParsedIntent? {
         val query = rawQuery.trim()
@@ -117,10 +116,10 @@ object NaturalLanguageIntentParser {
         parseCalendar(lower, query, currentTimeMs)?.let { return it }
 
         // 5. Direct Messaging Intent ("message ...", "text ...")
-        parseDirectMessage(query, contacts, contactLookup)?.let { return it }
+        parseDirectMessage(query, contactLookup)?.let { return it }
 
         // 6. Direct Phone Call Intent ("call ...", "dial ...")
-        parsePhoneCall(lower, query, contacts, contactLookup)?.let { return it }
+        parsePhoneCall(lower, query, contactLookup)?.let { return it }
 
         // 7. Direct Navigation Intent ("directions to ...", "navigate to ...")
         parseNavigation(lower, query)?.let { return it }
@@ -313,7 +312,6 @@ object NaturalLanguageIntentParser {
             title = cleanTitle,
             startMillis = startMs,
             endMillis = endMs,
-            description = "Created by Intelligent Search",
             intent = intent
         )
     }
@@ -324,8 +322,7 @@ object NaturalLanguageIntentParser {
 
     private fun parseDirectMessage(
         original: String,
-        contacts: List<com.pixel.intelligentsearch.core.data.ContactItem> = emptyList(),
-        contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)? = null
+        contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)?
     ): ParsedIntent.DirectMessage? {
         val match = MESSAGE_REGEX.find(original) ?: return null
 
@@ -334,7 +331,7 @@ object NaturalLanguageIntentParser {
         val body = match.groupValues[3].trim()
 
         // Resolve the recipient to a number the same way calls do, so the composer opens addressed to them.
-        val number = resolveRecipientNumber(recipient, contacts, contactLookup)
+        val number = resolveRecipientNumber(recipient, contactLookup)
 
         val intent = if (isWhatsApp) {
             // WhatsApp needs the full international number; without a country code it rejects the link, so
@@ -363,7 +360,6 @@ object NaturalLanguageIntentParser {
     /** A dialable number for [target]: the target itself if it is one, else a matching contact's number. */
     private fun resolveRecipientNumber(
         target: String,
-        contacts: List<com.pixel.intelligentsearch.core.data.ContactItem>,
         contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)?
     ): String? {
         if (target.isEmpty()) return null
@@ -371,15 +367,13 @@ object NaturalLanguageIntentParser {
             return target.filter { it.isDigit() || it == '+' }.takeIf { it.count(Char::isDigit) >= 3 }
         }
         val contact = contactLookup?.invoke(target)?.takeIf { it.phoneNumber.isNotBlank() }
-            ?: contacts.firstOrNull { it.phoneNumber.isNotBlank() && it.name.contains(target, ignoreCase = true) }
         return contact?.phoneNumber?.filter { it.isDigit() || it == '+' }?.takeIf { it.isNotEmpty() }
     }
 
     private fun parsePhoneCall(
         lower: String,
         original: String,
-        contacts: List<com.pixel.intelligentsearch.core.data.ContactItem> = emptyList(),
-        contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)? = null
+        contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)?
     ): ParsedIntent.PhoneCall? {
         val callTriggers = listOf("call ", "dial ", "phone ")
         val matchedTrigger = callTriggers.firstOrNull { lower.startsWith(it) } ?: return null
@@ -393,9 +387,6 @@ object NaturalLanguageIntentParser {
 
         val matchedContact = if (cleanNumber == null) {
             contactLookup?.invoke(target)?.takeIf { it.phoneNumber.isNotBlank() }
-                ?: contacts.firstOrNull {
-                    it.phoneNumber.isNotBlank() && it.name.contains(target, ignoreCase = true)
-                }
         } else null
 
         if (cleanNumber == null && matchedContact == null) return null
@@ -444,10 +435,13 @@ object NaturalLanguageIntentParser {
 
     private data class TemporalResult(val timestampMs: Long, val cleanText: String)
 
+    /** The day word a phrase named, which decides how a bare hour like "at 3" is read. */
+    private enum class NamedDay { NONE, TODAY, TONIGHT, TOMORROW, WEEKDAY }
+
     private fun extractTemporalInfo(rawText: String, baseTimeMs: Long): TemporalResult {
         val cal = Calendar.getInstance().apply { timeInMillis = baseTimeMs }
         var text = rawText
-        var hasExplicitDay = false
+        var namedDay = NamedDay.NONE
         val isTonight = text.contains("tonight", ignoreCase = true)
 
         // Check relative days
@@ -455,15 +449,15 @@ object NaturalLanguageIntentParser {
         if (text.contains("tomorrow", ignoreCase = true)) {
             cal.add(Calendar.DAY_OF_YEAR, 1)
             text = text.replace("tomorrow", "", ignoreCase = true)
-            hasExplicitDay = true
+            namedDay = NamedDay.TOMORROW
         } else if (text.contains("tonight", ignoreCase = true)) {
             cal.set(Calendar.HOUR_OF_DAY, 20)
             cal.set(Calendar.MINUTE, 0)
             text = text.replace("tonight", "", ignoreCase = true)
-            hasExplicitDay = true
+            namedDay = NamedDay.TONIGHT
         } else if (text.contains("today", ignoreCase = true)) {
             text = text.replace("today", "", ignoreCase = true)
-            hasExplicitDay = true
+            namedDay = NamedDay.TODAY
         } else if (weekdayMatch != null) {
             // "on Friday" means the next Friday; naming today's weekday means a week from today.
             val target = WEEKDAYS.indexOf(weekdayMatch.groupValues[1].lowercase(Locale.ROOT)) + Calendar.SUNDAY
@@ -471,7 +465,7 @@ object NaturalLanguageIntentParser {
             if (daysAhead == 0) daysAhead = 7
             cal.add(Calendar.DAY_OF_YEAR, daysAhead)
             text = text.replace(weekdayMatch.value, "")
-            hasExplicitDay = true
+            namedDay = NamedDay.WEEKDAY
         }
 
         // Relative duration "in X minutes / hours"
@@ -495,18 +489,27 @@ object NaturalLanguageIntentParser {
             var hour = timeMatch.groupValues[2].toIntOrNull() ?: 9
             val minute = timeMatch.groupValues[3].toIntOrNull() ?: 0
             val amPm = timeMatch.groupValues[4].lowercase()
+            // "07:00" is 24-hour notation: the hour is meant exactly as written.
+            val zeroPadded = timeMatch.groupValues[2].length == 2 && timeMatch.groupValues[2][0] == '0'
 
             if (amPm == "pm" && hour < 12) hour += 12
             if (amPm == "am" && hour == 12) hour = 0
-            // "tonight at 9" is 21:00; without am/pm or a named day, "at 3" is the next 3 o'clock still ahead.
+            // Without am/pm: "tonight at 9" is 21:00. With no day or "today", "at 3" is the next 3 o'clock still
+            // ahead. Tomorrow or a weekday has no "already passed" to go by, so 1-7 is read as the afternoon or
+            // evening people mean ("tomorrow at 3") and 8-11 as the morning, unless the hour has a leading zero.
             if (amPm.isEmpty() && hour in 1..11) {
                 if (isTonight) {
                     hour += 12
-                } else if (!hasExplicitDay && relativeMatch == null) {
-                    val morning = (cal.clone() as Calendar).apply {
-                        set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute.coerceIn(0, 59)); set(Calendar.SECOND, 0)
+                } else if (relativeMatch == null) {
+                    when (namedDay) {
+                        NamedDay.TOMORROW, NamedDay.WEEKDAY -> if (hour <= 7 && !zeroPadded) hour += 12
+                        else -> {
+                            val morning = (cal.clone() as Calendar).apply {
+                                set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute.coerceIn(0, 59)); set(Calendar.SECOND, 0)
+                            }
+                            if (morning.timeInMillis < baseTimeMs && morning.timeInMillis + 12 * 3_600_000L > baseTimeMs) hour += 12
+                        }
                     }
-                    if (morning.timeInMillis < baseTimeMs && morning.timeInMillis + 12 * 3_600_000L > baseTimeMs) hour += 12
                 }
             }
 
@@ -516,7 +519,7 @@ object NaturalLanguageIntentParser {
             cal.set(Calendar.SECOND, 0)
             text = text.replace(timeMatch.value, "")
 
-            if (!hasExplicitDay && relativeMatch == null && cal.timeInMillis < baseTimeMs) {
+            if (namedDay == NamedDay.NONE && relativeMatch == null && cal.timeInMillis < baseTimeMs) {
                 cal.add(Calendar.DAY_OF_YEAR, 1)
             }
         }

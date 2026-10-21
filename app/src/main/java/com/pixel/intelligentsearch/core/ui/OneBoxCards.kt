@@ -244,9 +244,10 @@ fun AnimatedCopyChip(
                 cm?.setPrimaryClip(clip)
                 isCopied = true
                 sensoryEngine.click(view)
-                // On Android 13+ (API 33+), system displays its own native clipboard popup preview; suppress redundant Toast
+                // On Android 13+ (API 33+), system displays its own native clipboard popup preview; suppress redundant Toast.
+                // The toast names what was copied ("Calculation copied"); the button's own label would read "Copy copied".
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-                    Toast.makeText(context.applicationContext, "$label copied", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context.applicationContext, "$clipLabel copied", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Throwable) {
                 android.util.Log.e("OneBoxCards", "Failed to set primary clip", e)
@@ -299,7 +300,7 @@ fun AnimatedCopyChip(
         modifier = modifier.semantics {
             liveRegion = LiveRegionMode.Polite
             role = Role.Button
-            contentDescription = if (isCopied) "$copiedLabel $clipLabel" else "$label $clipLabel"
+            contentDescription = if (isCopied) "$clipLabel copied" else "$label, $clipLabel"
         }
     )
 }
@@ -425,12 +426,17 @@ fun MathResultOneBox(
     }
 }
 
-/** A unit or currency conversion. [ratesLabel], for currencies, says where the rates come from. */
+/**
+ * A unit or currency conversion. [ratesLabel], for currencies, says where the rates come from; [header] names the
+ * kind of answer above it, and [clipLabel] names what the Copy chip copies.
+ */
 @Composable
 fun ConversionOneBox(
     conversionText: String,
     modifier: Modifier = Modifier,
-    ratesLabel: String? = null
+    ratesLabel: String? = null,
+    header: String = "UNIT CONVERSION",
+    clipLabel: String = "Unit Conversion"
 ) {
     ExpressiveOneBoxCard(
         modifier = modifier
@@ -465,7 +471,7 @@ fun ConversionOneBox(
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "UNIT CONVERSION",
+                    text = header,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontFamily = GoogleSansFlex,
@@ -504,7 +510,7 @@ fun ConversionOneBox(
                 textToCopy = conversionText,
                 label = "Copy",
                 copiedLabel = "Copied!",
-                clipLabel = "Unit Conversion"
+                clipLabel = clipLabel
             )
         }
     }

@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
 import com.pixel.intelligentsearch.core.ui.uniqueItems
-import androidx.core.net.toUri
 import com.pixel.intelligentsearch.feature.widget.getLensSearchIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceActionIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceSearchIntent
@@ -90,6 +89,20 @@ internal fun resultSectionOrder(
     ).sortedByDescending { it.second }.map { it.first }
     val after = if (settingsStrongMatch) listOf("apps") else listOf("apps", "web", "contacts")
     return sections.toMutableList().apply { add(after.maxOf { sections.indexOf(it) } + 1, "android_settings") }
+}
+
+/** The icon on a suggested action, by its [DirectAction.iconType]; a type with no icon of its own falls back to the clipboard. */
+internal fun directActionIcon(type: String): androidx.compose.ui.graphics.vector.ImageVector = when (type) {
+    "link" -> Icons.Default.Link
+    "phone" -> Icons.Default.Call
+    "search" -> Icons.Default.Search
+    "calendar" -> Icons.Default.Event
+    "message" -> Icons.AutoMirrored.Filled.Message
+    "timer" -> Icons.Default.Timer
+    "alarm" -> Icons.Default.Alarm
+    "navigation" -> Icons.Default.Directions
+    "private_space" -> Icons.Default.Lock
+    else -> Icons.Default.ContentPaste
 }
 
 /** The overlay's results list: suggested actions, best match, recents, calendar, shortcuts, one-boxes, and the app, Android Settings, web, people and file sections. */
@@ -295,14 +308,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         )
                         .swipeOffset(swipe)
                 ) {
-                    val actionIcon = when (action.iconType) {
-                        "link" -> Icons.Default.Link
-                        "phone" -> Icons.Default.Call
-                        "search" -> Icons.Default.Search
-                        "calendar" -> Icons.Default.Event
-                        "message" -> Icons.AutoMirrored.Filled.Message
-                        else -> Icons.Default.ContentPaste
-                    }
+                    val actionIcon = directActionIcon(action.iconType)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -517,7 +523,12 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(modifier = Modifier.size(24.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
-                            Text(event.startTime.split(":").first(), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            // The badge holds the hour; an all-day event has none, so it gets the event icon.
+                            if (event.allDay) {
+                                Icon(imageVector = Icons.Default.Event, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+                            } else {
+                                Text(event.startTime.split(":").first(), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
@@ -577,7 +588,12 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         ConversionOneBox(conversionText = instantAnswer.title)
                     }
                     "currency" -> {
-                        ConversionOneBox(conversionText = instantAnswer.title, ratesLabel = instantAnswer.subtitle)
+                        ConversionOneBox(
+                            conversionText = instantAnswer.title,
+                            ratesLabel = instantAnswer.subtitle,
+                            header = "CURRENCY CONVERSION",
+                            clipLabel = "Currency Conversion"
+                        )
                     }
                     "dictionary" -> {
                         DictionaryOneBox(
@@ -777,16 +793,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     .fillMaxWidth()
                                     .expressiveRowClickable {
                                         hasStartedTyping = false
-                                        val intent = if (isDirectCall && contact.phoneNumber.isNotBlank()) {
-                                            Intent(Intent.ACTION_DIAL, "tel:${contact.phoneNumber}".toUri())
-                                        } else if (contact.lookupUri.isNotBlank()) {
-                                            Intent(Intent.ACTION_VIEW, contact.lookupUri.toUri()) // Contacts reads it with its own permission; no grant needed
-                                        } else if (contact.phoneNumber.isNotBlank()) {
-                                            Intent(Intent.ACTION_DIAL, "tel:${contact.phoneNumber}".toUri())
-                                        } else {
-                                            Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
-                                        }
-                                        launchSafeIntent(context, intent)
+                                        launchSafeIntent(context, ContactActions.openIntent(contact, isDirectCall))
                                     }
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -814,7 +821,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     onClick = {
                                         if (contact.phoneNumber.isNotBlank()) {
                                             hasStartedTyping = false
-                                            launchSafeIntent(context, Intent(Intent.ACTION_DIAL, "tel:${contact.phoneNumber}".toUri()))
+                                            launchSafeIntent(context, ContactActions.callIntent(contact.phoneNumber))
                                         }
                                     }
                                 ) {

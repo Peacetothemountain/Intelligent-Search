@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import android.content.Context
 import com.pixel.intelligentsearch.core.ui.uniqueItems
 import com.pixel.intelligentsearch.core.ui.getAppName
 import com.pixel.intelligentsearch.core.ui.AppIconResult
@@ -44,6 +45,10 @@ internal fun OverlayQuickAppPanel(s: OverlayScope) {
                 settingsState.searchPills.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
             }
         }
+        // Names the overlay already has for its apps, so most pills never ask PackageManager for one.
+        val knownNames = remember(uiState.recentApps, uiState.allApps) {
+            buildMap { for (app in uiState.recentApps + uiState.allApps) putIfAbsent(app.packageName, app.name) }
+        }
         val dynamicScale = if (pillPackages.size > 6) (6f / pillPackages.size.toFloat()).coerceIn(0.6f, 1f) else 1f
         LazyRow(
             modifier = Modifier
@@ -53,39 +58,57 @@ internal fun OverlayQuickAppPanel(s: OverlayScope) {
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             uniqueItems(pillPackages, key = { pkg -> "pill_$pkg" }, contentType = { "pill" }) { packageName ->
-                        val appIconState = remember(packageName, settingsState.activeIconPack) {
-                            mutableStateOf<AppIconResult?>(peekThemedAppIcon(packageName, settingsState.activeIconPack))
-                        }
-                        val appNameState = remember(packageName) { mutableStateOf(getAppName(context, packageName)) }
-                        LaunchedEffect(packageName, settingsState.activeIconPack) {
-                            if (appIconState.value == null) {
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                    val icon = getThemedAppIcon(context, packageName, activePackOverride = settingsState.activeIconPack)
-                                    val name = getAppName(context, packageName)
-                                    appIconState.value = icon
-                                    appNameState.value = name
-                                }
-                            }
-                        }
-                        val appIcon = appIconState.value
-                        val appName = appNameState.value
-                        if (appIcon != null) {
-                            SearchPill(iconBitmap = appIcon, title = appName, scale = dynamicScale) {
-                                if (uiState.query.isNotEmpty()) viewModel.addSearchHistory(uiState.query)
+                        QuickAppPill(packageName, settingsState.activeIconPack, dynamicScale, knownName = knownNames[packageName]) {
+                            if (uiState.query.isNotEmpty()) viewModel.addSearchHistory(uiState.query)
 
-                                val searchStr = uiState.query
-                                if (searchStr.isEmpty()) {
-                                    performLaunch(packageName, null, null)
-                                } else {
-                                    val intent = quickAppSearchIntent(context, packageName, searchStr)
-                                    if (intent != null) {
-                                        hasStartedTyping = false
-                                        launchSafeIntent(context, intent)
-                                    }
+                            val searchStr = uiState.query
+                            if (searchStr.isEmpty()) {
+                                performLaunch(packageName, null, null)
+                            } else {
+                                val intent = quickAppSearchIntent(context, packageName, searchStr)
+                                if (intent != null) {
+                                    hasStartedTyping = false
+                                    launchSafeIntent(context, intent)
                                 }
                             }
                         }
                     }
         }
+    }
+}
+
+/**
+ * One quick-app pill: [packageName]'s themed icon and name. The name is [knownName], from the app lists the overlay
+ * already holds, when it has one; otherwise [appLabel] looks it up off the main thread like the icon, since a
+ * PackageManager call during composition stalls the frame. The pill shows once it has both.
+ */
+@Composable
+internal fun QuickAppPill(
+    packageName: String,
+    activeIconPack: String,
+    scale: Float,
+    knownName: String? = null,
+    appLabel: (Context, String) -> String = ::getAppName,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val appIconState = remember(packageName, activeIconPack) {
+        mutableStateOf<AppIconResult?>(peekThemedAppIcon(packageName, activeIconPack))
+    }
+    val appNameState = remember(packageName) { mutableStateOf(knownName) }
+    LaunchedEffect(packageName, activeIconPack) {
+        if (appIconState.value == null || appNameState.value == null) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                if (appIconState.value == null) {
+                    appIconState.value = getThemedAppIcon(context, packageName, activePackOverride = activeIconPack)
+                }
+                if (appNameState.value == null) appNameState.value = appLabel(context, packageName)
+            }
+        }
+    }
+    val appIcon = appIconState.value
+    val appName = appNameState.value
+    if (appIcon != null && appName != null) {
+        SearchPill(iconBitmap = appIcon, title = appName, scale = scale, onClick = onClick)
     }
 }

@@ -5,8 +5,6 @@ import com.pixel.intelligentsearch.core.theme.ThemeMode
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.annotation.SuppressLint
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Intent
 import android.content.SharedPreferences
 import androidx.compose.foundation.layout.Arrangement
@@ -43,7 +41,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.navigation.Route
-import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,16 +78,10 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         icon = Icons.Outlined.BrightnessMedium,
                         options = ThemeMode.entries.map { it.storedValue },
                         selectedOption = themeMode,
-                        onOptionSelected = { 
+                        onOptionSelected = {
                             rawThemeMode = it
-                            val intent = Intent(context, SearchWidgetProvider::class.java).apply {
-                                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                                val ids = AppWidgetManager.getInstance(context).getAppWidgetIds(
-                                    ComponentName(context, SearchWidgetProvider::class.java)
-                                )
-                                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-                            }
-                            context.sendBroadcast(intent)
+                            // The widgets follow the app theme, so redraw them all (both designs).
+                            updateWidgets(context)
                         },
                         showDivider = true
                     )
@@ -173,7 +164,9 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         showDivider = true
                     )
 
-                    var showWall by rememberSetting(SettingsManager.SHOW_WALLPAPER) { updateWidgets(context) }
+                    // Wallpaper, blur, transparency and pill opacity only style the search overlay, never the
+                    // home-screen widgets, so changing them doesn't redraw the widgets.
+                    var showWall by rememberSetting(SettingsManager.SHOW_WALLPAPER)
                     SettingsRowToggle(
                         title = "Show Wallpaper",
                         subtitle = "Show User's Wallpaper on Search Overlay Page.",
@@ -183,9 +176,9 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         showDivider = true
                     )
                     
-                    var blur by rememberSetting(SettingsManager.BACKGROUND_BLUR) { updateWidgets(context) }
-                    var transparency by rememberSetting(SettingsManager.BACKGROUND_TRANSPARENCY) { updateWidgets(context) }
-                    var pillOpacity by rememberSetting(SettingsManager.PILL_OPACITY) { updateWidgets(context) }
+                    var blur by rememberSetting(SettingsManager.BACKGROUND_BLUR)
+                    var transparency by rememberSetting(SettingsManager.BACKGROUND_TRANSPARENCY)
+                    var pillOpacity by rememberSetting(SettingsManager.PILL_OPACITY)
 
                     SettingsSliderRow(
                         title = "Background Blur",

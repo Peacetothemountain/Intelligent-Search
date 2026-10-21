@@ -210,7 +210,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         icon = Icons.Outlined.BrightnessMedium,
                         showDivider = false,
                         steps = 9,
-                        onReset = { pillOpacity = 50 }
+                        onReset = { pillOpacity = SettingsManager.PILL_OPACITY.default }
                     )
                 }
             }

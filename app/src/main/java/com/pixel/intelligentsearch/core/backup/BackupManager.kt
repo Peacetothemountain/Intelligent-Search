@@ -103,7 +103,8 @@ class BackupManager @Inject constructor(
                 key == "blind_seed" ||
                 key == "datastore_migration_v1_completed" ||
                 key == "profile_1_restored_to_default_v918" ||
-                key == "app_night_mode_override_cleared_v1"
+                key == "app_night_mode_override_cleared_v1" ||
+                key == SettingsManager.PILL_OPACITY_LINEAR_KEY
         }
 
         /** The backup file's type label for a declared setting. */
@@ -488,6 +489,13 @@ class BackupManager @Inject constructor(
     private suspend fun restorePayload(payload: BackupContentPayload): Int = withContext(Dispatchers.IO) {
         var restoredCount = 0
         val sharedPrefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+        // Files saved before the pill opacity became linear hold 50 for an opaque pill (schema 1 files never say).
+        val pillOpacityIsLinear = runCatching {
+            JSONObject(payload.sharedPreferencesJson).optJSONObject(SettingsManager.PILL_OPACITY_LINEAR_KEY)
+                ?.optBoolean("value") == true
+        }.getOrDefault(false)
+        fun restoredInt(setting: SettingKey<*>?, value: Int): Int =
+            if (setting == SettingsManager.PILL_OPACITY && !pillOpacityIsLinear) SettingsManager.pillOpacityFromOldScale(value) else value
 
         // 1. Restore all rich typed preferences from sharedPreferencesJson (Schema 2+)
         if (payload.sharedPreferencesJson.isNotBlank() && payload.sharedPreferencesJson != "{}") {
@@ -527,7 +535,7 @@ class BackupManager @Inject constructor(
                                 val intVal = itemObj.getInt("value")
                                 val range = (setting as? IntSetting)?.range ?: BackupPreferenceSchema.intRange(key)
                                 if (range != null && intVal !in range) return@runCatching
-                                editor.putInt(target, intVal)
+                                editor.putInt(target, restoredInt(setting, intVal))
                             }
                             "LONG" -> editor.putLong(target, itemObj.getLong("value"))
                             "FLOAT" -> {
@@ -579,7 +587,7 @@ class BackupManager @Inject constructor(
             } ?: INT_SETTING_KEYS[k]?.let { key ->
                 v.toIntOrNull()
                     ?.takeIf { value -> BackupPreferenceSchema.intRange(key.name)?.contains(value) ?: true }
-                    ?.let { settingsManager.updateSetting(key, it) }
+                    ?.let { settingsManager.updateSetting(key, restoredInt(key, it)) }
             } ?: STRING_SETTING_KEYS[k]?.let { key ->
                 if (key == SettingsManager.CUSTOM_SEARCH_ENGINE_URL && !isValidCustomSearchUrl(v)) {
                     null

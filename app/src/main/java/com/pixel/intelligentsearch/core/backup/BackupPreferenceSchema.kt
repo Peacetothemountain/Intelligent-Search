@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.core.backup
 
+import com.pixel.intelligentsearch.core.data.settings.SearchPillProfiles
+
 /**
  * What a restored SharedPreferences entry is allowed to look like. Backup files are user-supplied, so a
  * value of the wrong type (ClassCastException on read) or out of range (e.g. a negative result count fed
@@ -69,10 +71,19 @@ internal object BackupPreferenceSchema {
             "widget_system_shortcut_2", "widget_system_shortcut_3", "widget_system_shortcut_order",
             "widget_system_subtheme", "widget_theme_style"
         )
-        typed("STRING_SET", "disabled_web_shortcuts", "hidden_apps", "search.files.tree_uris", "search.files.media_uris")
+        typed("STRING_SET", "disabled_web_shortcuts", "hidden_apps")
     }
 
-    fun expectedType(key: String): String? = READ_TYPES[key]
+    // The pill profiles' working copies and saved states, named by profile number (SearchPillProfiles).
+    private val PILL_PROFILE_KEY = Regex("app_search_profile_\\d+(_saved)?")
+
+    /** The type the app reads [key] with, including keys it names at runtime; null for keys nothing reads by type. */
+    fun expectedType(key: String): String? = READ_TYPES[key] ?: when {
+        // A widget shortcut's custom action, named after the shortcut.
+        key.endsWith("_custom_type") || key.endsWith("_custom_value") -> "STRING"
+        PILL_PROFILE_KEY.matches(key) -> "STRING"
+        else -> null
+    }
 
     /** Ranges the settings UI can produce; restored ints outside them are rejected. */
     fun intRange(key: String): IntRange? = when {
@@ -83,7 +94,7 @@ internal object BackupPreferenceSchema {
         key.endsWith("_saturation") || key.endsWith("_lightness") -> 0..100
         key.contains("blur") || key.contains("transparency") || key.endsWith("opacity") -> 0..100
         key == "tutorial_step" -> 0..20
-        key == "active_app_search_profile" -> 0..16
+        key == "active_app_search_profile" -> 1..SearchPillProfiles.PROFILE_COUNT
         else -> null
     }
 

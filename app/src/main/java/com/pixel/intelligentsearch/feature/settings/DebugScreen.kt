@@ -54,14 +54,8 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
-            Text(
-                "SECRET DEBUG MENU",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp)
-            )
-            
+            SettingsSectionHeader("Secret Debug Menu")
+
             val settingsViewModel = LocalSettingsViewModel.current
             var forceTutorial by rememberSetting(SettingsManager.FORCE_TUTORIAL)
             SettingsRowToggle(

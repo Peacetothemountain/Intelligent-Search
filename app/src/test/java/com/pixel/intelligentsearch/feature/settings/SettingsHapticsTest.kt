@@ -154,6 +154,40 @@ class SettingsHapticsTest {
         assertEquals(1, clickHapticsOf("G Icon"))
     }
 
+    /** A settings row, which taps through [bouncyClickable] and so also shows a ripple. */
+    private fun showRow(onLongClick: (() -> Unit)? = null) {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            IntelligentSearchTheme(darkTheme = false) {
+                SettingsRow(title = "Row", subtitle = "Subtitle", icon = null, onClick = {}, onLongClick = onLongClick, showDivider = false)
+            }
+        }
+        compose.settle(steps = 5)
+    }
+
+    @Test
+    fun aRowTapWithItsRippleGivesOneHaptic() {
+        showRow()
+        assertEquals(1, clickHapticsOf("Row"))
+    }
+
+    @Test
+    fun aRowLongPressGivesOneHaptic() {
+        var longPressed = false
+        showRow(onLongClick = { longPressed = true })
+        val row = compose.onAllNodesWithText("Row", useUnmergedTree = true)[0]
+        row.performTouchInput { down(center) }
+        compose.settle(steps = 1)
+        // The touch-down tick is the press's own; only the long press's haptics are counted.
+        haptics = 0
+        compose.settle(steps = 10)
+        row.performTouchInput { up() }
+        compose.settle(steps = 5)
+        assertEquals(true, longPressed)
+        // The system's own long-press haptic used to play as well as the app's.
+        assertEquals(1, haptics)
+    }
+
     @Test
     fun backGivesThePredictiveBackHaptic() {
         show { AppSearchScreen(prefs, {}, {}) }

@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.security.SafeWebLaunch
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -51,6 +52,16 @@ class WebSearchLaunchTest {
         val intent = intentFor("DuckDuckGo", "cats & dogs")
         assertEquals(Intent.ACTION_VIEW, intent.action)
         assertEquals("https://duckduckgo.com/?q=cats%20%26%20dogs", intent.dataString)
+    }
+
+    @Test
+    fun withoutTheGoogleAppGoogleSearchesOpenInABrowserNotInThisApp() {
+        installBrowser()
+        val intent = intentFor("Google", "cats")
+        // The system web search would come back here: this app answers it as the search role holder.
+        assertNotEquals(context.packageName, context.packageManager.resolveActivity(intent, 0)?.activityInfo?.packageName)
+        assertEquals(Intent.ACTION_VIEW, intent.action)
+        assertEquals("https://www.google.com/search?q=cats", intent.dataString)
     }
 
     @Test

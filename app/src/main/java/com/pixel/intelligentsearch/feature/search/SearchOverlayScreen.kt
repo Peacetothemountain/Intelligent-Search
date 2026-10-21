@@ -1,6 +1,9 @@
 package com.pixel.intelligentsearch.feature.search
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -32,9 +35,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.input.pointer.pointerInput
@@ -85,6 +86,13 @@ private val EmphasizedAccelerate = androidx.compose.animation.core.CubicBezierEa
 
 /** How long the panel takes to leave after a swipe to home is released. */
 private const val BACK_EXIT_MS = 200
+
+/** The first-run tutorial's steps on the overlay; Settings carries on from step 3. */
+internal val OverlayTutorialSteps = mapOf(
+    0 to TutorialStepInfo("Welcome!", "Hello! Thank you for installing Intelligent Search. Please follow the tutorial to show you around. [bugdroid]", Alignment.Center, showArrow = false, requireButtonPress = true),
+    1 to TutorialStepInfo("Search Bar", "This is your search bar. Start typing to find apps, contacts, and files instantly. You can also swipe away recent search cards to remove them.", Alignment.Center, showArrow = true, requireButtonPress = true),
+    2 to TutorialStepInfo("Settings", "Tap the settings icon ( [three_bars] ) to customize your search experience. Press Next below to open Settings now.", Alignment.Center, showArrow = true, requireButtonPress = true, showCircle = true)
+)
 
 @Composable
 fun SearchOverlayScreen(
@@ -210,9 +218,15 @@ fun SearchOverlayScreen(
 
     val distinctRecents by remember { derivedStateOf { uiState.recentSearches.distinct() } }
     var showHistoryClearedSnackbar by ui::showHistoryClearedSnackbar
+    // Five seconds, or longer when an accessibility service asks for more time to read and reach the Undo button.
+    val accessibilityManager = androidx.compose.ui.platform.LocalAccessibilityManager.current
     LaunchedEffect(showHistoryClearedSnackbar) {
         if (showHistoryClearedSnackbar) {
-            delay(5000)
+            delay(
+                accessibilityManager?.calculateRecommendedTimeoutMillis(
+                    5000L, containsIcons = false, containsText = true, containsControls = true
+                ) ?: 5000L
+            )
             showHistoryClearedSnackbar = false
         }
     }
@@ -391,6 +405,11 @@ fun SearchOverlayScreen(
     }
 
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
+    // Android hands the clipboard only to the app in focus, so its suggestions are read as the window gains focus:
+    // on every open and every return from another app.
+    LaunchedEffect(windowInfo.isWindowFocused) {
+        if (windowInfo.isWindowFocused) viewModel.refreshClipboardActions()
+    }
     // The keyboard never rises over the listening bar: it waits until voice is done or cancelled.
     LaunchedEffect(windowInfo.isWindowFocused, transitionState.targetState, showTutorial, isKeyboardDisabled, isKeyboardDismissedByUser, voice.active) {
         if (voice.active) {
@@ -411,10 +430,9 @@ fun SearchOverlayScreen(
                 hasStartedTyping = false
                 // Resuming into a voice request (the assistant gesture) keeps the keyboard down.
                 if (!voice.active) isKeyboardDismissedByUser = false
-                val isContactsEnabled = settingsState.searchContacts
-                if (isContactsEnabled) {
-                    viewModel.refreshContacts()
-                }
+                // Each return brings quick apps, upcoming events and contacts up to date, and app usage for ranking.
+                viewModel.reloadOnResume()
+                viewModel.refreshAppUsage()
                 if (settingsState.searchFiles) {
                     viewModel.refreshStaleIndexes()
                 }
@@ -568,12 +586,13 @@ fun SearchOverlayScreen(
         when (val match = bestMatch) {
             is ContactItem -> {
                 // A spoken name can be misheard, so voice opens the contact rather than dialling straight away.
+                // Dial intents are built from the number as is: parsed as a "tel:" link, '#' and what follows were lost.
                 val intent = if (settingsState.contactDirectCall && !fromVoice && match.phoneNumber.isNotBlank()) {
-                    Intent(Intent.ACTION_DIAL, "tel:${match.phoneNumber}".toUri())
+                    ContactActions.callIntent(match.phoneNumber)
                 } else if (match.lookupUri.isNotBlank()) {
                     Intent(Intent.ACTION_VIEW, match.lookupUri.toUri()) // Contacts reads it with its own permission; no grant needed
                 } else if (match.phoneNumber.isNotBlank()) {
-                    Intent(Intent.ACTION_DIAL, "tel:${match.phoneNumber}".toUri())
+                    ContactActions.callIntent(match.phoneNumber)
                 } else {
                     Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
                 }
@@ -594,18 +613,24 @@ fun SearchOverlayScreen(
             }
         }
     }
+    // "Go" for Enter and the voice check button. Either can come before the results for the last letters or words
+    // are in, and acting then opened the previous query's Best Match or Quick Launch app; so it waits for this query's
+    // results first.
+    val submitWhenSettled: suspend (String, Boolean) -> Unit = { query, fromVoice ->
+        viewModel.awaitSearch()
+        // The results reach this screen through a collector; wait until what is composed here is what the view
+        // model holds, so bestMatch is for this query and not the one before it.
+        kotlinx.coroutines.withTimeoutOrNull(500) {
+            snapshotFlow { uiState === viewModel.uiState.value && uiState.query == query }.first { it }
+        }
+        // The user may have typed on meanwhile; then this query is theirs no longer.
+        if (viewModel.uiState.value.query == query) submitQuery(query, fromVoice)
+    }
     // The check button's "go": once the results for the spoken words are in, act on them exactly as Enter would.
     LaunchedEffect(spokenQuery) {
         val spoken = spokenQuery ?: return@LaunchedEffect
-        viewModel.awaitSearch()
-        // The results reach this screen through a collector; wait until what is composed here is what the view
-        // model holds, so bestMatch is for the spoken words and not the query before them.
-        kotlinx.coroutines.withTimeoutOrNull(500) {
-            snapshotFlow { uiState === viewModel.uiState.value && uiState.query == spoken }.first { it }
-        }
+        submitWhenSettled(spoken, true)
         spokenQuery = null
-        // The user may have started typing over the words meanwhile; then the spoken query is theirs no longer.
-        if (viewModel.uiState.value.query == spoken) submitQuery(spoken, true)
     }
 
     val sections = OverlayScope(
@@ -630,7 +655,7 @@ fun SearchOverlayScreen(
         closeOverlay = closeOverlay,
         launchWebSearch = launchWebSearch,
         openWebAddress = openWebAddress,
-        submitQuery = submitQuery,
+        submitQuery = { query, fromVoice -> coroutineScope.launch { submitWhenSettled(query, fromVoice) } },
         visibleApps = visibleApps,
         bestMatch = bestMatch,
         bestMatchText = bestMatchText,
@@ -838,10 +863,10 @@ fun SearchOverlayScreen(
                             Modifier.background(Color.Transparent)
                         }
                     )
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {}
+                    // Taps on the panel stay in it rather than reaching the background, which closes the overlay. A
+                    // plain gesture, not clickable(): that merged every result without its own action into one
+                    // TalkBack button.
+                    .pointerInput(Unit) { detectTapGestures { } }
             ) {
                 
                 if (useTwoPane) {
@@ -975,6 +1000,8 @@ fun SearchOverlayScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
+                    // Announced when it appears, so TalkBack users learn the history went and that Undo is there.
+                    .semantics { liveRegion = LiveRegionMode.Polite }
             ) {
                 Row(
                     modifier = Modifier
@@ -1010,11 +1037,7 @@ fun SearchOverlayScreen(
         if (showTutorial) {
             TutorialSpotlightOverlay(
                 prefs = prefs,
-                stepsInfo = mapOf(
-                    0 to TutorialStepInfo("Welcome!", "Hello! Thank you for installing Intelligent Search. Please follow the tutorial to show you around. [bugdroid]", Alignment.Center, showArrow = false, requireButtonPress = true),
-                    1 to TutorialStepInfo("Search Bar", "This is your search bar. Start typing to find apps, contacts, and files instantly. You can also swipe away recent search cards to remove them.", Alignment.Center, showArrow = true, requireButtonPress = true),
-                    2 to TutorialStepInfo("Settings", "Tap the settings icon ( [three_bars] ) to customize your search experience. Press OK below to open Settings now.", Alignment.Center, showArrow = true, requireButtonPress = true, showCircle = true)
-                ),
+                stepsInfo = OverlayTutorialSteps,
                 onComplete = {
                     if (prefs[SettingsManager.TUTORIAL_STEP] >= TutorialManager.TOTAL_STEPS - 1) {
                         TutorialManager.completeTutorial(prefs)

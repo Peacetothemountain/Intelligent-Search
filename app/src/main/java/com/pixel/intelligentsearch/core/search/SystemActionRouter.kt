@@ -19,8 +19,17 @@ import javax.inject.Singleton
 @Singleton
 class SystemActionRouter @Inject constructor(
     @param:ApplicationContext private val context: Context,
-    private val systemToggleManager: SystemToggleManager
+    private val toggles: dagger.Lazy<SystemToggleManager>
 ) {
+    /** For callers that already hold the toggle manager (tests building the search stack by hand). */
+    constructor(context: Context, systemToggleManager: SystemToggleManager) : this(context, dagger.Lazy { systemToggleManager })
+
+    /**
+     * Built on first use: every keystroke passes through [matchAction], and the toggle manager registers camera,
+     * network and broadcast listeners when built, so only a query naming a toggle pays for it.
+     */
+    private val systemToggleManager: SystemToggleManager get() = toggles.get()
+
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
     sealed class ActionResult {
@@ -51,9 +60,6 @@ class SystemActionRouter @Inject constructor(
         return ActionResult.VolumeSlider(stream, title, current, max) { setStreamVolume(stream, it) }
     }
 
-    /**
-     * Matches a query string against known system toggles, settings, and volume slider actions.
-     */
     companion object {
         internal val KEYWORDS_MEDIA_VOLUME = setOf("volume", "media volume", "music volume", "sound slider", "audio")
         internal val KEYWORDS_RING_VOLUME = setOf("ring volume", "ringtone volume", "call volume", "ring")
@@ -74,6 +80,9 @@ class SystemActionRouter @Inject constructor(
         internal val KEYWORDS_PRIVACY = setOf("privacy", "camera access", "mic access", "sensor privacy")
     }
 
+    /**
+     * Matches a query string against known system toggles, settings, and volume slider actions.
+     */
     fun matchAction(rawQuery: String): ActionResult? {
         val q = rawQuery.trim().lowercase()
         if (q.isEmpty()) return null
@@ -123,7 +132,7 @@ class SystemActionRouter @Inject constructor(
                     SystemToggleUiState(
                         id = "wifi",
                         title = "Wi-Fi",
-                        subtitle = systemToggleManager.getWifiStatusText(isWifi),
+                        subtitle = SystemToggleManager.wifiStatusText(isWifi, systemToggleManager.isWifiConnected.value),
                         iconType = "wifi",
                         isEnabled = isWifi,
                         onToggle = { systemToggleManager.toggleWifiDirect(it) },

@@ -23,13 +23,16 @@ object DoodleCatalog {
         val kind: Kind,
         /** The next day it shows on this phone, today included; null when it isn't kept here within [HORIZON_YEARS]. */
         val nextHere: LocalDate?,
-        /** Where it's shown: empty when it shows everywhere, else the ISO country codes of the regions keeping it. */
+        /**
+         * Where it's shown: empty when it shows everywhere, else the ISO country codes of the regions keeping it. Also
+         * empty when it shows nowhere in this time zone (when it always shares its day with a season's start here).
+         */
         val regions: Set<String>,
         /** When [nextHere] is null, the next day it shows anywhere, and the region showing it then. */
-        val nextElsewhere: Pair<LocalDate, String>?
-    ) {
-        val everywhere: Boolean get() = regions.isEmpty()
-    }
+        val nextElsewhere: Pair<LocalDate, String>?,
+        /** Whether a phone in any region gets it in this time zone. */
+        val everywhere: Boolean
+    )
 
     /** How far ahead the gallery looks: long enough for Leap Day and for days that only show in some years. */
     const val HORIZON_YEARS = 8L
@@ -74,7 +77,8 @@ object DoodleCatalog {
                 regions = keptIn,
                 nextElsewhere = if (occasion in nextHere) null else elsewhere
                     .mapNotNull { (where, days) -> days[occasion]?.let { it to where } }
-                    .minWithOrNull(compareBy<Pair<LocalDate, String>> { it.first }.thenBy { it.second })
+                    .minWithOrNull(compareBy<Pair<LocalDate, String>> { it.first }.thenBy { it.second }),
+                everywhere = occasion in everywhere
             )
         }
     }

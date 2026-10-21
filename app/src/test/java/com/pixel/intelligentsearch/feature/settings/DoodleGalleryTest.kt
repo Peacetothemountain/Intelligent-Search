@@ -131,4 +131,11 @@ class DoodleGalleryTest {
             longWhen(entries.getValue(Occasion.THANKSGIVING), today, "US")
         )
     }
+
+    /** In London the first day of spring always falls on March 20, so the Day of Happiness shows nowhere there. */
+    @Test
+    fun aDoodleShownNowhereInThisTimeZoneSaysSo() {
+        val london = DoodleCatalog.entries(today, ZoneId.of("Europe/London"), "GB").associateBy { it.occasion }
+        assertEquals("Not Shown in This Time Zone", whereText(london.getValue(Occasion.HAPPINESS_DAY), "GB"))
+    }
 }

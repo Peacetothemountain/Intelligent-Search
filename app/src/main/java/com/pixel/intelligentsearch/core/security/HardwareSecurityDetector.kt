@@ -13,10 +13,21 @@ data class SecurityHardwareInfo(
     val description: String,
     val deviceDisplayName: String,
     val socDisplayName: String,
-    val isStrongBox: Boolean = false
+    val isStrongBox: Boolean = false,
+    /**
+     * What actually holds the keys at [securityLevel]: the security chip ([chipName]) only with StrongBox,
+     * otherwise the processor's secure area ([teeName]). The chip names describe the brand's best hardware,
+     * which a phone without StrongBox doesn't use, so labels saying where a key is kept use these instead.
+     */
+    val keyHolderName: String,
+    /** Short form of [keyHolderName] for buttons and toasts. */
+    val keyHolderShortName: String
 )
 
 object HardwareSecurityDetector {
+
+    /** The short label for keys kept in the processor's secure area, which has no brand name worth showing. */
+    private const val TEE_KEY_HOLDER_SHORT_NAME = "Hardware Keystore"
 
     private fun hasStrongBoxFeature(context: Context): Boolean {
         return try {
@@ -92,10 +103,11 @@ object HardwareSecurityDetector {
         val modelLower = model.lowercase()
         val deviceLower = device.lowercase()
         val hardwareLower = hardware.lowercase()
-        val boardLower = board.lowercase()
+        // Build reports "unknown" where a value isn't set; treated as missing so the name falls through to the next field.
+        val boardLower = board.lowercase().withoutUnknown()
         val productLower = product.lowercase()
-        val socLower = socModel.lowercase()
-        val socVendorLower = socManufacturer.lowercase()
+        val socLower = socModel.lowercase().withoutUnknown()
+        val socVendorLower = socManufacturer.lowercase().withoutUnknown()
 
         val resolvedSoc = when {
             socLower.isNotBlank() -> socLower
@@ -349,6 +361,8 @@ object HardwareSecurityDetector {
             else -> "Hardware Keystore"
         }
 
+        val keysOnChip = effectiveLevel == HardwareSecurityLevel.STRONGBOX
+
         return SecurityHardwareInfo(
             chipName = chipName,
             shortChipName = shortChipName,
@@ -358,7 +372,11 @@ object HardwareSecurityDetector {
             description = description,
             deviceDisplayName = deviceDisplayName,
             socDisplayName = socDisplayName,
-            isStrongBox = isStrongBox
+            isStrongBox = isStrongBox,
+            keyHolderName = if (keysOnChip) chipName else teeName,
+            keyHolderShortName = if (keysOnChip) shortChipName else TEE_KEY_HOLDER_SHORT_NAME
         )
     }
+
+    private fun String.withoutUnknown(): String = takeUnless { it.isBlank() || it == "unknown" }.orEmpty()
 }

@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.core.security
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -370,5 +371,78 @@ class HardwareSecurityDetectorTest {
         assertEquals("MediaTek MTEE", info.shortChipName)
         assertEquals("MediaTek Micro-TEE (MTEE)", info.teeName)
         assertEquals("Dimensity 9400", info.socDisplayName)
+    }
+
+    @Test
+    fun withoutStrongBox_theKeyHolderIsTheTee_notTheBrandsSecurityChip() {
+        val onePlus = HardwareSecurityDetector.resolveHardwareInfo(
+            manufacturer = "OnePlus",
+            brand = "oneplus",
+            model = "CPH2655",
+            device = "OP5D0DL1",
+            hardware = "qcom",
+            board = "pineapple",
+            product = "CPH2655",
+            socModel = "SM8650",
+            hasStrongBoxFeature = false,
+            effectiveLevel = HardwareSecurityLevel.TEE
+        )
+        assertFalse(onePlus.keyHolderShortName.contains("Security Core"))
+        assertFalse(onePlus.keyHolderShortName.contains("StrongBox"))
+        assertFalse(onePlus.keyHolderName.contains("StrongBox"))
+        assertEquals(onePlus.teeName, onePlus.keyHolderName)
+
+        val snapdragon = HardwareSecurityDetector.resolveHardwareInfo(
+            manufacturer = "Qualcomm",
+            brand = "qcom",
+            model = "Snapdragon 8 Elite Reference Device",
+            device = "sun",
+            hardware = "qcom",
+            board = "sun",
+            product = "sun",
+            socModel = "sm8750",
+            hasStrongBoxFeature = false,
+            effectiveLevel = HardwareSecurityLevel.TEE
+        )
+        assertFalse(snapdragon.keyHolderShortName.contains("SPU"))
+        assertFalse(snapdragon.keyHolderName.contains("SPU"))
+        assertEquals(snapdragon.teeName, snapdragon.keyHolderName)
+    }
+
+    @Test
+    fun withStrongBox_theKeyHolderIsTheSecurityChip() {
+        val info = HardwareSecurityDetector.resolveHardwareInfo(
+            manufacturer = "Google",
+            brand = "google",
+            model = "Pixel 9 Pro XL",
+            device = "komodo",
+            hardware = "zuma",
+            board = "zuma",
+            product = "komodo",
+            socModel = "Tensor G4",
+            hasStrongBoxFeature = true,
+            effectiveLevel = HardwareSecurityLevel.STRONGBOX
+        )
+        assertEquals("Google Titan M2", info.keyHolderName)
+        assertEquals("Titan M2", info.keyHolderShortName)
+    }
+
+    @Test
+    fun anUnknownSocModelFallsThroughToTheBoard() {
+        // Build.SOC_MODEL and SOC_MANUFACTURER read "unknown" where the vendor didn't set them.
+        val info = HardwareSecurityDetector.resolveHardwareInfo(
+            manufacturer = "Sony",
+            brand = "Sony",
+            model = "XQ-DQ54",
+            device = "pdx234",
+            hardware = "qcom",
+            board = "kalama",
+            product = "pdx234",
+            socModel = "unknown",
+            socManufacturer = "unknown",
+            hasStrongBoxFeature = false,
+            effectiveLevel = HardwareSecurityLevel.TEE
+        )
+        assertEquals("Snapdragon 8 Gen 2", info.socDisplayName)
     }
 }

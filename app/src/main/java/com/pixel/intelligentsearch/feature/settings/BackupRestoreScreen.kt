@@ -48,12 +48,9 @@ import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -75,6 +72,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -82,6 +80,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pixel.intelligentsearch.core.backup.AutoBackup
+import com.pixel.intelligentsearch.core.backup.EncryptedBackupEnvelope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -107,13 +107,17 @@ fun BackupRestoreScreen(
     var passphraseVisible by remember { mutableStateOf(false) }
     var isPassphraseSavedOnChip by remember { mutableStateOf(false) }
     val hardwareInfo = remember { com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context) }
+    // Where this page's keys are kept: the security chip on phones with StrongBox, otherwise the processor's secure area.
+    val keyHolder = hardwareInfo.keyHolderShortName
     var showNoPassphraseWarningDialog by remember { mutableStateOf(false) }
     var showRestorePassphraseDialog by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
-    var pendingEnvelope by remember { mutableStateOf<com.pixel.intelligentsearch.core.backup.EncryptedBackupEnvelope?>(null) }
+    var pendingEnvelope by remember { mutableStateOf<EncryptedBackupEnvelope?>(null) }
     var dialogPassphrase by remember { mutableStateOf("") }
     var dialogPassphraseVisible by remember { mutableStateOf(false) }
     var dialogErrorMessage by remember { mutableStateOf<String?>(null) }
+    // A passphrase restore spends seconds deriving the key; meanwhile it shows progress and can't be started again.
+    var restoring by remember { mutableStateOf(false) }
     // Backups carry the hidden-app list (export reveals it, restore replaces it) and this screen fills in
     // the saved passphrase, so whenever either exists it asks for the same unlock as Manage Hidden Apps.
     val isScreenUnlocked = rememberProtectedPageUnlock(
@@ -128,10 +132,14 @@ fun BackupRestoreScreen(
         }
     )
     val backupExoPlayer = rememberBugdroidPlayer(BugdroidClip.BACKUP, enabled = isScreenUnlocked)
+    // Only whether one is saved: the saved passphrase is never decrypted into the field. Read again after a save that
+    // didn't go through, which may have kept the old passphrase or lost it.
+    suspend fun refreshSavedOnChip() {
+        isPassphraseSavedOnChip = withContext(Dispatchers.IO) { viewModel?.hasSavedPassphraseOnSecurityChip() } == true
+    }
     LaunchedEffect(isScreenUnlocked) {
         if (!isScreenUnlocked) return@LaunchedEffect
-        // Only whether one is saved: the saved passphrase is never decrypted into the field.
-        isPassphraseSavedOnChip = withContext(Dispatchers.IO) { viewModel?.hasSavedPassphraseOnSecurityChip() } == true
+        refreshSavedOnChip()
     }
 
     val safeShowToast: (String) -> Unit = { message ->
@@ -143,17 +151,20 @@ fun BackupRestoreScreen(
     }
 
     val performRestore: (Uri, String?) -> Unit = { targetUri, targetPass ->
-        if (activity != null) {
-            viewModel?.importBackup(
+        if (activity != null && viewModel != null && !restoring) {
+            restoring = true
+            viewModel.importBackup(
                 uri = targetUri,
                 passphrase = targetPass,
                 onSuccess = { count ->
+                    restoring = false
                     showRestorePassphraseDialog = false
                     dialogErrorMessage = null
                     safeShowToast("Intelligent Search Settings Restored")
                 },
                 onError = { err ->
-                    if (err.contains("passphrase", ignoreCase = true) || err.contains("tag mismatch", ignoreCase = true)) {
+                    restoring = false
+                    if (shouldAskForPassphrase(pendingEnvelope, err)) {
                         pendingRestoreUri = targetUri
                         dialogErrorMessage = err
                         showRestorePassphraseDialog = true
@@ -207,9 +218,12 @@ fun BackupRestoreScreen(
 
     val coroutineScope = rememberCoroutineScope()
 
-    // The passphrase to back up with: what is typed, or else the one saved on the chip. The chip only hands it over
-    // shortly after the user has verified themselves, so when that window has passed the system prompt shows once.
-    fun withPassphrase(onReady: (String?) -> Unit) {
+    // The passphrase to back up or restore with: what is typed, or else the one saved on the chip. The chip only hands
+    // it over shortly after the user has verified themselves, so when that window has passed the system prompt shows
+    // once. When the saved one can't be had, [onUnavailable] runs; without it the user is told why.
+    // [forBackup] refuses a saved passphrase shorter than a backup allows (one saved before the minimum existed)
+    // and says so, since the user can't see what is saved; a typed one goes to [onReady] for the caller to check.
+    fun withPassphrase(forBackup: Boolean = false, onUnavailable: (() -> Unit)? = null, onReady: (String?) -> Unit) {
         val typed = passphrase
         if (typed.isNotBlank() || !isPassphraseSavedOnChip) {
             onReady(typed.ifBlank { null })
@@ -219,14 +233,20 @@ fun BackupRestoreScreen(
             coroutineScope.launch {
                 val saved = withContext(Dispatchers.IO) { viewModel?.getSavedPassphraseFromSecurityChip() }
                 when {
+                    !saved.isNullOrBlank() && forBackup && saved.length < AutoBackup.MIN_PASSPHRASE_LENGTH -> safeShowToast(
+                        "The passphrase saved to $keyHolder is shorter than ${AutoBackup.MIN_PASSPHRASE_LENGTH} characters. Type a longer one and save it."
+                    )
                     !saved.isNullOrBlank() -> onReady(saved)
                     !afterPrompt && activity != null -> context.appEntryPoint.biometricSearchGate().authenticate(
                         activity = activity,
                         title = "Verify it’s you",
-                        subtitle = "To use the passphrase saved to ${hardwareInfo.shortChipName}",
+                        subtitle = "To use the passphrase saved to $keyHolder",
                         onSuccess = { load(afterPrompt = true) },
-                        onFailure = { safeShowToast("Verify it’s you to use the saved passphrase") },
+                        onFailure = {
+                            if (onUnavailable != null) onUnavailable() else safeShowToast("Verify it’s you to use the saved passphrase")
+                        },
                     )
+                    onUnavailable != null -> onUnavailable()
                     else -> safeShowToast("Couldn’t read the saved passphrase. Type it instead.")
                 }
             }
@@ -253,16 +273,15 @@ fun BackupRestoreScreen(
                 pendingEnvelope = envelope
                 val needsPass = envelope?.kdf != null
                 if (needsPass) {
-                    val effectivePass = passphrase.ifBlank {
-                        withContext(Dispatchers.IO) { viewModel?.getSavedPassphraseFromSecurityChip() } ?: ""
-                    }
-                    if (effectivePass.isNotBlank()) {
-                        performRestore(uri, effectivePass)
-                    } else {
+                    val askForPassphrase = {
                         pendingRestoreUri = uri
                         dialogPassphrase = ""
                         dialogErrorMessage = null
                         showRestorePassphraseDialog = true
+                    }
+                    // The typed or saved passphrase, as for an export; if the saved one can't be had, the user types it.
+                    withPassphrase(onUnavailable = askForPassphrase) { chosen ->
+                        if (chosen != null) performRestore(uri, chosen) else askForPassphrase()
                     }
                 } else {
                     performRestore(uri, null)
@@ -383,9 +402,10 @@ fun BackupRestoreScreen(
                         val uri = pendingRestoreUri ?: return@Button
                         performRestore(uri, dialogPassphrase)
                     },
+                    enabled = !restoring,
                     shape = RoundedCornerShape(16.dp)
                 ) {
-                    Text("Restore", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
+                    Text(if (restoring) "Restoring…" else "Restore", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
                 }
             },
             dismissButton = {
@@ -422,7 +442,7 @@ fun BackupRestoreScreen(
             },
             text = {
                 Text(
-                    "Without a passphrase, this backup is locked to this phone's ${hardwareInfo.shortChipName}. It can't be restored on another phone, or on this one after Intelligent Search is reinstalled or its data is cleared. Do you want to set a passphrase first?",
+                    "Without a passphrase, this backup is locked to this phone's $keyHolder. It can't be restored on another phone, or on this one after Intelligent Search is reinstalled or its data is cleared. Do you want to set a passphrase first?",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -477,19 +497,10 @@ fun BackupRestoreScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            SettingsCard {
-                Text(
-                    "Encryption Passphrase",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-                Text(
-                    "Set a passphrase to restore your backup on any device. If left blank, the backup is encrypted with a key in this phone's ${hardwareInfo.shortChipName} and can only be restored on this phone.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+            SettingsCard(modifier = Modifier.backupCard("backup_card_passphrase")) {
+                BackupCardTitle("Encryption Passphrase")
+                BackupCardDescription(
+                    "Set a passphrase to restore your backup on any device. If left blank, the backup is encrypted with a key in this phone's $keyHolder and can only be restored on this phone."
                 )
                 // Autofill's highlight is drawn over the whole field, so clipping the field to its own pill shape makes
                 // the highlight a pill; the colour is a light, see-through tint of the theme instead of yellow.
@@ -499,7 +510,7 @@ fun BackupRestoreScreen(
                     onValueChange = { passphrase = it },
                     placeholder = {
                         Text(
-                            if (isPassphraseSavedOnChip) "Saved to ${hardwareInfo.shortChipName} · type to replace" else "Enter passphrase (optional)",
+                            if (isPassphraseSavedOnChip) "Saved to $keyHolder · type to replace" else "Enter passphrase (optional)",
                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                             fontSize = 14.sp
                         )
@@ -552,6 +563,12 @@ fun BackupRestoreScreen(
                     )
                 )
                 }
+                // Export and automatic backup refuse a shorter passphrase, so it can't be saved either; this says why
+                // the button below stays off.
+                val passphraseLongEnough = passphrase.isNotBlank() && passphrase.length >= AutoBackup.MIN_PASSPHRASE_LENGTH
+                if (passphrase.isNotEmpty() && !passphraseLongEnough) {
+                    BackupCardDescription("Use a passphrase of at least ${AutoBackup.MIN_PASSPHRASE_LENGTH} characters")
+                }
 
                 Row(
                     modifier = Modifier
@@ -562,7 +579,7 @@ fun BackupRestoreScreen(
                 ) {
                     FilledTonalButton(
                         onClick = {
-                            if (passphrase.isNotBlank()) {
+                            if (passphraseLongEnough) {
                                 val toSave = passphrase
                                 // The chip's key only works shortly after the user has verified themselves; when that
                                 // window has passed (or the page opened without a prompt) the system prompt shows once
@@ -578,34 +595,41 @@ fun BackupRestoreScreen(
                                                 passphrase = ""
                                                 passphraseVisible = false
                                                 hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
-                                                safeShowToast("Passphrase saved to ${hardwareInfo.shortChipName}")
+                                                safeShowToast("Passphrase saved to $keyHolder")
                                             }
                                             outcome == com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager.PassphraseSave.NEEDS_AUTHENTICATION && !afterPrompt -> {
                                                 val activity = context.findActivity()
                                                 if (activity == null) {
-                                                    safeShowToast("Failed to save to ${hardwareInfo.shortChipName}")
+                                                    safeShowToast("Failed to save to $keyHolder")
+                                                    refreshSavedOnChip()
                                                 } else {
                                                     context.appEntryPoint.biometricSearchGate().authenticate(
                                                         activity = activity,
                                                         title = "Verify it’s you",
-                                                        subtitle = "To save the passphrase to ${hardwareInfo.shortChipName}",
+                                                        subtitle = "To save the passphrase to $keyHolder",
                                                         onSuccess = { save(afterPrompt = true) },
-                                                        onFailure = { safeShowToast("Verify it’s you to save the passphrase") },
+                                                        onFailure = {
+                                                            safeShowToast("Verify it’s you to save the passphrase")
+                                                            coroutineScope.launch { refreshSavedOnChip() }
+                                                        },
                                                     )
                                                 }
                                             }
-                                            else -> safeShowToast("Failed to save to ${hardwareInfo.shortChipName}")
+                                            else -> {
+                                                safeShowToast("Failed to save to $keyHolder")
+                                                refreshSavedOnChip()
+                                            }
                                         }
                                     }
                                 }
                                 save(afterPrompt = false)
                             } else {
-                                safeShowToast("Enter a passphrase first")
+                                safeShowToast("Use a passphrase of at least ${AutoBackup.MIN_PASSPHRASE_LENGTH} characters")
                             }
                         },
                         shape = RoundedCornerShape(percent = 50),
                         modifier = Modifier.weight(1f),
-                        enabled = passphrase.isNotBlank()
+                        enabled = passphraseLongEnough
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Security,
@@ -614,7 +638,7 @@ fun BackupRestoreScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            if (isPassphraseSavedOnChip && passphrase.isBlank()) "Saved to ${hardwareInfo.shortChipName}" else "Save to ${hardwareInfo.shortChipName}",
+                            if (isPassphraseSavedOnChip && passphrase.isBlank()) "Saved to $keyHolder" else "Save to $keyHolder",
                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
@@ -627,7 +651,7 @@ fun BackupRestoreScreen(
                                 viewModel?.clearSavedPassphraseFromSecurityChip()
                                 isPassphraseSavedOnChip = false
                                 hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
-                                safeShowToast("Passphrase removed from ${hardwareInfo.shortChipName}")
+                                safeShowToast("Passphrase removed from $keyHolder")
                             },
                             shape = RoundedCornerShape(percent = 50)
                         ) {
@@ -655,7 +679,7 @@ fun BackupRestoreScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            "Secured with ${hardwareInfo.chipName} (${hardwareInfo.deviceDisplayName})",
+                            "Secured with ${hardwareInfo.keyHolderName} (${hardwareInfo.deviceDisplayName})",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex
@@ -665,181 +689,207 @@ fun BackupRestoreScreen(
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
-            // Export Card
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Text("Export Configuration", fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
-                    Text(
-                        "Includes Settings, Search History, Shortcuts, and Priority Weights.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Button(
-                        onClick = {
-                            hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
-                            withPassphrase { chosen ->
-                                if (chosen == null) {
-                                    showNoPassphraseWarningDialog = true
-                                } else if (chosen.length < 10) {
-                                    // A portable backup can be attacked offline, so its passphrase needs some length.
-                                    safeShowToast("Use a passphrase of at least 10 characters")
-                                } else {
-                                    exportPassphrase = chosen
-                                    exportWantsPassphrase = true
-                                    exportLauncher.launch("intelligent_search_backup_${System.currentTimeMillis()}.json")
-                                }
+            SettingsCard(modifier = Modifier.backupCard("backup_card_export")) {
+                BackupCardTitle("Export Configuration")
+                BackupCardDescription("Includes Settings, Search History, Shortcuts, and Priority Weights.")
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                        withPassphrase(forBackup = true) { chosen ->
+                            if (chosen == null) {
+                                showNoPassphraseWarningDialog = true
+                            } else if (chosen.length < AutoBackup.MIN_PASSPHRASE_LENGTH) {
+                                // A portable backup can be attacked offline, so its passphrase needs some length.
+                                safeShowToast("Use a passphrase of at least ${AutoBackup.MIN_PASSPHRASE_LENGTH} characters")
+                            } else {
+                                exportPassphrase = chosen
+                                exportWantsPassphrase = true
+                                exportLauncher.launch("intelligent_search_backup_${System.currentTimeMillis()}.json")
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Icon(Icons.Default.FileDownload, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Export Encrypted Backup", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
-                    }
-                }
-            }
-
-            // Restore Card
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Text("Restore from Backup", fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
-                    Text(
-                        "Select an Existing .json Backup File to Decrypt, Verify SHA-256 Integrity, and Restore.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    OutlinedButton(
-                        onClick = {
-                            hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
-                            importLauncher.launch(arrayOf("application/json", "*/*"))
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Icon(Icons.Default.FileUpload, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Select Backup to Restore", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
-                    }
-                }
-            }
-
-            AutoBackupCard(obtainPassphrase = { onReady -> withPassphrase(onReady) })
-
-            // Extra room above the bugdroid so its whole video shows below the cards.
-            Spacer(modifier = Modifier.height(40.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                val isDark = isSystemInDarkTheme()
-                val infiniteTransition = rememberInfiniteTransition(label = "BugdroidFeetShadowTransition")
-                // The animated values stay State and are read only inside the Canvas, so the pulse redraws
-                // the shadow without recomposing this part of the screen every frame.
-                val pulseScale = infiniteTransition.animateFloat(
-                    initialValue = 0.94f,
-                    targetValue = 1.06f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(2400, easing = FastOutSlowInEasing),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "shadowPulseScale"
-                )
-                val pulseAlpha = infiniteTransition.animateFloat(
-                    initialValue = 0.85f,
-                    targetValue = 1.0f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(2400, easing = FastOutSlowInEasing),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "shadowPulseAlpha"
-                )
-                val swayOffset = infiniteTransition.animateFloat(
-                    initialValue = -1.5f,
-                    targetValue = 1.5f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(2800, easing = FastOutSlowInEasing),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "shadowSwayOffset"
-                )
-
-                Canvas(
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(340.dp)
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(percent = 50)
                 ) {
-                    val alpha = pulseAlpha.value
-                    val scale = pulseScale.value
-                    // On narrow screens the bugdroid shrinks to fit; its shadows shrink with it about the same centre.
-                    val fit = BugdroidClip.BACKUP.fittedScale(size.width, size.height, 1f)
-                    val contactShadowColor = Color.Black.copy(alpha = (if (isDark) 0.70f else 0.38f) * alpha)
-                    val ambientShadowColor = Color.Black.copy(alpha = (if (isDark) 0.32f else 0.16f) * alpha)
-                    val centerX = size.width / 2f + swayOffset.value.dp.toPx() * fit
-                    val groundY = size.height / 2f + (292.dp.toPx() - size.height / 2f) * fit
-
-                    // Ambient ground diffusion shadow
-                    val ambientWidth = 110.dp.toPx() * scale * fit
-                    val ambientHeight = 22.dp.toPx() * scale * fit
-                    drawOval(
-                        brush = Brush.radialGradient(
-                            colors = listOf(ambientShadowColor, Color.Transparent),
-                            center = Offset(centerX, groundY),
-                            radius = ambientWidth / 2f
-                        ),
-                        topLeft = Offset(centerX - ambientWidth / 2f, groundY - ambientHeight / 2f),
-                        size = Size(ambientWidth, ambientHeight)
-                    )
-
-                    // Left foot contact shadow (grounded directly beneath left foot)
-                    val leftFootCenterX = centerX - 28.dp.toPx() * fit
-                    val footWidth = 36.dp.toPx() * scale * fit
-                    val footHeight = 12.dp.toPx() * scale * fit
-                    drawOval(
-                        brush = Brush.radialGradient(
-                            colors = listOf(contactShadowColor, Color.Transparent),
-                            center = Offset(leftFootCenterX, groundY),
-                            radius = footWidth / 2f
-                        ),
-                        topLeft = Offset(leftFootCenterX - footWidth / 2f, groundY - footHeight / 2f),
-                        size = Size(footWidth, footHeight)
-                    )
-
-                    // Right foot contact shadow (grounded directly beneath right foot)
-                    val rightFootCenterX = centerX + 24.dp.toPx() * fit
-                    drawOval(
-                        brush = Brush.radialGradient(
-                            colors = listOf(contactShadowColor, Color.Transparent),
-                            center = Offset(rightFootCenterX, groundY),
-                            radius = footWidth / 2f
-                        ),
-                        topLeft = Offset(rightFootCenterX - footWidth / 2f, groundY - footHeight / 2f),
-                        size = Size(footWidth, footHeight)
-                    )
+                    Icon(Icons.Default.FileDownload, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Export Encrypted Backup", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
                 }
+                Spacer(modifier = Modifier.height(4.dp))
+            }
 
-                BugdroidPlayer(
-                    player = backupExoPlayer,
-                    clip = BugdroidClip.BACKUP,
+            SettingsCard(modifier = Modifier.backupCard("backup_card_restore")) {
+                BackupCardTitle("Restore from Backup")
+                BackupCardDescription("Select an Existing .json Backup File to Decrypt, Verify SHA-256 Integrity, and Restore.")
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                        importLauncher.launch(arrayOf("application/json", "*/*"))
+                    },
+                    enabled = !restoring,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(340.dp),
-                    scaleFactor = 1.0f
-                )
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(percent = 50)
+                ) {
+                    Icon(Icons.Default.FileUpload, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (restoring) "Restoring…" else "Select Backup to Restore", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
+            AutoBackupCard(obtainPassphrase = { onReady -> withPassphrase(forBackup = true, onReady = onReady) })
+
+            // Below Android 13 the bugdroid video can't be shown (see isBugdroidVideoSupported), so neither are the
+            // room kept for it and the shadows under its feet.
+            if (isBugdroidVideoSupported) {
+                // Extra room above the bugdroid so its whole video shows below the cards.
+                Spacer(modifier = Modifier.height(40.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val isDark = isSystemInDarkTheme()
+                    val infiniteTransition = rememberInfiniteTransition(label = "BugdroidFeetShadowTransition")
+                    // The animated values stay State and are read only inside the Canvas, so the pulse redraws
+                    // the shadow without recomposing this part of the screen every frame.
+                    val pulseScale = infiniteTransition.animateFloat(
+                        initialValue = 0.94f,
+                        targetValue = 1.06f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(2400, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "shadowPulseScale"
+                    )
+                    val pulseAlpha = infiniteTransition.animateFloat(
+                        initialValue = 0.85f,
+                        targetValue = 1.0f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(2400, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "shadowPulseAlpha"
+                    )
+                    val swayOffset = infiniteTransition.animateFloat(
+                        initialValue = -1.5f,
+                        targetValue = 1.5f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(2800, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "shadowSwayOffset"
+                    )
+
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(340.dp)
+                            .testTag("backup_bugdroid_shadow")
+                    ) {
+                        val alpha = pulseAlpha.value
+                        val scale = pulseScale.value
+                        // On narrow screens the bugdroid shrinks to fit; its shadows shrink with it about the same centre.
+                        val fit = BugdroidClip.BACKUP.fittedScale(size.width, size.height, 1f)
+                        val contactShadowColor = Color.Black.copy(alpha = (if (isDark) 0.70f else 0.38f) * alpha)
+                        val ambientShadowColor = Color.Black.copy(alpha = (if (isDark) 0.32f else 0.16f) * alpha)
+                        val centerX = size.width / 2f + swayOffset.value.dp.toPx() * fit
+                        val groundY = size.height / 2f + (292.dp.toPx() - size.height / 2f) * fit
+
+                        // Ambient ground diffusion shadow
+                        val ambientWidth = 110.dp.toPx() * scale * fit
+                        val ambientHeight = 22.dp.toPx() * scale * fit
+                        drawOval(
+                            brush = Brush.radialGradient(
+                                colors = listOf(ambientShadowColor, Color.Transparent),
+                                center = Offset(centerX, groundY),
+                                radius = ambientWidth / 2f
+                            ),
+                            topLeft = Offset(centerX - ambientWidth / 2f, groundY - ambientHeight / 2f),
+                            size = Size(ambientWidth, ambientHeight)
+                        )
+
+                        // Left foot contact shadow (grounded directly beneath left foot)
+                        val leftFootCenterX = centerX - 28.dp.toPx() * fit
+                        val footWidth = 36.dp.toPx() * scale * fit
+                        val footHeight = 12.dp.toPx() * scale * fit
+                        drawOval(
+                            brush = Brush.radialGradient(
+                                colors = listOf(contactShadowColor, Color.Transparent),
+                                center = Offset(leftFootCenterX, groundY),
+                                radius = footWidth / 2f
+                            ),
+                            topLeft = Offset(leftFootCenterX - footWidth / 2f, groundY - footHeight / 2f),
+                            size = Size(footWidth, footHeight)
+                        )
+
+                        // Right foot contact shadow (grounded directly beneath right foot)
+                        val rightFootCenterX = centerX + 24.dp.toPx() * fit
+                        drawOval(
+                            brush = Brush.radialGradient(
+                                colors = listOf(contactShadowColor, Color.Transparent),
+                                center = Offset(rightFootCenterX, groundY),
+                                radius = footWidth / 2f
+                            ),
+                            topLeft = Offset(rightFootCenterX - footWidth / 2f, groundY - footHeight / 2f),
+                            size = Size(footWidth, footHeight)
+                        )
+                    }
+
+                    BugdroidPlayer(
+                        player = backupExoPlayer,
+                        clip = BugdroidClip.BACKUP,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(340.dp),
+                        scaleFactor = 1.0f
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
+
+/**
+ * Whether a failed restore should ask for the passphrase (again). Only a backup made with a passphrase can be
+ * opened by typing one; an older file's error also mentions a passphrase, and asking for it there would loop.
+ */
+internal fun shouldAskForPassphrase(envelope: EncryptedBackupEnvelope?, error: String): Boolean =
+    envelope?.kdf != null &&
+        (error.contains("passphrase", ignoreCase = true) || error.contains("tag mismatch", ignoreCase = true))
+
+/** The title of a card on this page, in the same style as the passphrase card's. */
+@Composable
+internal fun BackupCardTitle(text: String) {
+    Text(
+        text,
+        fontWeight = FontWeight.Bold,
+        fontSize = 15.sp,
+        fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+    )
+}
+
+/** The explanation under a [BackupCardTitle]. */
+@Composable
+internal fun BackupCardDescription(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+    )
+}
+
+/** [SettingsCard]'s own width and inset, tagged so tests can check that the page's cards line up. */
+internal fun Modifier.backupCard(tag: String): Modifier = fillMaxWidth().padding(horizontal = 4.dp).testTag(tag)

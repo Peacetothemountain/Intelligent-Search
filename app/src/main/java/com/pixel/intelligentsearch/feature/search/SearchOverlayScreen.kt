@@ -475,7 +475,9 @@ fun SearchOverlayScreen(
         }
     }
     
+    val backSwipes = remember { java.util.concurrent.atomic.AtomicInteger() }
     PredictiveBackHandler(enabled = !showTutorial) { progressFlow ->
+        val swipe = backSwipes.incrementAndGet()
         try {
             val act = context.findActivity()
             com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(act)
@@ -512,7 +514,11 @@ fun SearchOverlayScreen(
                 )
             }
         } finally {
-            com.pixel.intelligentsearch.core.ui.WindowFramePacing.setNormalRefreshRateCategory(context.findActivity())
+            // A swipe started while this one sprang back is already running at the high rate; resetting here
+            // would drop it to the normal rate (and switch touch boost off) for the rest of that swipe.
+            if (backSwipes.get() == swipe) {
+                com.pixel.intelligentsearch.core.ui.WindowFramePacing.setNormalRefreshRateCategory(context.findActivity())
+            }
         }
     }
 

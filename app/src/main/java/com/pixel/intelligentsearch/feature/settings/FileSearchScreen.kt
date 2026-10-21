@@ -6,17 +6,15 @@ import android.content.SharedPreferences
 import android.widget.Toast
 import com.pixel.intelligentsearch.core.data.UserGrantedFiles
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -25,13 +23,11 @@ import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -44,8 +40,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -63,6 +59,8 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val folderNames = remember { mutableStateMapOf<String, String>() }
     val folderAccessLost = remember { mutableStateMapOf<String, Boolean>() }
     var folderPendingRemoval by remember { mutableStateOf<String?>(null) }
+    var confirmClearMedia by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(folderUris) {
         val details = withContext(Dispatchers.IO) {
@@ -87,19 +85,42 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         }
     }
 
+    // Taking or releasing a grant is a Binder call per photo (up to MAX_PICKED_MEDIA), so it runs off the main thread.
     val photoPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
         if (uris.isNotEmpty()) {
-            val added = UserGrantedFiles.addMedia(context, prefs, uris)
-            mediaCount = UserGrantedFiles.mediaUris(prefs).size
-            val message = if (added < uris.size && mediaCount >= UserGrantedFiles.MAX_PICKED_MEDIA) {
-                "Added $added. You can choose up to ${UserGrantedFiles.MAX_PICKED_MEDIA} photos and videos."
-            } else {
-                "$added photos and videos added to search"
+            scope.launch {
+                val added = withContext(Dispatchers.IO) { UserGrantedFiles.addMedia(context, prefs, uris) }
+                mediaCount = UserGrantedFiles.mediaUris(prefs).size
+                val message = if (added < uris.size && mediaCount >= UserGrantedFiles.MAX_PICKED_MEDIA) {
+                    "Added $added. You can choose up to ${UserGrantedFiles.MAX_PICKED_MEDIA} photos and videos."
+                } else {
+                    "$added photos and videos added to search"
+                }
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    if (confirmClearMedia) {
+        AlertDialog(
+            onDismissRequest = { confirmClearMedia = false },
+            title = { Text("Stop searching chosen photos and videos?") },
+            text = { Text("The $mediaCount photos and videos you chose will no longer appear in search results. Nothing in them is changed.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmClearMedia = false
+                    scope.launch {
+                        withContext(Dispatchers.IO) { UserGrantedFiles.clearMedia(context, prefs) }
+                        mediaCount = 0
+                    }
+                }) { Text("Clear") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearMedia = false }) { Text("Cancel") }
+            }
+        )
     }
 
     folderPendingRemoval?.let { uri ->
@@ -176,10 +197,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         title = "Clear Chosen Photos & Videos",
                         subtitle = "Stop searching the $mediaCount photos and videos chosen above.",
                         icon = Icons.Outlined.DeleteSweep,
-                        onClick = {
-                            UserGrantedFiles.clearMedia(context, prefs)
-                            mediaCount = 0
-                        },
+                        onClick = { confirmClearMedia = true },
                         showDivider = true
                     )
                 }
@@ -201,44 +219,12 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onCheckedChange = { thumbnails = it },
                     showDivider = true
                 )
-                
-                var fileResultsCount by rememberSetting(SettingsManager.FILE_RESULTS_COUNT)
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("File Results: $fileResultsCount", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                        IconButton(
-                            onClick = {
-                                performClickHaptic(context)
-                                fileResultsCount = 5
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.RestartAlt,
-                                contentDescription = "Reset to Default",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                    Android17Slider(
-                        label = "File results",
-                        value = fileResultsCount.toFloat(),
-                        onValueChange = { fileResultsCount = it.toInt() },
-                        valueRange = 1f..20f,
-                        steps = 18,
-                        isSquiggly = false,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
-                    )
-                }
+
+                ResultsCountSetting(SettingsManager.FILE_RESULTS_COUNT, "File", defaultCount = 5)
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                PrioritySetting(SettingsManager.SEARCH_WEIGHT_FILES, "File", largeTitle = true)
+                PrioritySetting(SettingsManager.SEARCH_WEIGHT_FILES, "File")
             }
         }
     }

@@ -13,6 +13,7 @@ import android.graphics.drawable.Icon
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,7 +30,6 @@ import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -47,6 +47,27 @@ import com.pixel.intelligentsearch.MainActivity
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity
 import com.pixel.intelligentsearch.feature.widget.SearchTileService
+
+private const val ADD_TILE_YOURSELF = "You can add it yourself: open Quick Settings, tap the pencil and drag Intelligent Search in."
+
+/**
+ * What to tell the user after asking Android to add the Search tile, from the request's [result] code. Android
+ * shows its own dialog for a new tile, so adding it or turning it down needs no message; everything else does,
+ * since otherwise the tap seems to do nothing.
+ */
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+internal fun tileRequestMessage(result: Int): String? = when (result) {
+    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED,
+    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_NOT_ADDED -> null
+    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> "Search tile is already in Quick Settings"
+    StatusBarManager.TILE_ADD_REQUEST_ERROR_APP_NOT_IN_FOREGROUND ->
+        "Android only adds the tile while Intelligent Search is open. $ADD_TILE_YOURSELF"
+    StatusBarManager.TILE_ADD_REQUEST_ERROR_REQUEST_IN_PROGRESS ->
+        "Another request to add a tile is still open. $ADD_TILE_YOURSELF"
+    StatusBarManager.TILE_ADD_REQUEST_ERROR_NO_STATUS_BAR_SERVICE ->
+        "This device can't add tiles for apps. $ADD_TILE_YOURSELF"
+    else -> "Android couldn't add the tile. $ADD_TILE_YOURSELF"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,9 +113,12 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             componentName,
                                             "Intelligent Search",
                                             icon,
-                                            context.mainExecutor,
-                                            { _ -> }
-                                        )
+                                            context.mainExecutor
+                                        ) { result ->
+                                            tileRequestMessage(result)?.let {
+                                                Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+                                            }
+                                        }
                                     } catch (e: Exception) {
                                         Log.w("IntelligentSearch", "Unexpected error", e)
                                     }

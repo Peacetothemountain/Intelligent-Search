@@ -22,9 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,7 +83,8 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                         searchEngine = selected
                     },
-                    showDivider = searchEngine != "Custom"
+                    showDivider = searchEngine != "Custom",
+                    optionLeadingIcon = { engine -> SearchAppColorfulIcon(appName = engine, modifier = Modifier.fillMaxSize()) }
                 )
 
                 if (showTorDialog) {
@@ -156,49 +158,12 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onCheckedChange = { searchPreviousSearches = it },
                     showDivider = true
                 )
-                
-                var webResultsCount by rememberSetting(SettingsManager.WEB_RESULTS_COUNT)
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Web Results: $webResultsCount",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        IconButton(
-                            onClick = {
-                                performClickHaptic(context)
-                                webResultsCount = 5
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.RestartAlt,
-                                contentDescription = "Reset to Default",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                    Android17Slider(
-                        label = "Web results",
-                        value = webResultsCount.toFloat(),
-                        onValueChange = { webResultsCount = it.toInt() },
-                        valueRange = 1f..20f,
-                        steps = 18,
-                        isSquiggly = false,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
-                    )
-                }
+
+                ResultsCountSetting(SettingsManager.WEB_RESULTS_COUNT, "Web", defaultCount = 5)
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                PrioritySetting(SettingsManager.SEARCH_WEIGHT_WEB, "Web", largeTitle = false)
+                PrioritySetting(SettingsManager.SEARCH_WEIGHT_WEB, "Web")
             }
 
             Text(
@@ -206,7 +171,7 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp).semantics { heading() }
             )
             WebQuickShortcutsCard()
         }

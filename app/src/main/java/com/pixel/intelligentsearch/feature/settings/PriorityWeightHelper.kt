@@ -5,7 +5,6 @@ import com.pixel.intelligentsearch.core.data.settings.SettingKey
 import androidx.compose.material.icons.Icons
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,37 +60,30 @@ object PriorityWeightHelper {
 
 /**
  * The "<label> Priority Weight" block shared by the App, Contact, File and Web search screens: title with the
- * current level and a reset button, a one-line explanation, and a four-step slider. [largeTitle] selects the
- * title style those screens use (Web uses the smaller one).
+ * current level and a reset button, a one-line explanation, and a four-step slider. The title uses the settings
+ * row title style and wraps beside the reset button rather than pushing it out of the row.
  */
 @Composable
-fun PrioritySetting(key: SettingKey<Int>, label: String, largeTitle: Boolean) {
+fun PrioritySetting(key: SettingKey<Int>, label: String) {
     val context = LocalContext.current
     var weight by rememberSetting(key)
     val levelIndex = remember(weight) { PriorityWeightHelper.weightToLevelIndex(weight) }
+    val levelLabel = PriorityWeightHelper.levelLabel(levelIndex)
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val title = "$label Priority Weight: ${PriorityWeightHelper.levelLabel(levelIndex)}"
-            if (largeTitle) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            } else {
-                Text(
-                    text = title,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-            IconButton(
+            Text(
+                text = "$label Priority Weight: $levelLabel",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            // Material's own IconButton: the click haptic below is this button's one haptic.
+            androidx.compose.material3.IconButton(
                 onClick = {
                     performClickHaptic(context)
                     weight = PriorityWeightHelper.DEFAULT_WEIGHT
@@ -100,7 +92,7 @@ fun PrioritySetting(key: SettingKey<Int>, label: String, largeTitle: Boolean) {
             ) {
                 Icon(
                     imageVector = Icons.Outlined.RestartAlt,
-                    contentDescription = "Reset to Default",
+                    contentDescription = "Reset $label Priority Weight",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
                 )
@@ -113,6 +105,7 @@ fun PrioritySetting(key: SettingKey<Int>, label: String, largeTitle: Boolean) {
         )
         Android17Slider(
             label = "$label priority weight",
+            valueDescription = levelLabel,
             value = levelIndex.toFloat(),
             onValueChange = { newValue ->
                 val idx = Math.round(newValue).coerceIn(0, PriorityWeightHelper.LEVELS.size - 1)

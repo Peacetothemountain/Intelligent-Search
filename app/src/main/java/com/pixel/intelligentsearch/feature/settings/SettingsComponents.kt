@@ -11,7 +11,6 @@ import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
 import com.pixel.intelligentsearch.App
-import com.pixel.intelligentsearch.R
 import android.content.Context
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalView
@@ -48,8 +47,9 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.*
 import androidx.compose.foundation.Image
@@ -172,19 +172,21 @@ fun SettingsRow(
     }
 }
 
+/**
+ * A setting picked from a menu. [optionLeadingIcon] draws an option's icon, shown beside the current choice under
+ * the title and beside each option in the menu; it fills the size it is given.
+ */
 @Composable
 fun SettingsDropdownRow(
     title: String,
     subtitle: String? = null,
     icon: ImageVector? = null,
-    iconContent: (@Composable () -> Unit)? = null,
     options: List<String>,
     selectedOption: String,
     onOptionSelected: (String) -> Unit,
     showDivider: Boolean,
-    optionIcons: Map<String, Int>? = null
+    optionLeadingIcon: (@Composable (String) -> Unit)? = null
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
     var expanded by remember { mutableStateOf(false) }
 
     Column {
@@ -194,17 +196,12 @@ fun SettingsDropdownRow(
                 .semantics(mergeDescendants = true) {
                     role = Role.DropdownList
                 }
-                .bouncyClickable { 
-                    performClickHaptic(context)
-                    expanded = true 
-                }
+                // bouncyClickable already gives the click haptic.
+                .bouncyClickable { expanded = true }
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (iconContent != null) {
-                iconContent()
-                Spacer(modifier = Modifier.width(16.dp))
-            } else if (icon != null) {
+            if (icon != null) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null, // decorative: the title is right beside it
@@ -222,12 +219,12 @@ fun SettingsDropdownRow(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 if (subtitle != null) {
-                    if (title == "Primary Search App") {
+                    if (optionLeadingIcon != null) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(top = 2.dp)
                         ) {
-                            SearchAppColorfulIcon(appName = subtitle, modifier = Modifier.size(18.dp))
+                            Box(modifier = Modifier.size(18.dp)) { optionLeadingIcon(subtitle) }
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = subtitle,
@@ -248,7 +245,7 @@ fun SettingsDropdownRow(
             }
             Icon(
                 imageVector = Icons.Outlined.ArrowDropDown,
-                contentDescription = "Dropdown",
+                contentDescription = null, // the row's DropdownList role already says it opens a menu
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
             
@@ -284,30 +281,9 @@ fun SettingsDropdownRow(
                                     )
                                 }
                             } else null,
-                            leadingIcon = if (title == "Primary Search App") {
-                                {
-                                    SearchAppColorfulIcon(appName = option, modifier = Modifier.size(24.dp))
-                                }
-                            } else if (optionIcons != null && optionIcons.containsKey(option)) {
-                                {
-                                    if (title == "Widget Action Icon" && option in listOf("Search", "Assistant", "Gemini", "Now Playing")) {
-                                        ComposeActionIcon(
-                                            iconType = option,
-                                            modifier = Modifier.size(24.dp),
-                                            primaryColor = MaterialTheme.colorScheme.primary,
-                                            secondaryColor = MaterialTheme.colorScheme.secondary,
-                                            tertiaryColor = MaterialTheme.colorScheme.tertiary
-                                        )
-                                    } else {
-                                        Icon(
-                                            painter = androidx.compose.ui.res.painterResource(id = optionIcons[option] ?: R.drawable.ic_search_lens_expressive),
-                                            contentDescription = option,
-                                            modifier = Modifier.size(24.dp),
-                                            tint = androidx.compose.ui.graphics.Color.Unspecified
-                                        )
-                                    }
-                                }
-                            } else null,
+                            leadingIcon = optionLeadingIcon?.let { leading ->
+                                { Box(modifier = Modifier.size(24.dp)) { leading(option) } }
+                            },
                             onClick = {
                                 onOptionSelected(option)
                                 expanded = false
@@ -319,7 +295,7 @@ fun SettingsDropdownRow(
         }
         if (showDivider) {
             HorizontalDivider(
-                modifier = Modifier.padding(start = if (icon != null || iconContent != null) 56.dp else 16.dp, end = 16.dp),
+                modifier = Modifier.padding(start = if (icon != null) 56.dp else 16.dp, end = 16.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
             )
         }
@@ -378,6 +354,11 @@ fun SettingsRowToggle(
         }
     }
 
+    // A row that only toggles is one switch to TalkBack: its title, subtitle and on/off state in a single stop. A row
+    // that opens a sub-page is a button, and its switch stays a separate stop named after the row.
+    val isPlainToggle = onClick == null
+    val rowRole = if (isPlainToggle) Role.Switch else Role.Button
+
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val pressScale by androidx.compose.animation.core.animateFloatAsState(
@@ -414,6 +395,7 @@ fun SettingsRowToggle(
                         Modifier.combinedClickable(
                             interactionSource = interactionSource,
                             indication = androidx.compose.material3.ripple(bounded = true),
+                            role = rowRole,
                             onLongClick = onLongClick,
                             onClick = toggleAction
                         )
@@ -421,9 +403,13 @@ fun SettingsRowToggle(
                         Modifier.clickable(
                             interactionSource = interactionSource,
                             indication = androidx.compose.material3.ripple(bounded = true),
+                            role = rowRole,
                             onClick = toggleAction
                         )
                     }
+                )
+                .then(
+                    if (isPlainToggle) Modifier.semantics { toggleableState = ToggleableState(isChecked) } else Modifier
                 )
                 .graphicsLayer {
                     scaleX = pressScale
@@ -483,11 +469,14 @@ fun SettingsRowToggle(
                 }
             }
             Spacer(modifier = Modifier.width(16.dp))
-            com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(
-                checked = isChecked,
-                onCheckedChange = { next -> applyToggle(next) },
-                label = title
-            )
+            // On a plain toggle row the switch still takes taps and drags, but TalkBack hears the row instead.
+            Box(modifier = if (isPlainToggle) Modifier.clearAndSetSemantics {} else Modifier) {
+                com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(
+                    checked = isChecked,
+                    onCheckedChange = { next -> applyToggle(next) },
+                    label = title
+                )
+            }
         }
         if (showDivider && containerColor == Color.Transparent) {
             HorizontalDivider(
@@ -539,7 +528,8 @@ fun SettingsSliderRow(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     if (onReset != null) {
-                        IconButton(
+                        // Material's own IconButton: the click haptic below is this button's one haptic.
+                        androidx.compose.material3.IconButton(
                             onClick = {
                                 performClickHaptic(context)
                                 onReset()
@@ -548,7 +538,7 @@ fun SettingsSliderRow(
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.RestartAlt,
-                                contentDescription = "Reset to Default",
+                                contentDescription = "Reset $title",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -561,7 +551,8 @@ fun SettingsSliderRow(
                     valueRange = valueRange,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     steps = steps,
-                    label = title
+                    label = title,
+                    valueDescription = "${value.toInt()}%"
                 )
             }
         }
@@ -573,6 +564,58 @@ fun SettingsSliderRow(
         }
     }
 }
+
+/**
+ * The "<label> Results: N" block shared by the Contact, File and Web search screens: title with a reset button
+ * (back to [defaultCount]) and a 1 to 20 slider. The title uses the settings row title style, like
+ * [PrioritySetting] below it.
+ */
+@Composable
+fun ResultsCountSetting(key: com.pixel.intelligentsearch.core.data.settings.SettingKey<Int>, label: String, defaultCount: Int) {
+    val context = LocalContext.current
+    var count by com.pixel.intelligentsearch.core.data.settings.rememberSetting(key)
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "$label Results: $count",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            // Material's own IconButton: the click haptic below is this button's one haptic.
+            androidx.compose.material3.IconButton(
+                onClick = {
+                    performClickHaptic(context)
+                    count = defaultCount
+                },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.RestartAlt,
+                    contentDescription = "Reset $label Results",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Android17Slider(
+            label = "$label results",
+            valueDescription = "$count results",
+            value = count.toFloat(),
+            onValueChange = { count = it.toInt() },
+            valueRange = 1f..20f,
+            steps = 18,
+            isSquiggly = false,
+            modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
+        )
+    }
+}
+
 @Composable
 fun Android17Slider(
     value: Float,
@@ -584,7 +627,9 @@ fun Android17Slider(
     isSquiggly: Boolean = true,
     enableHaptics: Boolean = false,
     /** Accessible name; without it TalkBack announces an unlabeled adjustable. */
-    label: String? = null
+    label: String? = null,
+    /** What TalkBack reads as the value ("Medium", "5 results"); without it TalkBack reads a percentage of the range. */
+    valueDescription: String? = null
 ) {
     val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
     
@@ -648,6 +693,13 @@ fun Android17Slider(
         }
     }
 
+    // Where along the track a pointer at [x] sits, as a fraction; the thumb's half-width is kept clear at each end.
+    fun androidx.compose.ui.input.pointer.PointerInputScope.fractionAt(x: Float): Float {
+        val thumbW = 6.dp.toPx()
+        val trackAvailableWidth = (size.width - thumbW).coerceAtLeast(1f)
+        return ((x - thumbW / 2f) / trackAvailableWidth).coerceIn(0f, 1f)
+    }
+
     val cachedPath = remember { androidx.compose.ui.graphics.Path() }
 
     Box(
@@ -656,6 +708,7 @@ fun Android17Slider(
             .height(48.dp)
             .semantics(mergeDescendants = true) {
                 if (label != null) contentDescription = label
+                if (valueDescription != null) stateDescription = valueDescription
                 progressBarRangeInfo = ProgressBarRangeInfo(
                     current = value,
                     range = valueRange,
@@ -669,30 +722,20 @@ fun Android17Slider(
                     } else false
                 }
             }
+            // A tap or a sideways drag sets the value. The down event is left unconsumed until the drag passes the
+            // horizontal touch slop, so a vertical swipe that starts on the slider still scrolls the page.
             .pointerInput(steps, valueRange) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    down.consume()
-                    val thumbW = 6.dp.toPx()
-                    val trackAvailableWidth = (size.width - thumbW).coerceAtLeast(1f)
-                    val downFraction = ((down.position.x - thumbW / 2f) / trackAvailableWidth).coerceIn(0f, 1f)
-                    processChange(downFraction)
-
-                    val pointerId = down.id
-                    var prevX = down.position.x
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull { it.id == pointerId } ?: break
-                        if (!change.pressed) break
+                detectTapGestures(onTap = { processChange(fractionAt(it.x)) })
+            }
+            .pointerInput(steps, valueRange) {
+                detectHorizontalDragGestures(
+                    onDragStart = { processChange(fractionAt(it.x)) },
+                    onHorizontalDrag = { change, dragAmount ->
                         change.consume()
-                        val currentX = change.position.x
-                        val deltaX = currentX - prevX
-                        prevX = currentX
-                        dragPhaseOffset.floatValue += deltaX * 0.04f
-                        val dragFraction = ((currentX - thumbW / 2f) / trackAvailableWidth).coerceIn(0f, 1f)
-                        processChange(dragFraction)
+                        dragPhaseOffset.floatValue += dragAmount * 0.04f
+                        processChange(fractionAt(change.position.x))
                     }
-                }
+                )
             },
         contentAlignment = Alignment.CenterStart
     ) {

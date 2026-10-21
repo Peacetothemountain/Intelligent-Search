@@ -35,7 +35,6 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -157,7 +156,11 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                                 viewModel?.reindexContacts()
                             } else {
                                 searchContacts = false
-                                showContactsSettingsDialog = true
+                                // As with Calendar: declining once just leaves Contacts off. Only when Android won't
+                                // ask again (declined for good) is Android settings the way to allow it.
+                                if (context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS) == false) {
+                                    showContactsSettingsDialog = true
+                                }
                             }
                         }
 

@@ -588,7 +588,12 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         ConversionOneBox(conversionText = instantAnswer.title)
                     }
                     "currency" -> {
-                        ConversionOneBox(conversionText = instantAnswer.title, ratesLabel = instantAnswer.subtitle)
+                        ConversionOneBox(
+                            conversionText = instantAnswer.title,
+                            ratesLabel = instantAnswer.subtitle,
+                            header = "CURRENCY CONVERSION",
+                            clipLabel = "Currency Conversion"
+                        )
                     }
                     "dictionary" -> {
                         DictionaryOneBox(

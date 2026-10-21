@@ -215,9 +215,6 @@ class GlobalSearchProvider : ContentProvider() {
                         ))
                     }
                 }
-
-                // App shortcuts are not offered here: a suggestion row can only carry an intent URI, which can't
-                // start a launcher shortcut (that needs LauncherApps.startShortcut), so a row would just open the app.
             }
 
             // 5. Dynamic Autocomplete Suggestions

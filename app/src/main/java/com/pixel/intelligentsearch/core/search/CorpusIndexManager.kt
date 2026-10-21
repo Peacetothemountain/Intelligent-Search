@@ -38,8 +38,7 @@ import javax.inject.Singleton
  * Orchestrates eager in-memory index construction and real-time delta updates for:
  * 1. Applications (with usage metadata and package add/replace/remove observers)
  * 2. Contacts (with ContactsContract ContentObserver)
- * 3. App Shortcuts (via LauncherApps)
- * 4. Local Files (folders and photos the user chose, plus MediaStore entries this app can see)
+ * 3. Local Files (folders and photos the user chose, plus MediaStore entries this app can see)
  *
  * Guarantees that keystroke queries execute 100% in-memory without ContentProvider Binder IPC stalls.
  */
@@ -75,7 +74,6 @@ class CorpusIndexManager @Inject constructor(
     @Volatile
     private var contactsDebounceJob: Job? = null
     private val appsMutex = Mutex()
-    private val shortcutsMutex = Mutex()
     private val contactsMutex = Mutex()
     private val filesMutex = Mutex()
 
@@ -106,10 +104,9 @@ class CorpusIndexManager @Inject constructor(
                 coroutineScope {
                     val appsDeferred = async { reindexAppsInternal() }
                     refreshAppUsageIfStale()
-                    val shortcutsDeferred = async { reindexShortcutsInternal() }
                     val contactsDeferred = async { reindexContactsInternal() }
                     val filesDeferred = async { reindexFilesInternal(onlyIfOlderThanMs = FILES_REFRESH_INTERVAL_MS) }
-                    awaitAll(appsDeferred, shortcutsDeferred, contactsDeferred, filesDeferred)
+                    awaitAll(appsDeferred, contactsDeferred, filesDeferred)
                 }
 
                 _isIndexReady.value = true
@@ -135,7 +132,6 @@ class CorpusIndexManager @Inject constructor(
         pendingAppReindex = scope.launch(Dispatchers.IO) {
             kotlinx.coroutines.delay(300)
             reindexAppsInternal(forceRefresh = true)
-            reindexShortcutsInternal()
         }
     }
 
@@ -158,12 +154,6 @@ class CorpusIndexManager @Inject constructor(
     fun reindexContactsIfStale() {
         scope.launch(Dispatchers.IO) {
             reindexContactsInternal(onlyIfOlderThanMs = CONTACTS_REFRESH_INTERVAL_MS)
-        }
-    }
-
-    fun reindexShortcuts() {
-        scope.launch(Dispatchers.IO) {
-            reindexShortcutsInternal()
         }
     }
 
@@ -198,19 +188,6 @@ class CorpusIndexManager @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed indexing apps", e)
-            }
-        }
-    }
-
-    private suspend fun reindexShortcutsInternal() {
-        shortcutsMutex.withLock {
-            try {
-                val shortcuts = sources.allShortcuts()
-                searchCoordinator.replaceShortcuts(shortcuts)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed indexing shortcuts", e)
             }
         }
     }
@@ -316,7 +293,7 @@ class CorpusIndexManager @Inject constructor(
         }
 
         // App changes in every profile (personal, work, private space): installs, removals, updates, apps disabled
-        // or suspended, profiles becoming available, and shortcut changes. Package broadcasts only cover the
+        // or suspended, and profiles becoming available. Package broadcasts only cover the
         // personal profile and miss disabling, so LauncherApps is the one source.
         try {
             if (launcherCallback == null) {
@@ -328,11 +305,6 @@ class CorpusIndexManager @Inject constructor(
                     override fun onPackagesUnavailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) = appsChanged()
                     override fun onPackagesSuspended(packageNames: Array<out String>, user: android.os.UserHandle) = appsChanged()
                     override fun onPackagesUnsuspended(packageNames: Array<out String>, user: android.os.UserHandle) = appsChanged()
-                    override fun onShortcutsChanged(
-                        packageName: String,
-                        shortcuts: MutableList<android.content.pm.ShortcutInfo>,
-                        user: android.os.UserHandle
-                    ) = reindexShortcuts()
                 }
                 context.getSystemService(android.content.pm.LauncherApps::class.java)?.registerCallback(callback, mainHandler)
                 launcherCallback = callback

@@ -5,7 +5,6 @@ import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.CalendarEvent
 import com.pixel.intelligentsearch.core.data.AppItem
-import com.pixel.intelligentsearch.core.data.AppShortcutItem
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.HistoryEntity
 import com.pixel.intelligentsearch.core.data.HistoryDao
@@ -78,7 +77,6 @@ data class SearchUiState(
     val contacts: List<ContactItem> = emptyList(),
     val files: List<FileItem> = emptyList(),
     val webSuggestions: List<String> = emptyList(),
-    val shortcuts: List<AppShortcutItem> = emptyList(),
     /** Android Settings pages (and App Info pages) matching the query; see [resultSectionOrder] for where they show. */
     val androidSettings: List<com.pixel.intelligentsearch.core.search.AndroidSettingResult> = emptyList(),
     val mathResult: String? = null,
@@ -97,17 +95,15 @@ data class SearchUiState(
 )
 
 /**
- * This state without anything from the Private Space: its apps, the App Info rows for them in the settings results,
- * and the shortcuts of [privateUsers] (the Private Space's profiles; a shortcut only knows its profile). What stays on
- * screen once the Private Space locks, until the next search.
+ * This state without anything from the Private Space: its apps and the App Info rows for them in the settings
+ * results. What stays on screen once the Private Space locks, until the next search.
  */
-internal fun SearchUiState.withoutPrivateProfile(privateUsers: Set<android.os.UserHandle> = emptySet()): SearchUiState {
+internal fun SearchUiState.withoutPrivateProfile(): SearchUiState {
     fun AppItem.isPrivate() = isPrivateProfile || profileType == ProfileType.PRIVATE
     return copy(
         allApps = allApps.filterNot { it.isPrivate() },
         recentApps = recentApps.filterNot { it.isPrivate() },
         filteredApps = filteredApps.filterNot { it.isPrivate() },
-        shortcuts = shortcuts.filterNot { it.userHandle in privateUsers },
         androidSettings = androidSettings.filterNot { it.app?.isPrivate() == true }
     )
 }
@@ -228,24 +224,21 @@ class SearchViewModel @Inject constructor(
 
         viewModelScope.launch {
             // Seed from the current state: the StateFlow replays it immediately, and starting from false made
-            // every overlay open look like a fresh lock and force a full app + shortcut re-index.
+            // every overlay open look like a fresh lock and force a full app re-index.
             var previousLocked = multiProfileManager.profilesState.value
                 .any { it.profileType == ProfileType.PRIVATE && it.isLocked }
             multiProfileManager.profilesState.collect { profiles ->
                 val hasLocked = profiles.any { it.profileType == ProfileType.PRIVATE && it.isLocked }
                 if (hasLocked) {
                     unifiedSearchCoordinator.purgePrivateProfileItems()
-                    val privateUsers = profiles.filter { it.profileType == ProfileType.PRIVATE }.mapTo(HashSet()) { it.userHandle }
-                    _uiState.update { it.withoutPrivateProfile(privateUsers).copy(hasLockedPrivateSpace = true) }
+                    _uiState.update { it.withoutPrivateProfile().copy(hasLockedPrivateSpace = true) }
                     if (!previousLocked) {
                         corpusIndexManager.reindexApps(forceRefresh = true)
-                        corpusIndexManager.reindexShortcuts()
                     }
                 } else {
                     _uiState.update { it.copy(hasLockedPrivateSpace = false) }
                     if (previousLocked) {
                         corpusIndexManager.reindexApps(forceRefresh = true)
-                        corpusIndexManager.reindexShortcuts()
                     }
                 }
                 previousLocked = hasLocked
@@ -497,7 +490,6 @@ class SearchViewModel @Inject constructor(
                 contacts = emptyList(),
                 files = emptyList(),
                 webSuggestions = emptyList(),
-                shortcuts = emptyList(),
                 androidSettings = emptyList(),
                 directActions = if (settingsState.value.smartClipboardSuggestions) initialClipboardActions else emptyList(),
                 mathResult = null,
@@ -681,10 +673,6 @@ class SearchViewModel @Inject constructor(
             val shownContacts = if (mockLargeDataset) localContacts + DebugMocks.contacts else localContacts
             val shownFiles = if (mockLargeDataset) localFiles + DebugMocks.files else localFiles
 
-            val localShortcuts = if (settings.searchShortcuts) {
-                unifiedResults.shortcuts.filter { it.packageName !in settings.hiddenApps }.take(settings.shortcutResultsCount)
-            } else emptyList()
-
             // Settings pages complement the quick toggles above ("wifi" offers both). App Info looks apps up
             // through the same app index, leaving out hidden apps; it is an app result too, so it also needs the
             // Apps source. The contacts shown keep a name ("carrie") from turning into a setting ("carrier").
@@ -755,7 +743,6 @@ class SearchViewModel @Inject constructor(
                     filteredApps = resolvedApps,
                     contacts = shownContacts,
                     files = shownFiles,
-                    shortcuts = localShortcuts,
                     androidSettings = androidSettings,
                     webSuggestions = resolvedSuggestions,
                     mathResult = mathStr,
@@ -770,7 +757,7 @@ class SearchViewModel @Inject constructor(
 
             if (verboseLogging) {
                 debugLog("Local query finished in ${elapsed} ms: ${resolvedApps.size} apps, ${shownContacts.size} contacts, " +
-                    "${shownFiles.size} files, ${localShortcuts.size} shortcuts, ${directActions.size} actions")
+                    "${shownFiles.size} files, ${directActions.size} actions")
             }
 
             // "Did you mean": once typing pauses (the next keystroke cancels this job, so it never runs mid-word),

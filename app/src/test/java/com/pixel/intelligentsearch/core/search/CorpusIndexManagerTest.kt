@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.AppItem
-import com.pixel.intelligentsearch.core.data.AppShortcutItem
 import com.pixel.intelligentsearch.core.data.CalendarEvent
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.DeviceSearchSources
@@ -52,7 +51,6 @@ class CorpusIndexManagerTest {
         override suspend fun allApps(forceRefresh: Boolean) = emptyList<AppItem>()
         override fun invalidateAppsCache() {}
         override fun appUsage() = emptyMap<String, SystemDataProvider.AppUsage>()
-        override fun allShortcuts() = emptyList<AppShortcutItem>()
         override suspend fun allContacts() = emptyList<ContactItem>()
         override suspend fun recentFiles(limit: Int, includeHidden: Boolean) =
             listOf(FileItem("report.pdf", "/storage/emulated/0/Download/report.pdf", "application/pdf", "content://media/external/file/1"))

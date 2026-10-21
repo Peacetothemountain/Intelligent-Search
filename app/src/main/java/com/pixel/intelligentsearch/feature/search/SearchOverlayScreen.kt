@@ -656,7 +656,6 @@ fun SearchOverlayScreen(
         listState = searchResultsListState,
         performLaunch = performLaunch,
         performAppLaunch = performAppLaunch,
-        launchOptions = launchOptions,
         closeOverlay = closeOverlay,
         launchWebSearch = launchWebSearch,
         openWebAddress = openWebAddress,

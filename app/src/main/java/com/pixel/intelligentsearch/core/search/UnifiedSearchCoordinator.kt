@@ -6,7 +6,6 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
 import android.content.Intent
 import com.pixel.intelligentsearch.core.data.AppItem
-import com.pixel.intelligentsearch.core.data.AppShortcutItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
@@ -93,7 +92,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         val systemAction: SystemActionRouter.ActionResult? = null,
         val apps: List<AppItem> = emptyList(),
         val contacts: List<ContactItem> = emptyList(),
-        val shortcuts: List<AppShortcutItem> = emptyList(),
         val files: List<FileItem> = emptyList()
     )
 
@@ -105,7 +103,6 @@ class UnifiedSearchCoordinator @Inject constructor(
     // they used up the prefix-collection limit for "c"/"co" before names like "Camera" were reached.
     private val appPackageRadixTree = RadixTreeIndex<SearchItem>()
     private val contactRadixTree = RadixTreeIndex<SearchItem>()
-    private val shortcutRadixTree = RadixTreeIndex<SearchItem>()
     private val fileRadixTree = RadixTreeIndex<SearchItem>()
     private val phoneticIndex = ConcurrentHashMap<String, MutableSet<SearchItem>>()
 
@@ -165,43 +162,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
         contactRadixTree.replaceAll(keys)
         removeFromPhoneticIndex { it.domain == SearchScoringEngine.EntityDomain.CONTACT && it !in fresh }
-    }
-
-    /**
-     * Atomically replaces every indexed shortcut with [shortcuts], so shortcuts that were removed or
-     * disabled since the last sync no longer linger in the index.
-     */
-    fun replaceShortcuts(shortcuts: List<AppShortcutItem>) {
-        val keys = ArrayList<Pair<String, SearchItem>>(shortcuts.size * 2)
-        for (shortcut in shortcuts) {
-            collectShortcutKeys(shortcut, keys)
-        }
-        shortcutRadixTree.replaceAll(keys)
-    }
-
-    private fun collectShortcutKeys(shortcut: AppShortcutItem, out: MutableList<Pair<String, SearchItem>>) {
-        val metadata = SearchScoringEngine.ScoringMetadata(
-            domain = SearchScoringEngine.EntityDomain.APP_SHORTCUT
-        )
-        val metaphone = DoubleMetaphone.encode(shortcut.shortLabel)
-        val searchItem = SearchItem(
-            id = "shortcut:${shortcut.packageName}/${shortcut.id}",
-            title = shortcut.shortLabel,
-            subtitle = shortcut.longLabel,
-            domain = SearchScoringEngine.EntityDomain.APP_SHORTCUT,
-            payload = shortcut,
-            metadata = metadata,
-            precomputedMetaphone = metaphone
-        )
-
-        out.add(shortcut.shortLabel to searchItem)
-        if (shortcut.longLabel.isNotBlank()) {
-            out.add(shortcut.longLabel to searchItem)
-        }
-        // Lookup is by prefix, so each word is a key too: "tab" finds "New tab".
-        for (word in (QueryNormalizer.tokenize(shortcut.shortLabel) + QueryNormalizer.tokenize(shortcut.longLabel)).distinct()) {
-            out.add(word to searchItem)
-        }
     }
 
     /**
@@ -393,30 +353,24 @@ class UnifiedSearchCoordinator @Inject constructor(
     }
 
     /**
-     * Immediately purges all Private Space apps and shortcuts from in-memory indices.
+     * Immediately purges all Private Space apps from in-memory indices.
      */
     fun purgePrivateProfileItems() {
-        val privateUsers = multiProfileManager.profilesState.value
-            .filter { it.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE }
-            .mapTo(HashSet()) { it.userHandle }
         val isPrivateItem: (SearchItem) -> Boolean = { item ->
             when (val payload = item.payload) {
                 is AppItem -> payload.isPrivateProfile || payload.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE
-                is AppShortcutItem -> payload.userHandle in privateUsers
                 else -> false
             }
         }
         appRadixTree.removeIf(isPrivateItem)
         appPackageRadixTree.removeIf(isPrivateItem)
-        shortcutRadixTree.removeIf(isPrivateItem)
         removeFromPhoneticIndex(isPrivateItem)
     }
 
-    private fun isPrivateSpaceItemBlocked(item: SearchItem, isPrivateLocked: Boolean, privateUsers: Set<android.os.UserHandle>): Boolean {
+    private fun isPrivateSpaceItemBlocked(item: SearchItem, isPrivateLocked: Boolean): Boolean {
         if (!isPrivateLocked) return false
         return when (val payload = item.payload) {
             is AppItem -> payload.isPrivateProfile || payload.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE
-            is AppShortcutItem -> payload.userHandle in privateUsers
             else -> false
         }
     }
@@ -485,14 +439,9 @@ class UnifiedSearchCoordinator @Inject constructor(
         val now = System.currentTimeMillis()
         val queryMetaphone = DoubleMetaphone.encode(query)
         val isPrivateLocked = multiProfileManager.isPrivateSpaceLocked()
-        val privateUsers = if (isPrivateLocked) {
-            multiProfileManager.profilesState.value
-                .filter { it.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE }
-                .mapTo(HashSet()) { it.userHandle }
-        } else emptySet()
         val scoredApps = ArrayList<ScoredCandidate<AppItem>>(candidates.size)
         for (item in candidates) {
-            if (isPrivateSpaceItemBlocked(item, isPrivateLocked, privateUsers)) continue
+            if (isPrivateSpaceItemBlocked(item, isPrivateLocked)) continue
             val score = SearchScoringEngine.evaluateScore(
                 query = query,
                 targetTitle = item.title,
@@ -539,14 +488,9 @@ class UnifiedSearchCoordinator @Inject constructor(
         val now = System.currentTimeMillis()
         val queryMetaphone = DoubleMetaphone.encode(q)
         val isPrivateLocked = multiProfileManager.isPrivateSpaceLocked()
-        val privateUsers = if (isPrivateLocked) {
-            multiProfileManager.profilesState.value
-                .filter { it.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE }
-                .mapTo(HashSet()) { it.userHandle }
-        } else emptySet()
         val scoredApps = ArrayList<ScoredCandidate<AppItem>>(candidates.size)
         for (item in candidates) {
-            if (isPrivateSpaceItemBlocked(item, isPrivateLocked, privateUsers)) continue
+            if (isPrivateSpaceItemBlocked(item, isPrivateLocked)) continue
             val score = SearchScoringEngine.evaluateScore(
                 query = q,
                 targetTitle = item.title,
@@ -650,14 +594,12 @@ class UnifiedSearchCoordinator @Inject constructor(
         val candidates = mutableSetOf<SearchItem>()
         candidates.addAll(appPrefixMatches(query, packageLimit = 40))
         candidates.addAll(contactRadixTree.searchPrefix(query, limit = 20))
-        candidates.addAll(shortcutRadixTree.searchPrefix(query, limit = 20))
         candidates.addAll(fileRadixTree.searchPrefix(query, limit = 20))
 
         val normalized = QueryNormalizer.normalize(query)
         if (normalized.isNotEmpty() && !normalized.equals(query, ignoreCase = true)) {
             candidates.addAll(appPrefixMatches(normalized, packageLimit = 40))
             candidates.addAll(contactRadixTree.searchPrefix(normalized, limit = 20))
-            candidates.addAll(shortcutRadixTree.searchPrefix(normalized, limit = 20))
             candidates.addAll(fileRadixTree.searchPrefix(normalized, limit = 20))
         }
 
@@ -667,7 +609,6 @@ class UnifiedSearchCoordinator @Inject constructor(
             for (token in tokens) {
                 candidates.addAll(appNameMatches(token))
                 candidates.addAll(contactRadixTree.searchPrefix(token, limit = 10))
-                candidates.addAll(shortcutRadixTree.searchPrefix(token, limit = 10))
                 candidates.addAll(fileRadixTree.searchPrefix(token, limit = 10))
             }
             // Conjunctive filter: ensure matched candidates contain all query tokens across title + subtitle
@@ -713,11 +654,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         cancellationCheck?.invoke()
         val now = System.currentTimeMillis()
         val isPrivateLocked = multiProfileManager.isPrivateSpaceLocked()
-        val privateUsers = if (isPrivateLocked) {
-            multiProfileManager.profilesState.value
-                .filter { it.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE }
-                .mapTo(HashSet()) { it.userHandle }
-        } else emptySet()
 
         val rankedResults = ArrayList<RankedSearchResult>(candidates.size)
         var scoredCount = 0
@@ -725,7 +661,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             if ((++scoredCount and 15) == 0) {
                 cancellationCheck?.invoke()
             }
-            if (isPrivateSpaceItemBlocked(item, isPrivateLocked, privateUsers)) continue
+            if (isPrivateSpaceItemBlocked(item, isPrivateLocked)) continue
             val scoreBreakdown = SearchScoringEngine.evaluateScore(
                 query = query,
                 targetTitle = item.title,
@@ -746,7 +682,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         // 8. Domain Separation & Output Filtering
         val matchedApps = mutableListOf<AppItem>()
         val matchedContacts = mutableListOf<ContactItem>()
-        val matchedShortcuts = mutableListOf<AppShortcutItem>()
         val matchedFiles = mutableListOf<FileItem>()
 
         for (ranked in rankedResults) {
@@ -756,9 +691,6 @@ class UnifiedSearchCoordinator @Inject constructor(
                 }
                 SearchScoringEngine.EntityDomain.CONTACT -> {
                     (ranked.item.payload as? ContactItem)?.let { if (matchedContacts.size < MAX_RESULTS_PER_DOMAIN) matchedContacts.add(it) }
-                }
-                SearchScoringEngine.EntityDomain.APP_SHORTCUT -> {
-                    (ranked.item.payload as? AppShortcutItem)?.let { if (matchedShortcuts.size < MAX_RESULTS_PER_DOMAIN) matchedShortcuts.add(it) }
                 }
                 SearchScoringEngine.EntityDomain.FILE -> {
                     (ranked.item.payload as? FileItem)?.let { if (matchedFiles.size < MAX_RESULTS_PER_DOMAIN) matchedFiles.add(it) }
@@ -775,7 +707,6 @@ class UnifiedSearchCoordinator @Inject constructor(
             systemAction = systemAction,
             apps = matchedApps,
             contacts = matchedContacts,
-            shortcuts = matchedShortcuts,
             files = matchedFiles
         )
     }

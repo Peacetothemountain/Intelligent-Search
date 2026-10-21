@@ -9,6 +9,7 @@ import com.pixel.intelligentsearch.core.data.settings.SettingKey
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
 import com.pixel.intelligentsearch.core.data.HistoryDao
 import com.pixel.intelligentsearch.core.data.HistoryEntity
@@ -57,7 +58,6 @@ class BackupManager @Inject constructor(
             "searchWeb" to SettingsManager.SEARCH_WEB,
             "searchCalculator" to SettingsManager.SEARCH_CALCULATOR,
             "searchCalendar" to SettingsManager.SEARCH_CALENDAR,
-            "searchShortcuts" to SettingsManager.SEARCH_SHORTCUTS,
             "showWallpaper" to SettingsManager.SHOW_WALLPAPER,
             "filesHiddenFiles" to SettingsManager.FILES_HIDDEN_FILES,
             "filesThumbnails" to SettingsManager.FILES_THUMBNAILS,
@@ -104,7 +104,8 @@ class BackupManager @Inject constructor(
                 key == "datastore_migration_v1_completed" ||
                 key == "profile_1_restored_to_default_v918" ||
                 key == "app_night_mode_override_cleared_v1" ||
-                key == SettingsManager.PILL_OPACITY_LINEAR_KEY
+                key == SettingsManager.PILL_OPACITY_LINEAR_KEY ||
+                key == SettingsManager.QUICK_PANEL_CAPS_CHOSEN_APPS_KEY
         }
 
         /** The backup file's type label for a declared setting. */
@@ -159,7 +160,6 @@ class BackupManager @Inject constructor(
         prefsMap["searchWeb"] = currentSettings.searchWeb.toString()
         prefsMap["searchCalculator"] = currentSettings.searchCalculator.toString()
         prefsMap["searchCalendar"] = currentSettings.searchCalendar.toString()
-        prefsMap["searchShortcuts"] = currentSettings.searchShortcuts.toString()
         prefsMap["backgroundBlur"] = currentSettings.backgroundBlur.toString()
         prefsMap["showWallpaper"] = currentSettings.showWallpaper.toString()
         prefsMap["backgroundTransparency"] = currentSettings.backgroundTransparency.toString()
@@ -494,6 +494,11 @@ class BackupManager @Inject constructor(
             JSONObject(payload.sharedPreferencesJson).optJSONObject(SettingsManager.PILL_OPACITY_LINEAR_KEY)
                 ?.optBoolean("value") == true
         }.getOrDefault(false)
+        // Files saved before Max Quick Panel Apps capped the chosen apps showed every one of them.
+        val quickPanelCapsChosenApps = runCatching {
+            JSONObject(payload.sharedPreferencesJson).optJSONObject(SettingsManager.QUICK_PANEL_CAPS_CHOSEN_APPS_KEY)
+                ?.optBoolean("value") == true
+        }.getOrDefault(false)
         fun restoredInt(setting: SettingKey<*>?, value: Int): Int =
             if (setting == SettingsManager.PILL_OPACITY && !pillOpacityIsLinear) SettingsManager.pillOpacityFromOldScale(value) else value
 
@@ -596,6 +601,9 @@ class BackupManager @Inject constructor(
                 }
             }
             if (restored != null) restoredCount++
+        }
+        if (!quickPanelCapsChosenApps) {
+            sharedPrefs.edit { SettingsManager.fitQuickPanelToChosenApps(sharedPrefs, this) }
         }
 
         // 3. Restore Custom Bangs & Section Configs (including empty "[]" or emptyList() so clean backups clear prior items)

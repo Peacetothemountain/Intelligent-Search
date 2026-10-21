@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -36,6 +37,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,7 +61,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -237,7 +241,8 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 16.dp)
+                        .selectableGroup(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
                 ) {
@@ -291,13 +296,15 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
                                 elevation = CardDefaults.cardElevation(defaultElevation = elevation)
                             ) {
-                                // Dragging the handle is touch-only, so the row also offers Move up and Move down
-                                // to TalkBack and switch access.
+                                // Only one pack is in use at a time (System Default is none), so each row is a radio
+                                // option: tapping anywhere on it picks the pack. Dragging the handle is touch-only, so
+                                // the row also offers Move up and Move down to TalkBack and switch access.
                                 val position = localPillList.indexOf(packageName)
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .semantics(mergeDescendants = true) {
+                                            selected = isSelected
                                             customActions = buildList {
                                                 if (position > 0) {
                                                     add(CustomAccessibilityAction("Move up") { movePack(packageName, -1); true })
@@ -307,6 +314,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 }
                                             }
                                         }
+                                        .bouncyClickable(role = Role.RadioButton) { activatePack(packageName) }
                                         .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
@@ -352,19 +360,8 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     }
 
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(
-                                            checked = isSelected,
-                                            onCheckedChange = { checked ->
-                                                if (checked) {
-                                                    activatePack(packageName)
-                                                } else {
-                                                    if (activeIconPack == packageName) {
-                                                        activatePack("system_default")
-                                                    }
-                                                }
-                                            },
-                                            label = packLabel
-                                        )
+                                        // The row handles the tap and announces the selection.
+                                        RadioButton(selected = isSelected, onClick = null)
                                         Spacer(modifier = Modifier.width(12.dp))
                                         val currentPkg by rememberUpdatedState(packageName)
                                         Icon(

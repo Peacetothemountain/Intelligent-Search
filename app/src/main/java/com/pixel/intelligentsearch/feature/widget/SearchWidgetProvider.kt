@@ -164,7 +164,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         // Slot identifiers for bit-shifted unique request codes
         private const val SLOT_PILL = 0
         private const val SLOT_G_LOGO = 1
-        private const val SLOT_ACTION = 2
         private const val SLOT_CIRCLE = 3
         private const val SLOT_SHORTCUT_0 = 4
         private const val SLOT_SHORTCUT_1 = 5
@@ -332,9 +331,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val circleColorOpaque: Int,
             val circleAlphaInt: Int,
             val showGIcon: Boolean,
-            /** Whether the G gets the day's doodle around it on doodle days. */
-            val showDoodles: Boolean,
-            val gIconRes: Int,
+            /** Whether the G is Google's four-colour one: the System G style, or the Custom style with Keep System G. */
+            val useOriginalG: Boolean,
             val themePColor: Int,
             val themeSColor: Int,
             val themeTColor: Int,
@@ -342,11 +340,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val actionIconStr: String,
             val allActiveItems: List<ActiveShortcutItem>,
             val isPillLight: Boolean,
-            val customSubtheme: Boolean,
             /** The design's custom element colours and whether they all follow the G icon's. */
             val elementColors: WidgetElementColors,
-            val syncColors: Boolean,
-            val keepSystemG: Boolean
+            val syncColors: Boolean
         )
 
         fun updateWidgetsSync(
@@ -428,7 +424,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             // 3. Standard (260dp / 4 cells - default phone width): G logo + 2 shortcuts + circle (or 3 shortcuts)
             // 4. Expanded (340dp / 5 cells, foldables & tablets): G logo + all shortcuts
             // Only placed widgets come through here; the widget picker's previews call buildRemoteViews without one.
-            val doodle = if (config.showGIcon && config.showDoodles) WidgetDoodles.current(prefs) else null
+            val design = if (isMaterialYou) WidgetDesign.MATERIAL else WidgetDesign.SYSTEM
+            val doodle = if (WidgetSettingsStore(prefs).showsDoodle(design)) WidgetDoodles.current(prefs) else null
             val buildViews = { maxShortcuts: Int ->
                 buildRemoteViews(
                     context = context,
@@ -470,6 +467,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val actualCustomColor = settings.customColorInt
             val customColorLuminance = (0.299 * Color.red(actualCustomColor) + 0.587 * Color.green(actualCustomColor) + 0.114 * Color.blue(actualCustomColor)) / 255.0
             val effectiveIconTheme = settings.gIconTheme
+            // Keep System G is a choice within the Custom G style only, as the editor's preview shows.
+            val useOriginalG = effectiveIconTheme == "System G Icon" || (effectiveIconTheme == "Custom G Icon" && settings.keepSystemG)
 
             return if (!isMaterialYou) {
                 // SYSTEM DESIGN BAR: Colorful Google branding, no outer accent rim
@@ -481,12 +480,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 }
                 val pillAlphaInt = if (isCustom) effectiveColorAlphaInt else containerAlphaInt
                 val isPillLight = settings.subtheme == "Light" || (settings.subtheme == "System" && !isDark) || (isCustom && customColorLuminance > 0.5)
-
-                val gIconRes = when (effectiveIconTheme) {
-                    "System G Icon" -> R.drawable.ic_g_logo_colored
-                    "Material G Icon", "Accented G Icon", "Custom G Icon" -> R.drawable.ic_g_logo
-                    else -> R.drawable.ic_g_logo_colored
-                }
 
                 val (themePColor, themeSColor, themeTColor) = if (isCustom) {
                     val m3Colors = MaterialYouPaletteHelper.getMaterialYouTonalColors(
@@ -512,8 +505,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     circleColorOpaque = pillColorOpaque,
                     circleAlphaInt = pillAlphaInt,
                     showGIcon = settings.showGIcon,
-                    showDoodles = settings.showDoodles,
-                    gIconRes = gIconRes,
+                    useOriginalG = useOriginalG,
                     themePColor = themePColor,
                     themeSColor = themeSColor,
                     themeTColor = themeTColor,
@@ -521,10 +513,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     actionIconStr = "None",
                     allActiveItems = activeItems(context, settings, micIcon, useMaterialYouIcons),
                     isPillLight = isPillLight,
-                    customSubtheme = isCustom,
                     elementColors = settings.elementColors,
-                    syncColors = settings.syncColors,
-                    keepSystemG = settings.keepSystemG
+                    syncColors = settings.syncColors
                 )
             } else {
                 // MATERIAL DESIGN BAR: Dual-layer accent rim, companion circle button
@@ -559,11 +549,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
                 val isPillLight = if (isCustom) (!lockBlack && (customColorLuminance > 0.5)) else (!isDark && !lockBlack)
 
-                val gIconRes = when {
-                    effectiveIconTheme == "System G Icon" || (effectiveIconTheme == "Custom G Icon" && settings.keepSystemG) -> R.drawable.ic_g_logo_colored
-                    else -> R.drawable.ic_g_logo
-                }
-
                 val (rawPColor, rawSColor, rawTColor) = if (isCustom) {
                     val m3Colors = MaterialYouPaletteHelper.getMaterialYouTonalColors(
                         hue = settings.hue,
@@ -594,8 +579,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     circleColorOpaque = circleColorOpaque,
                     circleAlphaInt = circleAlphaInt,
                     showGIcon = settings.showGIcon,
-                    showDoodles = settings.showDoodles,
-                    gIconRes = gIconRes,
+                    useOriginalG = useOriginalG,
                     themePColor = themePColor,
                     themeSColor = themeSColor,
                     themeTColor = themeTColor,
@@ -603,10 +587,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     actionIconStr = settings.actionIcon,
                     allActiveItems = activeItems(context, settings, R.drawable.ic_mic, useMaterialYouIcons = true),
                     isPillLight = isPillLight,
-                    customSubtheme = isCustom,
                     elementColors = settings.elementColors,
-                    syncColors = settings.syncColors,
-                    keepSystemG = settings.keepSystemG
+                    syncColors = settings.syncColors
                 )
             }
         }
@@ -770,21 +752,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 )
             )
             views.setContentDescription(R.id.widget_pill_container, context.getString(R.string.widget_search_description))
-
-            // Tap action button inside search pill
-            val actionIntent = Intent(getVoiceActionIntent(context)).apply {
-                identifier = "widget_${appWidgetId}_slot_action"
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
-            }
-            val actionPI = PendingIntent.getActivity(
-                context,
-                getWidgetRequestCode(appWidgetId, SLOT_ACTION),
-                actionIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                getPendingIntentActivityOptions(context)
-            )
-            views.setOnClickPendingIntent(R.id.widget_action_search, actionPI)
-            views.setContentDescription(R.id.widget_action_search, context.getString(R.string.widget_talkback_gemini_search))
 
             // Circle button handling (Material Design bar)
             if (!config.isMaterialYou || config.actionIconStr == "None") {
@@ -962,7 +929,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 views.setContentDescription(R.id.widget_g_logo, context.getString(R.string.widget_talkback_google_logo))
             }
 
-            if (config.keepSystemG || materialGIconTheme == "System G Icon") {
+            if (config.useOriginalG) {
                 views.setImageViewResource(R.id.widget_g_logo, R.drawable.ic_g_logo_colored)
                 views.setColorStateList(R.id.widget_g_logo, "setImageTintList", null)
             } else if (materialGIconTheme == "Material G Icon") {

@@ -427,8 +427,6 @@ internal class MorphBouncePhysics(
         const val MIN_REBOUND_SHARE = 0.35f
         /** Launch a little faster than the drag-free figure, since air resistance takes some of the height. */
         const val MIN_REBOUND_DRAG_ALLOWANCE = 1.06f
-        /** A shape turned back after a knock drifts at no more than this (or its own speed, if faster). */
-        const val GENTLE_SIDEWAYS = 1.2f
 
         /** Damping ratio of a spring contact that returns [restitution] of the impact speed. */
         fun dampingFor(restitution: Float): Float {

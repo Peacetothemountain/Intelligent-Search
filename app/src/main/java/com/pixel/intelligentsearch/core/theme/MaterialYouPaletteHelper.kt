@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.core.theme
 
 import androidx.annotation.ColorInt
-import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
 import com.google.android.material.color.utilities.DynamicScheme
 import com.google.android.material.color.utilities.Hct
@@ -94,27 +93,12 @@ object MaterialYouPaletteHelper {
         }
     }
 
-    private data class SchemeCacheKey(
-        val seedArgb: Int,
-        val isDark: Boolean,
-        val isAmoled: Boolean,
-        val style: PaletteStyle,
-        val contrast100: Int
-    )
-
-    private val composeSchemeCache = object : LinkedHashMap<SchemeCacheKey, ColorScheme>(16, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<SchemeCacheKey, ColorScheme>?): Boolean {
-            return size > 32
-        }
-    }
-
     /**
-     * Clears all memoized tonal palettes and Compose color schemes.
+     * Clears all memoized tonal palettes.
      */
     fun clearCache() {
         synchronized(cacheLock) {
             tonalColorsCache.clear()
-            composeSchemeCache.clear()
         }
     }
 

@@ -195,16 +195,4 @@ object WindowFramePacing {
             }
         } catch (_: Throwable) {}
     }
-
-    /**
-     * Android 15+ (API 35+ / Android 17 Canary ZP11) direct requested frame rate or category setter.
-     */
-    fun setRequestedFrameRate(activity: Activity?, rateOrCategory: Float) {
-        if (activity == null) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            try {
-                activity.window?.decorView?.setRequestedFrameRate(rateOrCategory)
-            } catch (_: Throwable) {}
-        }
-    }
 }

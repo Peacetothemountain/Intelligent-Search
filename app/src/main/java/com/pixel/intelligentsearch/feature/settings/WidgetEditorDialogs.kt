@@ -20,10 +20,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.toColorInt
+
+private val HEX_COLOR_REGEX = Regex("^#?[0-9A-Fa-f]{6}$")
+private const val HEX_COLOR_HINT = "Enter six hex digits, e.g. #4285F4"
+
+/** The opaque colour [raw] spells as six hex digits, with or without a leading '#', or null if it doesn't. */
+internal fun parseHexColor(raw: String): Int? {
+    val hex = raw.trim()
+    if (!HEX_COLOR_REGEX.matches(hex)) return null
+    return (0xFF000000.toInt() or hex.removePrefix("#").toInt(16))
+}
 
 /** The widget editor's shortcut sheet and its hex, URL and app dialogs. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -185,6 +195,7 @@ internal fun WidgetEditorDialogs(
     }
 
     if (showHexInput) {
+        val parsed = parseHexColor(tempHexInput)
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showHexInput = false },
             title = { Text("Enter Hex Color") },
@@ -192,20 +203,26 @@ internal fun WidgetEditorDialogs(
                 androidx.compose.material3.OutlinedTextField(
                     value = tempHexInput,
                     onValueChange = { tempHexInput = it },
-                    label = { Text("Hex Code") }
+                    label = { Text("Hex Code") },
+                    singleLine = true,
+                    isError = tempHexInput.isNotBlank() && parsed == null,
+                    supportingText = if (tempHexInput.isNotBlank() && parsed == null) {
+                        { Text(HEX_COLOR_HINT) }
+                    } else null
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    try {
-                        val color = (if (tempHexInput.startsWith("#")) tempHexInput else "#$tempHexInput").toColorInt()
+                TextButton(enabled = parsed != null, onClick = {
+                    if (parsed != null) {
                         val hsv = FloatArray(3)
-                        android.graphics.Color.colorToHSV(color, hsv)
-                        localHue = hsv[0]
-                        localSaturation = hsv[1] * 100
-                        localLightness = hsv[2] * 100
+                        android.graphics.Color.colorToHSV(parsed, hsv)
+                        // Saved as whole numbers, so they're rounded here: the preview then shows the colour that
+                        // will be saved.
+                        localHue = Math.round(hsv[0]).toFloat()
+                        localSaturation = Math.round(hsv[1] * 100).toFloat()
+                        localLightness = Math.round(hsv[2] * 100).toFloat()
                         localSubtheme = "Custom"
-                    } catch (e: Exception) {}
+                    }
                     showHexInput = false
                 }) { Text("Save") }
             },
@@ -216,6 +233,7 @@ internal fun WidgetEditorDialogs(
     }
 
     if (showCustomHexDialog) {
+        val parsed = parseHexColor(tempCustomHexInput)
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showCustomHexDialog = false },
             title = { Text("Enter Hex Color") },
@@ -224,13 +242,17 @@ internal fun WidgetEditorDialogs(
                     value = tempCustomHexInput,
                     onValueChange = { tempCustomHexInput = it },
                     label = { Text("Hex Code (e.g. #4285F4)") },
-                    singleLine = true
+                    singleLine = true,
+                    isError = tempCustomHexInput.isNotBlank() && parsed == null,
+                    supportingText = if (tempCustomHexInput.isNotBlank() && parsed == null) {
+                        { Text(HEX_COLOR_HINT) }
+                    } else null
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    try {
-                        val color = (if (tempCustomHexInput.startsWith("#")) tempCustomHexInput else "#$tempCustomHexInput").toColorInt()
+                TextButton(enabled = parsed != null, onClick = {
+                    if (parsed != null) {
+                        val color = parsed
                         val hsv = FloatArray(3)
                         android.graphics.Color.colorToHSV(color, hsv)
                         if (hsv[1] > 0.01f || hsv[2] > 0.01f) {
@@ -256,7 +278,7 @@ internal fun WidgetEditorDialogs(
                                 else -> localCustomGIconColor = color
                             }
                         }
-                    } catch (e: Exception) {}
+                    }
                     showCustomHexDialog = false
                 }) { Text("Save") }
             },
@@ -306,6 +328,13 @@ internal fun WidgetEditorDialogs(
     }
 
     if (showCustomAppDialogFor != null) {
+        // The widget opens the app through its launch intent and falls back to the default target without one,
+        // so only an installed app that can be launched is accepted.
+        val packageManager = LocalContext.current.packageManager
+        val packageName = customInputValue.trim()
+        val installed = remember(packageName) {
+            PACKAGE_NAME_REGEX.matches(packageName) && packageManager.getLaunchIntentForPackage(packageName) != null
+        }
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showCustomAppDialogFor = null },
             title = { Text("Custom App for ${showCustomAppDialogFor}") },
@@ -314,11 +343,15 @@ internal fun WidgetEditorDialogs(
                     value = customInputValue,
                     onValueChange = { customInputValue = it },
                     label = { Text("Enter Package Name") },
-                    singleLine = true
+                    singleLine = true,
+                    isError = packageName.isNotEmpty() && !installed,
+                    supportingText = if (packageName.isNotEmpty() && !installed) {
+                        { Text("No installed app with that package name") }
+                    } else null
                 )
             },
             confirmButton = {
-                TextButton(enabled = PACKAGE_NAME_REGEX.matches(customInputValue.trim()), onClick = {
+                TextButton(enabled = installed, onClick = {
                     val slot = showCustomAppDialogFor
                     if (slot != null) {
                         pendingCustomShortcutTypes[slot] = "app"

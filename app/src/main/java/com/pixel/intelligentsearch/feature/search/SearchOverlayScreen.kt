@@ -26,7 +26,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.core.net.toUri
 import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.PredictiveBackHandler
@@ -592,17 +591,7 @@ fun SearchOverlayScreen(
         when (val match = bestMatch) {
             is ContactItem -> {
                 // A spoken name can be misheard, so voice opens the contact rather than dialling straight away.
-                // Dial intents are built from the number as is: parsed as a "tel:" link, '#' and what follows were lost.
-                val intent = if (settingsState.contactDirectCall && !fromVoice && match.phoneNumber.isNotBlank()) {
-                    ContactActions.callIntent(match.phoneNumber)
-                } else if (match.lookupUri.isNotBlank()) {
-                    Intent(Intent.ACTION_VIEW, match.lookupUri.toUri()) // Contacts reads it with its own permission; no grant needed
-                } else if (match.phoneNumber.isNotBlank()) {
-                    ContactActions.callIntent(match.phoneNumber)
-                } else {
-                    Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
-                }
-                launchSafeIntent(context, intent)
+                launchSafeIntent(context, ContactActions.openIntent(match, directCall = settingsState.contactDirectCall && !fromVoice))
             }
             is AppItem -> performAppLaunch(match)
             is FileItem -> {

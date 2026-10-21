@@ -17,11 +17,11 @@ class DirectActionIconTest {
     private val emitted = listOf("link", "phone", "search", "calendar", "message", "timer", "alarm", "navigation", "private_space")
 
     @Test
-    fun onlyClipboardActionsShowTheClipboardIcon() {
+    fun noEmittedActionFallsBackToTheClipboardIcon() {
         for (type in emitted) {
             assertNotEquals(type, Icons.Default.ContentPaste, directActionIcon(type))
         }
-        assertEquals(Icons.Default.ContentPaste, directActionIcon("clipboard"))
+        assertEquals(Icons.Default.ContentPaste, directActionIcon("unknown"))
     }
 
     @Test

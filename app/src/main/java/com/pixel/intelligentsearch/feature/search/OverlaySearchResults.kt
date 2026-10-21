@@ -91,7 +91,7 @@ internal fun resultSectionOrder(
     return sections.toMutableList().apply { add(after.maxOf { sections.indexOf(it) } + 1, "android_settings") }
 }
 
-/** The icon on a suggested action, by its [DirectAction.iconType]; clipboard suggestions show the clipboard. */
+/** The icon on a suggested action, by its [DirectAction.iconType]; a type with no icon of its own falls back to the clipboard. */
 internal fun directActionIcon(type: String): androidx.compose.ui.graphics.vector.ImageVector = when (type) {
     "link" -> Icons.Default.Link
     "phone" -> Icons.Default.Call

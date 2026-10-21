@@ -75,4 +75,17 @@ class CustomIconsScreenTest {
         assertEquals(listOf("System Default", "Pack A", "Pack B"), names)
     }
 
+    @Test
+    fun aPackCanBeMovedUpWithoutDragging() {
+        compose.onNodeWithText("Pack A").performCustomAccessibilityActionWithLabel("Move up")
+        compose.settle(steps = 5)
+        assertEquals("com.example.packa,system_default,com.example.packb", prefs[SettingsManager.CUSTOM_ICON_PILLS])
+    }
+
+    @Test
+    fun aPackCanBeMovedDownWithoutDragging() {
+        compose.onNodeWithText("Pack A").performCustomAccessibilityActionWithLabel("Move down")
+        compose.settle(steps = 5)
+        assertEquals("system_default,com.example.packb,com.example.packa", prefs[SettingsManager.CUSTOM_ICON_PILLS])
+    }
 }

@@ -58,6 +58,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -146,6 +149,17 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         } else {
             applyPack(pkg)
         }
+    }
+
+    // Swaps a pack with its neighbour, as dragging past it does, and saves the new order.
+    fun movePack(pkg: String, by: Int) {
+        val from = localPillList.indexOf(pkg)
+        val to = from + by
+        if (from == -1 || to !in localPillList.indices) return
+        val reordered = localPillList.toMutableList()
+        java.util.Collections.swap(reordered, from, to)
+        localPillList = reordered
+        storedPillString = reordered.joinToString(",")
     }
 
     Scaffold(
@@ -277,9 +291,22 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
                                 elevation = CardDefaults.cardElevation(defaultElevation = elevation)
                             ) {
+                                // Dragging the handle is touch-only, so the row also offers Move up and Move down
+                                // to TalkBack and switch access.
+                                val position = localPillList.indexOf(packageName)
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .semantics(mergeDescendants = true) {
+                                            customActions = buildList {
+                                                if (position > 0) {
+                                                    add(CustomAccessibilityAction("Move up") { movePack(packageName, -1); true })
+                                                }
+                                                if (position in 0 until localPillList.lastIndex) {
+                                                    add(CustomAccessibilityAction("Move down") { movePack(packageName, 1); true })
+                                                }
+                                            }
+                                        }
                                         .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween

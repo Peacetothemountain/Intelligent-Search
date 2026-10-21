@@ -219,7 +219,8 @@ class CorpusIndexManager @Inject constructor(
 
     private suspend fun reindexContactsInternal(onlyIfOlderThanMs: Long? = null) {
         contactsMutex.withLock {
-            if (onlyIfOlderThanMs != null &&
+            // 0 means never read; the uptime clock is itself small just after boot, so it must not count as recent.
+            if (onlyIfOlderThanMs != null && lastContactsIndexAtMs != 0L &&
                 android.os.SystemClock.elapsedRealtime() - lastContactsIndexAtMs < onlyIfOlderThanMs
             ) return
             try {
@@ -245,7 +246,8 @@ class CorpusIndexManager @Inject constructor(
 
     private suspend fun reindexFilesInternal(onlyIfOlderThanMs: Long? = null) {
         filesMutex.withLock {
-            if (onlyIfOlderThanMs != null &&
+            // 0 means never indexed; the uptime clock is itself small just after boot, so it must not count as recent.
+            if (onlyIfOlderThanMs != null && lastFilesIndexAtMs != 0L &&
                 android.os.SystemClock.elapsedRealtime() - lastFilesIndexAtMs < onlyIfOlderThanMs
             ) return
             try {

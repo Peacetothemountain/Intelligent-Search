@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.core.security
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.UserManager
 import android.security.keystore.KeyGenParameterSpec
@@ -50,9 +51,18 @@ class StrongBoxSecurityManager @Inject constructor(
         private const val KEY_ALIAS_SAVED_PASSPHRASE_V1 = "com.pixel.intelligentsearch.vault.saved_passphrase_v1"
         /** Usable only while the phone is unlocked and within [PASSPHRASE_AUTH_WINDOW_SECONDS] of user authentication. */
         private const val KEY_ALIAS_SAVED_PASSPHRASE = "com.pixel.intelligentsearch.vault.saved_passphrase_v2"
+        /**
+         * Its partner, bound the same way. A new passphrase is encrypted under whichever of the two isn't in use, so
+         * the working key is only deleted once its replacement is stored.
+         */
+        private const val KEY_ALIAS_SAVED_PASSPHRASE_ALT = "com.pixel.intelligentsearch.vault.saved_passphrase_v2_alt"
         private const val PASSPHRASE_AUTH_WINDOW_SECONDS = 60
         // Credential-protected storage only: the saved passphrase must never sit where it's readable before unlock.
         private const val SAVED_PASSPHRASE_PREFS = "secure_hardware_vault"
+        private const val PREF_PASSPHRASE_CIPHER = "saved_passphrase_cipher"
+        private const val PREF_PASSPHRASE_IV = "saved_passphrase_iv"
+        /** Which of the bound pair encrypted the stored passphrase; absent when it was saved before the pair existed. */
+        private const val PREF_PASSPHRASE_KEY_ALIAS = "saved_passphrase_key_alias"
 
         // Left behind by the removed EncryptedDataVault / SecureSettingsRepository; deleted once.
         private val RETIRED_KEY_ALIASES = listOf(
@@ -65,6 +75,38 @@ class StrongBoxSecurityManager @Inject constructor(
         // Dynamic circuit-breaker for devices reporting StrongBox in PackageManager but lacking hardware support
         @Volatile
         private var strongBoxDisabledDueToFailure = false
+    }
+
+    /**
+     * The Keystore steps behind the saved passphrase. Tests supply software keys, since Robolectric has no
+     * AndroidKeyStore and can't refuse a key the way an authentication-bound one is refused.
+     */
+    internal interface PassphraseKeys {
+        /** The key stored under [alias], or null if there is none. */
+        fun find(alias: String): SecretKey?
+        /** A new authentication-bound key under [alias], replacing any key already there. */
+        fun create(alias: String): SecretKey
+        fun delete(alias: String)
+        /** Where the Keystore refuses an authentication-bound key, with UserNotAuthenticatedException. */
+        fun initCipher(cipher: Cipher, mode: Int, key: SecretKey, spec: GCMParameterSpec?)
+    }
+
+    private inner class KeystorePassphraseKeys : PassphraseKeys {
+        override fun find(alias: String): SecretKey? = getExistingSymmetricKey(alias)
+        override fun create(alias: String): SecretKey = newPassphraseKey(alias)
+        override fun delete(alias: String) {
+            deleteKey(alias)
+        }
+        override fun initCipher(cipher: Cipher, mode: Int, key: SecretKey, spec: GCMParameterSpec?) {
+            if (spec == null) cipher.init(mode, key) else cipher.init(mode, key, spec)
+        }
+    }
+
+    private var passphraseKeys: PassphraseKeys = KeystorePassphraseKeys()
+
+    /** For tests: the saved-passphrase logic runs on [passphraseKeys] instead of the Android Keystore. */
+    internal constructor(context: Context, passphraseKeys: PassphraseKeys) : this(context) {
+        this.passphraseKeys = passphraseKeys
     }
 
     // Opened on first use, so code paths that never touch the Keystore (e.g. passphrase backups) work
@@ -124,8 +166,6 @@ class StrongBoxSecurityManager @Inject constructor(
     @Synchronized
     fun getOrCreateSymmetricKey(
         alias: String,
-        requireBiometric: Boolean = false,
-        authTimeoutSeconds: Int = 0,
         purgeIfUnrecoverable: Boolean = true
     ): Pair<SecretKey, HardwareSecurityLevel> {
         if (keyStore.containsAlias(alias)) {
@@ -166,22 +206,19 @@ class StrongBoxSecurityManager @Inject constructor(
         return if (isStrongBoxSupported()) {
             try {
                 Log.i(TAG, "Provisioning KeyMint StrongBox AES-256 key for alias: $alias")
-                val key = generateAesKey(alias, isStrongBox = true, requireBiometric, authTimeoutSeconds)
+                val key = generateAesKey(alias, isStrongBox = true)
                 Pair(key, getHardwareSecurityLevel(key))
             } catch (e: Exception) {
                 throwIfTransientKeystoreFailure(e)
-                if (requireBiometric && e is java.security.InvalidAlgorithmParameterException) {
-                    throw e
-                }
                 Log.w(TAG, "StrongBox key provisioning failed (${e.javaClass.simpleName}); executing atomic TEE fallback.", e)
                 strongBoxDisabledDueToFailure = true
                 deleteKey(alias)
-                val key = generateAesKey(alias, isStrongBox = false, requireBiometric, authTimeoutSeconds)
+                val key = generateAesKey(alias, isStrongBox = false)
                 Pair(key, getHardwareSecurityLevel(key))
             }
         } else {
             Log.i(TAG, "StrongBox hardware not present or disabled; utilizing ARM TrustZone TEE KeyStore for alias: $alias")
-            val key = generateAesKey(alias, isStrongBox = false, requireBiometric, authTimeoutSeconds)
+            val key = generateAesKey(alias, isStrongBox = false)
             Pair(key, getHardwareSecurityLevel(key))
         }
     }
@@ -202,8 +239,6 @@ class StrongBoxSecurityManager @Inject constructor(
     private fun generateAesKey(
         alias: String,
         isStrongBox: Boolean,
-        requireBiometric: Boolean,
-        authTimeoutSeconds: Int,
         requireRecentUserAuth: Boolean = false
     ): SecretKey {
         val keyGenerator = KeyGenerator.getInstance(
@@ -224,16 +259,6 @@ class StrongBoxSecurityManager @Inject constructor(
                 setIsStrongBoxBacked(true)
             }
 
-            if (requireBiometric) {
-                setUserAuthenticationRequired(true)
-                setUserAuthenticationParameters(
-                    authTimeoutSeconds,
-                    KeyProperties.AUTH_BIOMETRIC_STRONG
-                )
-                if (authTimeoutSeconds == 0) {
-                    setInvalidatedByBiometricEnrollment(true)
-                }
-            }
             if (requireRecentUserAuth) {
                 // The Keystore itself refuses the key unless the phone is unlocked and the user proved who they
                 // are (fingerprint, face or screen lock) in the last minute, e.g. at the protected page's prompt.
@@ -283,19 +308,19 @@ class StrongBoxSecurityManager @Inject constructor(
     }
 
     /** A fresh authentication-bound key for the saved passphrase (StrongBox when available, else the TEE). */
-    private fun newPassphraseKey(): SecretKey {
-        deleteKey(KEY_ALIAS_SAVED_PASSPHRASE)
+    private fun newPassphraseKey(alias: String): SecretKey {
+        deleteKey(alias)
         // Binding needs a screen lock; without one there is nothing to bind to, so the key is created unbound.
         val bind = (context.getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager)?.isDeviceSecure == true
         if (isStrongBoxSupported()) {
             try {
-                return generateAesKey(KEY_ALIAS_SAVED_PASSPHRASE, isStrongBox = true, requireBiometric = false, authTimeoutSeconds = 0, requireRecentUserAuth = bind)
+                return generateAesKey(alias, isStrongBox = true, requireRecentUserAuth = bind)
             } catch (e: Exception) {
                 throwIfTransientKeystoreFailure(e)
-                deleteKey(KEY_ALIAS_SAVED_PASSPHRASE)
+                deleteKey(alias)
             }
         }
-        return generateAesKey(KEY_ALIAS_SAVED_PASSPHRASE, isStrongBox = false, requireBiometric = false, authTimeoutSeconds = 0, requireRecentUserAuth = bind)
+        return generateAesKey(alias, isStrongBox = false, requireRecentUserAuth = bind)
     }
 
     /** How saving the passphrase went; [NEEDS_AUTHENTICATION] asks the caller to verify the user and try again. */
@@ -305,28 +330,51 @@ class StrongBoxSecurityManager @Inject constructor(
      * Encrypts the backup passphrase with a Keystore key (StrongBox when available) that only works while the
      * phone is unlocked and within [PASSPHRASE_AUTH_WINDOW_SECONDS] of the user authenticating. The Keystore
      * refuses the key outside that window, so the caller then shows the system prompt and calls this again.
+     *
+     * The new key is made under the bound alias not in use, and the old one is deleted only after the new
+     * passphrase is stored: a cancelled prompt or a failed write leaves the saved passphrase as it was.
      */
     @Synchronized
     fun savePassphrase(passphrase: String): PassphraseSave {
         val passBytes = passphrase.toByteArray(Charsets.UTF_8)
+        var staging: String? = null
         return try {
-            val key = newPassphraseKey()
+            val sp = context.getSharedPreferences(SAVED_PASSPHRASE_PREFS, Context.MODE_PRIVATE)
+            // No alias stored: anything saved predates the pair and sits under its first key or the original one,
+            // so the new key goes under the second and can't take either one's place.
+            val current = savedKeyAlias(sp) ?: KEY_ALIAS_SAVED_PASSPHRASE
+            val next = if (current == KEY_ALIAS_SAVED_PASSPHRASE) KEY_ALIAS_SAVED_PASSPHRASE_ALT else KEY_ALIAS_SAVED_PASSPHRASE
+            staging = next
+            val key = passphraseKeys.create(next)
             val cipher = Cipher.getInstance(CIPHER_ALGORITHM)
-            cipher.init(Cipher.ENCRYPT_MODE, key)
+            passphraseKeys.initCipher(cipher, Cipher.ENCRYPT_MODE, key, null)
             val iv = cipher.iv
             val cipherBytes = cipher.doFinal(passBytes)
-            val sp = context.getSharedPreferences(SAVED_PASSPHRASE_PREFS, Context.MODE_PRIVATE)
-            sp.edit()
-                .putString("saved_passphrase_cipher", Base64.encodeToString(cipherBytes, Base64.NO_WRAP))
-                .putString("saved_passphrase_iv", Base64.encodeToString(iv, Base64.NO_WRAP))
-                .commit()
+            val previous = SavedPassphraseEntries.readFrom(sp)
+            val saved = SavedPassphraseEntries(
+                Base64.encodeToString(cipherBytes, Base64.NO_WRAP),
+                Base64.encodeToString(iv, Base64.NO_WRAP),
+                next
+            )
+            if (!saved.writeTo(sp)) {
+                // commit() keeps the new values in memory even when they never reached storage. Putting the old
+                // ones back keeps this session reading the passphrase the old key still decrypts.
+                previous.writeTo(sp)
+                passphraseKeys.delete(next)
+                Log.e(TAG, "Failed to store passphrase saved to hardware security chip")
+                return PassphraseSave.FAILED
+            }
+            // Only now is the old key unused.
+            passphraseKeys.delete(current)
+            passphraseKeys.delete(KEY_ALIAS_SAVED_PASSPHRASE_V1)
             PassphraseSave.SAVED
         } catch (e: android.security.keystore.UserNotAuthenticatedException) {
             // Longer than the window since the last unlock or prompt: not a failure, just a prompt away.
-            deleteKey(KEY_ALIAS_SAVED_PASSPHRASE)
+            staging?.let(passphraseKeys::delete)
             PassphraseSave.NEEDS_AUTHENTICATION
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save passphrase to hardware security chip", e)
+            staging?.let(passphraseKeys::delete)
             PassphraseSave.FAILED
         } finally {
             MemorySanitizer.wipe(passBytes)
@@ -336,7 +384,7 @@ class StrongBoxSecurityManager @Inject constructor(
     /** Whether a passphrase is saved, without decrypting it. */
     fun hasSavedPassphrase(): Boolean = runCatching {
         context.getSharedPreferences(SAVED_PASSPHRASE_PREFS, Context.MODE_PRIVATE)
-            .contains("saved_passphrase_cipher")
+            .contains(PREF_PASSPHRASE_CIPHER)
     }.getOrDefault(false)
 
     /**
@@ -347,18 +395,23 @@ class StrongBoxSecurityManager @Inject constructor(
         var decrypted: ByteArray? = null
         return try {
             val sp = context.getSharedPreferences(SAVED_PASSPHRASE_PREFS, Context.MODE_PRIVATE)
-            val cipherBase64 = sp.getString("saved_passphrase_cipher", null) ?: return null
-            val ivBase64 = sp.getString("saved_passphrase_iv", null) ?: return null
+            val cipherBase64 = sp.getString(PREF_PASSPHRASE_CIPHER, null) ?: return null
+            val ivBase64 = sp.getString(PREF_PASSPHRASE_IV, null) ?: return null
             val cipherBytes = Base64.decode(cipherBase64, Base64.NO_WRAP)
             val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
-            val boundKey = getExistingSymmetricKey(KEY_ALIAS_SAVED_PASSPHRASE)
-            val key = boundKey ?: getExistingSymmetricKey(KEY_ALIAS_SAVED_PASSPHRASE_V1) ?: return null
+            val alias = savedKeyAlias(sp)
+            val boundKey = passphraseKeys.find(alias ?: KEY_ALIAS_SAVED_PASSPHRASE)
+            // Only a passphrase stored without an alias can be under the original key: a key left behind by an
+            // unfinished save is never the one named, so it can't stand in for that one.
+            val originalKey = if (boundKey == null && alias == null) passphraseKeys.find(KEY_ALIAS_SAVED_PASSPHRASE_V1) else null
+            val key = boundKey ?: originalKey ?: return null
             val cipher = Cipher.getInstance(CIPHER_ALGORITHM)
-            cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
+            passphraseKeys.initCipher(cipher, Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
             decrypted = cipher.doFinal(cipherBytes)
             val passphrase = String(decrypted, Charsets.UTF_8)
-            // One-time move of a passphrase saved under the old unbound key onto the authentication-bound one.
-            if (boundKey == null && savePassphrase(passphrase) == PassphraseSave.SAVED) deleteKey(KEY_ALIAS_SAVED_PASSPHRASE_V1)
+            // One-time move of a passphrase saved under the old unbound key onto an authentication-bound one; a
+            // successful save deletes the old key.
+            if (originalKey != null) savePassphrase(passphrase)
             passphrase
         } catch (e: android.security.keystore.UserNotAuthenticatedException) {
             // Too long since the user authenticated: they type the passphrase instead.
@@ -372,19 +425,47 @@ class StrongBoxSecurityManager @Inject constructor(
     }
 
     /**
-     * Clears any saved passphrase from the hardware security chip and storage.
+     * Clears any saved passphrase from the hardware security chip and storage. Returns false if storage
+     * couldn't be updated; the keys are deleted either way, so what is left can't be decrypted.
      */
     @Synchronized
     fun clearSavedPassphrase(): Boolean {
         return try {
             val sp = context.getSharedPreferences(SAVED_PASSPHRASE_PREFS, Context.MODE_PRIVATE)
-            sp.edit().remove("saved_passphrase_cipher").remove("saved_passphrase_iv").commit()
-            deleteKey(KEY_ALIAS_SAVED_PASSPHRASE)
-            deleteKey(KEY_ALIAS_SAVED_PASSPHRASE_V1)
-            true
+            val cleared = SavedPassphraseEntries(null, null, null).writeTo(sp)
+            passphraseKeys.delete(KEY_ALIAS_SAVED_PASSPHRASE)
+            passphraseKeys.delete(KEY_ALIAS_SAVED_PASSPHRASE_ALT)
+            passphraseKeys.delete(KEY_ALIAS_SAVED_PASSPHRASE_V1)
+            cleared
         } catch (e: Exception) {
             Log.e(TAG, "Failed to clear saved passphrase", e)
             false
+        }
+    }
+
+    /** The bound alias the stored passphrase names, or null if it names none of the pair. */
+    private fun savedKeyAlias(sp: SharedPreferences): String? =
+        sp.getString(PREF_PASSPHRASE_KEY_ALIAS, null)
+            ?.takeIf { it == KEY_ALIAS_SAVED_PASSPHRASE || it == KEY_ALIAS_SAVED_PASSPHRASE_ALT }
+
+    /** The stored passphrase, its IV and the alias of the key that encrypted it; null means absent. */
+    private class SavedPassphraseEntries(val cipher: String?, val iv: String?, val keyAlias: String?) {
+
+        /** Writes all three in one commit and returns whether they reached storage. */
+        fun writeTo(sp: SharedPreferences): Boolean {
+            val editor = sp.edit()
+            for ((name, value) in listOf(PREF_PASSPHRASE_CIPHER to cipher, PREF_PASSPHRASE_IV to iv, PREF_PASSPHRASE_KEY_ALIAS to keyAlias)) {
+                if (value == null) editor.remove(name) else editor.putString(name, value)
+            }
+            return editor.commit()
+        }
+
+        companion object {
+            fun readFrom(sp: SharedPreferences) = SavedPassphraseEntries(
+                sp.getString(PREF_PASSPHRASE_CIPHER, null),
+                sp.getString(PREF_PASSPHRASE_IV, null),
+                sp.getString(PREF_PASSPHRASE_KEY_ALIAS, null)
+            )
         }
     }
 }

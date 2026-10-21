@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.lifecycle.repeatOnLifecycle
 import android.content.Intent
 import android.graphics.drawable.Icon
 import androidx.compose.animation.*
@@ -49,7 +50,7 @@ data class ProcessRamEntry(
 /** Process-wide so the learned current unit and sign survive reopening the page. */
 private val batteryCurrentReader = DiagnosticsReadings.CurrentReader()
 
-private data class MemorySnapshot(
+internal data class MemorySnapshot(
     val totalGb: Double,
     val usedGb: Double,
     val availGb: Double,
@@ -65,7 +66,7 @@ private data class MemorySnapshot(
     val physicalGb: Int
 )
 
-private data class BatteryTelemetrySnapshot(
+internal data class BatteryTelemetrySnapshot(
     val level: Int,
     val temp: Float,
     val volt: Float,
@@ -80,8 +81,239 @@ private data class BatteryTelemetrySnapshot(
     val timeEstimateStr: String
 )
 
+/**
+ * The memory pressure chip's background and label colours, as a pair: Material container roles with the text
+ * colour made for each, so every level stays legible in both themes.
+ */
+internal fun pressureChipColors(pressure: String, scheme: ColorScheme): Pair<Color, Color> = when (pressure) {
+    "Critical" -> scheme.error to scheme.onError
+    "High Load" -> scheme.errorContainer to scheme.onErrorContainer
+    "Moderate" -> scheme.tertiaryContainer to scheme.onTertiaryContainer
+    else -> scheme.secondaryContainer to scheme.onSecondaryContainer
+}
+
+/** One battery and memory reading for the diagnostics page. */
+internal data class DiagnosticsSample(val battery: BatteryTelemetrySnapshot, val memory: MemorySnapshot)
+
+/**
+ * Takes one reading per call, off the main thread. A sampler carries the battery current's smoothing from one
+ * reading to the next, so the page starts a new one each time it comes back into view.
+ */
+internal fun interface DiagnosticsSampler {
+    fun sample(): DiagnosticsSample
+}
+
+/** The phone's own battery and memory readings. */
+private class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
+    private val appContext = context.applicationContext ?: context
+    private val actMgr = appContext.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+    private val bm = appContext.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+
+    // Carried across polls: the smoothed net current behind the time estimates, reset whenever the charging
+    // state changes. The current unit and sign are learned process-wide by batteryCurrentReader.
+    private var smoothedNetMa: Float? = null
+    private var lastChargeState: DiagnosticsReadings.ChargeState? = null
+
+    override fun sample(): DiagnosticsSample {
+        val ifilter = android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        val batteryStatus = appContext.registerReceiver(null, ifilter)
+        val lvl = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
+        val bLevel = if (lvl >= 0 && scale > 0) (lvl * 100 / scale) else 0
+
+        val t = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0
+        val bTemp = t / 10f
+
+        val v = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_VOLTAGE, 0) ?: 0
+        val bVolt = v / 1000f
+
+        val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+        val plugged = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) ?: 0
+        val chargeState = DiagnosticsReadings.chargeState(status, plugged)
+        if (chargeState != lastChargeState) {
+            // Also covers the page opening: plug changes made while it was closed were not seen.
+            smoothedNetMa = null
+            lastChargeState = chargeState
+            batteryCurrentReader.restartSettleWindow()
+        }
+
+        val h = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_HEALTH, android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN)
+            ?: android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN
+        val bHealth = DiagnosticsReadings.healthLabel(h)
+        val bHealthSeverity = DiagnosticsReadings.healthSeverity(h)
+
+        // Cycle count is part of the battery broadcast from Android 14 (API 34); 0 is valid on a new battery.
+        val cycles = if (Build.VERSION.SDK_INT >= 34) {
+            batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_CYCLE_COUNT, -1) ?: -1
+        } else {
+            -1
+        }
+
+        val bTechnology = batteryStatus?.getStringExtra(android.os.BatteryManager.EXTRA_TECHNOLOGY)?.takeIf { it.isNotBlank() } ?: "Li-ion"
+
+        // Device-wide thermal throttling state (not battery temperature).
+        val pmPower = appContext.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        val bThermalStatus = DiagnosticsReadings.thermalLabel(
+            try { pmPower?.currentThermalStatus } catch (_: Exception) { null }
+        ) ?: "N/A"
+
+        // Net current into the battery (negative while draining): CURRENT_NOW for live power and for
+        // learning the unit and sign; CURRENT_AVERAGE (smoothed further) for time estimates once the plug
+        // state has settled and it agrees with CURRENT_NOW, so a stale or differently scaled average
+        // can't drive them.
+        val unplugged = chargeState == DiagnosticsReadings.ChargeState.Discharging
+        val nowMs = android.os.SystemClock.elapsedRealtime()
+        val rawCurrentNow = try { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) } catch (_: Throwable) { null } ?: Int.MIN_VALUE
+        val rawCurrentAvg = try { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) } catch (_: Throwable) { null } ?: Int.MIN_VALUE
+        val netNowMa = batteryCurrentReader.readNow(rawCurrentNow, unplugged, nowMs)
+        val netAvgMa = batteryCurrentReader.convert(rawCurrentAvg)
+        val netForEstimate = if (batteryCurrentReader.isSettled(nowMs) && DiagnosticsReadings.averageAgrees(netNowMa, netAvgMa)) netAvgMa else netNowMa
+        if (netForEstimate != null) smoothedNetMa = DiagnosticsReadings.smooth(smoothedNetMa, netForEstimate)
+        val bWatts = if (bVolt > 0f && netNowMa != null) bVolt * kotlin.math.abs(netNowMa) / 1000f else null
+
+        // CHARGE_COUNTER is µAh; dropped when it implies an implausible full capacity.
+        val chargeMah = try {
+            val cc = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) ?: Int.MIN_VALUE
+            if (cc != Int.MIN_VALUE && cc > 0) cc / 1000f else null
+        } catch (_: Throwable) { null }?.takeIf { mah ->
+            bLevel < 10 || (mah / (bLevel / 100f)) in 1000f..20000f
+        }
+
+        fun untilEmpty(otherwise: String): String {
+            val minutes = DiagnosticsReadings.minutesUntilEmpty(chargeMah, smoothedNetMa)
+            return when {
+                minutes == null -> otherwise
+                minutes > 7 * 24 * 60 -> "Over a week left"
+                else -> "${DiagnosticsReadings.formatMinutes(minutes)} until empty"
+            }
+        }
+
+        val bChargingRateStr: String
+        val bTimeEstimateStr: String
+        when (chargeState) {
+            DiagnosticsReadings.ChargeState.Charging -> {
+                bChargingRateStr = when (plugged) {
+                    android.os.BatteryManager.BATTERY_PLUGGED_AC -> if ((bWatts ?: 0f) >= 15f) "Fast charging" else "Charging via AC"
+                    android.os.BatteryManager.BATTERY_PLUGGED_USB -> "Charging via USB"
+                    android.os.BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Charging wirelessly"
+                    android.os.BatteryManager.BATTERY_PLUGGED_DOCK -> "Charging on dock"
+                    else -> "Charging"
+                }
+                val systemMs = try { bm?.computeChargeTimeRemaining() ?: -1L } catch (_: Throwable) { -1L }
+                // Until an unplugged reading has confirmed the vendor's sign, the direction is unproven:
+                // trust the CHARGING status for the estimate and never claim the phone is losing charge.
+                val signKnown = batteryCurrentReader.signLocked
+                val chargeInMa = if (signKnown) smoothedNetMa else smoothedNetMa?.let { kotlin.math.abs(it) }
+                val minutes = if (systemMs > 0L) (systemMs / 60_000L).toInt().coerceAtLeast(1)
+                    else DiagnosticsReadings.minutesUntilFull(chargeMah, bLevel, chargeInMa)
+                // Both the live and the smoothed current must show a drain, so a lagging average right
+                // after plugging in can't claim the phone is losing charge.
+                val draining = signKnown && (netNowMa ?: 0f) < -20f && (smoothedNetMa ?: 0f) < -20f
+                bTimeEstimateStr = when {
+                    bLevel >= 100 -> "Fully charged"
+                    systemMs > 0L && minutes != null && minutes <= 48 * 60 ->
+                        "${DiagnosticsReadings.formatMinutes(minutes)} until full"
+                    draining -> "Not gaining charge"
+                    minutes == null -> "Estimating..."
+                    minutes > 48 * 60 -> "Charging slowly"
+                    else -> "${DiagnosticsReadings.formatMinutes(minutes)} until full"
+                }
+            }
+            DiagnosticsReadings.ChargeState.Full -> {
+                bChargingRateStr = "Plugged in"
+                bTimeEstimateStr = "Fully charged"
+            }
+            DiagnosticsReadings.ChargeState.PluggedNotCharging -> {
+                // The charger is not adding charge; the phone may still be running down slowly.
+                bChargingRateStr = "Plugged in, not charging"
+                bTimeEstimateStr = untilEmpty(otherwise = "Charging paused")
+            }
+            DiagnosticsReadings.ChargeState.PluggedUnknown -> {
+                bChargingRateStr = "Plugged in"
+                bTimeEstimateStr = untilEmpty(otherwise = "Estimating...")
+            }
+            DiagnosticsReadings.ChargeState.Discharging -> {
+                bChargingRateStr = "Discharging"
+                bTimeEstimateStr = untilEmpty(otherwise = "Estimating...")
+            }
+        }
+
+        val batterySnap = BatteryTelemetrySnapshot(
+            level = bLevel,
+            temp = bTemp,
+            volt = bVolt,
+            watts = bWatts,
+            health = bHealth,
+            healthSeverity = bHealthSeverity,
+            cycles = cycles,
+            technology = bTechnology,
+            thermalStatus = bThermalStatus,
+            isCharging = chargeState == DiagnosticsReadings.ChargeState.Charging ||
+                chargeState == DiagnosticsReadings.ChargeState.Full,
+            chargingRateStr = bChargingRateStr,
+            timeEstimateStr = bTimeEstimateStr
+        )
+
+        // Memory: the kernel's own MemAvailable, the same figure ActivityManager reports as availMem.
+        val memInfo = android.app.ActivityManager.MemoryInfo()
+        actMgr?.getMemoryInfo(memInfo)
+        val procMem = try {
+            DiagnosticsReadings.parseMemInfo(java.io.File("/proc/meminfo").readText())
+        } catch (_: Throwable) { null }
+        val figures = DiagnosticsReadings.memoryFigures(procMem, memInfo.totalMem, memInfo.availMem)
+
+        // Decimal gigabytes, as Android Settings displays memory.
+        val totGb = figures.totalBytes / 1_000_000_000.0
+        val usdGb = figures.usedBytes / 1_000_000_000.0
+        val avlGb = figures.availableBytes / 1_000_000_000.0
+        val advertised = if (Build.VERSION.SDK_INT >= 34) memInfo.advertisedMem else -1L
+        val physGb = DiagnosticsReadings.retailRamGb(advertised, figures.totalBytes)
+
+        // /proc/meminfo reports KiB; convert to bytes before scaling to decimal units.
+        fun kbToGb(kb: Long) = kb * 1024.0 / 1_000_000_000.0
+        fun bytesToMb(bytes: Long) = bytes / 1_000_000f
+        val swapTotalKb = procMem?.swapTotalKb ?: 0L
+        val swapUsedKb = (swapTotalKb - (procMem?.swapFreeKb ?: swapTotalKb)).coerceAtLeast(0L)
+        val fileCacheKb = (procMem?.cachedKb ?: 0L) + (procMem?.buffersKb ?: 0L)
+
+        val isLow = memInfo.lowMemory
+        val threshMb = (memInfo.threshold / (1024L * 1024L)).toInt()
+        val pressure = DiagnosticsReadings.memoryPressure(isLow, figures.availablePercent)
+
+        // Used memory split into parts that add up to it; file cache the kernel can reclaim is in Available.
+        val breakdown = DiagnosticsReadings.usedBreakdown(procMem, figures.usedBytes)
+        val hasBreakdown = breakdown != null
+        val topProcessesList = if (breakdown != null) listOf(
+            ProcessRamEntry(name = "Apps", ramMb = bytesToMb(breakdown.appsBytes)),
+            ProcessRamEntry(name = "Kernel", ramMb = bytesToMb(breakdown.kernelBytes)),
+            ProcessRamEntry(name = "Other", ramMb = bytesToMb(breakdown.otherBytes))
+        ) else emptyList()
+
+        val memSnap = MemorySnapshot(
+            totalGb = totGb,
+            usedGb = usdGb,
+            availGb = avlGb,
+            pct = figures.usedPercent,
+            zRamUsedGb = kbToGb(swapUsedKb),
+            zRamTotalGb = kbToGb(swapTotalKb),
+            cachedGb = kbToGb(fileCacheKb),
+            isLowMem = isLow,
+            thresholdMb = threshMb,
+            memPressure = pressure,
+            processes = topProcessesList,
+            breakdownAvailable = hasBreakdown,
+            physicalGb = physGb
+        )
+
+        return DiagnosticsSample(batterySnap, memSnap)
+    }
+}
+
 @Composable
-fun BatteryAndMemoryDiagnosticsPage(context: Context) {
+internal fun BatteryAndMemoryDiagnosticsPage(
+    context: Context,
+    newSampler: (Context) -> DiagnosticsSampler = ::DeviceDiagnosticsSampler
+) {
     var batteryLevel by remember { mutableIntStateOf(0) }
     var batteryTemp by remember { mutableFloatStateOf(0f) }
     var batteryVolt by remember { mutableFloatStateOf(0f) }
@@ -116,241 +348,47 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
     var topProcesses by remember { mutableStateOf<List<ProcessRamEntry>>(emptyList()) }
     var breakdownAvailable by remember { mutableStateOf(true) }
 
-    val actMgr = remember(context) { context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager }
-    val bm = remember(context) { context.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager }
+    val currentNewSampler by rememberUpdatedState(newSampler)
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    // Reads only while the page is on screen; each time it comes back a new sampler starts the smoothing afresh.
+    LaunchedEffect(lifecycle, context) {
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            val sampler = currentNewSampler(context)
+            while (true) {
+                try {
+                    val (bSnap, mSnap) = withContext(Dispatchers.IO) { sampler.sample() }
 
-    LaunchedEffect(Unit) {
-        val appContext = context.applicationContext ?: context
-        // Carried across polls: the smoothed net current behind the time estimates, reset whenever the charging
-        // state changes. The current unit and sign are learned process-wide by batteryCurrentReader.
-        var smoothedNetMa: Float? = null
-        var lastChargeState: DiagnosticsReadings.ChargeState? = null
-        while (true) {
-            try {
-                val (bSnap, mSnap) = withContext(Dispatchers.IO) {
-                    val ifilter = android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-                    val batteryStatus = appContext.registerReceiver(null, ifilter)
-                    val lvl = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
-                    val scale = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
-                    val bLevel = if (lvl >= 0 && scale > 0) (lvl * 100 / scale) else 0
+                    // Update Compose state on Main thread
+                    batteryLevel = bSnap.level
+                    batteryTemp = bSnap.temp
+                    batteryVolt = bSnap.volt
+                    batteryWatts = bSnap.watts
+                    batteryHealth = bSnap.health
+                    batteryHealthSeverity = bSnap.healthSeverity
+                    batteryCycles = bSnap.cycles
+                    batteryTechnology = bSnap.technology
+                    thermalStatus = bSnap.thermalStatus
+                    isCharging = bSnap.isCharging
+                    chargingRateStr = bSnap.chargingRateStr
+                    timeEstimateStr = bSnap.timeEstimateStr
 
-                    val t = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0
-                    val bTemp = t / 10f
+                    totalRamGb = String.format(java.util.Locale.US, "%.1f", mSnap.totalGb)
+                    usedRamGb = String.format(java.util.Locale.US, "%.1f", mSnap.usedGb)
+                    usedRamPercent = mSnap.pct
+                    availableRamGb = String.format(java.util.Locale.US, "%.1f", mSnap.availGb)
+                    physicalRamGb = mSnap.physicalGb
+                    zRamUsedGb = String.format(java.util.Locale.US, "%.1f", mSnap.zRamUsedGb)
+                    zRamTotalGb = String.format(java.util.Locale.US, "%.1f", mSnap.zRamTotalGb)
+                    cachedRamGb = String.format(java.util.Locale.US, "%.1f", mSnap.cachedGb)
+                    isLowMemory = mSnap.isLowMem
+                    memoryPressure = mSnap.memPressure
+                    lmkThresholdMb = mSnap.thresholdMb
+                    topProcesses = mSnap.processes
+                    breakdownAvailable = mSnap.breakdownAvailable
+                } catch (_: Throwable) {}
 
-                    val v = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_VOLTAGE, 0) ?: 0
-                    val bVolt = v / 1000f
-
-                    val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-                    val plugged = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) ?: 0
-                    val chargeState = DiagnosticsReadings.chargeState(status, plugged)
-                    if (chargeState != lastChargeState) {
-                        // Also covers the page opening: plug changes made while it was closed were not seen.
-                        smoothedNetMa = null
-                        lastChargeState = chargeState
-                        batteryCurrentReader.restartSettleWindow()
-                    }
-
-                    val h = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_HEALTH, android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN)
-                        ?: android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN
-                    val bHealth = DiagnosticsReadings.healthLabel(h)
-                    val bHealthSeverity = DiagnosticsReadings.healthSeverity(h)
-
-                    // Cycle count is part of the battery broadcast from Android 14 (API 34); 0 is valid on a new battery.
-                    val cycles = if (Build.VERSION.SDK_INT >= 34) {
-                        batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_CYCLE_COUNT, -1) ?: -1
-                    } else {
-                        -1
-                    }
-
-                    val bTechnology = batteryStatus?.getStringExtra(android.os.BatteryManager.EXTRA_TECHNOLOGY)?.takeIf { it.isNotBlank() } ?: "Li-ion"
-
-                    // Device-wide thermal throttling state (not battery temperature).
-                    val pmPower = appContext.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
-                    val bThermalStatus = DiagnosticsReadings.thermalLabel(
-                        try { pmPower?.currentThermalStatus } catch (_: Exception) { null }
-                    ) ?: "N/A"
-
-                    // Net current into the battery (negative while draining): CURRENT_NOW for live power and for
-                    // learning the unit and sign; CURRENT_AVERAGE (smoothed further) for time estimates once the plug
-                    // state has settled and it agrees with CURRENT_NOW, so a stale or differently scaled average
-                    // can't drive them.
-                    val unplugged = chargeState == DiagnosticsReadings.ChargeState.Discharging
-                    val nowMs = android.os.SystemClock.elapsedRealtime()
-                    val rawCurrentNow = try { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) } catch (_: Throwable) { null } ?: Int.MIN_VALUE
-                    val rawCurrentAvg = try { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) } catch (_: Throwable) { null } ?: Int.MIN_VALUE
-                    val netNowMa = batteryCurrentReader.readNow(rawCurrentNow, unplugged, nowMs)
-                    val netAvgMa = batteryCurrentReader.convert(rawCurrentAvg)
-                    val netForEstimate = if (batteryCurrentReader.isSettled(nowMs) && DiagnosticsReadings.averageAgrees(netNowMa, netAvgMa)) netAvgMa else netNowMa
-                    if (netForEstimate != null) smoothedNetMa = DiagnosticsReadings.smooth(smoothedNetMa, netForEstimate)
-                    val bWatts = if (bVolt > 0f && netNowMa != null) bVolt * kotlin.math.abs(netNowMa) / 1000f else null
-
-                    // CHARGE_COUNTER is µAh; dropped when it implies an implausible full capacity.
-                    val chargeMah = try {
-                        val cc = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) ?: Int.MIN_VALUE
-                        if (cc != Int.MIN_VALUE && cc > 0) cc / 1000f else null
-                    } catch (_: Throwable) { null }?.takeIf { mah ->
-                        bLevel < 10 || (mah / (bLevel / 100f)) in 1000f..20000f
-                    }
-
-                    fun untilEmpty(otherwise: String): String {
-                        val minutes = DiagnosticsReadings.minutesUntilEmpty(chargeMah, smoothedNetMa)
-                        return when {
-                            minutes == null -> otherwise
-                            minutes > 7 * 24 * 60 -> "Over a week left"
-                            else -> "${DiagnosticsReadings.formatMinutes(minutes)} until empty"
-                        }
-                    }
-
-                    val bChargingRateStr: String
-                    val bTimeEstimateStr: String
-                    when (chargeState) {
-                        DiagnosticsReadings.ChargeState.Charging -> {
-                            bChargingRateStr = when (plugged) {
-                                android.os.BatteryManager.BATTERY_PLUGGED_AC -> if ((bWatts ?: 0f) >= 15f) "Fast charging" else "Charging via AC"
-                                android.os.BatteryManager.BATTERY_PLUGGED_USB -> "Charging via USB"
-                                android.os.BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Charging wirelessly"
-                                android.os.BatteryManager.BATTERY_PLUGGED_DOCK -> "Charging on dock"
-                                else -> "Charging"
-                            }
-                            val systemMs = try { bm?.computeChargeTimeRemaining() ?: -1L } catch (_: Throwable) { -1L }
-                            // Until an unplugged reading has confirmed the vendor's sign, the direction is unproven:
-                            // trust the CHARGING status for the estimate and never claim the phone is losing charge.
-                            val signKnown = batteryCurrentReader.signLocked
-                            val chargeInMa = if (signKnown) smoothedNetMa else smoothedNetMa?.let { kotlin.math.abs(it) }
-                            val minutes = if (systemMs > 0L) (systemMs / 60_000L).toInt().coerceAtLeast(1)
-                                else DiagnosticsReadings.minutesUntilFull(chargeMah, bLevel, chargeInMa)
-                            // Both the live and the smoothed current must show a drain, so a lagging average right
-                            // after plugging in can't claim the phone is losing charge.
-                            val draining = signKnown && (netNowMa ?: 0f) < -20f && (smoothedNetMa ?: 0f) < -20f
-                            bTimeEstimateStr = when {
-                                bLevel >= 100 -> "Fully charged"
-                                systemMs > 0L && minutes != null && minutes <= 48 * 60 ->
-                                    "${DiagnosticsReadings.formatMinutes(minutes)} until full"
-                                draining -> "Not gaining charge"
-                                minutes == null -> "Estimating..."
-                                minutes > 48 * 60 -> "Charging slowly"
-                                else -> "${DiagnosticsReadings.formatMinutes(minutes)} until full"
-                            }
-                        }
-                        DiagnosticsReadings.ChargeState.Full -> {
-                            bChargingRateStr = "Plugged in"
-                            bTimeEstimateStr = "Fully charged"
-                        }
-                        DiagnosticsReadings.ChargeState.PluggedNotCharging -> {
-                            // The charger is not adding charge; the phone may still be running down slowly.
-                            bChargingRateStr = "Plugged in, not charging"
-                            bTimeEstimateStr = untilEmpty(otherwise = "Charging paused")
-                        }
-                        DiagnosticsReadings.ChargeState.PluggedUnknown -> {
-                            bChargingRateStr = "Plugged in"
-                            bTimeEstimateStr = untilEmpty(otherwise = "Estimating...")
-                        }
-                        DiagnosticsReadings.ChargeState.Discharging -> {
-                            bChargingRateStr = "Discharging"
-                            bTimeEstimateStr = untilEmpty(otherwise = "Estimating...")
-                        }
-                    }
-
-                    val batterySnap = BatteryTelemetrySnapshot(
-                        level = bLevel,
-                        temp = bTemp,
-                        volt = bVolt,
-                        watts = bWatts,
-                        health = bHealth,
-                        healthSeverity = bHealthSeverity,
-                        cycles = cycles,
-                        technology = bTechnology,
-                        thermalStatus = bThermalStatus,
-                        isCharging = chargeState == DiagnosticsReadings.ChargeState.Charging ||
-                            chargeState == DiagnosticsReadings.ChargeState.Full,
-                        chargingRateStr = bChargingRateStr,
-                        timeEstimateStr = bTimeEstimateStr
-                    )
-
-                    // Memory: the kernel's own MemAvailable, the same figure ActivityManager reports as availMem.
-                    val memInfo = android.app.ActivityManager.MemoryInfo()
-                    actMgr?.getMemoryInfo(memInfo)
-                    val procMem = try {
-                        DiagnosticsReadings.parseMemInfo(java.io.File("/proc/meminfo").readText())
-                    } catch (_: Throwable) { null }
-                    val figures = DiagnosticsReadings.memoryFigures(procMem, memInfo.totalMem, memInfo.availMem)
-
-                    // Decimal gigabytes, as Android Settings displays memory.
-                    val totGb = figures.totalBytes / 1_000_000_000.0
-                    val usdGb = figures.usedBytes / 1_000_000_000.0
-                    val avlGb = figures.availableBytes / 1_000_000_000.0
-                    val advertised = if (Build.VERSION.SDK_INT >= 34) memInfo.advertisedMem else -1L
-                    val physGb = DiagnosticsReadings.retailRamGb(advertised, figures.totalBytes)
-
-                    // /proc/meminfo reports KiB; convert to bytes before scaling to decimal units.
-                    fun kbToGb(kb: Long) = kb * 1024.0 / 1_000_000_000.0
-                    fun bytesToMb(bytes: Long) = bytes / 1_000_000f
-                    val swapTotalKb = procMem?.swapTotalKb ?: 0L
-                    val swapUsedKb = (swapTotalKb - (procMem?.swapFreeKb ?: swapTotalKb)).coerceAtLeast(0L)
-                    val fileCacheKb = (procMem?.cachedKb ?: 0L) + (procMem?.buffersKb ?: 0L)
-
-                    val isLow = memInfo.lowMemory
-                    val threshMb = (memInfo.threshold / (1024L * 1024L)).toInt()
-                    val pressure = DiagnosticsReadings.memoryPressure(isLow, figures.availablePercent)
-
-                    // Used memory split into parts that add up to it; file cache the kernel can reclaim is in Available.
-                    val breakdown = DiagnosticsReadings.usedBreakdown(procMem, figures.usedBytes)
-                    val hasBreakdown = breakdown != null
-                    val topProcessesList = if (breakdown != null) listOf(
-                        ProcessRamEntry(name = "Apps", ramMb = bytesToMb(breakdown.appsBytes)),
-                        ProcessRamEntry(name = "Kernel", ramMb = bytesToMb(breakdown.kernelBytes)),
-                        ProcessRamEntry(name = "Other", ramMb = bytesToMb(breakdown.otherBytes))
-                    ) else emptyList()
-
-                    val memSnap = MemorySnapshot(
-                        totalGb = totGb,
-                        usedGb = usdGb,
-                        availGb = avlGb,
-                        pct = figures.usedPercent,
-                        zRamUsedGb = kbToGb(swapUsedKb),
-                        zRamTotalGb = kbToGb(swapTotalKb),
-                        cachedGb = kbToGb(fileCacheKb),
-                        isLowMem = isLow,
-                        thresholdMb = threshMb,
-                        memPressure = pressure,
-                        processes = topProcessesList,
-                        breakdownAvailable = hasBreakdown,
-                        physicalGb = physGb
-                    )
-
-                    Pair(batterySnap, memSnap)
-                }
-
-                // Update Compose state on Main thread
-                batteryLevel = bSnap.level
-                batteryTemp = bSnap.temp
-                batteryVolt = bSnap.volt
-                batteryWatts = bSnap.watts
-                batteryHealth = bSnap.health
-                batteryHealthSeverity = bSnap.healthSeverity
-                batteryCycles = bSnap.cycles
-                batteryTechnology = bSnap.technology
-                thermalStatus = bSnap.thermalStatus
-                isCharging = bSnap.isCharging
-                chargingRateStr = bSnap.chargingRateStr
-                timeEstimateStr = bSnap.timeEstimateStr
-
-                totalRamGb = String.format(java.util.Locale.US, "%.1f", mSnap.totalGb)
-                usedRamGb = String.format(java.util.Locale.US, "%.1f", mSnap.usedGb)
-                usedRamPercent = mSnap.pct
-                availableRamGb = String.format(java.util.Locale.US, "%.1f", mSnap.availGb)
-                physicalRamGb = mSnap.physicalGb
-                zRamUsedGb = String.format(java.util.Locale.US, "%.1f", mSnap.zRamUsedGb)
-                zRamTotalGb = String.format(java.util.Locale.US, "%.1f", mSnap.zRamTotalGb)
-                cachedRamGb = String.format(java.util.Locale.US, "%.1f", mSnap.cachedGb)
-                isLowMemory = mSnap.isLowMem
-                memoryPressure = mSnap.memPressure
-                lmkThresholdMb = mSnap.thresholdMb
-                topProcesses = mSnap.processes
-                breakdownAvailable = mSnap.breakdownAvailable
-            } catch (_: Throwable) {}
-
-            kotlinx.coroutines.delay(2500)
+                kotlinx.coroutines.delay(2500)
+            }
         }
     }
 
@@ -696,21 +734,16 @@ fun BatteryAndMemoryDiagnosticsPage(context: Context) {
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val pressureColor = when (memoryPressure) {
-                            "Critical" -> MaterialTheme.colorScheme.error
-                            "High Load" -> MaterialTheme.colorScheme.errorContainer
-                            "Moderate" -> MaterialTheme.colorScheme.tertiary
-                            else -> MaterialTheme.colorScheme.secondary
-                        }
+                        val (pressureContainer, pressureContent) = pressureChipColors(memoryPressure, MaterialTheme.colorScheme)
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = pressureColor.copy(alpha = 0.2f)
+                            color = pressureContainer
                         ) {
                             Text(
                                 text = memoryPressure,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = pressureColor,
+                                color = pressureContent,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }

@@ -106,8 +106,9 @@
                         android:text="" />
 
                     <!-- The mic and shortcuts: 24dp icons 40dp apart, each in a 48dp touch target. The targets
-                         overlap their neighbours by 8dp and the last reaches 12dp into the row's end padding, so
-                         every icon sits where it did when the targets were the icons alone. -->
+                         overlap their neighbours by 8dp, and the row's end padding is 4dp (it was 16dp) to make
+                         room for the last target's 12dp padding, so every icon sits where it did when the targets
+                         were the icons alone. -->
 
                     <!-- Microphone -->
                     <ImageView

@@ -48,6 +48,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -56,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.collectLatest
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
+import kotlin.random.Random
 
 /** Forty Material shapes: rounded polygons and stars, sharp and soft, in a shuffled order. */
 private fun materialShapes(): List<RoundedPolygon> {
@@ -82,6 +84,12 @@ internal class MorphSceneInfo(val physics: MorphBouncePhysics) {
 }
 
 internal val MorphSceneKey = SemanticsPropertyKey<MorphSceneInfo>("MorphScene")
+
+/**
+ * A seed for the random choices of every [MaterialMorphAnimation] below it (when shapes drop in, where, how they are
+ * thrown), so a test sees the same run every time; null, as in the app, draws them from [Random.Default].
+ */
+internal val LocalMorphRandomSeed = staticCompositionLocalOf<Int?> { null }
 
 /** The area under the cards is at least this tall; when the cards leave less room, the page scrolls to it. */
 internal val MORPH_AREA_MIN_HEIGHT = 160.dp
@@ -183,7 +191,8 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val view = LocalView.current
     val density = LocalDensity.current
     val hapticEngine = remember(context) { PixelHapticEngine.get(context) }
-    val physics = remember { MorphBouncePhysics() }
+    val seed = LocalMorphRandomSeed.current
+    val physics = remember { MorphBouncePhysics(if (seed != null) Random(seed) else Random.Default) }
     val shapes = remember { materialShapes() }
     // One Morph per shape pair, made when a shape bounces into its next form.
     val morphs = remember { HashMap<Long, Morph>() }

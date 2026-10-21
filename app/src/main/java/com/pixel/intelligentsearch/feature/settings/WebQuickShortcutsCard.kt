@@ -5,8 +5,12 @@ import kotlinx.coroutines.withContext
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.Intent
-import androidx.core.graphics.drawable.toBitmap
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import androidx.compose.animation.*
@@ -39,6 +43,60 @@ import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 
 /**
+ * The trigger (without its symbol) and search address the shortcut editor suggests for an app picked from the
+ * list. Either is null for an app it doesn't know: an address made up from the app's name could send the user's
+ * queries to a site that has nothing to do with the app.
+ */
+internal fun suggestedWebShortcut(pkg: String): Pair<String?, String?> = when (pkg) {
+    "com.google.android.youtube" -> "yt" to "https://www.youtube.com/results?search_query=%s"
+    "com.spotify.music" -> "spot" to "https://open.spotify.com/search/%s"
+    "org.wikipedia" -> "w" to "https://en.wikipedia.org/wiki/%s"
+    "com.reddit.frontpage" -> "r" to "https://www.reddit.com/search/?q=%s"
+    "com.github.android" -> "gh" to "https://github.com/search?q=%s"
+    "com.google.android.apps.maps" -> "maps" to "https://www.google.com/maps/search/%s"
+    "com.amazon.mShop.android.shopping" -> "az" to "https://www.amazon.com/s?k=%s"
+    "com.twitter.android" -> "x" to "https://x.com/search?q=%s"
+    "tv.twitch.android.app" -> "tw" to "https://www.twitch.tv/search?term=%s"
+    "com.instagram.android" -> "ig" to "https://www.instagram.com/explore/tags/%s"
+    "com.pinterest" -> "pin" to "https://www.pinterest.com/search/pins/?q=%s"
+    "com.imdb.mobile" -> "imdb" to "https://www.imdb.com/find/?q=%s"
+    "com.google.android.googlequicksearchbox" -> "g" to "https://www.google.com/search?q=%s"
+    "com.duckduckgo.mobile.android" -> "ddg" to "https://duckduckgo.com/?q=%s"
+    else -> null to null
+}
+
+/**
+ * The trigger and search address after [appName] ([pkg]) is picked for a shortcut. Each is replaced only while
+ * it's blank (the trigger also while it's just the symbol) or still holds the picker's own earlier suggestion
+ * ([lastSuggestedPrefix], [lastSuggestedUrl]), so picking an app never overwrites what the user typed.
+ */
+internal fun fieldsForPickedApp(
+    pkg: String,
+    appName: String,
+    trigger: String,
+    prefix: String,
+    url: String,
+    lastSuggestedPrefix: String?,
+    lastSuggestedUrl: String?
+): Pair<String, String> {
+    val (slug, suggestedUrl) = suggestedWebShortcut(pkg)
+    val newPrefix = if (prefix.isBlank() || prefix == trigger || prefix == lastSuggestedPrefix) {
+        trigger + (slug ?: appName.lowercase().filter { it.isLetterOrDigit() }.take(4))
+    } else {
+        prefix
+    }
+    val newUrl = if (suggestedUrl != null && (url.isBlank() || url == lastSuggestedUrl)) suggestedUrl else url
+    return newPrefix to newUrl
+}
+
+/**
+ * Whether [prefix] already triggers another active shortcut. Saving replaces whatever has the trigger, so the
+ * editor refuses a clash instead of silently deleting that shortcut; an edited shortcut may keep its own.
+ */
+internal fun webShortcutTriggerTaken(prefix: String, editing: SearchBang?, active: List<SearchBang>): Boolean =
+    prefix != editing?.displayPrefix && active.any { it.displayPrefix == prefix }
+
+/**
  * The Quick Web Shortcuts card of Web Search settings: the on/off switch and trigger symbol, and the editor for
  * the shortcuts themselves (built-in ones to hide or restore, custom ones to add, edit and remove).
  */
@@ -60,33 +118,35 @@ internal fun WebQuickShortcutsCard() {
         if (quickShortcutsEnabled) {
             val triggerOptions = listOf("!", "@", "#", "/", "?", ":", "~", "Custom")
             val isPredefined = triggerOptions.dropLast(1).contains(shortcutTriggerSymbol)
-            var triggerDropdownSelection by remember(shortcutTriggerSymbol) {
-                mutableStateOf(if (isPredefined) shortcutTriggerSymbol else "Custom")
-            }
+            // Kept apart from the stored symbol, so typing a preset symbol ("#" on the way to "##") into the custom
+            // field doesn't switch the field away.
+            var customMode by rememberSaveable { mutableStateOf(!isPredefined) }
 
             SettingsDropdownRow(
                 title = "Shortcut Trigger Symbol",
                 subtitle = "Prefix Queries with '$shortcutTriggerSymbol'.",
                 icon = Icons.Outlined.Tag,
                 options = triggerOptions,
-                selectedOption = triggerDropdownSelection,
+                selectedOption = if (customMode) "Custom" else shortcutTriggerSymbol,
                 onOptionSelected = { selected ->
-                    triggerDropdownSelection = selected
-                    if (selected != "Custom") {
+                    customMode = selected == "Custom"
+                    if (!customMode) {
                         shortcutTriggerSymbol = selected
                     }
                 },
                 showDivider = true
             )
 
-            if (triggerDropdownSelection == "Custom") {
-                var customInputText by remember(triggerDropdownSelection) {
+            if (customMode) {
+                var customInputText by remember(customMode) {
                     mutableStateOf(if (isPredefined) "" else shortcutTriggerSymbol)
                 }
                 OutlinedTextField(
                     value = customInputText,
                     onValueChange = { input ->
-                        val clean = input.filter { !it.isWhitespace() }
+                        // Symbols only: the query parser skips triggers that start with a letter or digit, so a
+                        // shortcut behind one would never fire.
+                        val clean = input.filter { !it.isWhitespace() && !it.isLetterOrDigit() }
                         customInputText = clean
                         if (clean.isNotBlank()) {
                             shortcutTriggerSymbol = clean
@@ -192,7 +252,13 @@ internal fun WebQuickShortcutsCard() {
             }
 
             val availableDirectBangs = remember(effectiveDisabledPrefixes) {
-                SearchBangManager.BUILT_IN_BANGS.filter { it.displayPrefix in effectiveDisabledPrefixes }
+                SearchBangManager.availableBuiltIns(effectiveDisabledPrefixes)
+            }
+
+            // The swipe and TalkBack's Remove action both end here.
+            fun removeShortcut(bang: SearchBang) {
+                localDismissedPrefixes = localDismissedPrefixes + bang.displayPrefix
+                viewModel?.removeBangs(listOf(bang))
             }
 
             Column(
@@ -212,7 +278,8 @@ internal fun WebQuickShortcutsCard() {
                             "Active Shortcuts",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.semantics { heading() }
                         )
                         Text(
                             "Web Shortcuts. Swipe to Remove.",
@@ -272,8 +339,7 @@ internal fun WebQuickShortcutsCard() {
                                         dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd
                                     ) {
                                         hapticEngine.performPredictiveBackHaptic(view)
-                                        localDismissedPrefixes = localDismissedPrefixes + bang.displayPrefix
-                                        viewModel?.removeBangs(listOf(bang))
+                                        removeShortcut(bang)
                                     }
                                 }
 
@@ -319,6 +385,10 @@ internal fun WebQuickShortcutsCard() {
                                     Card(
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            // TalkBack can't swipe the card away, so removing it is an action on it.
+                                            .semantics {
+                                                customActions = listOf(CustomAccessibilityAction("Remove") { removeShortcut(bang); true })
+                                            }
                                             .bouncyClickable {
                                                 editingBang = bang
                                                 showAddDialog = true
@@ -463,7 +533,10 @@ internal fun WebQuickShortcutsCard() {
                                         OutlinedButton(
                                             onClick = {
                                                 hapticEngine.performPredictiveBackHaptic(view)
-                                                localDismissedPrefixes = localDismissedPrefixes - bang.displayPrefix
+                                                // It may have been removed under another trigger symbol; drop every form.
+                                                val canonical = SearchBangManager.canonicalBuiltInPrefix(bang.displayPrefix)
+                                                localDismissedPrefixes = localDismissedPrefixes
+                                                    .filterNot { SearchBangManager.canonicalBuiltInPrefix(it) == canonical }.toSet()
                                                 viewModel?.restoreBuiltInBang(bang.displayPrefix)
                                             },
                                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
@@ -489,11 +562,14 @@ internal fun WebQuickShortcutsCard() {
                 var prefixInput by remember(editingBang) { mutableStateOf(editingBang?.displayPrefix ?: shortcutTriggerSymbol) }
                 var targetPackageInput by remember(editingBang) { mutableStateOf(editingBang?.targetPackage.orEmpty()) }
                 var urlInput by remember(editingBang) { mutableStateOf(editingBang?.urlTemplate ?: "") }
+                // What the app picker last filled in: a later pick may replace that, never what the user typed.
+                var lastSuggestedPrefix by remember(editingBang) { mutableStateOf<String?>(null) }
+                var lastSuggestedUrl by remember(editingBang) { mutableStateOf<String?>(null) }
                 var errorMsg by remember { mutableStateOf<String?>(null) }
                 var showAppPicker by remember { mutableStateOf(false) }
 
-                // Loading every launcher app's label is slow; do it off the main thread.
-                val installedApps by produceState(initialValue = emptyList<Pair<String, String>>(), context) {
+                // Loading every launcher app's label is slow; do it off the main thread. Null until it's done.
+                val installedApps by produceState<List<Pair<String, String>>?>(initialValue = null, context) {
                     value = withContext(Dispatchers.IO) {
                         try {
                             val pm = context.packageManager
@@ -512,11 +588,12 @@ internal fun WebQuickShortcutsCard() {
                 if (showAppPicker) {
                     var pickerQuery by remember { mutableStateOf("") }
                     val displayedApps = remember(pickerQuery, installedApps) {
-                        if (pickerQuery.isBlank()) {
-                            installedApps
+                        val apps = installedApps
+                        if (apps == null || pickerQuery.isBlank()) {
+                            apps
                         } else {
                             val q = pickerQuery.trim().lowercase()
-                            installedApps.filter {
+                            apps.filter {
                                 it.first.lowercase().contains(q) || it.second.lowercase().contains(q)
                             }
                         }
@@ -554,128 +631,27 @@ internal fun WebQuickShortcutsCard() {
                                         .padding(bottom = 8.dp)
                                 )
 
-                                if (displayedApps.isEmpty()) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(24.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            "No matching apps found",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                InstalledAppList(displayedApps) { appName, pkgName ->
+                                    targetPackageInput = pkgName
+                                    val (prefix, url) = fieldsForPickedApp(
+                                        pkg = pkgName,
+                                        appName = appName,
+                                        trigger = shortcutTriggerSymbol,
+                                        prefix = prefixInput,
+                                        url = urlInput,
+                                        lastSuggestedPrefix = lastSuggestedPrefix,
+                                        lastSuggestedUrl = lastSuggestedUrl
+                                    )
+                                    if (prefix != prefixInput) {
+                                        prefixInput = prefix
+                                        lastSuggestedPrefix = prefix
                                     }
-                                } else {
-                                    LazyColumn(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        items(displayedApps, key = { it.second }) { (appName, pkgName) ->
-                                            Surface(
-                                                onClick = {
-                                                    targetPackageInput = pkgName
-
-                                                    // Automatically adjust shortcut trigger with user's selected trigger symbol
-                                                    val clean = appName.lowercase().filter { it.isLetterOrDigit() }
-                                                    val slug = when (pkgName) {
-                                                        "com.google.android.youtube" -> "yt"
-                                                        "com.spotify.music" -> "spot"
-                                                        "org.wikipedia" -> "w"
-                                                        "com.reddit.frontpage" -> "r"
-                                                        "com.github.android" -> "gh"
-                                                        "com.google.android.apps.maps" -> "maps"
-                                                        "com.amazon.mShop.android.shopping" -> "az"
-                                                        "com.twitter.android" -> "x"
-                                                        "tv.twitch.android.app" -> "tw"
-                                                        "com.instagram.android" -> "ig"
-                                                        "com.pinterest" -> "pin"
-                                                        "com.imdb.mobile" -> "imdb"
-                                                        "com.google.android.googlequicksearchbox" -> "g"
-                                                        "com.duckduckgo.mobile.android" -> "ddg"
-                                                        else -> if (clean.length <= 4) clean else clean.take(4)
-                                                    }
-                                                    prefixInput = "$shortcutTriggerSymbol$slug"
-
-                                                    // Suggest URL if empty or generic
-                                                    if (urlInput.isBlank() || urlInput.contains("/search?q=%s")) {
-                                                        urlInput = when (pkgName) {
-                                                            "com.google.android.youtube" -> "https://www.youtube.com/results?search_query=%s"
-                                                            "com.spotify.music" -> "https://open.spotify.com/search/%s"
-                                                            "org.wikipedia" -> "https://en.wikipedia.org/wiki/%s"
-                                                            "com.reddit.frontpage" -> "https://www.reddit.com/search/?q=%s"
-                                                            "com.github.android" -> "https://github.com/search?q=%s"
-                                                            "com.google.android.apps.maps" -> "https://www.google.com/maps/search/%s"
-                                                            "com.amazon.mShop.android.shopping" -> "https://www.amazon.com/s?k=%s"
-                                                            "com.twitter.android" -> "https://x.com/search?q=%s"
-                                                            "tv.twitch.android.app" -> "https://www.twitch.tv/search?term=%s"
-                                                            "com.instagram.android" -> "https://www.instagram.com/explore/tags/%s"
-                                                            "com.pinterest" -> "https://www.pinterest.com/search/pins/?q=%s"
-                                                            "com.imdb.mobile" -> "https://www.imdb.com/find/?q=%s"
-                                                            else -> {
-                                                                val domain = appName.lowercase().filter { it.isLetterOrDigit() }
-                                                                "https://www.${domain}.com/search?q=%s"
-                                                            }
-                                                        }
-                                                    }
-                                                    showAppPicker = false
-                                                    errorMsg = null
-                                                },
-                                                shape = RoundedCornerShape(12.dp),
-                                                color = Color.Transparent,
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    val appBitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, pkgName) {
-                                                        value = withContext(Dispatchers.IO) {
-                                                            runCatching {
-                                                                context.packageManager.getApplicationIcon(pkgName)
-                                                                    .toBitmap(width = 96, height = 96).asImageBitmap()
-                                                            }.getOrNull()
-                                                        }
-                                                    }
-                                                    val loadedBitmap = appBitmap
-                                                    if (loadedBitmap != null) {
-                                                        Image(
-                                                            bitmap = loadedBitmap,
-                                                            contentDescription = appName,
-                                                            modifier = Modifier
-                                                                .size(28.dp)
-                                                                .clip(RoundedCornerShape(6.dp))
-                                                        )
-                                                    } else {
-                                                        Icon(
-                                                            imageVector = Icons.Outlined.Android,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(28.dp),
-                                                            tint = MaterialTheme.colorScheme.primary
-                                                        )
-                                                    }
-                                                    Spacer(modifier = Modifier.width(12.dp))
-                                                    Column {
-                                                        Text(
-                                                            appName,
-                                                            style = MaterialTheme.typography.bodyMedium,
-                                                            fontWeight = FontWeight.SemiBold
-                                                        )
-                                                        Text(
-                                                            pkgName,
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                            maxLines = 1,
-                                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
+                                    if (url != urlInput) {
+                                        urlInput = url
+                                        lastSuggestedUrl = url
                                     }
+                                    showAppPicker = false
+                                    errorMsg = null
                                 }
                             }
                         },
@@ -775,7 +751,11 @@ internal fun WebQuickShortcutsCard() {
                                     errorMsg = "Trigger must be one word of at most 24 characters"
                                     return@TextButton
                                 }
-                                if (trimmedPackage.isNotBlank() && !Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$").matches(trimmedPackage)) {
+                                if (webShortcutTriggerTaken(trimmedPrefix.lowercase(), editingBang, displayedActiveBangs)) {
+                                    errorMsg = "Another shortcut already uses ${trimmedPrefix.lowercase()}"
+                                    return@TextButton
+                                }
+                                if (trimmedPackage.isNotBlank() && !PACKAGE_NAME_REGEX.matches(trimmedPackage)) {
                                     errorMsg = "That isn't a valid app package name"
                                     return@TextButton
                                 }
@@ -840,6 +820,93 @@ internal fun WebQuickShortcutsCard() {
                         }
                     }
                 )
+            }
+        }
+    }
+}
+
+/**
+ * The shortcut editor's list of installed apps as (label, package): progress while [apps] is still loading (null),
+ * then the apps or a note that none match. Each row's icon comes from the shared icon cache as the row is shown.
+ */
+@Composable
+internal fun InstalledAppList(apps: List<Pair<String, String>>?, onPick: (appName: String, packageName: String) -> Unit) {
+    val context = LocalContext.current
+    when {
+        apps == null -> Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(modifier = Modifier.testTag(com.pixel.intelligentsearch.core.ui.LOADING_INDICATOR_TAG))
+        }
+        apps.isEmpty() -> Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "No matching apps found",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        else -> LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            items(apps, key = { it.second }) { (appName, pkgName) ->
+                Surface(
+                    onClick = { onPick(appName, pkgName) },
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.Transparent,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val appBitmap by produceState(peekNativeAppIcon(pkgName), pkgName) {
+                            value = withContext(Dispatchers.IO) { getNativeAppIcon(context, pkgName) }
+                        }
+                        val loadedBitmap = appBitmap
+                        if (loadedBitmap != null) {
+                            Image(
+                                bitmap = loadedBitmap,
+                                contentDescription = appName,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Outlined.Android,
+                                contentDescription = null,
+                                modifier = Modifier.size(28.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                appName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                pkgName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
             }
         }
     }

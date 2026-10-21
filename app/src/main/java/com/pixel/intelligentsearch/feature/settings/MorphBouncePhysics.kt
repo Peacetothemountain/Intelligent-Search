@@ -26,8 +26,14 @@ import kotlin.random.Random
  * Positions are body centres, y downwards, with the top of the animation area at 0 and the floor at [height].
  * Each new shape's sideways speed is chosen by simulating its flight beforehand, so it leaves the screen after
  * exactly the number of bounces it was given. Until it has made them, the side edges are soft walls, so a knock from
- * another shape can never send it out early; once it has, its next flight carries it off the screen. Bounces are
- * capped so a shape never rises above the top of the area.
+ * another shape can never send it out early; once it has, its next flight carries it off the screen (or, in an area
+ * too wide to cross in one flight, every flight from then on carries it on towards the edge). Bounces are capped so a
+ * shape never rises above the top of the area.
+ *
+ * No shape stays long: every one has left within [MAX_LIFETIME] of appearing, having made its planned bounces. A new
+ * shape is given only as many bounces as it makes, with the flight after them, by [PLAN_TIME] (fewer in a tall area,
+ * where flights are long); past that age knocks no longer reach it, since shapes knocking each other up could keep
+ * one in the air for ever, and the bed throws it no higher than its lowest bounce until it has made the rest.
  */
 internal class MorphBouncePhysics(
     private val random: Random = Random.Default,
@@ -49,7 +55,7 @@ internal class MorphBouncePhysics(
         var spin = 0f
         var angle = 0f
         var bounces = 0
-        /** Seconds since the body appeared; a safety limit removes any shape that somehow never leaves. */
+        /** Seconds since the body appeared; past [MAX_AGE] a shape is sent out whatever it has made, as a last resort. */
         var age = 0f
         /** How far the body has sunk into the trampoline bed, metres; 0 in the air. */
         var penetration = 0f
@@ -69,6 +75,8 @@ internal class MorphBouncePhysics(
         internal var contactTime = 0f
         /** On its way off the screen after its planned bounces; nothing knocks it back. */
         internal var exiting = false
+        /** Which side an [exiting] shape leaves by. */
+        internal var exitTowardsRight = false
         internal val dragK: Float get() = 0.5f * AIR_DENSITY * DRAG_COEFFICIENT * (Math.PI.toFloat() * radius * radius) / mass
         internal var inContact = false
     }
@@ -136,7 +144,13 @@ internal class MorphBouncePhysics(
             for (body in bodies) {
                 step(body, STEP, listener)
                 body.age += STEP
-                if (body.justLifted && !body.exiting && (body.bounces >= body.plannedBounces || body.age > MAX_AGE)) sendOut(body)
+                if (!body.justLifted) continue
+                if (body.exiting || body.bounces >= body.plannedBounces || body.age > MAX_AGE) {
+                    sendOut(body)
+                } else if (body.age > PLAN_TIME) {
+                    // Behind its plan (knocks kept it up): its bounces still to come are the bed's lowest, real ones.
+                    body.vy = maxOf(body.vy, -minimumRebound(body))
+                }
             }
             collide()
             bodies.removeAll { it.x - it.radius > width || it.x + it.radius < 0f }
@@ -152,8 +166,9 @@ internal class MorphBouncePhysics(
             for (j in i + 1 until bodies.size) {
                 val a = bodies[i]
                 val b = bodies[j]
-                // A shape whose centre has crossed a side edge is on its way out; nothing knocks it back or off.
-                if (leaving(a) || leaving(b)) continue
+                // A shape whose centre has crossed a side edge is on its way out; nothing knocks it back or off. Nor
+                // is a shape past its planned time knocked about any longer: knocks could keep it up for ever.
+                if (untouchable(a) || untouchable(b)) continue
                 val dx = b.x - a.x
                 val dy = b.y - a.y
                 val minDistance = a.radius + b.radius
@@ -208,17 +223,21 @@ internal class MorphBouncePhysics(
     /**
      * A shape that has made its planned bounces is given, as it leaves the trampoline, just enough sideways speed
      * to leave the screen before it lands again: in the direction it is going, or towards the nearer edge if it had
-     * all but stopped.
+     * all but stopped. Where the edge is too far for one flight even at the top speed, the bed throws it on again,
+     * the same way, every time it lands, so the bounce's friction and the air never leave it crawling across.
      */
     private fun sendOut(body: Body) {
-        val towardsRight = if (abs(body.vx) >= MIN_TRAVEL) body.vx > 0f else body.x > width / 2f
+        if (!body.exiting) {
+            body.exitTowardsRight = if (abs(body.vx) >= MIN_TRAVEL) body.vx > 0f else body.x > width / 2f
+            body.exiting = true
+        }
+        val towardsRight = body.exitTowardsRight
         val distance = if (towardsRight) width - body.x else body.x
         val needed = lowestSpeedFor(body, 0, distance, towardsRight, clearEdge = true) * 1.08f
-        body.vx = (if (towardsRight) 1f else -1f) * maxOf(abs(body.vx), needed)
-        body.exiting = true
+        body.vx = (if (towardsRight) 1f else -1f) * maxOf(if (body.vx > 0f == towardsRight) abs(body.vx) else 0f, needed)
     }
 
-    private fun leaving(body: Body): Boolean = body.exiting || body.x < 0f || body.x > width
+    private fun untouchable(body: Body): Boolean = body.exiting || body.x < 0f || body.x > width || body.age > PLAN_TIME
 
     private fun schedule(dt: Float) {
         if (pendingWave > 0) {
@@ -244,30 +263,52 @@ internal class MorphBouncePhysics(
         val radius = radii[nextId % radii.size].coerceAtMost(height * MAX_RADIUS_SHARE)
         // Light inflatable shells: mass grows with surface area.
         val mass = BASE_MASS * (radius / 0.1f) * (radius / 0.1f)
-        val body = Body(
-            id = nextId++,
-            radius = radius,
-            mass = mass,
-            restitution = 0.82f + random.nextFloat() * 0.06f,
-            plannedBounces = bounces
-        )
+        val restitution = 0.82f + random.nextFloat() * 0.06f
         // The opening wave spreads across the width; later shapes come in anywhere.
         val fraction = if (slot != null && slots > 0) {
             (slot + 0.5f) / slots + (random.nextFloat() - 0.5f) * 0.08f
         } else {
             0.12f + random.nextFloat() * 0.76f
         }
+        val dropSpeed = 0.4f + random.nextFloat() * 0.8f
+        val body = Body(
+            id = nextId++,
+            radius = radius,
+            mass = mass,
+            restitution = restitution,
+            plannedBounces = bouncesThatFit(radius, mass, restitution, dropSpeed, bounces)
+        )
         body.x = (width * fraction).clampSafely(radius, width - radius)
         body.y = -radius
-        body.vy = 0.4f + random.nextFloat() * 0.8f
+        body.vy = dropSpeed
         body.shapeIndex = body.id * 7
         body.angle = random.nextFloat() * 360f
         // Usually towards the farther edge, so the shape crosses the screen.
         val towardsRight = if (body.x < width / 2f) random.nextFloat() < 0.75f else random.nextFloat() < 0.25f
         val distanceToEdge = if (towardsRight) width - body.x else body.x
-        body.vx = (if (towardsRight) 1f else -1f) * planSidewaysSpeed(body, bounces, distanceToEdge, towardsRight)
+        body.vx = (if (towardsRight) 1f else -1f) * planSidewaysSpeed(body, body.plannedBounces, distanceToEdge, towardsRight)
         bodies += body
         return body
+    }
+
+    /**
+     * At most [bounces], and no more than a shape dropped in at [dropSpeed] makes, with the flight after them, by
+     * [PLAN_TIME]: in a tall area every flight is long, so a shape there is given fewer bounces rather than staying
+     * longer. At least one.
+     */
+    private fun bouncesThatFit(radius: Float, mass: Float, restitution: Float, dropSpeed: Float, bounces: Int): Int {
+        // Dropped straight down, with no side walls: only the bounces' timing matters here.
+        val ghost = Body(-1, radius, mass, restitution, bounces).apply {
+            x = width / 2f; y = -radius; vy = dropSpeed
+            exiting = true
+        }
+        var t = 0f
+        while (t < PLAN_TIME && ghost.bounces <= bounces) {
+            step(ghost, STEP, null)
+            t += STEP
+        }
+        // The landing that ends the flight after the last bounce must come by then too.
+        return bounces.coerceAtMost(ghost.bounces - 1).coerceAtLeast(1)
     }
 
     /**
@@ -288,7 +329,7 @@ internal class MorphBouncePhysics(
 
     /** The lowest sideways speed at which [body] leaves after at most [n] bounces (faster leaves sooner). */
     private fun lowestSpeedFor(body: Body, n: Int, distanceToEdge: Float, towardsRight: Boolean, clearEdge: Boolean): Float {
-        fun bouncesAt(speed: Float): Int = simulateBouncesBeforeExit(body, speed, distanceToEdge, towardsRight, clearEdge)
+        fun bouncesAt(speed: Float): Int = simulateBouncesBeforeExit(body, speed, distanceToEdge, towardsRight, clearEdge, limit = n)
         var lo = MIN_SIDEWAYS
         var hi = 8f
         if (bouncesAt(hi) > n) return hi
@@ -301,9 +342,10 @@ internal class MorphBouncePhysics(
 
     /**
      * How many bounces [template] makes, thrown sideways at [speed], before it reaches the edge [distanceToEdge]
-     * away: before it fully clears it if [clearEdge], otherwise before it first touches it.
+     * away: before it fully clears it if [clearEdge], otherwise before it first touches it. Only whether that is
+     * more than [limit] matters, so the flight is cut short once it is.
      */
-    private fun simulateBouncesBeforeExit(template: Body, speed: Float, distanceToEdge: Float, towardsRight: Boolean, clearEdge: Boolean): Int {
+    private fun simulateBouncesBeforeExit(template: Body, speed: Float, distanceToEdge: Float, towardsRight: Boolean, clearEdge: Boolean, limit: Int): Int {
         // The flight is simulated moving right; a shape heading left is its mirror image, spin included (friction
         // with the trampoline couples spin and sideways speed, so an unmirrored spin would change the answer).
         val ghost = Body(-1, template.radius, template.mass, template.restitution, template.plannedBounces).apply {
@@ -318,6 +360,7 @@ internal class MorphBouncePhysics(
         while (t < 30f) {
             step(ghost, STEP, null)
             if (if (clearEdge) ghost.x - ghost.radius > width else ghost.x + ghost.radius > width) return ghost.bounces
+            if (ghost.bounces > limit) return ghost.bounces
             if (abs(ghost.vx) < 1e-3f && !ghost.inContact && ghost.bounces > 20) return Int.MAX_VALUE
             t += STEP
         }
@@ -439,7 +482,16 @@ internal class MorphBouncePhysics(
         const val IDLE_FIRST_DELAY = 2.6f
         const val IDLE_GAP_MIN = 1.4f
         const val IDLE_GAP_MAX = 2.8f
+        /** A last resort only: no shape has been seen to reach it (see [MAX_LIFETIME]). */
         const val MAX_AGE = 8f
+        /** A new shape's bounces, and the flight after them, are planned to be over by this age. */
+        const val PLAN_TIME = 5f
+        /**
+         * Every shape has left by this age, having made its planned bounces, in areas from 40 dp to 900 dp tall and
+         * 320 dp to 1280 dp wide (checked over 500 random runs of each in MorphBouncePhysicsTest; the longest stay
+         * found is under 8 s).
+         */
+        const val MAX_LIFETIME = 9f
         const val MIN_SIDEWAYS = 0.02f
         /** A shape slowed by a knock keeps at least this sideways speed, so it always travels on. */
         const val MIN_TRAVEL = 0.35f

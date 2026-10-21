@@ -65,6 +65,39 @@ class MorphBouncePhysicsTest {
     }
 
     @Test
+    fun inAreasOfEveryShapeEveryShapeLeavesInTimeHavingMadeItsPlannedBounces() {
+        // Width x height in dp, and pixels per dp: the smallest area, a phone's, a tall phone's, a wide and short one,
+        // a tablet's in landscape and a tall tablet's. Wide areas take more than one flight to cross; in tall ones
+        // every flight is long and shapes knock each other high.
+        val areas = listOf(
+            Triple(320, 40, 3f), Triple(360, 160, 4f), Triple(411, 600, 3f),
+            Triple(1280, 160, 2f), Triple(1280, 500, 2f), Triple(840, 900, 3f)
+        )
+        for ((widthDp, heightDp, density) in areas) {
+            val scene = morphSceneFor(widthDp * density, heightDp * density, density)!!
+            for (seed in 1..500) {
+                val where = "${widthDp}x$heightDp dp, seed $seed"
+                val physics = MorphBouncePhysics(Random(seed)).apply { resize(scene.widthMetres, scene.heightMetres, scene.radiiMetres) }
+                val alive = mutableMapOf<Int, MorphBouncePhysics.Body>()
+                var left = 0
+                run(physics, 20f, onFrame = {
+                    for (b in physics.bodies) {
+                        assertTrue("$where: shape ${b.id} still on screen after ${b.age}s", b.age < MorphBouncePhysics.MAX_LIFETIME)
+                        alive[b.id] = b
+                    }
+                    val ids = physics.bodies.map { it.id }.toSet()
+                    for (id in alive.keys - ids) {
+                        val b = alive.remove(id)!!
+                        assertTrue("$where: shape $id left after ${b.bounces} bounces, planned ${b.plannedBounces}", b.bounces >= b.plannedBounces)
+                        left++
+                    }
+                })
+                assertTrue("$where: only $left shapes came and went", left >= 4)
+            }
+        }
+    }
+
+    @Test
     fun theOpeningWaveDropsFourOrFiveShapes() {
         val physics = world()
         var peak = 0

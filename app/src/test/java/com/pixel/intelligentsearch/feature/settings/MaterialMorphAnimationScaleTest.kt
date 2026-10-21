@@ -84,12 +84,22 @@ class MaterialMorphAnimationScaleTest {
         hilt.inject()
     }
 
-    private fun launch(qualifiers: String, fontScale: Float, content: @Composable () -> Unit): ActivityScenario<HiltTestActivity> {
+    /**
+     * Shows [content] with the animation's random choices drawn from [seed], so every run of a test sees the same
+     * shapes; [MorphBouncePhysicsTest] checks the rules over many seeds.
+     */
+    private fun launch(qualifiers: String, fontScale: Float, seed: Int = 1, content: @Composable () -> Unit): ActivityScenario<HiltTestActivity> {
         RuntimeEnvironment.setQualifiers(qualifiers)
         RuntimeEnvironment.setFontScale(fontScale)
         val scenario = ActivityScenario.launch(HiltTestActivity::class.java)
         compose.mainClock.autoAdvance = false
-        scenario.onActivity { it.setContent { IntelligentSearchTheme(darkTheme = false) { content() } } }
+        scenario.onActivity {
+            it.setContent {
+                CompositionLocalProvider(LocalMorphRandomSeed provides seed) {
+                    IntelligentSearchTheme(darkTheme = false) { content() }
+                }
+            }
+        }
         compose.mainClock.advanceTimeBy(100)
         return scenario
     }
@@ -186,11 +196,12 @@ class MaterialMorphAnimationScaleTest {
     @Test
     fun onTheThreePagesTheAnimationHasRoomUnderTheBottomCardAtEveryScale() {
         var belowTheFold = 0
+        var seed = 0
         for ((qualifiers, fontScale) in largeScales) {
             for ((page, lastRow) in pages) {
                 prefs.edit().clear().putBoolean(SettingsManager.MORPH_ANIMATION_ENABLED.name, true).commit()
                 val where = "$page $qualifiers ${fontScale}x"
-                val scenario = launch(qualifiers, fontScale) { Page(page) }
+                val scenario = launch(qualifiers, fontScale, seed = ++seed) { Page(page) }
                 try {
                     val area = areaNode()
                     val density = area.layoutInfo.density.density
@@ -236,9 +247,10 @@ class MaterialMorphAnimationScaleTest {
             Triple("w780dp-h360dp-xxxhdpi", 1f, 780 to 120),
             Triple("w1280dp-h800dp-xhdpi", 2f, 1280 to 500)
         )
-        for ((qualifiers, fontScale, area) in cases) {
+        for ((i, case) in cases.withIndex()) {
+            val (qualifiers, fontScale, area) = case
             val where = "${area.first}x${area.second} dp area, $qualifiers ${fontScale}x"
-            val scenario = launch(qualifiers, fontScale) {
+            val scenario = launch(qualifiers, fontScale, seed = i + 1) {
                 Box(Modifier.size(area.first.dp, area.second.dp)) { MaterialMorphAnimation(Modifier.fillMaxSize()) }
             }
             try {

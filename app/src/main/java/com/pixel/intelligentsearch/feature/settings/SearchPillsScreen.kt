@@ -1,6 +1,10 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import com.pixel.intelligentsearch.core.data.settings.SearchPillProfiles
 import android.content.Context
 import android.content.Intent
@@ -83,8 +87,7 @@ fun getNativeAppIcon(context: Context, packageName: String): androidx.compose.ui
 
 data class AppPickerItem(
     val packageName: String,
-    val label: String,
-    val iconBitmap: androidx.compose.ui.graphics.ImageBitmap?
+    val label: String
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,9 +111,19 @@ fun SearchPillsScreen(
     }
 
     fun switchProfile(id: Int) {
+        if (id == activeProfile) return
         localPillList = profiles.switchTo(id)
         activeProfile = id
         resetCounter++
+    }
+
+    // TalkBack's way to reorder: moves a pill one place, as dragging it over its neighbour does.
+    fun movePill(packageName: String, by: Int): Boolean {
+        val from = localPillList.indexOf(packageName)
+        val to = from + by
+        if (from == -1 || to !in localPillList.indices) return false
+        persistPills(localPillList.toMutableList().apply { add(to, removeAt(from)) })
+        return true
     }
 
     var showAppPicker by remember { mutableStateOf(false) }
@@ -130,14 +143,10 @@ fun SearchPillsScreen(
                         addCategory(android.content.Intent.CATEGORY_LAUNCHER)
                     }
                     val resolveInfoList = pm.queryIntentActivities(intent, 0)
+                    // Labels only: icons are drawn per row as it comes into view, so the list doesn't wait for all of them.
                     val apps = resolveInfoList.asSequence()
                         .distinctBy { it.activityInfo.packageName }
-                        .map {
-                            val pkg = it.activityInfo.packageName
-                            val label = it.loadLabel(pm).toString()
-                            val icon = getNativeAppIcon(context, pkg)
-                            AppPickerItem(packageName = pkg, label = label, iconBitmap = icon)
-                        }
+                        .map { AppPickerItem(packageName = it.activityInfo.packageName, label = it.loadLabel(pm).toString()) }
                         .sortedBy { it.label.lowercase() }
                         .toList()
                     installedApps = apps
@@ -151,6 +160,16 @@ fun SearchPillsScreen(
     }
 
     LaunchedEffect(Unit) { profiles.ensureDefaultSaved() }
+
+    // System back steps out of multi-select, then out of the picker, as the toolbar's back button does.
+    BackHandler(enabled = showAppPicker) {
+        if (multiSelectMode) {
+            multiSelectMode = false
+            selectedApps = emptySet()
+        } else {
+            showAppPicker = false
+        }
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -229,7 +248,7 @@ fun SearchPillsScreen(
             AlertDialog(
                 onDismissRequest = { showMaxWarning = false },
                 title = { Text("Maximum Reached", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-                text = { Text("You cannot add more than 20 apps to the Quick Launch at a time.", style = MaterialTheme.typography.bodyLarge) },
+                text = { Text("You cannot add more than ${SearchPillProfiles.MAX_PILLS} apps to the Quick Launch at a time.", style = MaterialTheme.typography.bodyLarge) },
                 confirmButton = {
                     TextButton(onClick = { showMaxWarning = false }) {
                         Text("OK", style = MaterialTheme.typography.labelLarge)
@@ -281,6 +300,10 @@ fun SearchPillsScreen(
                             val packageName = appItem.packageName
                             val isSelected = selectedApps.contains(packageName)
                             val isAlreadyAdded = localPillList.contains(packageName)
+                            // Cached icons show at once; others are rasterized off the main thread.
+                            val appIcon by produceState(peekNativeAppIcon(packageName), packageName) {
+                                value = withContext(Dispatchers.IO) { getNativeAppIcon(context, packageName) }
+                            }
 
                             androidx.compose.foundation.layout.Box(
                                 modifier = Modifier
@@ -290,7 +313,7 @@ fun SearchPillsScreen(
                                 SettingsRow(
                                     title = appItem.label,
                                     subtitle = if (isAlreadyAdded) "Already in Quick Launch" else packageName.breakableAtDots(),
-                                    icon = appItem.iconBitmap ?: Icons.Outlined.Apps,
+                                    icon = appIcon ?: Icons.Outlined.Apps,
                                     onClick = {
                                         if (multiSelectMode) {
                                             selectedApps = if (isSelected) selectedApps - packageName else selectedApps + packageName
@@ -580,7 +603,15 @@ fun SearchPillsScreen(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clip(RoundedCornerShape(24.dp))
-                                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
+                                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
+                                                // TalkBack can't swipe or drag the row, so removing and moving it are actions on it.
+                                                .semantics(mergeDescendants = true) {
+                                                    customActions = buildList {
+                                                        add(CustomAccessibilityAction("Remove") { persistPills(localPillList - packageName); true })
+                                                        if (itemIndex > 0) add(CustomAccessibilityAction("Move up") { movePill(packageName, -1) })
+                                                        if (itemIndex < localPillList.lastIndex) add(CustomAccessibilityAction("Move down") { movePill(packageName, 1) })
+                                                    }
+                                                },
                                             color = containerBg,
                                             shape = RoundedCornerShape(24.dp)
                                         ) {

@@ -49,6 +49,14 @@ class SearchPillProfilesTest {
         assertEquals("c", prefs[SettingsManager.SEARCH_PILLS])
     }
 
+    /** Tapping the profile already shown must not swap in its older working copy. */
+    @Test
+    fun switchingToTheActiveProfileKeepsItsPills() {
+        prefs.edit().put(SettingsManager.SEARCH_PILLS, "r1,r2").putString("app_search_profile_1", "a,b").commit()
+        assertEquals(listOf("r1", "r2"), profiles.switchTo(1))
+        assertEquals(listOf("r1", "r2"), profiles.pills())
+    }
+
     @Test
     fun resetReturnsToTheSavedState() {
         profiles.setPills(listOf("x"))

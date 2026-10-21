@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import android.content.Context
+import android.view.View
 import androidx.activity.BackEventCompat
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -25,7 +26,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-/** Back gestures on the Settings pages: a cancelled swipe puts the page back, and back on a sub-page returns to Main. */
+/**
+ * Back gestures on the Settings pages: a cancelled swipe puts the page back without dropping the next swipe's
+ * refresh rate, and back on a sub-page returns to Main.
+ */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
 @Config(application = HiltTestApplication::class, qualifiers = "w412dp-h915dp-xhdpi")
@@ -64,6 +68,32 @@ class SettingsNavHostBackTest {
 
         assertEquals(before, title.fetchSemanticsNode().boundsInRoot)
         assertFalse(compose.activity.isFinishing)
+    }
+
+    @Test
+    @Config(sdk = [35])
+    fun aSwipeStartedWhileACancelledOneSpringsBackKeepsTheHighRefreshRate() {
+        compose.mainClock.autoAdvance = false
+        compose.settle(steps = 5)
+        val dispatcher = compose.activity.onBackPressedDispatcher
+        compose.runOnIdle {
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 400f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(240f, 400f, 0.6f, BackEventCompat.EDGE_LEFT))
+        }
+        compose.settle(steps = 2)
+        compose.runOnIdle { dispatcher.dispatchOnBackCancelled() }
+        // The cancelled page is still springing back when the next swipe starts.
+        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.advanceTimeByFrame()
+        compose.runOnIdle {
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 400f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(120f, 400f, 0.3f, BackEventCompat.EDGE_LEFT))
+        }
+        compose.settle(steps = 3)
+
+        val window = compose.activity.window
+        assertEquals(View.REQUESTED_FRAME_RATE_CATEGORY_HIGH, window.decorView.requestedFrameRate)
+        assertTrue(window.attributes.frameRateBoostOnTouchEnabled)
     }
 
     @Test

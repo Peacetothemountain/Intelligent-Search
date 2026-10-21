@@ -143,10 +143,12 @@ fun SettingsScreensHub(
         }
 
         val exitBackProgress = remember { Animatable(0f) }
+        val exitSwipes = remember { java.util.concurrent.atomic.AtomicInteger() }
         var predictiveBackSwipeEdge by remember { mutableIntStateOf(androidx.activity.BackEventCompat.EDGE_LEFT) }
 
         androidx.activity.compose.PredictiveBackHandler(enabled = !hasSubScreensInNavHost) { progressFlow ->
             val act = context.findActivity()
+            val swipe = exitSwipes.incrementAndGet()
             try {
                 com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(act)
                 progressFlow.collect { backEvent ->
@@ -163,7 +165,11 @@ fun SettingsScreensHub(
                 }
                 throw e
             } finally {
-                com.pixel.intelligentsearch.core.ui.WindowFramePacing.setNormalRefreshRateCategory(act)
+                // A swipe started while this one sprang back is already running at the high rate; resetting here
+                // would drop it to the normal rate (and switch touch boost off) for the rest of that swipe.
+                if (exitSwipes.get() == swipe) {
+                    com.pixel.intelligentsearch.core.ui.WindowFramePacing.setNormalRefreshRateCategory(act)
+                }
             }
         }
 

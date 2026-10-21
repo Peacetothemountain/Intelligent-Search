@@ -48,8 +48,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.*
 import androidx.compose.foundation.Image
@@ -648,6 +648,13 @@ fun Android17Slider(
         }
     }
 
+    // Where along the track a pointer at [x] sits, as a fraction; the thumb's half-width is kept clear at each end.
+    fun androidx.compose.ui.input.pointer.PointerInputScope.fractionAt(x: Float): Float {
+        val thumbW = 6.dp.toPx()
+        val trackAvailableWidth = (size.width - thumbW).coerceAtLeast(1f)
+        return ((x - thumbW / 2f) / trackAvailableWidth).coerceIn(0f, 1f)
+    }
+
     val cachedPath = remember { androidx.compose.ui.graphics.Path() }
 
     Box(
@@ -669,30 +676,20 @@ fun Android17Slider(
                     } else false
                 }
             }
+            // A tap or a sideways drag sets the value. The down event is left unconsumed until the drag passes the
+            // horizontal touch slop, so a vertical swipe that starts on the slider still scrolls the page.
             .pointerInput(steps, valueRange) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    down.consume()
-                    val thumbW = 6.dp.toPx()
-                    val trackAvailableWidth = (size.width - thumbW).coerceAtLeast(1f)
-                    val downFraction = ((down.position.x - thumbW / 2f) / trackAvailableWidth).coerceIn(0f, 1f)
-                    processChange(downFraction)
-
-                    val pointerId = down.id
-                    var prevX = down.position.x
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull { it.id == pointerId } ?: break
-                        if (!change.pressed) break
+                detectTapGestures(onTap = { processChange(fractionAt(it.x)) })
+            }
+            .pointerInput(steps, valueRange) {
+                detectHorizontalDragGestures(
+                    onDragStart = { processChange(fractionAt(it.x)) },
+                    onHorizontalDrag = { change, dragAmount ->
                         change.consume()
-                        val currentX = change.position.x
-                        val deltaX = currentX - prevX
-                        prevX = currentX
-                        dragPhaseOffset.floatValue += deltaX * 0.04f
-                        val dragFraction = ((currentX - thumbW / 2f) / trackAvailableWidth).coerceIn(0f, 1f)
-                        processChange(dragFraction)
+                        dragPhaseOffset.floatValue += dragAmount * 0.04f
+                        processChange(fractionAt(change.position.x))
                     }
-                }
+                )
             },
         contentAlignment = Alignment.CenterStart
     ) {

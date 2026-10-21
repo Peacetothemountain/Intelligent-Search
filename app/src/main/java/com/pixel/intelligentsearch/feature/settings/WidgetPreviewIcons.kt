@@ -25,8 +25,6 @@ import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
-import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
-import com.pixel.intelligentsearch.feature.widget.WidgetDoodles
 import com.pixel.intelligentsearch.core.occasion.Occasion
 
 internal val PACKAGE_NAME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$")
@@ -281,13 +279,6 @@ fun updateWidgets(context: Context) {
     } catch (e: Throwable) {
         android.util.Log.e("SettingsScreens", "Failed to update widgets", e)
     }
-}
-
-/** The doodle the widgets show today (or the one Developer Settings is previewing); null on an ordinary day. */
-@Composable
-fun rememberWidgetDoodle(): Occasion? {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    return remember { WidgetDoodles.current(SearchWidgetProvider.getSafeSharedPreferences(context)) }
 }
 
 /**

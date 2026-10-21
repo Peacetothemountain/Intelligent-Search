@@ -2,7 +2,6 @@ package com.pixel.intelligentsearch.feature.settings
 
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -69,7 +68,6 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -341,7 +339,7 @@ private fun DoodleStage(
         color = MaterialTheme.colorScheme.surfaceContainer
     ) {
         Column(Modifier.padding(16.dp)) {
-            DoodlePill(occasion, scale = 2f, light = lightPill, showMic = true, modifier = Modifier.fillMaxWidth())
+            DoodleWidgetMock(occasion, scale = 2f, light = lightPill, full = true, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -396,7 +394,7 @@ private fun DoodleStage(
     }
 }
 
-/** One doodle in the grid: playing around the G on a short pill, with its name and when it next shows. */
+/** One doodle in the grid: playing around the G on the end of a widget, with its name and when it next shows. */
 @Composable
 private fun DoodleCard(
     occasion: Occasion,
@@ -420,7 +418,7 @@ private fun DoodleCard(
     ) {
         Box {
             Column(Modifier.fillMaxWidth().padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                DoodlePill(occasion, scale = 1f, light = lightPill, showMic = false, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp))
+                DoodleWidgetMock(occasion, scale = 1f, light = lightPill, full = false, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp))
                 Spacer(Modifier.height(4.dp))
                 Text(
                     title,
@@ -453,35 +451,85 @@ private fun DoodleCard(
 }
 
 /**
- * The widget's Material pill around the standard G, [scale] times the widget's size, with [occasion] playing around
- * the G exactly where the widget plays it.
+ * A mock-up of the Material design widget as it comes (accent rim, Material You G, black pill in the dark), [scale]
+ * times the widget's size, with [occasion] playing around the G exactly where the widget plays it. With [full] it has
+ * the voice search button and the round search button too; without, just the G's end of the bar.
  */
 @Composable
-private fun DoodlePill(occasion: Occasion, scale: Float, light: Boolean, showMic: Boolean, modifier: Modifier = Modifier) {
-    val pill = if (light) Color(0xFFFFFFFF) else Color(0xFF303134)
+private fun DoodleWidgetMock(occasion: Occasion, scale: Float, light: Boolean, full: Boolean, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val scheme = remember(context, light) {
+        if (light) androidx.compose.material3.dynamicLightColorScheme(context)
+        else androidx.compose.material3.dynamicDarkColorScheme(context)
+    }
+    // The design's defaults: the widget 28% see-through, and kept black in the dark.
+    val alpha = 0.72f
+    val rim = scheme.primaryContainer.copy(alpha = alpha)
+    val pill = if (light) scheme.surfaceContainer.copy(alpha = alpha) else Color(0xFF121212)
+    val (gPrimary, gSecondary, gTertiary) = remember(context, light) {
+        val widget = com.pixel.intelligentsearch.core.theme.DynamicThemeDetector.resolveWidgetColors(context, !light)
+        val helper = com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
+        // On a light pill the widget darkens its colours to stay readable.
+        listOf(
+            if (light) helper.darkenForContrast(widget.primary, 32.0) else widget.primary,
+            if (light) helper.darkenForContrast(widget.secondary, 34.0) else widget.secondary,
+            if (light) helper.darkenForContrast(widget.tertiary, 32.0) else widget.tertiary
+        ).map { Color(it) }
+    }
     Row(
         modifier = modifier
-            .height(48.dp * scale)
-            .background(pill, CircleShape)
-            .padding(horizontal = 16.dp * scale),
+            .background(rim, RoundedCornerShape(32.dp * scale))
+            .padding(8.dp * scale),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(24.dp * scale), contentAlignment = Alignment.Center) {
-            Image(
-                painter = painterResource(R.drawable.ic_g_logo_colored),
-                contentDescription = null,
-                modifier = Modifier.size(24.dp * scale)
-            )
-            WidgetDoodleOverlay(occasion, size = 48.dp * scale)
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .height(48.dp * scale)
+                .background(pill, CircleShape)
+                .padding(horizontal = 16.dp * scale),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(24.dp * scale), contentAlignment = Alignment.Center) {
+                ComposeGIcon(
+                    modifier = Modifier.size(24.dp * scale),
+                    primaryColor = gPrimary,
+                    secondaryColor = gSecondary,
+                    tertiaryColor = gTertiary,
+                    isPillLight = light
+                )
+                WidgetDoodleOverlay(occasion, size = 48.dp * scale)
+            }
+            if (full) {
+                Spacer(Modifier.weight(1f))
+                ComposeThemedShortcutIcon(
+                    resId = R.drawable.ic_mic,
+                    contentDescription = "Voice Search",
+                    primaryColor = gPrimary,
+                    secondaryColor = gSecondary,
+                    tertiaryColor = gTertiary,
+                    isMaterialTheme = true,
+                    modifier = Modifier.size(24.dp * scale),
+                    isPillLight = light
+                )
+            }
         }
-        if (showMic) {
-            Spacer(Modifier.weight(1f))
-            Icon(
-                painter = painterResource(R.drawable.ic_mic),
-                contentDescription = null,
-                tint = if (light) Color(0xFF5F6368) else Color(0xFFE8EAED),
-                modifier = Modifier.size(24.dp * scale)
-            )
+        if (full) {
+            Spacer(Modifier.width(8.dp * scale))
+            Box(
+                Modifier.size(48.dp * scale).background(pill, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                ComposeActionIcon(
+                    iconType = "Search",
+                    modifier = Modifier.size(24.dp * scale),
+                    primaryColor = gPrimary,
+                    secondaryColor = gSecondary,
+                    tertiaryColor = gTertiary,
+                    isMaterialTheme = true,
+                    isPillLight = light
+                )
+            }
         }
     }
 }

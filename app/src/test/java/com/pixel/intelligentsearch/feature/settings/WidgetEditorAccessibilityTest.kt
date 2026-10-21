@@ -172,6 +172,45 @@ class WidgetEditorAccessibilityTest {
         compose.onNodeWithText("WIDGET SHORTCUTS").assert(isHeading)
     }
 
+    @Test
+    fun slotsAreNumberedByPosition() {
+        openEditor()
+        tap("Widget Shortcuts")
+
+        // Default order: shortcut1, mic, shortcut2, shortcut3.
+        compose.onNodeWithText("Microphone Slot:").assertDoesNotExist()
+        compose.onNodeWithText("Microphone Slot: 2").assertExists()
+        compose.onNodeWithText("Shortcut Slot: 1").assertExists()
+        compose.onNodeWithText("Shortcut Slot: 3").assertExists()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun slotsCanBeMovedWithoutDragging() {
+        openEditor()
+        tap("Widget Shortcuts")
+
+        // The first slot can only move down.
+        compose.onNode(hasText("Google Lens") and hasCustomAction("Move down")).assertExists()
+        compose.onNode(hasText("Google Lens") and hasCustomAction("Move up")).assertDoesNotExist()
+        compose.onNodeWithText("Voice Search").performCustomAccessibilityActionWithLabel("Move up")
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Save").performClick()
+        compose.settle(steps = 5)
+
+        assertEquals("mic,shortcut1,shortcut2,shortcut3", prefs.getString("widget_system_shortcut_order", null))
+    }
+
+    @Test
+    fun dragHandleIsAFullSizeTouchTarget() {
+        openEditor()
+        tap("Widget Shortcuts")
+
+        compose.onAllNodesWithContentDescription("Drag to reorder")[0]
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+    }
+
     private fun hasCustomAction(label: String) = SemanticsMatcher("has custom action '$label'") { node ->
         node.config.getOrNull(SemanticsActions.CustomActions).orEmpty().any { it.label == label }
     }

@@ -71,6 +71,15 @@ internal fun WidgetShortcutsTab(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         val currentOrderList = localSlotOrderStr.split(",").filter { it.isNotBlank() }
+        // Swaps a slot with its neighbour, as dragging it past half a card does.
+        val moveSlot: (String, Int) -> Unit = { slot, delta ->
+            val updated = localSlotOrderStr.split(",").filter { it.isNotBlank() }.toMutableList()
+            val from = updated.indexOf(slot)
+            if (from != -1 && from + delta in updated.indices) {
+                java.util.Collections.swap(updated, from, from + delta)
+                localSlotOrderStr = updated.joinToString(",")
+            }
+        }
         currentOrderList.forEach { slotKey ->
             key(slotKey) {
                 val isDragging = draggingSlotKey == slotKey
@@ -86,7 +95,7 @@ internal fun WidgetShortcutsTab(
 
                 val currentPositionIndex = currentOrderList.indexOf(slotKey)
                 val cardTitle = when (slotKey) {
-                    "mic" -> "Microphone Slot:"
+                    "mic" -> "Microphone Slot: ${currentPositionIndex + 1}"
                     else -> "Shortcut Slot: ${currentPositionIndex + 1}"
                 }
 
@@ -184,7 +193,9 @@ internal fun WidgetShortcutsTab(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                // Trimmed around the drag handle's 48dp touch target, so the card keeps its size and
+                                // the handle's icon stays 16dp in from the edges.
+                                .padding(start = 16.dp, top = 10.dp, end = 4.dp, bottom = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -192,6 +203,18 @@ internal fun WidgetShortcutsTab(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .weight(1f)
+                                    // Dragging the handle is touch-only, so the card also offers Move up and Move
+                                    // down to TalkBack and switch access.
+                                    .semantics {
+                                        customActions = buildList {
+                                            if (currentPositionIndex > 0) {
+                                                add(CustomAccessibilityAction("Move up") { moveSlot(slotKey, -1); true })
+                                            }
+                                            if (currentPositionIndex in 0 until currentOrderList.lastIndex) {
+                                                add(CustomAccessibilityAction("Move down") { moveSlot(slotKey, 1); true })
+                                            }
+                                        }
+                                    }
                                     .clickable {
                                         hapticEngine.performPredictiveBackHaptic(view)
                                         if (slotKey == "mic") {
@@ -229,53 +252,61 @@ internal fun WidgetShortcutsTab(
                             }
 
                             val currentSlot by rememberUpdatedState(slotKey)
-                            Icon(
-                                imageVector = Icons.Outlined.DragHandle,
-                                contentDescription = "Drag to reorder",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                modifier = Modifier.pointerInput(currentSlot, isSystem) {
-                                    detectVerticalDragGestures(
-                                        onDragStart = {
-                                            hapticEngine.performPredictiveBackHaptic(view)
-                                            draggingSlotKey = currentSlot
-                                            itemDragOffset = 0f
-                                        },
-                                        onDragEnd = {
-                                            draggingSlotKey = null
-                                            itemDragOffset = 0f
-                                        },
-                                        onDragCancel = {
-                                            draggingSlotKey = null
-                                            itemDragOffset = 0f
-                                        },
-                                        onVerticalDrag = { change, dragAmount ->
-                                            change.consume()
-                                            itemDragOffset += dragAmount
+                            // The handle's touch target is a full 48dp around its 24dp icon.
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .semantics { contentDescription = "Drag to reorder" }
+                                    .pointerInput(currentSlot, isSystem) {
+                                        detectVerticalDragGestures(
+                                            onDragStart = {
+                                                hapticEngine.performPredictiveBackHaptic(view)
+                                                draggingSlotKey = currentSlot
+                                                itemDragOffset = 0f
+                                            },
+                                            onDragEnd = {
+                                                draggingSlotKey = null
+                                                itemDragOffset = 0f
+                                            },
+                                            onDragCancel = {
+                                                draggingSlotKey = null
+                                                itemDragOffset = 0f
+                                            },
+                                            onVerticalDrag = { change, dragAmount ->
+                                                change.consume()
+                                                itemDragOffset += dragAmount
 
-                                            val currentDraggingSlot = draggingSlotKey ?: return@detectVerticalDragGestures
-                                            val currentList = localSlotOrderStr.split(",").filter { it.isNotBlank() }
-                                            val from = currentList.indexOf(currentDraggingSlot)
-                                            val itemHeight = slotItemHeightPx
+                                                val currentDraggingSlot = draggingSlotKey ?: return@detectVerticalDragGestures
+                                                val currentList = localSlotOrderStr.split(",").filter { it.isNotBlank() }
+                                                val from = currentList.indexOf(currentDraggingSlot)
+                                                val itemHeight = slotItemHeightPx
 
-                                            if (from != -1 && itemHeight > 0f) {
-                                                if (itemDragOffset > itemHeight / 2f && from < currentList.size - 1) {
-                                                    hapticEngine.performPredictiveBackHaptic(view)
-                                                    val updated = currentList.toMutableList()
-                                                    java.util.Collections.swap(updated, from, from + 1)
-                                                    localSlotOrderStr = updated.joinToString(",")
-                                                    itemDragOffset -= itemHeight
-                                                } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
-                                                    hapticEngine.performPredictiveBackHaptic(view)
-                                                    val updated = currentList.toMutableList()
-                                                    java.util.Collections.swap(updated, from, from - 1)
-                                                    localSlotOrderStr = updated.joinToString(",")
-                                                    itemDragOffset += itemHeight
+                                                if (from != -1 && itemHeight > 0f) {
+                                                    if (itemDragOffset > itemHeight / 2f && from < currentList.size - 1) {
+                                                        hapticEngine.performPredictiveBackHaptic(view)
+                                                        val updated = currentList.toMutableList()
+                                                        java.util.Collections.swap(updated, from, from + 1)
+                                                        localSlotOrderStr = updated.joinToString(",")
+                                                        itemDragOffset -= itemHeight
+                                                    } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
+                                                        hapticEngine.performPredictiveBackHaptic(view)
+                                                        val updated = currentList.toMutableList()
+                                                        java.util.Collections.swap(updated, from, from - 1)
+                                                        localSlotOrderStr = updated.joinToString(",")
+                                                        itemDragOffset += itemHeight
+                                                    }
                                                 }
                                             }
-                                        }
-                                    )
-                                }
-                            )
+                                        )
+                                    }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.DragHandle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
+                            }
                         }
                     }
                 }

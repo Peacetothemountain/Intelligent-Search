@@ -260,6 +260,8 @@ fun CustomSearchAppIcon(modifier: Modifier = Modifier) {
     }
 }
 
+private val TOR_NAMES = listOf("Tor Project", "Tor", "Tor Browser")
+
 @Composable
 fun SearchAppColorfulIcon(
     appName: String,
@@ -278,7 +280,8 @@ fun SearchAppColorfulIcon(
         normalized.equals("Bing", ignoreCase = true) -> {
             BingOfficialAppIcon(modifier = modifier)
         }
-        normalized.contains("Tor", ignoreCase = true) -> {
+        // Exact names only: a custom engine such as "Play Store" merely contains "tor".
+        TOR_NAMES.any { normalized.equals(it, ignoreCase = true) } -> {
             TorOfficialAppIcon(modifier = modifier)
         }
         normalized.equals("Custom", ignoreCase = true) || normalized.isBlank() -> {

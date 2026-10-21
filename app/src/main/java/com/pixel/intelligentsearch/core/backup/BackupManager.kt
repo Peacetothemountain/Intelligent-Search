@@ -317,7 +317,8 @@ class BackupManager @Inject constructor(
         val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
         return EncryptedBackupEnvelope(
             isHardwareBacked = false,
-            hardwareChip = hwInfo.chipName,
+            // Where this phone keeps its keys: a phone without StrongBox must not name a security chip it doesn't use.
+            hardwareChip = hwInfo.keyHolderName,
             deviceModel = hwInfo.deviceDisplayName,
             kdf = KdfMetadata(iterations = BackupCryptoEngine.PBKDF2_ITERATIONS, saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
             cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),

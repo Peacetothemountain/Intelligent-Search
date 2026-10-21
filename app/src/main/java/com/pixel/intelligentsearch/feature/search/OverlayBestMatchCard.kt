@@ -48,6 +48,7 @@ import androidx.compose.runtime.Composable
 internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
     val settingsState = s.settingsState
     val performAppLaunch = s.performAppLaunch
+    val launchIcons = s.launchIcons
     var hasStartedTyping by s.ui::hasStartedTyping
     val context = LocalContext.current
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -203,7 +204,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .bouncyClickable { performAppLaunch(match) }
+                                .bouncyClickable { performAppLaunch(match, LaunchSource.tap(LaunchIconKeys.BEST_MATCH)) }
                                 .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -211,11 +212,11 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                 Image(
                                     bitmap = appIcon.bitmap,
                                     contentDescription = null,
-                                    modifier = Modifier.size(52.dp),
+                                    modifier = Modifier.size(52.dp).launchIcon(launchIcons, LaunchIconKeys.BEST_MATCH),
                                     colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
                                 )
                             } else if (fallbackBitmap != null) {
-                                Image(bitmap = fallbackBitmap, contentDescription = null, modifier = Modifier.size(52.dp))
+                                Image(bitmap = fallbackBitmap, contentDescription = null, modifier = Modifier.size(52.dp).launchIcon(launchIcons, LaunchIconKeys.BEST_MATCH))
                             }
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {

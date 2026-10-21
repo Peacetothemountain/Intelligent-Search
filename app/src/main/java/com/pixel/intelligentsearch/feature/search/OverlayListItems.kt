@@ -33,8 +33,9 @@ import androidx.core.graphics.drawable.toBitmap
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 
+/** An app in the app row: its icon and name. The icon is marked as [launchIcon], so the app opens out of it. */
 @Composable
-fun AppGridItem(app: AppItem, onClick: () -> Unit) {
+fun AppGridItem(app: AppItem, launchIcon: LaunchIconTarget? = null, onClick: () -> Unit) {
     val context = LocalContext.current
     // Another profile's copy keeps its own (badged) icon: themed icons are looked up by package, i.e. the personal app.
     val otherProfile = app.userHandle != null && app.userHandle != android.os.Process.myUserHandle()
@@ -76,14 +77,14 @@ fun AppGridItem(app: AppItem, onClick: () -> Unit) {
             Image(
                 bitmap = appIcon.bitmap,
                 contentDescription = label,
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(48.dp).launchIcon(launchIcon),
                 colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
             )
         } else if (fallbackBitmap != null) {
             Image(
                 bitmap = fallbackBitmap,
                 contentDescription = label,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(48.dp).launchIcon(launchIcon)
             )
         }
         Spacer(modifier = Modifier.height(8.dp))

@@ -32,6 +32,8 @@ internal fun OverlayQuickAppPanel(s: OverlayScope) {
     val uiState = s.uiState
     val settingsState = s.settingsState
     val performLaunch = s.performLaunch
+    val launchIcons = s.launchIcons
+    val appLaunch = s.appLaunch
     var hasStartedTyping by s.ui::hasStartedTyping
     val context = LocalContext.current
 
@@ -58,17 +60,24 @@ internal fun OverlayQuickAppPanel(s: OverlayScope) {
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             uniqueItems(pillPackages, key = { pkg -> "pill_$pkg" }, contentType = { "pill" }) { packageName ->
-                        QuickAppPill(packageName, settingsState.activeIconPack, dynamicScale, knownName = knownNames[packageName]) {
+                        val iconKey = LaunchIconKeys.pill(packageName)
+                        QuickAppPill(
+                            packageName, settingsState.activeIconPack, dynamicScale, knownName = knownNames[packageName],
+                            launchIcon = LaunchIconTarget(launchIcons, iconKey)
+                        ) {
                             if (uiState.query.isNotEmpty()) viewModel.addSearchHistory(uiState.query)
 
                             val searchStr = uiState.query
                             if (searchStr.isEmpty()) {
-                                performLaunch(packageName, null, null)
+                                performLaunch(packageName, null, null, LaunchSource.tap(iconKey))
                             } else {
                                 val intent = quickAppSearchIntent(context, packageName, searchStr)
                                 if (intent != null) {
                                     hasStartedTyping = false
-                                    launchSafeIntent(context, intent)
+                                    // The app opens on the query out of its pill's icon, as when it is just opened.
+                                    val launch = appLaunch(LaunchSource.tap(iconKey))
+                                    launch?.sourceBounds?.let { intent.sourceBounds = it }
+                                    launchSafeIntent(context, intent, launch?.options)
                                 }
                             }
                         }
@@ -89,6 +98,7 @@ internal fun QuickAppPill(
     scale: Float,
     knownName: String? = null,
     appLabel: (Context, String) -> String = ::getAppName,
+    launchIcon: LaunchIconTarget? = null,
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -109,6 +119,6 @@ internal fun QuickAppPill(
     val appIcon = appIconState.value
     val appName = appNameState.value
     if (appIcon != null && appName != null) {
-        SearchPill(iconBitmap = appIcon, title = appName, scale = scale, onClick = onClick)
+        SearchPill(iconBitmap = appIcon, title = appName, scale = scale, launchIcon = launchIcon, onClick = onClick)
     }
 }

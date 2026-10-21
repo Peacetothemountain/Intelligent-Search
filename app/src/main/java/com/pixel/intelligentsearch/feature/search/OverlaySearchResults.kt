@@ -119,7 +119,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     val fileWeight = s.fileWeight
     val suggestionsEnabled = s.suggestionsEnabled
     val performAppLaunch = s.performAppLaunch
-    val launchOptions = s.launchOptions
+    val launchIcons = s.launchIcons
+    val appLaunch = s.appLaunch
     val launchWebSearch = s.launchWebSearch
     val openWebAddress = s.openWebAddress
     val visibleApps = s.visibleApps
@@ -544,6 +545,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
 
         if (settingsState.searchShortcuts && uiState.shortcuts.isNotEmpty()) {
             uniqueItems(uiState.shortcuts, key = { shortcut -> "shortcut_${shortcut.packageName}_${shortcut.id}_${shortcut.userHandle.hashCode()}" }, contentType = { "app_shortcut" }) { shortcut ->
+                val iconKey = LaunchIconKeys.shortcut(shortcut.packageName, shortcut.id, shortcut.userHandle)
                 Row(
                     modifier = Modifier.fillMaxWidth().expressiveRowClickable {
                         hasStartedTyping = false
@@ -551,13 +553,14 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         keyboardController?.hide()
                         val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? android.content.pm.LauncherApps
                         try {
-                            launcherApps?.startShortcut(shortcut.packageName, shortcut.id, null, launchOptions(), shortcut.userHandle)
+                            val launch = appLaunch(LaunchSource.tap(iconKey))
+                            launcherApps?.startShortcut(shortcut.packageName, shortcut.id, launch?.sourceBounds, launch?.options, shortcut.userHandle)
                             viewModel.onQueryChanged("")
                         } catch (e: Exception) { android.util.Log.w("IntelligentSearch", "Unexpected error", e) }
                     }.padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.MoreVert, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.MoreVert, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp).launchIcon(launchIcons, iconKey))
                     Spacer(modifier = Modifier.width(16.dp))
                     Text(shortcut.shortLabel, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
                 }
@@ -666,7 +669,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     }
                                 }
                                 uniqueItems(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }, contentType = { "app_item" }) { app ->
-                                    AppGridItem(app) { performAppLaunch(app) }
+                                    val iconKey = LaunchIconKeys.app(app)
+                                    AppGridItem(app, launchIcon = LaunchIconTarget(launchIcons, iconKey)) { performAppLaunch(app, LaunchSource.tap(iconKey)) }
                                 }
                             }
                         }

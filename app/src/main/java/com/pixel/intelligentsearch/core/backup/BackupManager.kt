@@ -13,6 +13,7 @@ import com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
 import com.pixel.intelligentsearch.core.data.HistoryDao
 import com.pixel.intelligentsearch.core.data.HistoryEntity
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.UserGrantedFiles
 import com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -92,7 +93,8 @@ class BackupManager @Inject constructor(
 
         private fun isBlockedInternalKey(key: String): Boolean {
             if (key.isBlank() || key.length > 128) return true
-            return key.endsWith("_vault") ||
+            return key in UserGrantedFiles.DEVICE_LOCAL_KEYS ||
+                key.endsWith("_vault") ||
                 key.endsWith("_iv") ||
                 key.endsWith("_level") ||
                 key.startsWith("saved_passphrase") ||
@@ -189,7 +191,7 @@ class BackupManager @Inject constructor(
         val allCustomPrefs = sharedPrefs.all
         val spJsonObj = JSONObject()
         for ((k, v) in allCustomPrefs) {
-            if (v == null) continue
+            if (v == null || k in UserGrantedFiles.DEVICE_LOCAL_KEYS) continue
             val itemObj = JSONObject()
             when (v) {
                 is Boolean -> {
@@ -493,6 +495,7 @@ class BackupManager @Inject constructor(
                 require(spObj.length() <= BackupPreferenceSchema.MAX_KEYS) { "Backup has too many settings" }
                 val editor = sharedPrefs.edit()
                 val localValues = sharedPrefs.all
+                var typedRestored = 0
                 val keys = spObj.keys()
                 while (keys.hasNext()) {
                     val key = keys.next()
@@ -505,8 +508,8 @@ class BackupManager @Inject constructor(
                     runCatching {
                         val itemObj = spObj.getJSONObject(key)
                         val type = itemObj.optString("type")
-                        // Known keys must carry the type the app reads them with. Keys the schema doesn't
-                        // name (per-shortcut custom values etc.) must at least match what is stored here now.
+                        // Known keys (including per-shortcut custom actions and pill profiles) must carry the type
+                        // the app reads them with. Keys the schema doesn't name must at least match what is stored here now.
                         val expectedType = setting?.let(::sharedPrefTypeName)
                             ?: BackupPreferenceSchema.expectedType(key)
                             ?: localValues[key]?.let { sharedPrefTypeName(it) }
@@ -551,10 +554,15 @@ class BackupManager @Inject constructor(
                         }
                         // The restored canonical value replaces any old spelling still stored locally.
                         setting?.legacyNames?.forEach(editor::remove)
-                        restoredCount++
+                        typedRestored++
                     }
                 }
-                editor.commit()
+                if (editor.commit()) {
+                    restoredCount += typedRestored
+                } else {
+                    // None of them reached storage, so none count as restored.
+                    Log.w("BackupManager", "Restored typed SharedPreferences could not be saved")
+                }
             } catch (e: Throwable) {
                 android.util.Log.w("BackupManager", "Failed to restore typed SharedPreferences", e)
             }

@@ -2,50 +2,6 @@
 <issues format="6" by="lint 9.4.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.4.1)" variant="all" version="9.4.1">
 
     <issue
-        id="ApplySharedPref"
-        message="Consider using `apply()` instead; `commit` writes its data to persistent storage immediately, whereas `apply` will handle it in the background"
-        errorLine1="                editor.commit()"
-        errorLine2="                       ~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/core/backup/BackupManager.kt"
-            line="559"
-            column="24"/>
-    </issue>
-
-    <issue
-        id="ApplySharedPref"
-        message="Consider using `apply()` instead; `commit` writes its data to persistent storage immediately, whereas `apply` will handle it in the background"
-        errorLine1="        editor.commit()"
-        errorLine2="               ~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/core/data/SettingsManager.kt"
-            line="398"
-            column="16"/>
-    </issue>
-
-    <issue
-        id="ApplySharedPref"
-        message="Consider using `apply()` instead; `commit` writes its data to persistent storage immediately, whereas `apply` will handle it in the background"
-        errorLine1="                .commit()"
-        errorLine2="                 ~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/core/security/StrongBoxSecurityManager.kt"
-            line="318"
-            column="18"/>
-    </issue>
-
-    <issue
-        id="ApplySharedPref"
-        message="Consider using `apply()` instead; `commit` writes its data to persistent storage immediately, whereas `apply` will handle it in the background"
-        errorLine1="            sp.edit().remove(&quot;saved_passphrase_cipher&quot;).remove(&quot;saved_passphrase_iv&quot;).commit()"
-        errorLine2="                                                                                      ~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/core/security/StrongBoxSecurityManager.kt"
-            line="373"
-            column="87"/>
-    </issue>
-
-    <issue
         id="ModifierParameter"
         message="Modifier parameter should be the first optional parameter"
         errorLine1="    modifier: Modifier = Modifier"
@@ -98,17 +54,6 @@
             file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsComponents.kt"
             line="343"
             column="5"/>
-    </issue>
-
-    <issue
-        id="DiscouragedApi"
-        message="Use of this function is discouraged because resource reflection makes it harder to perform build optimizations and compile-time verification of code. It is much more efficient to retrieve resources by identifier (e.g. `R.foo.bar`) than by name (e.g. `getIdentifier(&quot;bar&quot;, &quot;foo&quot;, null)`)."
-        errorLine1="                        val resId = appContext.resources.getIdentifier(&quot;config_batteryCapacity&quot;, &quot;dimen&quot;, &quot;android&quot;)"
-        errorLine2="                                                         ~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/DebugDiagnosticsPage.kt"
-            line="286"
-            column="58"/>
     </issue>
 
     <issue
@@ -200,34 +145,6 @@
     </issue>
 
     <issue
-        id="IconLocation"
-        message="Found bitmap drawable `res/drawable/ic_bugdroid_balloon.png` in densityless folder">
-        <location
-            file="src/main/res/drawable/ic_bugdroid_balloon.png"/>
-    </issue>
-
-    <issue
-        id="IconLocation"
-        message="Found bitmap drawable `res/drawable/ic_bugdroid_body.png` in densityless folder">
-        <location
-            file="src/main/res/drawable/ic_bugdroid_body.png"/>
-    </issue>
-
-    <issue
-        id="IconLocation"
-        message="Found bitmap drawable `res/drawable/ic_bugdroid_body_blink.png` in densityless folder">
-        <location
-            file="src/main/res/drawable/ic_bugdroid_body_blink.png"/>
-    </issue>
-
-    <issue
-        id="IconLocation"
-        message="Found bitmap drawable `res/drawable/ic_bugdroid_body_half.png` in densityless folder">
-        <location
-            file="src/main/res/drawable/ic_bugdroid_body_half.png"/>
-    </issue>
-
-    <issue
         id="UseKtx"
         message="Use the KTX function `createBitmap` instead?"
         errorLine1="            val spriteBitmap = Bitmap.createBitmap(spriteDimension, spriteDimension, Bitmap.Config.ARGB_8888)"
@@ -258,17 +175,6 @@
             file="src/main/java/com/pixel/intelligentsearch/core/ui/AppIconLoader.kt"
             line="35"
             column="18"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                val editor = sharedPrefs.edit()"
-        errorLine2="                             ~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/core/backup/BackupManager.kt"
-            line="496"
-            column="30"/>
     </issue>
 
     <issue
@@ -593,17 +499,6 @@
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        val editor = sp.edit()"
-        errorLine2="                     ~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/core/data/SettingsManager.kt"
-            line="385"
-            column="22"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
         errorLine1="                                    prefs.edit().put(SettingsManager.DEBUG_UNLOCKED, false).apply()"
         errorLine2="                                    ~~~~~~~~~~~~">
         <location
@@ -620,17 +515,6 @@
         <location
             file="src/main/java/com/pixel/intelligentsearch/core/security/StrongBoxSecurityManager.kt"
             line="315"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="            sp.edit().remove(&quot;saved_passphrase_cipher&quot;).remove(&quot;saved_passphrase_iv&quot;).commit()"
-        errorLine2="            ~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/core/security/StrongBoxSecurityManager.kt"
-            line="373"
             column="13"/>
     </issue>
 
@@ -775,17 +659,6 @@
             file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetBitmaps.kt"
             line="77"
             column="22"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX function `createBitmap` instead?"
-        errorLine1="        Bitmap.createBitmap(fallbackSize, fallbackSize, Bitmap.Config.ARGB_8888).apply {"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/widget/WidgetBitmaps.kt"
-            line="116"
-            column="9"/>
     </issue>
 
     <issue

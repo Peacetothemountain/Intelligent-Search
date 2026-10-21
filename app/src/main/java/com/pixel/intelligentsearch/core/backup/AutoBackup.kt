@@ -14,6 +14,10 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.pixel.intelligentsearch.core.security.MemorySanitizer
 import com.pixel.intelligentsearch.di.appEntryPoint
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -31,7 +35,16 @@ import javax.crypto.spec.SecretKeySpec
  * phone's Keystore, so the weekly job can encrypt without asking; restoring still needs the passphrase. All of
  * this lives in its own preferences file, which backups never include.
  */
-class AutoBackup(private val context: Context) {
+class AutoBackup internal constructor(
+    private val context: Context,
+    /** The Keystore key the derived key is wrapped with; tests pass a software key. */
+    private val wrapKey: () -> SecretKey
+) {
+
+    // Never replaced silently: a new key could not unwrap the stored one, and the job reports that instead.
+    constructor(context: Context) : this(context, {
+        context.appEntryPoint.strongBoxSecurityManager().getOrCreateSymmetricKey(WRAP_KEY_ALIAS, purgeIfUnrecoverable = false).first
+    })
 
     private val state = context.getSharedPreferences(STATE_FILE, Context.MODE_PRIVATE)
 
@@ -104,27 +117,49 @@ class AutoBackup(private val context: Context) {
         state.edit { clear() }
     }
 
-    /** Writes one backup now and removes the oldest beyond [KEEP]. */
-    suspend fun runOnce(backupManager: BackupManager): Result<Unit> {
-        val folder = folderUri ?: return Result.failure(IllegalStateException("No backup folder"))
+    /**
+     * Writes one backup now and removes the oldest beyond [KEEP]. Runs on the IO dispatcher, since the Keystore and
+     * the folder's provider can both block. A file that isn't written in full is deleted again, and a cancelled run
+     * is passed on to the caller rather than recorded as a failure.
+     */
+    suspend fun runOnce(backupManager: BackupManager): Result<Unit> = withContext(Dispatchers.IO) {
+        val folder = folderUri ?: return@withContext Result.failure(IllegalStateException("No backup folder"))
         val salt = state.getString(KEY_SALT, null)?.let(BackupCryptoEngine::decodeBase64)
         val wrapped = state.getString(KEY_WRAPPED, null)?.let(BackupCryptoEngine::decodeBase64)
         val iv = state.getString(KEY_WRAP_IV, null)?.let(BackupCryptoEngine::decodeBase64)
-        if (salt == null || wrapped == null || iv == null) return Result.failure(IllegalStateException("Automatic backup is not set up"))
+        if (salt == null || wrapped == null || iv == null) {
+            return@withContext Result.failure(IllegalStateException("Automatic backup is not set up"))
+        }
 
-        val result = runCatching {
+        var unfinished: Uri? = null
+        val result = try {
             val raw = unwrap(iv, wrapped)
             val key: SecretKey = SecretKeySpec(raw, "AES")
-            try {
+            val writtenId = try {
                 val treeDoc = DocumentsContract.buildDocumentUriUsingTree(folder, DocumentsContract.getTreeDocumentId(folder))
                 val name = FILE_PREFIX + SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.US).format(Date()) + FILE_SUFFIX
                 val file = DocumentsContract.createDocument(context.contentResolver, treeDoc, "application/json", name)
                     ?: throw IllegalStateException("The backup folder can't be written to")
+                unfinished = file
+                val id = DocumentsContract.getDocumentId(file)
                 backupManager.exportWithDerivedKey(file, key, salt).getOrThrow()
-                prune(folder)
+                unfinished = null
+                id
             } finally {
                 raw.fill(0)
             }
+            prune(folder, writtenId)
+            Result.success(Unit)
+        } catch (e: Throwable) {
+            // An empty or partial file can't be restored; pruning leaves empty ones alone, and a partial one would take
+            // one of the KEEP places from a real backup.
+            unfinished?.let { file ->
+                withContext(NonCancellable) {
+                    runCatching { DocumentsContract.deleteDocument(context.contentResolver, file) }
+                }
+            }
+            if (e is CancellationException) throw e
+            Result.failure(e)
         }
         state.edit {
             if (result.isSuccess) {
@@ -134,31 +169,41 @@ class AutoBackup(private val context: Context) {
                 putString(KEY_LAST_FAILURE, failureText(result.exceptionOrNull()))
             }
         }
-        return result
+        result
     }
 
-    /** Keeps the newest [KEEP] automatic backups in the folder; files the user saved by hand are never touched. */
-    private fun prune(folder: Uri) {
+    /**
+     * Keeps the newest [KEEP] automatic backups in the folder; files the user saved by hand are never touched.
+     *
+     * An automatic file listed as empty is left alone and doesn't take one of the places: it may be another run's
+     * file still being written, or a finished one whose provider hasn't caught up on its size yet. The file this
+     * run just wrote ([writtenId]) always counts, since some cloud providers list it as empty until the upload ends.
+     */
+    private fun prune(folder: Uri, writtenId: String) {
         val children = DocumentsContract.buildChildDocumentsUriUsingTree(folder, DocumentsContract.getTreeDocumentId(folder))
         val ours = mutableListOf<Pair<String, String>>() // document id, name
         context.contentResolver.query(
             children,
-            arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+            arrayOf(
+                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                DocumentsContract.Document.COLUMN_SIZE
+            ),
             null, null, null
         )?.use { c ->
             while (c.moveToNext()) {
+                val id = c.getString(0) ?: continue
                 val name = c.getString(1) ?: continue
-                if (isAutomaticBackupName(name)) ours += c.getString(0) to name
+                if (!isAutomaticBackupName(name)) continue
+                // Providers may leave the size unknown (null); only a known 0 marks a file as empty.
+                val listedEmpty = !c.isNull(2) && c.getLong(2) == 0L
+                if (id == writtenId || !listedEmpty) ours += id to name
             }
         }
         for ((id, _) in oldestBeyond(ours, KEEP)) {
             runCatching { DocumentsContract.deleteDocument(context.contentResolver, DocumentsContract.buildDocumentUriUsingTree(folder, id)) }
         }
     }
-
-    // Never replaced silently: a new key could not unwrap the stored one, and the job reports that instead.
-    private fun wrapKey(): SecretKey =
-        context.appEntryPoint.strongBoxSecurityManager().getOrCreateSymmetricKey(WRAP_KEY_ALIAS, purgeIfUnrecoverable = false).first
 
     private fun wrap(raw: ByteArray): Pair<ByteArray, ByteArray> {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")

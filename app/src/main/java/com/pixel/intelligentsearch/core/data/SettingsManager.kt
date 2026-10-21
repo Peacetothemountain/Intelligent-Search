@@ -57,13 +57,7 @@ data class IntelligentSearchSettings(
     val tutorialCompleted: Boolean = SettingsManager.TUTORIAL_COMPLETED.default,
     val forceTutorial: Boolean = SettingsManager.FORCE_TUTORIAL.default,
     val tutorialStep: Int = SettingsManager.TUTORIAL_STEP.default,
-    val gIconEnabled: Boolean = SettingsManager.G_ICON_ENABLED.default,
     val widgetShowVoice: Boolean = SettingsManager.WIDGET_SHOW_VOICE.default,
-    val widgetShowGemini: Boolean = SettingsManager.WIDGET_SHOW_GEMINI.default,
-    val quickSearchYoutube: Boolean = SettingsManager.QUICK_SEARCH_YOUTUBE.default,
-    val quickSearchWikipedia: Boolean = SettingsManager.QUICK_SEARCH_WIKIPEDIA.default,
-    val quickSearchPlayStore: Boolean = SettingsManager.QUICK_SEARCH_PLAY_STORE.default,
-    val quickSearchMaps: Boolean = SettingsManager.QUICK_SEARCH_MAPS.default,
     val searchPills: String = SettingsManager.SEARCH_PILLS.default,
     val widgetThemeStyle: String = SettingsManager.WIDGET_THEME_STYLE.default,
     val hiddenApps: Set<String> = SettingsManager.HIDDEN_APPS.default,
@@ -88,7 +82,6 @@ data class IntelligentSearchSettings(
     val webShortcutTriggerSymbol: String = SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL.default,
     val adaptiveIconShape: String = SettingsManager.ADAPTIVE_ICON_SHAPE.default,
     val dynamicIconMasking: Boolean = SettingsManager.DYNAMIC_ICON_MASKING.default,
-    val diagnosticsOverlayEnabled: Boolean = SettingsManager.DIAGNOSTICS_OVERLAY_ENABLED.default,
     val matrixAnimationEnabled: Boolean = SettingsManager.MATRIX_ANIMATION_ENABLED.default,
     val backToSearchOverlay: Boolean = SettingsManager.BACK_TO_SEARCH_OVERLAY.default,
     val disabledWebShortcuts: Set<String> = SettingsManager.DISABLED_WEB_SHORTCUTS.default,
@@ -145,6 +138,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val TUTORIAL_COMPLETED = BooleanSetting("tutorial_completed", false)
         val FORCE_TUTORIAL = BooleanSetting("force_tutorial", false)
         val TUTORIAL_STEP = IntSetting("tutorial_step", 0, 0..20)
+        // Nothing reads this, WIDGET_SHOW_GEMINI, QUICK_SEARCH_YOUTUBE/WIKIPEDIA/PLAY_STORE/MAPS or
+        // DIAGNOSTICS_OVERLAY_ENABLED any more; they stay declared so the migration and older backups recognise them.
         val G_ICON_ENABLED = BooleanSetting("g_icon_enabled", true)
         val WIDGET_SHOW_VOICE = BooleanSetting("widget_show_voice", true)
         val WIDGET_SHOW_GEMINI = BooleanSetting("widget_show_gemini", true)
@@ -300,13 +295,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         tutorialCompleted = sp[TUTORIAL_COMPLETED],
         forceTutorial = sp[FORCE_TUTORIAL],
         tutorialStep = sp[TUTORIAL_STEP],
-        gIconEnabled = sp[G_ICON_ENABLED],
         widgetShowVoice = sp[WIDGET_SHOW_VOICE],
-        widgetShowGemini = sp[WIDGET_SHOW_GEMINI],
-        quickSearchYoutube = sp[QUICK_SEARCH_YOUTUBE],
-        quickSearchWikipedia = sp[QUICK_SEARCH_WIKIPEDIA],
-        quickSearchPlayStore = sp[QUICK_SEARCH_PLAY_STORE],
-        quickSearchMaps = sp[QUICK_SEARCH_MAPS],
         searchPills = sp[SEARCH_PILLS],
         widgetThemeStyle = sp[WIDGET_THEME_STYLE],
         hiddenApps = sp[HIDDEN_APPS],
@@ -331,7 +320,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         webShortcutTriggerSymbol = sp[WEB_SHORTCUT_TRIGGER_SYMBOL],
         adaptiveIconShape = sp[ADAPTIVE_ICON_SHAPE],
         dynamicIconMasking = sp[DYNAMIC_ICON_MASKING],
-        diagnosticsOverlayEnabled = sp[DIAGNOSTICS_OVERLAY_ENABLED],
         matrixAnimationEnabled = sp[MATRIX_ANIMATION_ENABLED],
         backToSearchOverlay = sp[BACK_TO_SEARCH_OVERLAY],
         disabledWebShortcuts = sp[DISABLED_WEB_SHORTCUTS],
@@ -364,7 +352,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
     private var directBootMirror: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
     private val widgetAppWideNames =
-        listOf(THEME, G_ICON_ENABLED, WIDGET_SHOW_VOICE, WIDGET_SHOW_GEMINI, WIDGET_THEME_STYLE, SEARCH_OVERLAY_ENABLED)
+        listOf(THEME, WIDGET_SHOW_VOICE, WIDGET_THEME_STYLE, SEARCH_OVERLAY_ENABLED)
             .map { it.name }.toSet()
 
     private fun isMirroredForWidgets(name: String): Boolean = name.startsWith("widget") || name in widgetAppWideNames
@@ -408,7 +396,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         }
         RETIRED_NAMES.forEach(editor::remove)
         editor.putInt(STORAGE_VERSION_KEY, CURRENT_STORAGE_VERSION)
-        editor.commit()
+        // The old store may hold the only copy of what was imported: keep it until the import is on disk, and the
+        // migration runs again at the next start.
+        if (!editor.commit()) return@withContext
         runCatching { context.preferencesDataStoreFile(LEGACY_DATASTORE_NAME).delete() }
     }
 

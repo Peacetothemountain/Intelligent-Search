@@ -61,6 +61,21 @@ class BackupPreferenceSchemaTest {
     }
 
     @Test
+    fun keysNamedAtRuntimeCarryTheTypeTheAppReads() {
+        // Per-shortcut custom actions and the pill profiles are read with getString.
+        assertEquals("STRING", BackupPreferenceSchema.expectedType("Google Lens_custom_type"))
+        assertEquals("STRING", BackupPreferenceSchema.expectedType("widget_shortcut_1_custom_value"))
+        assertEquals("STRING", BackupPreferenceSchema.expectedType("app_search_profile_2"))
+        assertEquals("STRING", BackupPreferenceSchema.expectedType("app_search_profile_2_saved"))
+        assertNull(BackupPreferenceSchema.expectedType("app_search_profile_2_other"))
+    }
+
+    @Test
+    fun theActiveProfileIsOneOfTheProfiles() {
+        assertEquals(1..5, BackupPreferenceSchema.intRange("active_app_search_profile"))
+    }
+
+    @Test
     fun debugSwitchesAreNeverImported() {
         assertTrue(BackupPreferenceSchema.isDebugKey("debug_unlocked"))
         assertTrue(BackupPreferenceSchema.isDebugKey("debug.verbose_logging"))

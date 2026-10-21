@@ -345,17 +345,6 @@
     <issue
         id="UseKtx"
         message="Use the KTX extension function `String.toUri` instead?"
-        errorLine1="        val uri = Uri.parse(&quot;tel:$dialDigits&quot;)"
-        errorLine2="                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
-            line="406"
-            column="19"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `String.toUri` instead?"
         errorLine1="        val uri = Uri.parse(&quot;google.navigation:q=${java.net.URLEncoder.encode(dest, &quot;UTF-8&quot;)}&quot;)"
         errorLine2="                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location

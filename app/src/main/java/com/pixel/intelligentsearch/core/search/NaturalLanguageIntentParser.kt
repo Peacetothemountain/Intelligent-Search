@@ -391,11 +391,10 @@ object NaturalLanguageIntentParser {
 
         if (cleanNumber == null && matchedContact == null) return null
 
-        val dialDigits = cleanNumber ?: matchedContact!!.phoneNumber.filter { it.isDigit() || it == '+' }
-        if (dialDigits.isEmpty()) return null
-
-        val uri = Uri.parse("tel:$dialDigits")
-        val intent = Intent(Intent.ACTION_DIAL, uri)
+        // A contact's number is dialled as saved: service codes need their '*' and '#' ("*86#"), and built into a
+        // "tel:" link with Uri.parse, everything from '#' on would be dropped.
+        val number = cleanNumber ?: matchedContact!!.phoneNumber.trim()
+        val intent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))
         return ParsedIntent.PhoneCall(
             contactNameOrNumber = matchedContact?.name ?: target,
             intent = intent,

@@ -208,7 +208,8 @@ class GlobalSearchProvider : ContentProvider() {
                             contact.phoneNumber.ifBlank { "Contact" },
                             "android.resource://${safeCtx?.packageName}/drawable/ic_search_lens_expressive",
                             Intent.ACTION_VIEW,
-                            contact.lookupUri.ifBlank { "tel:${contact.phoneNumber}" },
+                            // The system parses this as a link: an encoded number keeps a '#' and what follows it.
+                            contact.lookupUri.ifBlank { Uri.fromParts("tel", contact.phoneNumber, null).toString() },
                             contact.name,
                             "contact:${contact.name.hashCode()}"
                         ))

@@ -620,8 +620,7 @@ class SearchViewModel @Inject constructor(
                                 if (matched != null) {
                                     displayName = matched.name
                                     displaySubtitle = matched.phoneNumber
-                                    val clean = matched.phoneNumber.filter { it.isDigit() || it == '+' }
-                                    callIntent = ContactActions.callIntent(clean)
+                                    callIntent = ContactActions.callIntent(matched.phoneNumber)
                                 }
                             } catch (e: kotlinx.coroutines.CancellationException) {
                                 throw e

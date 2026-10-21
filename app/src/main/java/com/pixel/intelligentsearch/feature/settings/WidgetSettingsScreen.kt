@@ -46,6 +46,7 @@ import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
+import com.pixel.intelligentsearch.core.theme.SearchIconColors
 import com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
 
 // WIDGET SETTINGS SCREEN
@@ -131,12 +132,10 @@ internal data class WidgetPreviewColors(
     val rim: Color,
     /** The pill, whose fill the Material design's circle shares. */
     val pill: PreviewPill,
-    /** The three accent tones of the Material and Accented G styles. */
+    /** The Accented G style's G, mic, shortcuts and circle icon. */
     val accentPrimary: Color,
-    val accentSecondary: Color,
-    val accentTertiary: Color,
-    /** The Custom subtheme's bar from its seed, whose palettes the Material G style draws with; null otherwise. */
-    val customBar: WidgetColorRules.CustomBarColors?,
+    /** What the Material G style's icons are worked out from, the search overlay's way ([SearchIconColors]). */
+    val materialIconAccents: SearchIconColors.Accents,
     /** What the System G style tints the shortcuts and the circle's icon. */
     val systemIconTint: Color,
     /** The Custom G style's colours as drawn: Sync All Colors applied, and darker where the widget darkens them. */
@@ -147,13 +146,15 @@ internal data class WidgetPreviewColors(
 
 /**
  * What the live preview paints for [draft] on the [isMaterialDesign] design, drawn with [theme], as the widget draws
- * the same settings. [widgetColors] gives the widget's own colours for a dark (true) or light surface.
+ * the same settings. [iconAccents] gives the search overlay's icon accents for a light (true) or dark bar
+ * ([SearchIconColors.themeAccents]), and [widgetColors] the widget's own colours for a dark (true) or light surface.
  */
 internal fun widgetPreviewColors(
     draft: WidgetDesignSettings,
     isMaterialDesign: Boolean,
     theme: PreviewTheme,
     isDynamicColorActive: Boolean,
+    iconAccents: (isLight: Boolean) -> SearchIconColors.Accents,
     widgetColors: (isDark: Boolean) -> DynamicThemeDetector.ResolvedWidgetColors
 ): WidgetPreviewColors {
     val isCustomTheme = draft.subtheme == "Custom"
@@ -195,9 +196,8 @@ internal fun widgetPreviewColors(
 
     val isDarkSurface = if (isMaterialDesign) lockBlack || !isPillLight else !isPillLight
     val surfaceColors = widgetColors(isDarkSurface)
-    // The Custom subtheme's icons come from its seed, already in contrast with the pill.
+    // The Custom subtheme's accent and plain icons come from its seed, already in contrast with the pill.
     val customBar = if (isCustomTheme) WidgetColorRules.customBarColors(draft, isMaterialDesign) else null
-    fun accent(color: Int, tone: Double) = Color(WidgetColorRules.iconColor(color, isMaterialDesign, lockBlack, isPillLight, tone))
 
     val systemIconTint = when {
         customBar != null -> Color(customBar.plainIcon)
@@ -207,10 +207,9 @@ internal fun widgetPreviewColors(
     return WidgetPreviewColors(
         rim = rim,
         pill = pill,
-        accentPrimary = customBar?.let { Color(it.accent) } ?: accent(surfaceColors.primary, 32.0),
-        accentSecondary = customBar?.let { Color(it.secondary) } ?: accent(surfaceColors.secondary, 34.0),
-        accentTertiary = customBar?.let { Color(it.tertiary) } ?: accent(surfaceColors.tertiary, 32.0),
-        customBar = customBar,
+        accentPrimary = customBar?.let { Color(it.accent) }
+            ?: Color(WidgetColorRules.iconColor(surfaceColors.primary, isMaterialDesign, lockBlack, isPillLight, 32.0)),
+        materialIconAccents = WidgetColorRules.materialIconAccents(draft, isPillLight, iconAccents),
         systemIconTint = systemIconTint,
         customIcons = WidgetColorRules.customIconColors(draft, isMaterialDesign, isPillLight),
         usesMaterialYouIcons = WidgetColorRules.usesMaterialYouIcons(isMaterialDesign, draft.gIconTheme, isPillLight, draft.subtheme)
@@ -530,7 +529,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             appDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f,
                             systemDark = androidx.compose.foundation.isSystemInDarkTheme()
                         ),
-                        isDynamicColorActive = isDynamicActive
+                        isDynamicColorActive = isDynamicActive,
+                        iconAccents = { isLight -> SearchIconColors.themeAccents(context, isLight) }
                     ) { isDark -> DynamicThemeDetector.resolveWidgetColors(context, isDark) }
                     val pill = previewColors.pill
                     val isPreviewPillLight = pill.isLight
@@ -544,8 +544,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val previewPillColorAlpha = pill.fill
 
                     val gPrimary = previewColors.accentPrimary
-                    val gSecondary = previewColors.accentSecondary
-                    val gTertiary = previewColors.accentTertiary
+                    // The Material G style's icons are the search overlay's, worked out from these.
+                    val mPrimary = androidx.compose.ui.graphics.Color(previewColors.materialIconAccents.primary)
+                    val mSecondary = androidx.compose.ui.graphics.Color(previewColors.materialIconAccents.secondary)
+                    val mTertiary = androidx.compose.ui.graphics.Color(previewColors.materialIconAccents.tertiary)
 
                     Row(
                         modifier = Modifier
@@ -575,15 +577,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 val customGColorObj = androidx.compose.ui.graphics.Color(previewColors.customIcons.gIcon)
                                 ComposeGIcon(
                                     modifier = Modifier.size(24.dp),
-                                    primaryColor = if (isCustom) customGColorObj else gPrimary,
-                                    secondaryColor = if (isCustom) customGColorObj else gSecondary,
-                                    tertiaryColor = if (isCustom) customGColorObj else gTertiary,
+                                    primaryColor = if (isCustom) customGColorObj else mPrimary,
+                                    secondaryColor = if (isCustom) customGColorObj else mSecondary,
+                                    tertiaryColor = if (isCustom) customGColorObj else mTertiary,
                                     isAccented = isAccented || isCustom,
                                     accentColor = if (isCustom) customGColorObj else gPrimary,
                                     fallbackTint = if (isCustom) customGColorObj else androidx.compose.ui.graphics.Color.Unspecified,
                                     useOriginalColors = useOriginalGIcon,
-                                    isPillLight = isPreviewPillLight,
-                                    customPalette = previewColors.customBar?.gPalette
+                                    isPillLight = isPreviewPillLight
                                 )
                             }
 
@@ -639,7 +640,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     arrayOf(customScColorObj, customScColorObj, customScColorObj, customScColorObj)
                                 } else when (effectiveGIconTheme) {
                                     "Accented G Icon" -> arrayOf(gPrimary, gPrimary, gPrimary, gPrimary)
-                                    "Material G Icon" -> arrayOf(gPrimary, gSecondary, gTertiary, gPrimary)
+                                    "Material G Icon" -> arrayOf(mPrimary, mSecondary, mTertiary, mPrimary)
                                     else -> { // System G Icon
                                         val sysTint = previewColors.systemIconTint
                                         arrayOf(sysTint, sysTint, sysTint, sysTint)
@@ -654,8 +655,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     quaternaryColor = scQuaternary,
                                     isMaterialTheme = isMaterial,
                                     modifier = Modifier.size(24.dp),
-                                    isPillLight = isPreviewPillLight,
-                                    tiers = previewColors.customBar?.iconTiers
+                                    isPillLight = isPreviewPillLight
                                 )
                             }
                         }
@@ -675,7 +675,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     arrayOf(customActColorObj, customActColorObj, customActColorObj, customActColorObj)
                                 } else when (effectiveGIconTheme) {
                                     "Accented G Icon" -> arrayOf(gPrimary, gPrimary, gPrimary, gPrimary)
-                                    "Material G Icon" -> arrayOf(gPrimary, gSecondary, gTertiary, gPrimary)
+                                    "Material G Icon" -> arrayOf(mPrimary, mSecondary, mTertiary, mPrimary)
                                     else -> { // System G Icon
                                         val sysActionTint = previewColors.systemIconTint
                                         arrayOf(sysActionTint, sysActionTint, sysActionTint, sysActionTint)
@@ -689,8 +689,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     tertiaryColor = actTertiary,
                                     quaternaryColor = actQuaternary,
                                     isMaterialTheme = (effectiveGIconTheme == "Material G Icon"),
-                                    isPillLight = isPreviewPillLight,
-                                    tiers = previewColors.customBar?.iconTiers
+                                    isPillLight = isPreviewPillLight
                                 )
                             }
                         }

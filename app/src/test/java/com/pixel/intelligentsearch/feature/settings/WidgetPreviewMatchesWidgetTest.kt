@@ -16,6 +16,7 @@ import com.pixel.intelligentsearch.core.data.widget.WidgetDefaults
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
 import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
+import com.pixel.intelligentsearch.core.theme.SearchIconColors
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.feature.widget.createCustomMaterialGBitmap
 import com.pixel.intelligentsearch.feature.widget.createThemedActionIconBitmap
@@ -96,7 +97,8 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
                 appDark = dark,
                 systemDark = dark
             ),
-            isDynamicColorActive = dynamic
+            isDynamicColorActive = dynamic,
+            iconAccents = { SearchIconColors.themeAccents(context, it) }
         ) { DynamicThemeDetector.resolveWidgetColors(context, it) }
     }
 
@@ -166,22 +168,22 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
                     if (bar.material) assertTint("$label circle icon", Color(preview.customIcons.action), widget, R.id.widget_sound_icon)
                 }
                 "Material G Icon" -> {
-                    // The widget draws these as bitmaps from the palettes the preview draws them with.
-                    val accents = listOf(preview.accentPrimary, preview.accentSecondary, preview.accentTertiary).map { it.toArgb() }
+                    // The widget draws these as bitmaps from the colours the preview draws them with.
+                    val a = preview.materialIconAccents
                     val light = preview.pill.isLight
                     assertBitmap(
                         "$label G",
-                        createCustomMaterialGBitmap(accents[0], accents[1], accents[2], light, context, preview.customBar?.gPalette),
+                        createCustomMaterialGBitmap(a.primary, a.secondary, a.tertiary, light, context),
                         widget, R.id.widget_g_logo
                     )
                     assertBitmap(
                         "$label mic",
-                        createThemedShortcutBitmap(context, R.drawable.ic_mic, accents[0], accents[1], light, preview.customBar?.iconTiers),
+                        createThemedShortcutBitmap(context, R.drawable.ic_mic, a.primary, a.secondary, light, a.tertiary),
                         widget, R.id.widget_voice_search
                     )
                     if (bar.material) assertBitmap(
                         "$label circle icon",
-                        createThemedActionIconBitmap(context, R.drawable.ic_lens_action, accents[0], accents[1], light, preview.customBar?.iconTiers),
+                        createThemedActionIconBitmap(context, R.drawable.ic_lens_action, a.primary, a.secondary, light, a.tertiary),
                         widget, R.id.widget_sound_icon
                     )
                 }

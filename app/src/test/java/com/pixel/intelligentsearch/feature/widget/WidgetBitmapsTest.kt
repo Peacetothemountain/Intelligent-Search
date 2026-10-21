@@ -21,18 +21,18 @@ import org.robolectric.annotation.GraphicsMode
 class WidgetBitmapsTest {
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()
-    private val defaultPalette = themedIconPalette
+    private val defaultPalette = themedIconColors
 
     @Before fun emptyTheCache() = clearBitmapCache()
 
     @After fun restoreThePalette() {
-        themedIconPalette = defaultPalette
+        themedIconColors = defaultPalette
     }
 
     @Test
     fun aRepeatDrawComesFromTheCacheWithoutWorkingOutThePaletteAgain() {
         var palettes = 0
-        themedIconPalette = { primary, secondary, light -> palettes++; defaultPalette(primary, secondary, light) }
+        themedIconColors = { accents, light -> palettes++; defaultPalette(accents, light) }
 
         val first = createThemedShortcutBitmap(context, R.drawable.ic_mic, BLUE, GREY, isPillLight = false)
         val again = createThemedShortcutBitmap(context, R.drawable.ic_mic, BLUE, GREY, isPillLight = false)

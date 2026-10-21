@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -403,12 +404,14 @@ fun VolumeSliderCard(
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
+                // The slider below carries the title as its name, so TalkBack reads it once, with the level.
                 Text(
                     text = title,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
-                    fontFamily = GoogleSansFlex
+                    fontFamily = GoogleSansFlex,
+                    modifier = Modifier.clearAndSetSemantics {}
                 )
                 Slider(
                     value = level,
@@ -422,7 +425,10 @@ fun VolumeSliderCard(
                     },
                     valueRange = 0f..safeMax.toFloat(),
                     steps = (safeMax - 1).coerceAtLeast(0),
-                    modifier = Modifier.semantics { stateDescription = "${level.toInt()} of $safeMax" }
+                    modifier = Modifier.semantics {
+                        contentDescription = title
+                        stateDescription = "${level.toInt()} of $safeMax"
+                    }
                 )
             }
         }

@@ -73,8 +73,8 @@ fun getShortcutIconRes(shortcut: String, isMaterialYou: Boolean = true): Int {
     return when (shortcut) {
         "Voice Search" -> if (isMaterialYou) R.drawable.ic_mic else R.drawable.ic_mic_original
         "Google Lens" -> R.drawable.ic_camera
-        "Assistant", "Live", "Gemini" -> R.drawable.ic_lens_action
-        "Search" -> R.drawable.ic_search_lens_expressive
+        "Assistant", "Gemini" -> R.drawable.ic_lens_action
+        "Search", "Live" -> R.drawable.ic_search_lens_expressive
         "Song Search", "Now Playing" -> R.drawable.ic_music
         "Translate (text)" -> R.drawable.ic_translate
         "Translate (camera)" -> R.drawable.ic_document_scanner

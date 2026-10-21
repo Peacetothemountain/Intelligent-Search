@@ -229,7 +229,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val shortcutOptions = listOf(
         "None" to Icons.Default.Close,
         "Google Lens" to ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_camera),
-        "Live" to Icons.Default.AutoAwesome,
+        "Live" to ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive),
         "Translate (text)" to Icons.Default.Translate,
         "Translate (camera)" to Icons.Default.DocumentScanner,
         "Song Search" to Icons.Default.MusicNote,

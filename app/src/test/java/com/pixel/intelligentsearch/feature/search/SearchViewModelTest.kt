@@ -1,8 +1,13 @@
 package com.pixel.intelligentsearch.feature.search
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.drawable.ColorDrawable
 import android.os.Looper
+import androidx.activity.compose.setContent
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ActivityScenario
@@ -18,6 +23,7 @@ import com.pixel.intelligentsearch.core.data.DeviceSearchSources
 import com.pixel.intelligentsearch.core.data.DeviceSearchSourcesModule
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -27,6 +33,7 @@ import dagger.hilt.android.testing.HiltTestApplication
 import dagger.hilt.components.SingletonComponent
 import dagger.hilt.android.testing.UninstallModules
 import kotlinx.coroutines.launch
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -37,6 +44,10 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowChoreographer
+import org.robolectric.shadows.ShadowSystemClock
+import java.time.Duration
+import javax.inject.Inject
 import javax.inject.Singleton
 
 /** A device with three apps, one event and one contact, standing in for the real providers. */
@@ -44,18 +55,25 @@ class FakeDeviceSearchSources : DeviceSearchSources {
     private fun app(name: String, pkg: String) = AppItem(name, pkg, ColorDrawable(0))
     val apps = listOf(app("Calendar", "com.example.calendar"), app("Camera", "com.example.camera"), app("Hidden Thing", "com.example.hidden"))
     var webSuggestions = listOf("weather today", "weather tomorrow")
+    /** The calendar, which a test may change while the overlay is away. */
+    @Volatile var events = listOf(CalendarEvent("Dentist", "09:30", eventId = 7, beginMillis = 1_000))
+    @Volatile var contactBook = listOf(ContactItem("Ada Lovelace", "+1 555 0100", "content://contacts/ada"))
+    /** How many times app usage has been read for ranking. */
+    val appUsageReads = java.util.concurrent.atomic.AtomicInteger()
 
     override suspend fun allApps(forceRefresh: Boolean) = apps
     override fun invalidateAppsCache() {}
-    override fun appUsage() = emptyMap<String, com.pixel.intelligentsearch.core.data.SystemDataProvider.AppUsage>()
+    override fun appUsage(): Map<String, com.pixel.intelligentsearch.core.data.SystemDataProvider.AppUsage> {
+        appUsageReads.incrementAndGet()
+        return emptyMap()
+    }
     override fun allShortcuts() = emptyList<com.pixel.intelligentsearch.core.data.AppShortcutItem>()
     override suspend fun allContacts() = contacts("")
     override suspend fun recentFiles(limit: Int, includeHidden: Boolean) = emptyList<com.pixel.intelligentsearch.core.data.FileItem>()
     override suspend fun recentApps(hiddenApps: Set<String>) = apps.filter { it.packageName !in hiddenApps }
     override suspend fun contextAwareQuickApps(hiddenApps: Set<String>) = recentApps(hiddenApps)
-    override suspend fun upcomingEvents() = listOf(CalendarEvent("Dentist", "09:30", eventId = 7, beginMillis = 1_000))
-    override suspend fun contacts(query: String) =
-        listOf(ContactItem("Ada Lovelace", "+1 555 0100", "content://contacts/ada")).filter { it.name.contains(query, ignoreCase = true) }
+    override suspend fun upcomingEvents() = events
+    override suspend fun contacts(query: String) = contactBook.filter { it.name.contains(query, ignoreCase = true) }
     override fun cachedWebSuggestions(query: String, engine: String): List<String>? = null
     override suspend fun webSuggestions(query: String, engine: String) = webSuggestions.filter { it.startsWith(query) }
 }
@@ -80,6 +98,9 @@ class SearchViewModelTest {
 
     @get:Rule val hilt = HiltAndroidRule(this)
 
+    @Inject lateinit var sources: DeviceSearchSources
+    private val device get() = sources as FakeDeviceSearchSources
+
     private lateinit var scenario: ActivityScenario<HiltTestActivity>
     private lateinit var viewModel: SearchViewModel
     private val prefs get() = ApplicationProvider.getApplicationContext<Context>()
@@ -91,10 +112,36 @@ class SearchViewModelTest {
         prefs.edit().clear().commit()
     }
 
+    @After
+    fun resumeFrames() = ShadowChoreographer.setPaused(false)
+
     /** Creates the ViewModel the way the overlay does, after the test has set its settings. */
     private fun start() {
         scenario = ActivityScenario.launch(HiltTestActivity::class.java)
         scenario.onActivity { viewModel = ViewModelProvider(it)[SearchViewModel::class.java] }
+    }
+
+    /**
+     * Shows the real overlay on that ViewModel. Its animations never end, so frames run only when asked for (these
+     * tests check what is loaded, not what is drawn); otherwise the looper would never go idle.
+     */
+    private fun showOverlay() {
+        com.pixel.intelligentsearch.feature.settings.TutorialManager.completeTutorial(prefs)
+        start()
+        ShadowChoreographer.setPaused(true)
+        scenario.onActivity { activity ->
+            activity.setContent {
+                IntelligentSearchTheme(darkTheme = false) {
+                    SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _ -> }, viewModel = viewModel, isKeyboardDisabled = true)
+                }
+            }
+        }
+    }
+
+    /** The user leaves the overlay for another app and comes back to it. */
+    private fun leaveAndReturn() {
+        scenario.moveToState(Lifecycle.State.CREATED)
+        scenario.moveToState(Lifecycle.State.RESUMED)
     }
 
     /**
@@ -344,5 +391,81 @@ class SearchViewModelTest {
             shown(state)
         }
         assertEquals(withoutPages, withPages)
+    }
+
+    /** Installs a browser for https links. */
+    private fun installBrowser() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val component = android.content.ComponentName("org.example.browser", "org.example.browser.Main")
+        val pm = shadowOf(context.packageManager)
+        pm.addActivityIfNotPresent(component)
+        pm.addIntentFilterForActivity(component, android.content.IntentFilter(Intent.ACTION_VIEW).apply {
+            addCategory(Intent.CATEGORY_DEFAULT)
+            addDataScheme("https")
+        })
+    }
+
+    private fun copy(text: String) {
+        ApplicationProvider.getApplicationContext<Context>().getSystemService(ClipboardManager::class.java)
+            .setPrimaryClip(ClipData.newPlainText("copied", text))
+    }
+
+    @Test
+    fun copiedTextIsSearchedWithTheChosenEngine() {
+        prefs.edit().put(SettingsManager.SEARCH_ENGINE, "DuckDuckGo").put(SettingsManager.SMART_CLIPBOARD_SUGGESTIONS, true).commit()
+        installBrowser()
+        copy("cats")
+        start()
+        // What the overlay does as its window gains focus.
+        kotlinx.coroutines.runBlocking { viewModel.refreshClipboardActions() }
+        val search = viewModel.uiState.value.directActions.single { it.title == "Search Copied Text" }
+        // Never the system web search, which would hand the copied text to Google whatever the chosen engine.
+        assertEquals(Intent.ACTION_VIEW, search.intent?.action)
+        assertEquals("duckduckgo.com", search.intent?.data?.host)
+    }
+
+    @Test
+    fun aDismissedClipboardSuggestionStaysDismissedWhenTheOverlayComesBack() {
+        prefs.edit().put(SettingsManager.SMART_CLIPBOARD_SUGGESTIONS, true).commit()
+        copy("cats")
+        start()
+        kotlinx.coroutines.runBlocking { viewModel.refreshClipboardActions() }
+        val suggestion = viewModel.uiState.value.directActions.single { it.subtitle == "cats" }
+
+        viewModel.dismissDirectAction(suggestion)
+        // The window gains focus again on the way back, and the same clip is read again.
+        kotlinx.coroutines.runBlocking { viewModel.refreshClipboardActions() }
+        assertEquals(emptyList<DirectAction>(), viewModel.uiState.value.directActions)
+
+        // Something new copied is offered.
+        copy("dogs")
+        kotlinx.coroutines.runBlocking { viewModel.refreshClipboardActions() }
+        assertEquals(listOf("dogs"), viewModel.uiState.value.directActions.map { it.subtitle })
+    }
+
+    @Test
+    fun comingBackToTheOverlayReloadsUpcomingEvents() {
+        showOverlay()
+        await("first events") { state -> state.calendarEvents.map { it.title } == listOf("Dentist") }
+
+        device.events = listOf(CalendarEvent("Standup", "10:00", eventId = 8, beginMillis = 2_000))
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(2))
+        leaveAndReturn()
+
+        await("fresh events") { state -> state.calendarEvents.map { it.title } == listOf("Standup") }
+    }
+
+    @Test
+    fun comingBackToTheOverlayRefreshesAppUsageWithFileSearchOff() {
+        prefs.edit().put(SettingsManager.SEARCH_FILES, false).commit()
+        showOverlay()
+        await("first usage read") { device.appUsageReads.get() > 0 }
+        val reads = device.appUsageReads.get()
+
+        // Usage is re-read at most every five minutes.
+        ShadowSystemClock.advanceBy(Duration.ofMinutes(6))
+        leaveAndReturn()
+
+        await("usage re-read") { device.appUsageReads.get() > reads }
     }
 }

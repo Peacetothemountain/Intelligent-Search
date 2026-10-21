@@ -97,15 +97,17 @@ data class SearchUiState(
 )
 
 /**
- * This state without anything from the Private Space: its apps, and the App Info rows for them in the settings
- * results. What stays on screen once the Private Space locks, until the next search.
+ * This state without anything from the Private Space: its apps, the App Info rows for them in the settings results,
+ * and the shortcuts of [privateUsers] (the Private Space's profiles; a shortcut only knows its profile). What stays on
+ * screen once the Private Space locks, until the next search.
  */
-internal fun SearchUiState.withoutPrivateProfile(): SearchUiState {
+internal fun SearchUiState.withoutPrivateProfile(privateUsers: Set<android.os.UserHandle> = emptySet()): SearchUiState {
     fun AppItem.isPrivate() = isPrivateProfile || profileType == ProfileType.PRIVATE
     return copy(
         allApps = allApps.filterNot { it.isPrivate() },
         recentApps = recentApps.filterNot { it.isPrivate() },
         filteredApps = filteredApps.filterNot { it.isPrivate() },
+        shortcuts = shortcuts.filterNot { it.userHandle in privateUsers },
         androidSettings = androidSettings.filterNot { it.app?.isPrivate() == true }
     )
 }
@@ -115,6 +117,9 @@ private const val SPELLING_PAUSE_MS = 450L
 
 /** The debug menu's Simulate Web Latency delay before web suggestions are fetched. */
 private const val SIMULATED_LATENCY_MS = 2_000L
+
+/** A load of quick apps and events younger than this counts as fresh when the overlay comes back into view. */
+private const val RELOAD_GRACE_MS = 1_000L
 
 @OptIn(kotlinx.coroutines.FlowPreview::class)
 @HiltViewModel
@@ -129,7 +134,7 @@ class SearchViewModel @Inject constructor(
     private val nativeAppPredictionProvider: com.pixel.intelligentsearch.core.system.NativeAppPredictionProvider,
     private val multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager,
     private val privateSpaceManager: com.pixel.intelligentsearch.core.data.PrivateSpaceManager,
-    private val systemToggleManager: com.pixel.intelligentsearch.core.system.SystemToggleManager,
+    private val systemToggleManager: dagger.Lazy<com.pixel.intelligentsearch.core.system.SystemToggleManager>,
     private val directBootManager: com.pixel.intelligentsearch.core.system.DirectBootManager,
     private val androidSettingsSearch: com.pixel.intelligentsearch.core.search.AndroidSettingsSearch
 ) : ViewModel() {
@@ -230,7 +235,8 @@ class SearchViewModel @Inject constructor(
                 val hasLocked = profiles.any { it.profileType == ProfileType.PRIVATE && it.isLocked }
                 if (hasLocked) {
                     unifiedSearchCoordinator.purgePrivateProfileItems()
-                    _uiState.update { it.withoutPrivateProfile().copy(hasLockedPrivateSpace = true) }
+                    val privateUsers = profiles.filter { it.profileType == ProfileType.PRIVATE }.mapTo(HashSet()) { it.userHandle }
+                    _uiState.update { it.withoutPrivateProfile(privateUsers).copy(hasLockedPrivateSpace = true) }
                     if (!previousLocked) {
                         corpusIndexManager.reindexApps(forceRefresh = true)
                         corpusIndexManager.reindexShortcuts()
@@ -251,96 +257,101 @@ class SearchViewModel @Inject constructor(
     }
 
     private fun observeLiveSystemToggles() {
-        viewModelScope.launch {
-            systemToggleManager.isFlashlightOn.collect { torch ->
-                _uiState.update { current ->
-                    if (current.systemToggle?.id == "flashlight" && current.systemToggle.isEnabled != torch) {
-                        current.copy(systemToggle = current.systemToggle.copy(
-                            isEnabled = torch,
-                            subtitle = systemToggleManager.getTorchStatusText(torch)
-                        ))
-                    } else current
-                }
-            }
-        }
+        // The toggle manager registers camera, network and broadcast listeners as it is built; build it off the main
+        // thread so opening the overlay never waits for that.
+        viewModelScope.launch(Dispatchers.Default) {
+            val toggles = systemToggleManager.get()
 
-        viewModelScope.launch {
-            systemToggleManager.isBluetoothEnabled.collect { bt ->
-                _uiState.update { current ->
-                    if (current.systemToggle?.id == "bluetooth" && current.systemToggle.isEnabled != bt) {
-                        current.copy(systemToggle = current.systemToggle.copy(
-                            isEnabled = bt,
-                            subtitle = systemToggleManager.getBluetoothStatusText(bt)
-                        ))
-                    } else current
-                }
-            }
-        }
-
-        viewModelScope.launch {
-            combine(systemToggleManager.isWifiConnected, systemToggleManager.wifiSsid) { wifi, _ ->
-                _uiState.update { current ->
-                    if (current.systemToggle?.id == "wifi") {
-                        val newSubtitle = systemToggleManager.getWifiStatusText(wifi)
-                        if (current.systemToggle.isEnabled != wifi || current.systemToggle.subtitle != newSubtitle) {
+            launch {
+                toggles.isFlashlightOn.collect { torch ->
+                    _uiState.update { current ->
+                        if (current.systemToggle?.id == "flashlight" && current.systemToggle.isEnabled != torch) {
                             current.copy(systemToggle = current.systemToggle.copy(
-                                isEnabled = wifi,
-                                subtitle = newSubtitle
+                                isEnabled = torch,
+                                subtitle = toggles.getTorchStatusText(torch)
                             ))
                         } else current
-                    } else current
-                }
-            }.collect()
-        }
-
-        viewModelScope.launch {
-            systemToggleManager.isDndEnabled.collect { dnd ->
-                _uiState.update { current ->
-                    if (current.systemToggle?.id == "dnd" && current.systemToggle.isEnabled != dnd) {
-                        current.copy(systemToggle = current.systemToggle.copy(
-                            isEnabled = dnd,
-                            subtitle = systemToggleManager.getDndStatusText(dnd)
-                        ))
-                    } else current
+                    }
                 }
             }
-        }
 
-        viewModelScope.launch {
-            systemToggleManager.isLocationEnabled.collect { loc ->
-                _uiState.update { current ->
-                    if (current.systemToggle?.id == "location" && current.systemToggle.isEnabled != loc) {
-                        current.copy(systemToggle = current.systemToggle.copy(
-                            isEnabled = loc,
-                            subtitle = systemToggleManager.getLocationStatusText(loc)
-                        ))
-                    } else current
+            launch {
+                toggles.isBluetoothEnabled.collect { bt ->
+                    _uiState.update { current ->
+                        if (current.systemToggle?.id == "bluetooth" && current.systemToggle.isEnabled != bt) {
+                            current.copy(systemToggle = current.systemToggle.copy(
+                                isEnabled = bt,
+                                subtitle = toggles.getBluetoothStatusText(bt)
+                            ))
+                        } else current
+                    }
                 }
             }
-        }
 
-        viewModelScope.launch {
-            systemToggleManager.isBatterySaverEnabled.collect { bat ->
-                _uiState.update { current ->
-                    if (current.systemToggle?.id == "battery" && current.systemToggle.isEnabled != bat) {
-                        current.copy(systemToggle = current.systemToggle.copy(
-                            isEnabled = bat,
-                            subtitle = systemToggleManager.getBatterySaverStatusText(bat)
-                        ))
-                    } else current
+            launch {
+                toggles.isWifiConnected.collect { connected ->
+                    // A connection means Wi-Fi is on, whatever the radio state read a moment ago said.
+                    val enabled = toggles.isWifiEnabled() || connected
+                    val subtitle = com.pixel.intelligentsearch.core.system.SystemToggleManager.wifiStatusText(enabled, connected)
+                    _uiState.update { current ->
+                        if (current.systemToggle?.id == "wifi" &&
+                            (current.systemToggle.isEnabled != enabled || current.systemToggle.subtitle != subtitle)
+                        ) {
+                            current.copy(systemToggle = current.systemToggle.copy(isEnabled = enabled, subtitle = subtitle))
+                        } else current
+                    }
                 }
             }
-        }
 
-        viewModelScope.launch {
-            systemToggleManager.isAirplaneModeEnabled.collect { air ->
-                _uiState.update { current ->
-                    if (current.systemToggle?.id == "airplane" && current.systemToggle.isEnabled != air) {
-                        current.copy(systemToggle = current.systemToggle.copy(
-                            isEnabled = air,
-                            subtitle = systemToggleManager.getAirplaneModeStatusText(air)
-                        ))
-                    } else current
+            launch {
+                toggles.isDndEnabled.collect { dnd ->
+                    _uiState.update { current ->
+                        if (current.systemToggle?.id == "dnd" && current.systemToggle.isEnabled != dnd) {
+                            current.copy(systemToggle = current.systemToggle.copy(
+                                isEnabled = dnd,
+                                subtitle = toggles.getDndStatusText(dnd)
+                            ))
+                        } else current
+                    }
+                }
+            }
+
+            launch {
+                toggles.isLocationEnabled.collect { loc ->
+                    _uiState.update { current ->
+                        if (current.systemToggle?.id == "location" && current.systemToggle.isEnabled != loc) {
+                            current.copy(systemToggle = current.systemToggle.copy(
+                                isEnabled = loc,
+                                subtitle = toggles.getLocationStatusText(loc)
+                            ))
+                        } else current
+                    }
+                }
+            }
+
+            launch {
+                toggles.isBatterySaverEnabled.collect { bat ->
+                    _uiState.update { current ->
+                        if (current.systemToggle?.id == "battery" && current.systemToggle.isEnabled != bat) {
+                            current.copy(systemToggle = current.systemToggle.copy(
+                                isEnabled = bat,
+                                subtitle = toggles.getBatterySaverStatusText(bat)
+                            ))
+                        } else current
+                    }
+                }
+            }
+
+            launch {
+                toggles.isAirplaneModeEnabled.collect { air ->
+                    _uiState.update { current ->
+                        if (current.systemToggle?.id == "airplane" && current.systemToggle.isEnabled != air) {
+                            current.copy(systemToggle = current.systemToggle.copy(
+                                isEnabled = air,
+                                subtitle = toggles.getAirplaneModeStatusText(air)
+                            ))
+                        } else current
+                    }
                 }
             }
         }
@@ -352,13 +363,31 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    /** On each overlay open: picks up new files in the chosen folders and fresh app usage; both are throttled. */
+    /** On each overlay open with file search on: picks up new files in the chosen folders; throttled. */
     fun refreshStaleIndexes() {
         corpusIndexManager.reindexFilesIfStale()
-        corpusIndexManager.refreshAppUsageIfStale()
+    }
+
+    /** On each overlay open: re-reads app usage for ranking apps, whatever sources are on; throttled. */
+    fun refreshAppUsage() = corpusIndexManager.refreshAppUsageIfStale()
+
+    /** When the last [loadInitialData] started ([android.os.SystemClock.elapsedRealtime]); null before the first. */
+    private var lastInitialLoadAtMs: Long? = null
+
+    /**
+     * Brings quick-app predictions, upcoming events and contacts up to date each time the overlay comes back into
+     * view; loaded once, they went stale on every reopen. The first open's load, started as this view model was
+     * created, is only moments old then, so a load younger than [RELOAD_GRACE_MS] isn't repeated.
+     */
+    fun reloadOnResume() {
+        if (!directBootManager.isUserUnlocked.value) return
+        val last = lastInitialLoadAtMs
+        if (last != null && android.os.SystemClock.elapsedRealtime() - last < RELOAD_GRACE_MS) return
+        loadInitialData()
     }
 
     fun loadInitialData() {
+        lastInitialLoadAtMs = android.os.SystemClock.elapsedRealtime()
         refreshContacts()
         initialDataJob?.cancel()
         initialDataJob = viewModelScope.launch(Dispatchers.IO) {
@@ -391,57 +420,69 @@ class SearchViewModel @Inject constructor(
 
                 val events = eventsDeferred.await()
 
-                val clipboardActions = mutableListOf<DirectAction>()
-                if (settingsState.value.smartClipboardSuggestions) {
-                    try {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                        // Password managers mark copied secrets sensitive; never show or search those.
-                        val isSensitive = clipboard?.primaryClipDescription?.extras
-                            ?.getBoolean("android.content.extra.IS_SENSITIVE", false) == true
-                        val engine = settingsState.value.searchEngine
-                        val isTor = com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(engine)
-                        if (!isSensitive && clipboard?.hasPrimaryClip() == true && clipboard.primaryClipDescription != null) {
-                            val item = clipboard.primaryClip?.getItemAt(0)
-                            val text = item?.text?.toString() ?: item?.coerceToText(context)?.toString()
-                            if (!text.isNullOrBlank()) {
-                                val trimmed = text.trim()
-                                if (android.util.Patterns.WEB_URL.matcher(trimmed).matches()) {
-                                    // Same rules as a typed address: http(s) only, browsable apps only, Tor Browser under Tor.
-                                    val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.forAddress(context, trimmed, engine)
-                                    if (launch is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open) {
-                                        clipboardActions.add(DirectAction("Open Link", trimmed, "link", launch.intent))
-                                    }
-                                } else if (android.util.Patterns.PHONE.matcher(trimmed).matches() && trimmed.length >= 7) {
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$trimmed"))
-                                    clipboardActions.add(DirectAction("Call Number", trimmed, "phone", intent))
-                                } else if (isTor) {
-                                    // The generic web-search intent would reach a normal browser; search through Tor instead.
-                                    val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.torSearch(context, trimmed)
-                                    if (launch is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open) {
-                                        clipboardActions.add(DirectAction("Search Copied Text", trimmed, "search", launch.intent))
-                                    }
-                                } else {
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_WEB_SEARCH)
-                                    intent.putExtra(android.app.SearchManager.QUERY, trimmed)
-                                    clipboardActions.add(DirectAction("Search Copied Text", trimmed, "search", intent))
-                                }
-                            }
-                        }
-                    } catch (e: Exception) { android.util.Log.w("IntelligentSearch", "Unexpected error", e) }
-                }
-                initialClipboardActions = clipboardActions
                 _uiState.update { it.copy(
                     allApps = allApps,
                     recentApps = recentApps,
-                    calendarEvents = events,
-                    // Only the empty screen shows clipboard actions; a query's own actions ("call mom") stay.
-                    directActions = if (it.query.isBlank()) clipboardActions else it.directActions
+                    calendarEvents = events
                 ) }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 android.util.Log.w("IntelligentSearch", "Unexpected error", e)
             }
         }
+    }
+
+    /** Clipboard texts whose suggestion the user dismissed; reading the same clip again doesn't bring it back. */
+    private val dismissedClipTexts: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /**
+     * Offers what is on the clipboard: open a link, call a number or search the text. Android hands the clipboard
+     * only to the app in focus, so the screen calls this each time its window gains focus, which also keeps it
+     * current on every reopen.
+     */
+    suspend fun refreshClipboardActions() {
+        val settings = settingsState.value
+        val actions = if (settings.smartClipboardSuggestions) {
+            withContext(Dispatchers.IO) { readClipboardActions(settings) }.filterNot { it.subtitle in dismissedClipTexts }
+        } else emptyList()
+        initialClipboardActions = actions
+        // Only the empty screen shows clipboard actions; a query's own actions ("call mom") stay.
+        _uiState.update { if (it.query.isBlank()) it.copy(directActions = actions) else it }
+    }
+
+    private fun readClipboardActions(settings: IntelligentSearchSettings): List<DirectAction> {
+        val clipboardActions = mutableListOf<DirectAction>()
+        try {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+            // Password managers mark copied secrets sensitive; never show or search those.
+            val isSensitive = clipboard?.primaryClipDescription?.extras
+                ?.getBoolean("android.content.extra.IS_SENSITIVE", false) == true
+            val engine = settings.searchEngine
+            if (!isSensitive && clipboard?.hasPrimaryClip() == true && clipboard.primaryClipDescription != null) {
+                val item = clipboard.primaryClip?.getItemAt(0)
+                val text = item?.text?.toString() ?: item?.coerceToText(context)?.toString()
+                if (!text.isNullOrBlank()) {
+                    val trimmed = text.trim()
+                    if (android.util.Patterns.WEB_URL.matcher(trimmed).matches()) {
+                        // Same rules as a typed address: http(s) only, browsable apps only, Tor Browser under Tor.
+                        val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.forAddress(context, trimmed, engine)
+                        if (launch is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open) {
+                            clipboardActions.add(DirectAction("Open Link", trimmed, "link", launch.intent))
+                        }
+                    } else if (android.util.Patterns.PHONE.matcher(trimmed).matches() && trimmed.length >= 7) {
+                        clipboardActions.add(DirectAction("Call Number", trimmed, "phone", ContactActions.callIntent(trimmed)))
+                    } else {
+                        // The chosen engine, as for a typed search: the system web search would hand the copied text
+                        // to Google, and under Tor this opens Tor Browser or nothing.
+                        val launch = webSearchLaunch(context, engine, settings.customSearchEngineUrl, trimmed)
+                        if (launch is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open) {
+                            clipboardActions.add(DirectAction("Search Copied Text", trimmed, "search", launch.intent))
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) { android.util.Log.w("IntelligentSearch", "Unexpected error", e) }
+        return clipboardActions
     }
 
     fun onQueryChanged(newQuery: String) {
@@ -580,7 +621,7 @@ class SearchViewModel @Inject constructor(
                                     displayName = matched.name
                                     displaySubtitle = matched.phoneNumber
                                     val clean = matched.phoneNumber.filter { it.isDigit() || it == '+' }
-                                    callIntent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$clean"))
+                                    callIntent = ContactActions.callIntent(clean)
                                 }
                             } catch (e: kotlinx.coroutines.CancellationException) {
                                 throw e
@@ -929,6 +970,8 @@ class SearchViewModel @Inject constructor(
     }
 
     fun dismissDirectAction(action: DirectAction) {
+        // The clipboard is read again on every reopen; a dismissed suggestion for the same clip stays dismissed.
+        if (action in initialClipboardActions) dismissedClipTexts += action.subtitle
         initialClipboardActions = initialClipboardActions.filter { it != action }
         _uiState.update { state ->
             state.copy(directActions = state.directActions.filter { it != action })

@@ -14,7 +14,6 @@ import android.content.res.Configuration
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.location.LocationManager
-import android.media.AudioManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -27,6 +26,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
+import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +42,32 @@ class SystemToggleManager @Inject constructor(
     companion object {
         private const val TAG = "SystemToggleManager"
         private const val KEY_APP_NIGHT_MODE_RESET = "app_night_mode_override_cleared_v1"
+
+        /**
+         * Clears a per-app night-mode override persisted by older builds' dark-theme toggle so the app follows the
+         * system theme again. Runs at every start but does its work once; it needs no toggle manager, so a process
+         * started only for a widget or the boot receiver never builds one (camera, NFC and network registration).
+         */
+        fun clearLegacyNightModeOverrideIfNeeded(context: Context) {
+            val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+            if (prefs.getBoolean(KEY_APP_NIGHT_MODE_RESET, false)) return
+            try {
+                context.getSystemService(UiModeManager::class.java)?.setApplicationNightMode(UiModeManager.MODE_NIGHT_AUTO)
+                prefs.edit { putBoolean(KEY_APP_NIGHT_MODE_RESET, true) }
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not clear per-app night mode override", e)
+            }
+        }
+
+        /**
+         * The Wi-Fi toggle's status line. Android hides the network's name from apps without location access (it
+         * reads "<unknown ssid>"), so this says whether Wi-Fi is connected, never to which network.
+         */
+        fun wifiStatusText(enabled: Boolean, connected: Boolean): String = when {
+            connected -> "Wi-Fi is on • Connected"
+            enabled -> "Wi-Fi is on • Not connected"
+            else -> "Wi-Fi is turned off"
+        }
     }
 
     private val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager
@@ -49,10 +75,8 @@ class SystemToggleManager @Inject constructor(
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager?.adapter
-    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
     private val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-    private val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
     private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
     private val nfcAdapter: NfcAdapter? = try { NfcAdapter.getDefaultAdapter(context) } catch (_: Exception) { null }
 
@@ -71,16 +95,9 @@ class SystemToggleManager @Inject constructor(
     private val _isWifiConnected = MutableStateFlow(false)
     val isWifiConnected: StateFlow<Boolean> = _isWifiConnected.asStateFlow()
 
-    private val _wifiSsid = MutableStateFlow<String?>(null)
-    val wifiSsid: StateFlow<String?> = _wifiSsid.asStateFlow()
-
     // 4. Live DND State
     private val _isDndEnabled = MutableStateFlow(checkDndEnabled())
     val isDndEnabled: StateFlow<Boolean> = _isDndEnabled.asStateFlow()
-
-    // 5. Live Ringer Mode State
-    private val _ringerMode = MutableStateFlow(audioManager?.ringerMode ?: AudioManager.RINGER_MODE_NORMAL)
-    val ringerMode: StateFlow<Int> = _ringerMode.asStateFlow()
 
     // 6. Live Location State
     private val _isLocationEnabled = MutableStateFlow(checkLocationEnabled())
@@ -165,7 +182,6 @@ class SystemToggleManager @Inject constructor(
 
                 override fun onLost(network: Network) {
                     _isWifiConnected.value = false
-                    _wifiSsid.value = null
                 }
 
                 override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
@@ -185,7 +201,6 @@ class SystemToggleManager @Inject constructor(
         val filter = IntentFilter().apply {
             addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
             addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)
-            addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
             addAction(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED)
             addAction(LocationManager.PROVIDERS_CHANGED_ACTION)
             addAction(LocationManager.MODE_CHANGED_ACTION)
@@ -198,9 +213,6 @@ class SystemToggleManager @Inject constructor(
                 when (intent.action) {
                     BluetoothAdapter.ACTION_STATE_CHANGED, BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED -> {
                         _isBluetoothEnabled.value = checkBluetoothEnabled()
-                    }
-                    AudioManager.RINGER_MODE_CHANGED_ACTION -> {
-                        _ringerMode.value = audioManager?.ringerMode ?: AudioManager.RINGER_MODE_NORMAL
                     }
                     NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED -> {
                         _isDndEnabled.value = checkDndEnabled()
@@ -344,37 +356,14 @@ class SystemToggleManager @Inject constructor(
     }
 
     private fun updateWifiInfo(caps: NetworkCapabilities? = null) {
-        try {
+        _isWifiConnected.value = try {
             val effectiveCaps = caps ?: connectivityManager?.activeNetwork?.let { activeNet ->
                 connectivityManager.getNetworkCapabilities(activeNet)
             }
-            if (effectiveCaps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
-                var foundSsid: String? = null
-                val wifiInfo = effectiveCaps.transportInfo as? android.net.wifi.WifiInfo
-                val tSsid = wifiInfo?.ssid?.replace("\"", "")?.trim()
-                if (!tSsid.isNullOrBlank() && tSsid != "<unknown ssid>" && tSsid != "0x") {
-                    foundSsid = tSsid
-                }
-                if (foundSsid == null) {
-                    @Suppress("DEPRECATION")
-                    val cSsid = wifiManager?.connectionInfo?.ssid?.replace("\"", "")?.trim()
-                    if (!cSsid.isNullOrBlank() && cSsid != "<unknown ssid>" && cSsid != "0x") {
-                        foundSsid = cSsid
-                    }
-                }
-                _wifiSsid.value = foundSsid
-                _isWifiConnected.value = true
-                return
-            }
-        } catch (_: Exception) {}
-        _wifiSsid.value = null
-        _isWifiConnected.value = false
-    }
-
-    fun getWifiStatusText(enabled: Boolean): String {
-        if (!enabled) return "Wi-Fi is turned off"
-        val ssid = _wifiSsid.value
-        return if (!ssid.isNullOrBlank()) "Connected to $ssid" else "Wi-Fi is on • Not connected"
+            effectiveCaps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     fun openWifiSettings() {
@@ -571,21 +560,6 @@ class SystemToggleManager @Inject constructor(
      */
     fun toggleDarkMode(@Suppress("UNUSED_PARAMETER") enabled: Boolean) {
         openDarkModeSettings()
-    }
-
-    /**
-     * Clears a per-app night-mode override persisted by older builds' dark-theme toggle so the app
-     * follows the system theme again. Runs once.
-     */
-    fun clearLegacyAppNightModeOverride() {
-        val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
-        if (prefs.getBoolean(KEY_APP_NIGHT_MODE_RESET, false)) return
-        try {
-            uiModeManager?.setApplicationNightMode(UiModeManager.MODE_NIGHT_AUTO)
-            prefs.edit().putBoolean(KEY_APP_NIGHT_MODE_RESET, true).apply()
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not clear per-app night mode override", e)
-        }
     }
 
     fun getDarkModeStatusText(enabled: Boolean): String {

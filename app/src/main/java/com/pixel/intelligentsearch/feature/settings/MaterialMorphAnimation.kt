@@ -26,21 +26,34 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.graphics.shapes.CornerRounding
 import androidx.graphics.shapes.Morph
 import androidx.graphics.shapes.RoundedPolygon
 import androidx.graphics.shapes.star
 import androidx.graphics.shapes.toPath
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.collectLatest
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 
@@ -56,6 +69,82 @@ private fun materialShapes(): List<RoundedPolygon> {
 
 /** Haptics are spaced at least this far apart, so shapes landing together feel like one tap, not a buzz. */
 private const val HAPTIC_SPACING_MS = 90L
+
+/** Test tag on the Material Morph animation's area. */
+internal const val MORPH_ANIMATION_TAG = "material_morph_animation"
+
+/** What a running [MaterialMorphAnimation] is showing, for tests, through [MorphSceneKey] on its area. */
+internal class MorphSceneInfo(val physics: MorphBouncePhysics) {
+    /** How many pixels make one metre of the scene. */
+    var pxPerMetre = 0f
+    /** Bounces that asked for a haptic tap (taps closer together than [HAPTIC_SPACING_MS] are then felt as one). */
+    var bouncesFelt = 0
+}
+
+internal val MorphSceneKey = SemanticsPropertyKey<MorphSceneInfo>("MorphScene")
+
+/** The area under the cards is at least this tall; when the cards leave less room, the page scrolls to it. */
+internal val MORPH_AREA_MIN_HEIGHT = 160.dp
+
+/** An area shorter than this, in dp, has no room for a real bounce and stays empty. */
+private const val MIN_AREA_HEIGHT_DP = 40f
+
+/** The scene is at least this tall, in metres: a shorter area is drawn at a smaller scale, not with shorter bounces. */
+private const val MIN_SCENE_HEIGHT = 1.2f
+
+/** No shape is wider than this share of the area's height, so every shape has room to bounce. */
+private const val MAX_SHAPE_HEIGHT_SHARE = 0.22f
+
+/** How an animation area maps onto the physics: its scale, its size in metres, and the four shape radii. */
+internal data class MorphScene(val pxPerMetre: Float, val widthMetres: Float, val heightMetres: Float, val radiiMetres: List<Float>)
+
+/**
+ * The scene for an area [widthPx] by [heightPx] at [density] pixels per dp, or null if the area is too short to show
+ * it. One dp is one centimetre, except that an area under [MIN_SCENE_HEIGHT] metres is drawn smaller instead, so the
+ * shapes keep real, countable bounces however little room big text or Display size leaves. Shape sizes follow the
+ * area alone, never the font size: 5.5% of its width (up to 1.6x for the largest), scaled for narrow and wide areas,
+ * and never more than [MAX_SHAPE_HEIGHT_SHARE] of its height.
+ */
+internal fun morphSceneFor(widthPx: Float, heightPx: Float, density: Float): MorphScene? {
+    if (widthPx <= 0f || density <= 0f || heightPx < MIN_AREA_HEIGHT_DP * density) return null
+    val pxPerMetre = minOf(density * 100f, heightPx / MIN_SCENE_HEIGHT)
+    val widthScale = (widthPx / density / 411f).coerceIn(0.65f, 1.4f)
+    val radii = (0 until 4).map { i ->
+        val diameterPx = minOf(widthPx * 0.055f * widthScale * (1f + i * 0.2f), heightPx * MAX_SHAPE_HEIGHT_SHARE)
+        diameterPx / 2f / pxPerMetre
+    }
+    return MorphScene(pxPerMetre, widthPx / pxPerMetre, heightPx / pxPerMetre, radii)
+}
+
+/**
+ * A settings page's [cards] (one layout, usually a Column) with the Material Morph animation's area under them. The
+ * area fills the rest of the screen; when the cards leave it less than [MORPH_AREA_MIN_HEIGHT] (big text or Display
+ * size), it keeps that height after the last card and the page scrolls to it. With the animation off the area takes
+ * only the room left over, so the page scrolls just as far as its cards.
+ */
+@Composable
+internal fun CardsAboveMorphAnimation(morphAnimationEnabled: Boolean, modifier: Modifier = Modifier, cards: @Composable () -> Unit) {
+    Layout(
+        content = {
+            cards()
+            Box(modifier = Modifier.clipToBounds()) {
+                if (morphAnimationEnabled) MaterialMorphAnimation(modifier = Modifier.fillMaxSize())
+            }
+        },
+        modifier = modifier.verticalScroll(rememberScrollState())
+    ) { measurables, constraints ->
+        val width = constraints.maxWidth
+        val cardsPlaceable = measurables[0].measure(Constraints(minWidth = width, maxWidth = width))
+        // The scroll passes the viewport's height on as the minimum.
+        val minArea = if (morphAnimationEnabled) MORPH_AREA_MIN_HEIGHT.roundToPx() else 0
+        val areaHeight = maxOf(constraints.minHeight - cardsPlaceable.height, minArea)
+        val area = measurables[1].measure(Constraints.fixed(width, areaHeight))
+        layout(width, cardsPlaceable.height + areaHeight) {
+            cardsPlaceable.place(0, 0)
+            area.place(0, cardsPlaceable.height)
+        }
+    }
+}
 
 /** Whether Battery Saver is on, following changes while shown. */
 @Composable
@@ -80,7 +169,9 @@ private fun rememberPowerSaveMode(): State<Boolean> {
  * keep dropping in, at most five at a time. The motion is real physics, see [MorphBouncePhysics]: shapes also knock
  * into each other, stretch a little when falling fast, cast a soft shadow on the floor that darkens as they land,
  * and briefly glow on every bounce, with a haptic tap whose strength follows the impact. Nothing is drawn when the
- * phone's animations are turned off or Battery Saver is on.
+ * phone's animations are turned off or Battery Saver is on. The scene and the shape sizes follow the area it is given
+ * (see [morphSceneFor]), never the font size, so big text or Display size changes nothing but the room it has; while
+ * the area is scrolled out of sight, nothing moves and nothing taps.
  */
 @Composable
 fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
@@ -91,7 +182,6 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val view = LocalView.current
     val density = LocalDensity.current
-    val configuration = LocalConfiguration.current
     val hapticEngine = remember(context) { PixelHapticEngine.get(context) }
     val physics = remember { MorphBouncePhysics() }
     val shapes = remember { materialShapes() }
@@ -115,31 +205,32 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     // Bumped every frame; the Canvas reads it so only drawing reruns, never composition.
     val frame = remember { mutableLongStateOf(0L) }
 
-    // The scene is drawn at one dp per centimetre.
-    val pxPerMetre = density.density * 100f
+    val sceneInfo = remember(physics) { MorphSceneInfo(physics) }
+    // Whether any of the area is on screen; scrolled out of sight, nothing moves and nothing taps.
+    val onScreen = remember { mutableStateOf(false) }
 
-    BoxWithConstraints(modifier = modifier.clipToBounds()) {
+    BoxWithConstraints(
+        modifier = modifier
+            .testTag(MORPH_ANIMATION_TAG)
+            .semantics { this[MorphSceneKey] = sceneInfo }
+            .onGloballyPositioned { coordinates ->
+                val bounds = coordinates.boundsInWindow()
+                onScreen.value = bounds.width > 0f && bounds.height > 0f
+            }
+            .clipToBounds()
+    ) {
         val widthPx = constraints.maxWidth.toFloat()
         val heightPx = constraints.maxHeight.toFloat()
-        if (widthPx <= 0f || heightPx <= 0f) return@BoxWithConstraints
-
-        // Shape sizes: a share of the screen width (5.5%, up to 1.6x for the largest), scaled for small and large
-        // screens and font size.
-        val dpScale = (configuration.smallestScreenWidthDp / 411f).coerceIn(0.65f, 1.4f)
-        val fontAdjust = 1f / density.fontScale.coerceIn(0.8f, 1.5f)
-        val screenWidthPx = LocalWindowInfo.current.containerSize.width.toFloat()
-        val radiiMetres = remember(widthPx, heightPx, dpScale, fontAdjust, screenWidthPx) {
-            (0 until 4).map { i ->
-                val sizePx = (screenWidthPx * 0.055f * dpScale * fontAdjust * (1f + i * 0.2f)).coerceIn(16f, (heightPx * 0.35f).coerceAtLeast(24f))
-                sizePx / 2f / pxPerMetre
-            }
-        }
-        LaunchedEffect(widthPx, heightPx, radiiMetres) {
-            physics.resize(widthPx / pxPerMetre, heightPx / pxPerMetre, radiiMetres)
-        }
+        val scene = remember(widthPx, heightPx, density.density) { morphSceneFor(widthPx, heightPx, density.density) }
+            ?: return@BoxWithConstraints
+        val pxPerMetre = scene.pxPerMetre
+        sceneInfo.pxPerMetre = pxPerMetre
+        // Applied before this frame is drawn, so shapes never show at one size's scale in another size's area.
+        SideEffect { physics.resize(scene.widthMetres, scene.heightMetres, scene.radiiMetres) }
         LaunchedEffect(Unit) {
             var lastHaptic = 0L
             val onBounce = MorphBouncePhysics.BounceListener { _, impactSpeed ->
+                sceneInfo.bouncesFelt++
                 val now = SystemClock.uptimeMillis()
                 if (now - lastHaptic >= HAPTIC_SPACING_MS) {
                     lastHaptic = now
@@ -148,12 +239,15 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                     hapticEngine.performImpactHaptic(view, strength)
                 }
             }
-            var last = withFrameNanos { it }
-            while (true) {
-                val now = withFrameNanos { it }
-                physics.advance((now - last) / 1_000_000_000f, onBounce)
-                last = now
-                frame.longValue = now
+            snapshotFlow { onScreen.value }.collectLatest { visible ->
+                if (!visible) return@collectLatest
+                var last = withFrameNanos { it }
+                while (true) {
+                    val now = withFrameNanos { it }
+                    physics.advance((now - last) / 1_000_000_000f, onBounce)
+                    last = now
+                    frame.longValue = now
+                }
             }
         }
 

@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.speech.RecognizerIntent
 import android.util.Log
+import androidx.core.net.toUri
 import com.pixel.intelligentsearch.R
 
 private const val TAG = "SearchWidgetProvider"
@@ -265,8 +266,7 @@ fun getCustomIntentOrDefault(context: Context, shortcut: String, defaultIntent: 
     val customValue = prefs.getString("${shortcut}_custom_value", "")
 
     if (customType == "url" && !customValue.isNullOrEmpty()) {
-        val urlString = if (!customValue.startsWith("http://") && !customValue.startsWith("https://")) "https://$customValue" else customValue
-        return Intent(Intent.ACTION_VIEW, Uri.parse(urlString)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        return Intent(Intent.ACTION_VIEW, customShortcutUri(customValue)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
     } else if (customType == "app" && !customValue.isNullOrEmpty()) {
         val launchIntent = context.packageManager.getLaunchIntentForPackage(customValue)
         if (launchIntent != null) {
@@ -276,6 +276,15 @@ fun getCustomIntentOrDefault(context: Context, shortcut: String, defaultIntent: 
     }
 
     return defaultIntent()
+}
+
+/**
+ * The page a shortcut set to open a website opens. An address typed without a scheme opens over https. A scheme is
+ * recognised however it was typed ("HTTPS://..."), and lower-cased, so it isn't taken for part of the address.
+ */
+internal fun customShortcutUri(address: String): Uri {
+    val hasScheme = address.startsWith("http://", ignoreCase = true) || address.startsWith("https://", ignoreCase = true)
+    return (if (hasScheme) address else "https://$address").toUri().normalizeScheme()
 }
 
 fun getNowPlayingIntent(context: Context): Intent {

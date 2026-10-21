@@ -24,7 +24,6 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.ColorStateList
 import android.graphics.Color
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -879,7 +878,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     } catch (_: Throwable) {}
                 } else if (customType == "url" && !customValue.isNullOrBlank()) {
                     val host = try {
-                        Uri.parse(if (customValue.startsWith("http")) customValue else "https://$customValue").host ?: customValue
+                        customShortcutUri(customValue).host ?: customValue
                     } catch (_: Throwable) {
                         customValue
                     }

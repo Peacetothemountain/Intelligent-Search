@@ -387,14 +387,6 @@ open class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onTrimMemory(level: Int) {
-        super.onTrimMemory(level)
-        if (level >= TRIM_MEMORY_UI_HIDDEN) {
-            com.pixel.intelligentsearch.feature.search.clearAllUiMemoryCaches()
-            com.pixel.intelligentsearch.core.data.SystemDataProvider.invalidateAppsCache()
-        }
-    }
-
     /**
      * Drops the query from [getIntent] once it has been used, so nothing reads it again later. Otherwise turning the
      * overlay off in Settings and coming back would hand the old query, such as selected text, to a web search on

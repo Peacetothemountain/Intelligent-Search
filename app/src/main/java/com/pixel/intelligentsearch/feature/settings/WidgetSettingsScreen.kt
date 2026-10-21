@@ -15,6 +15,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -33,6 +34,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.R
@@ -685,7 +688,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp)
-                        .padding(4.dp),
+                        .padding(4.dp)
+                        .selectableGroup(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -696,6 +700,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(24.dp))
                             .background(if (isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
+                            .semantics { selected = isSystem }
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
                                 hapticEngine.performPredictiveBackHaptic(view)
                                 localThemeStyle = "System Default"
@@ -717,6 +722,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(24.dp))
                             .background(if (!isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
+                            .semantics { selected = !isSystem }
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
                                 hapticEngine.performPredictiveBackHaptic(view)
                                 // Only shows the Material design; its own settings, like Inner Pill & Circle
@@ -764,7 +770,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     .padding(horizontal = 16.dp, vertical = 4.dp)
                     .clip(RoundedCornerShape(28.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .padding(4.dp),
+                    .padding(4.dp)
+                    .selectableGroup(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 tabs.forEach { tab ->
@@ -777,6 +784,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .background(
                                 if (isSel) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
                             )
+                            .semantics { selected = isSel }
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
                                 hapticEngine.performPredictiveBackHaptic(view)
                                 selectedTabName = tab.first
@@ -790,7 +798,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         ) {
                             Icon(
                                 imageVector = tab.second,
-                                contentDescription = tab.first,
+                                contentDescription = null,
                                 tint = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )

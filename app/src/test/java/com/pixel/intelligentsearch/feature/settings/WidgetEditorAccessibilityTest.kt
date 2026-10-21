@@ -80,6 +80,46 @@ class WidgetEditorAccessibilityTest {
     private val isAdjustable = SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo)
 
     @Test
+    fun designSwitcherAnnouncesTheSelectedDesign() {
+        openEditor()
+
+        compose.onNodeWithText("System Design").assertIsSelected()
+        compose.onNodeWithText("Material Design").assertIsNotSelected()
+    }
+
+    @Test
+    fun tabsAnnounceSelectionAndTheirNameOnce() {
+        openEditor()
+
+        compose.onNodeWithText("Appearance").assertIsSelected()
+        compose.onNodeWithText("Widget Shortcuts").assertIsNotSelected()
+        // The tab's icon repeated its label, so TalkBack read "Appearance, Appearance".
+        compose.onAllNodesWithContentDescription("Appearance").assertCountEquals(0)
+    }
+
+    @Test
+    fun subthemeAndIconStyleOptionsAnnounceSelection() {
+        openEditor()
+        tap("Dark")
+        tap("Accented")
+
+        compose.onNodeWithText("Dark").assertIsSelected()
+        compose.onNodeWithText("Light").assertIsNotSelected()
+        compose.onNodeWithText("Accented").assertIsSelected()
+        compose.onNodeWithText("G ICON STYLE").assert(isHeading)
+    }
+
+    @Test
+    fun actionIconOptionsAnnounceSelection() {
+        openEditor()
+        tap("Material Design")
+
+        compose.onNodeWithText("Search").assertIsSelected()
+        compose.onNodeWithText("Playing").assertIsNotSelected()
+        compose.onNodeWithText("WIDGET ACTION ICON").assert(isHeading)
+    }
+
+    @Test
     fun switchingDesignKeepsTheOpenTab() {
         // The System design has the Custom subtheme, which adds a Color Studio tab the Material design lacks.
         prefs.edit()
@@ -93,6 +133,14 @@ class WidgetEditorAccessibilityTest {
 
         compose.onNodeWithText("WIDGET SHORTCUTS").assertExists()
         compose.onNodeWithText("CUSTOM COLOR PALETTE").assertDoesNotExist()
+    }
+
+    @Test
+    fun shortcutsSectionHeaderIsAHeading() {
+        openEditor()
+        tap("Widget Shortcuts")
+
+        compose.onNodeWithText("WIDGET SHORTCUTS").assert(isHeading)
     }
 
     private fun hasCustomAction(label: String) = SemanticsMatcher("has custom action '$label'") { node ->

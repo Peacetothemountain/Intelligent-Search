@@ -7,6 +7,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -19,6 +20,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -102,12 +108,13 @@ internal fun WidgetAppearanceTab(
     }
 
     if (isMaterialYou) {
-        Text("WIDGET ACTION ICON", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
+        Text("WIDGET ACTION ICON", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp).semantics { heading() })
         SettingsCard {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(6.dp),
+                    .padding(6.dp)
+                    .selectableGroup(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -129,6 +136,7 @@ internal fun WidgetAppearanceTab(
                                 if (isSel) MaterialTheme.colorScheme.primaryContainer 
                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                             )
+                            .semantics { selected = isSel }
                             .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
                                 hapticEngine.performPredictiveBackHaptic(view)
                                 localActionIcon = optionKey
@@ -175,7 +183,8 @@ internal fun WidgetAppearanceTab(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 4.dp)
+            .selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         if (localThemeStyle == "System Default") {
@@ -207,6 +216,7 @@ internal fun WidgetAppearanceTab(
                         .height(48.dp)
                         .then(bgModifier)
                         .clip(RoundedCornerShape(32.dp))
+                        .semantics { selected = isSel }
                         .bouncyClickable(shape = RoundedCornerShape(32.dp)) { localSubtheme = opt },
                     contentAlignment = Alignment.Center
                 ) {
@@ -252,6 +262,7 @@ internal fun WidgetAppearanceTab(
                         .height(48.dp)
                         .then(bgModifier)
                         .clip(RoundedCornerShape(32.dp))
+                        .semantics { selected = isSel }
                         .bouncyClickable(shape = RoundedCornerShape(32.dp)) {
                             localSubtheme = opt
                             if (opt == "Material") {
@@ -277,14 +288,15 @@ internal fun WidgetAppearanceTab(
         }
     }
 
-    Text("G ICON STYLE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
+    Text("G ICON STYLE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp).semantics { heading() })
     // G Icon Row with Custom G Icon button right beside Accented G Icon
     SettingsCard {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .padding(4.dp),
+                .padding(4.dp)
+                .selectableGroup(),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -297,6 +309,7 @@ internal fun WidgetAppearanceTab(
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(20.dp))
                         .background(if (isSel) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+                        .semantics { selected = isSel }
                         .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
                             hapticEngine.performPredictiveBackHaptic(view)
                             localMaterialGIconTheme = opt
@@ -342,16 +355,16 @@ internal fun WidgetAppearanceTab(
     }
 
     if (localMaterialGIconTheme == "Custom G Icon") {
-        Text("CUSTOM ICON COLORS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
+        Text("CUSTOM ICON COLORS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp).semantics { heading() })
         SettingsCard {
             Column(modifier = Modifier.padding(16.dp)) {
-                // 0. Default Google Color Pallete Switch Row
+                // 0. Default Google Color Palette Switch Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Default Google Color Pallete", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Default Google Color Palette", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                         Text(
                             "Preserve multi-colored Google logo while customizing shortcuts and action button",
                             fontSize = 13.sp,
@@ -362,7 +375,8 @@ internal fun WidgetAppearanceTab(
                         checked = localKeepSystemG,
                         onCheckedChange = { keep ->
                             localKeepSystemG = keep
-                        }
+                        },
+                        label = "Default Google Color Palette"
                     )
                 }
 
@@ -392,7 +406,8 @@ internal fun WidgetAppearanceTab(
                                 localCustomShortcut3Color = localCustomGIconColor
                                 localCustomActionColor = localCustomGIconColor
                             }
-                        }
+                        },
+                        label = "Sync All Colors"
                     )
                 }
 
@@ -436,7 +451,8 @@ internal fun WidgetAppearanceTab(
                         "SELECT ELEMENT TO CUSTOMIZE",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.semantics { heading() }
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 

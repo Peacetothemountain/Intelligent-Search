@@ -117,7 +117,7 @@ internal fun WidgetEditorDialogs(
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = option.second,
-                                    contentDescription = option.first,
+                                    contentDescription = null,
                                     modifier = Modifier
                                         .size(56.dp)
                                         .background(

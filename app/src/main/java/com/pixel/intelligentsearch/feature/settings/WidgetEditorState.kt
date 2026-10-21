@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesignSettings
+import kotlin.math.roundToInt
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
@@ -23,6 +24,9 @@ internal fun <T> draftField(
     }
 }
 
+/** [value] rounded to the nearest whole number, as a slider value is saved. */
+private fun whole(value: Float): Float = value.roundToInt().toFloat()
+
 /**
  * The widget design drafts as plain properties: reading one reads the draft being edited, assigning one updates
  * it. Rebuilt when the user switches design, so [active] always points at that design's draft.
@@ -37,11 +41,13 @@ internal class WidgetDraftFields(active: MutableState<WidgetDesignSettings>, mat
     var customShortcut3Color by draftField(active, { it.elementColors.shortcut3 }) { d, v -> d.copy(elementColors = d.elementColors.copy(shortcut3 = v)) }
     var customActionColor by draftField(active, { it.elementColors.action }) { d, v -> d.copy(elementColors = d.elementColors.copy(action = v)) }
     var customSyncColors by draftField(active, { it.syncColors }) { d, v -> d.copy(syncColors = v) }
-    var hue by draftField(active, { it.hue }) { d, v -> d.copy(hue = v) }
-    var saturation by draftField(active, { it.saturation }) { d, v -> d.copy(saturation = v) }
-    var lightness by draftField(active, { it.lightness }) { d, v -> d.copy(lightness = v) }
-    var colorOpacity by draftField(active, { it.colorOpacity }) { d, v -> d.copy(colorOpacity = v) }
-    var transparency by draftField(active, { it.transparency }) { d, v -> d.copy(transparency = v) }
+    // The Color Studio sliders pass fractions, but a design is saved in whole numbers; the draft keeps whole numbers
+    // too, so the preview shows the colour the widget will draw once saved.
+    var hue by draftField(active, { it.hue }) { d, v -> d.copy(hue = whole(v)) }
+    var saturation by draftField(active, { it.saturation }) { d, v -> d.copy(saturation = whole(v)) }
+    var lightness by draftField(active, { it.lightness }) { d, v -> d.copy(lightness = whole(v)) }
+    var colorOpacity by draftField(active, { it.colorOpacity }) { d, v -> d.copy(colorOpacity = whole(v)) }
+    var transparency by draftField(active, { it.transparency }) { d, v -> d.copy(transparency = whole(v)) }
     var showGIcon by draftField(active, { it.showGIcon }) { d, v -> d.copy(showGIcon = v) }
     var showDoodles by draftField(active, { it.showDoodles }) { d, v -> d.copy(showDoodles = v) }
     var showVoice by draftField(active, { it.showVoice }) { d, v -> d.copy(showVoice = v) }

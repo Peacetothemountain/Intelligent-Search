@@ -118,6 +118,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     val fileWeight = s.fileWeight
     val suggestionsEnabled = s.suggestionsEnabled
     val performAppLaunch = s.performAppLaunch
+    val launchIcons = s.launchIcons
+    val appLaunch = s.appLaunch
     val launchWebSearch = s.launchWebSearch
     val openWebAddress = s.openWebAddress
     val visibleApps = s.visibleApps
@@ -641,7 +643,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     }
                                 }
                                 uniqueItems(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }, contentType = { "app_item" }) { app ->
-                                    AppGridItem(app) { performAppLaunch(app) }
+                                    val iconKey = LaunchIconKeys.app(app)
+                                    AppGridItem(app, launchIcon = LaunchIconTarget(launchIcons, iconKey)) { performAppLaunch(app, LaunchSource.tap(iconKey)) }
                                 }
                             }
                         }

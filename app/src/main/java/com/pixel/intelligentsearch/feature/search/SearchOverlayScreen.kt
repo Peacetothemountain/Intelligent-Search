@@ -98,9 +98,9 @@ fun SearchOverlayScreen(
     onOpenSettings: (String) -> Unit,
     /**
      * Launches an app in its own profile: package, profile (null = personal), launcher activity if known, and the
-     * launch's ActivityOptions (null for the system's default animation).
+     * launch's animation and source bounds (null for the system's default animation).
      */
-    onLaunchApp: (packageName: String, user: android.os.UserHandle?, activityName: String?, options: android.os.Bundle?) -> Unit,
+    onLaunchApp: (packageName: String, user: android.os.UserHandle?, activityName: String?, launch: AppLaunchOptions?) -> Unit,
     viewModel: SearchViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel(),
     isKeyboardDisabled: Boolean = false
@@ -198,24 +198,27 @@ fun SearchOverlayScreen(
         }
     }
 
-    // App Animations: apps opened here scale up out of the touch that opened them.
+    // App Animations: apps opened here open out of the icon they were opened from, as from the launcher.
     val launchOrigin = remember { LaunchOrigin() }
+    val launchIcons = remember { LaunchIcons() }
     val appAnimations = settingsState.appAnimations
-    val launchOptions: () -> android.os.Bundle? = remember(view, appAnimations) {
-        { AppLaunchAnimation.options(view, appAnimations, launchOrigin.point) }
+    val appLaunch: (LaunchSource) -> AppLaunchOptions? = remember(view, appAnimations) {
+        { from ->
+            AppLaunchAnimation.launch(view, appAnimations, launchIcons.bounds(from.iconKeys), launchOrigin.point.takeIf { from.byTouch })
+        }
     }
-    val performLaunch: (String, android.os.UserHandle?, String?) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController, focusManager, launchOptions) {
-        { packageName, user, activityName ->
+    val performLaunch: (String, android.os.UserHandle?, String?, LaunchSource) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController, focusManager, appLaunch) {
+        { packageName, user, activityName, from ->
             hasStartedTyping = false
             focusManager.clearFocus(force = true)
             keyboardController?.hide()
             sensoryEngine.appLaunch(view)
-            onLaunchApp(packageName, user, activityName, launchOptions())
+            onLaunchApp(packageName, user, activityName, appLaunch(from))
         }
     }
     // Work and Private Space copies of an app share its package name, so launches carry the profile too.
-    val performAppLaunch: (AppItem) -> Unit = remember(performLaunch) {
-        { app -> performLaunch(app.packageName, app.userHandle, app.activityName) }
+    val performAppLaunch: (AppItem, LaunchSource) -> Unit = remember(performLaunch) {
+        { app, from -> performLaunch(app.packageName, app.userHandle, app.activityName, from) }
     }
 
     LaunchedEffect(uiState.mathResult) {
@@ -602,7 +605,7 @@ fun SearchOverlayScreen(
                 // A spoken name can be misheard, so voice opens the contact rather than dialling straight away.
                 launchSafeIntent(context, ContactActions.openIntent(match, directCall = settingsState.contactDirectCall && !fromVoice))
             }
-            is AppItem -> performAppLaunch(match)
+            is AppItem -> performAppLaunch(match, LaunchSource.keyboard(LaunchIconKeys.BEST_MATCH, LaunchIconKeys.app(match)))
             is FileItem -> {
                 val intent = buildOpenFileIntent(match.uri, match.mimeType)
                 if (!launchSafeIntent(context, intent)) {
@@ -612,7 +615,7 @@ fun SearchOverlayScreen(
             }
             else -> when {
                 uiState.instantAnswer?.iconType == "url" -> uiState.instantAnswer?.let { answer -> openWebAddress(answer.title) }
-                settingsState.appQuickLaunch && visibleApps.isNotEmpty() -> performAppLaunch(visibleApps.first())
+                settingsState.appQuickLaunch && visibleApps.isNotEmpty() -> visibleApps.first().let { app -> performAppLaunch(app, LaunchSource.keyboard(LaunchIconKeys.app(app))) }
                 else -> launchWebSearch(submittedQuery)
             }
         }
@@ -656,6 +659,8 @@ fun SearchOverlayScreen(
         listState = searchResultsListState,
         performLaunch = performLaunch,
         performAppLaunch = performAppLaunch,
+        launchIcons = launchIcons,
+        appLaunch = appLaunch,
         closeOverlay = closeOverlay,
         launchWebSearch = launchWebSearch,
         openWebAddress = openWebAddress,

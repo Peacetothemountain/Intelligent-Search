@@ -82,6 +82,24 @@ fun SettingsCard(
     }
 }
 
+/**
+ * The title above a group of settings, in the one style every settings page uses: primary-coloured, bold
+ * titleMedium text in Title Case, inset to line up with the rows in the [SettingsCard] below it. It is a heading, so
+ * TalkBack can jump from section to section. Titles inside a card are the card's own and don't use this.
+ */
+@Composable
+fun SettingsSectionHeader(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = modifier
+            .padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+            .semantics { heading() }
+    )
+}
+
 @Composable
 fun SettingsRow(
     onLongClick: (() -> Unit)? = null,

@@ -104,7 +104,7 @@ class WidgetEditorAccessibilityTest {
         compose.onNodeWithText("Dark").assertIsSelected()
         compose.onNodeWithText("Light").assertIsNotSelected()
         compose.onNodeWithText("Accented").assertIsSelected()
-        compose.onNodeWithText("G ICON STYLE").assert(isHeading)
+        compose.onNodeWithText("G Icon Style").assert(isHeading)
     }
 
     @Test
@@ -114,7 +114,7 @@ class WidgetEditorAccessibilityTest {
 
         compose.onNodeWithText("Search").assertIsSelected()
         compose.onNodeWithText("Playing").assertIsNotSelected()
-        compose.onNodeWithText("WIDGET ACTION ICON").assert(isHeading)
+        compose.onNodeWithText("Widget Action Icon").assert(isHeading)
     }
 
     @Test
@@ -128,7 +128,7 @@ class WidgetEditorAccessibilityTest {
         }
         // The 36dp thumb was drawn inside an 8dp box, over the value text above it.
         compose.onNodeWithContentDescription("Hue").assertHeightIsAtLeast(48.dp)
-        compose.onNodeWithText("CUSTOM COLOR PALETTE").assert(isHeading)
+        compose.onNodeWithText("Custom Color Palette").assert(isHeading)
     }
 
     @Test
@@ -175,7 +175,7 @@ class WidgetEditorAccessibilityTest {
         for (name in listOf("Hue", "Saturation", "Brightness")) {
             compose.onNode(hasContentDescription(name) and isAdjustable).assertExists()
         }
-        compose.onNodeWithText("CUSTOM ICON COLORS").assert(isHeading)
+        compose.onNodeWithText("Custom Icon Colors").assert(isHeading)
     }
 
     @Test
@@ -190,8 +190,8 @@ class WidgetEditorAccessibilityTest {
         tap("Widget Shortcuts")
         tap("System Design")
 
-        compose.onNodeWithText("WIDGET SHORTCUTS").assertExists()
-        compose.onNodeWithText("CUSTOM COLOR PALETTE").assertDoesNotExist()
+        compose.onNode(hasText("Widget Shortcuts") and isHeading).assertExists()
+        compose.onNodeWithText("Custom Color Palette").assertDoesNotExist()
     }
 
     @Test
@@ -209,7 +209,7 @@ class WidgetEditorAccessibilityTest {
         tap("Custom")
 
         compose.onNodeWithText("Appearance").assertIsSelected()
-        compose.onNodeWithText("CUSTOM COLOR PALETTE").assertDoesNotExist()
+        compose.onNodeWithText("Custom Color Palette").assertDoesNotExist()
     }
 
     @Test
@@ -217,7 +217,7 @@ class WidgetEditorAccessibilityTest {
         openEditor()
         tap("Widget Shortcuts")
 
-        compose.onNodeWithText("WIDGET SHORTCUTS").assert(isHeading)
+        compose.onNode(hasText("Widget Shortcuts") and isHeading).assert(isHeading)
     }
 
     @Test

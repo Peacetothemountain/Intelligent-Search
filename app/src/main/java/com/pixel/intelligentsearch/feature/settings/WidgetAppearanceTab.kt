@@ -120,7 +120,7 @@ internal fun WidgetAppearanceTab(
     }
 
     if (isMaterialYou) {
-        Text("WIDGET ACTION ICON", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp).semantics { heading() })
+        SettingsSectionHeader("Widget Action Icon")
         SettingsCard {
             Row(
                 modifier = Modifier
@@ -295,7 +295,7 @@ internal fun WidgetAppearanceTab(
         }
     }
 
-    Text("G ICON STYLE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp).semantics { heading() })
+    SettingsSectionHeader("G Icon Style")
     // G Icon Row with Custom G Icon button right beside Accented G Icon
     SettingsCard {
         Row(
@@ -360,7 +360,7 @@ internal fun WidgetAppearanceTab(
     }
 
     if (localMaterialGIconTheme == "Custom G Icon") {
-        Text("CUSTOM ICON COLORS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp).semantics { heading() })
+        SettingsSectionHeader("Custom Icon Colors")
         SettingsCard {
             Column(modifier = Modifier.padding(16.dp)) {
                 // 0. Default Google Color Palette Switch Row

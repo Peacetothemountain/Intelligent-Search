@@ -30,6 +30,12 @@ class QuickAppSearchIntentTest {
     }
 
     @Test
+    fun thePlayStoreSearchOpensOnlyInThePlayStore() {
+        // Other stores also answer market:// links; the pill names the Play Store.
+        assertEquals("com.android.vending", quickAppSearchIntent(context, "com.android.vending", "maps")!!.`package`)
+    }
+
+    @Test
     fun contactsAndFilesFallBackToAPickerWhenNotInstalled() {
         assertEquals(Intent.ACTION_PICK, quickAppSearchIntent(context, "com.google.android.contacts", "x")!!.action)
         assertEquals(Intent.ACTION_GET_CONTENT, quickAppSearchIntent(context, "com.google.android.apps.nbu.files", "x")!!.action)

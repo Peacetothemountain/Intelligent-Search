@@ -148,8 +148,8 @@ object WindowFramePacing {
     }
 
     /**
-     * Detects and locks the display panel to its highest supported refresh rate mode (e.g. 144Hz / 120Hz).
-     * Uses [WindowManager.LayoutParams.preferredDisplayModeId].
+     * Locks the panel to its fastest refresh rate at the current resolution (see [pickHighRefreshMode]) through
+     * [WindowManager.LayoutParams.preferredDisplayModeId]. Leaves the window alone when no faster mode exists.
      */
     fun lockMaxDisplayRefreshRate(activity: Activity?) {
         if (activity == null) return
@@ -157,16 +157,28 @@ object WindowFramePacing {
             val window = activity.window ?: return
             val display = getDisplaySafely(activity) ?: return
 
-            val modes = display.supportedModes
-            val highestMode = modes.maxByOrNull { it.refreshRate } ?: return
-            if (highestMode.refreshRate >= 90f) {
-                val params = window.attributes
-                if (params.preferredDisplayModeId != highestMode.modeId) {
-                    params.preferredDisplayModeId = highestMode.modeId
-                    window.attributes = params
-                }
+            fun Display.Mode.spec() = ModeSpec(modeId, physicalWidth, physicalHeight, refreshRate)
+            val modeId = pickHighRefreshMode(display.supportedModes.map { it.spec() }, display.mode.spec()) ?: return
+            val params = window.attributes
+            if (params.preferredDisplayModeId != modeId) {
+                params.preferredDisplayModeId = modeId
+                window.attributes = params
             }
         } catch (_: Throwable) {}
+    }
+
+    /** A display mode's id, physical size and refresh rate. */
+    internal data class ModeSpec(val id: Int, val width: Int, val height: Int, val refreshRate: Float)
+
+    /**
+     * The fastest mode at [current]'s resolution, or null unless it reaches 90 Hz and beats the current rate. Only
+     * modes of the same size are considered: picking a mode by rate alone could switch the panel's resolution.
+     */
+    internal fun pickHighRefreshMode(modes: List<ModeSpec>, current: ModeSpec): Int? {
+        val fastest = modes
+            .filter { it.width == current.width && it.height == current.height }
+            .maxByOrNull { it.refreshRate } ?: return null
+        return fastest.id.takeIf { fastest.refreshRate >= 90f && fastest.refreshRate > current.refreshRate }
     }
 
     /**

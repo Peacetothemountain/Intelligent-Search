@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.core.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -12,6 +13,26 @@ class WindowFramePacingTest {
         assertEquals(4, WindowFramePacing.FRAME_RATE_CATEGORY_HIGH)
         assertEquals(2, WindowFramePacing.FRAME_RATE_CATEGORY_NORMAL)
         assertEquals(1, WindowFramePacing.FRAME_RATE_CATEGORY_LOW)
+    }
+
+    @Test
+    fun highRefreshModeKeepsTheCurrentResolution() {
+        val modes = listOf(
+            WindowFramePacing.ModeSpec(1, 1440, 3120, 120f),
+            WindowFramePacing.ModeSpec(2, 1440, 3120, 60f),
+            WindowFramePacing.ModeSpec(3, 1080, 2340, 120f),
+            WindowFramePacing.ModeSpec(4, 1080, 2340, 60f)
+        )
+        assertEquals(3, WindowFramePacing.pickHighRefreshMode(modes, current = modes[3]))
+        assertEquals(1, WindowFramePacing.pickHighRefreshMode(modes, current = modes[1]))
+    }
+
+    @Test
+    fun noModeIsLockedWithoutAFasterHighRate() {
+        val modes = listOf(WindowFramePacing.ModeSpec(1, 1080, 2340, 120f), WindowFramePacing.ModeSpec(2, 1080, 2340, 60f))
+        assertNull(WindowFramePacing.pickHighRefreshMode(modes, current = modes[0]))
+        val slow = listOf(WindowFramePacing.ModeSpec(1, 1080, 2340, 60f), WindowFramePacing.ModeSpec(2, 1080, 2340, 48f))
+        assertNull(WindowFramePacing.pickHighRefreshMode(slow, current = slow[1]))
     }
 
     @Test

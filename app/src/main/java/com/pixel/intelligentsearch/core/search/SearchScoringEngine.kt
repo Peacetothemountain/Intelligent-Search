@@ -186,7 +186,13 @@ object SearchScoringEngine {
             if (subDigits.isNotEmpty()) {
                 val digitScore = when {
                     subDigits == queryDigits -> SCORE_EXACT_MATCH * 0.85f
+                    // The query adds a country or trunk code the saved number leaves out: "+1 415 555 2671"
+                    // for "(415) 555-2671".
+                    subDigits.length >= 7 && queryDigits.endsWith(subDigits) -> SCORE_EXACT_MATCH * 0.85f
                     subDigits.startsWith(queryDigits) -> SCORE_PREFIX_MAX * 0.85f
+                    // The same national number behind different prefixes: "+44 7700 900123" for "07700 900123".
+                    subDigits.length >= 10 && queryDigits.length >= 10 &&
+                        subDigits.takeLast(10) == queryDigits.takeLast(10) -> SCORE_PREFIX_MAX * 0.85f
                     subDigits.contains(queryDigits) -> SCORE_SUBSTRING_MAX * 0.75f
                     else -> 0.0f
                 }

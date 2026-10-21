@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import android.widget.Toast
 import com.pixel.intelligentsearch.core.data.UserGrantedFiles
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -39,6 +40,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,6 +59,8 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val folderNames = remember { mutableStateMapOf<String, String>() }
     val folderAccessLost = remember { mutableStateMapOf<String, Boolean>() }
     var folderPendingRemoval by remember { mutableStateOf<String?>(null) }
+    var confirmClearMedia by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(folderUris) {
         val details = withContext(Dispatchers.IO) {
@@ -81,19 +85,42 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         }
     }
 
+    // Taking or releasing a grant is a Binder call per photo (up to MAX_PICKED_MEDIA), so it runs off the main thread.
     val photoPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
         if (uris.isNotEmpty()) {
-            val added = UserGrantedFiles.addMedia(context, prefs, uris)
-            mediaCount = UserGrantedFiles.mediaUris(prefs).size
-            val message = if (added < uris.size && mediaCount >= UserGrantedFiles.MAX_PICKED_MEDIA) {
-                "Added $added. You can choose up to ${UserGrantedFiles.MAX_PICKED_MEDIA} photos and videos."
-            } else {
-                "$added photos and videos added to search"
+            scope.launch {
+                val added = withContext(Dispatchers.IO) { UserGrantedFiles.addMedia(context, prefs, uris) }
+                mediaCount = UserGrantedFiles.mediaUris(prefs).size
+                val message = if (added < uris.size && mediaCount >= UserGrantedFiles.MAX_PICKED_MEDIA) {
+                    "Added $added. You can choose up to ${UserGrantedFiles.MAX_PICKED_MEDIA} photos and videos."
+                } else {
+                    "$added photos and videos added to search"
+                }
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    if (confirmClearMedia) {
+        AlertDialog(
+            onDismissRequest = { confirmClearMedia = false },
+            title = { Text("Stop searching chosen photos and videos?") },
+            text = { Text("The $mediaCount photos and videos you chose will no longer appear in search results. Nothing in them is changed.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmClearMedia = false
+                    scope.launch {
+                        withContext(Dispatchers.IO) { UserGrantedFiles.clearMedia(context, prefs) }
+                        mediaCount = 0
+                    }
+                }) { Text("Clear") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearMedia = false }) { Text("Cancel") }
+            }
+        )
     }
 
     folderPendingRemoval?.let { uri ->
@@ -170,10 +197,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         title = "Clear Chosen Photos & Videos",
                         subtitle = "Stop searching the $mediaCount photos and videos chosen above.",
                         icon = Icons.Outlined.DeleteSweep,
-                        onClick = {
-                            UserGrantedFiles.clearMedia(context, prefs)
-                            mediaCount = 0
-                        },
+                        onClick = { confirmClearMedia = true },
                         showDivider = true
                     )
                 }

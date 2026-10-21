@@ -73,6 +73,31 @@ class SettingsHapticsTest {
         assertEquals(1, haptics)
     }
 
+    @Test
+    fun aPriorityWeightResetGivesOneHaptic() {
+        show { ContactSearchScreen(prefs) {} }
+        // The priority weight block is the last one on the page, so its reset button is the last reset.
+        compose.onAllNodesWithContentDescription("Reset", substring = true).onLast().performClick()
+        compose.waitForIdle()
+        assertEquals(1, haptics)
+    }
+
+    @Test
+    fun aSliderResetGivesOneHaptic() {
+        show { AppearanceScreen(prefs, {}, {}) }
+        compose.onAllNodesWithContentDescription("Reset", substring = true).onLast().performClick()
+        compose.waitForIdle()
+        assertEquals(1, haptics)
+    }
+
+    @Test
+    fun backGivesThePredictiveBackHaptic() {
+        show { AppSearchScreen(prefs, {}, {}) }
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.waitForIdle()
+        assertEquals(1, haptics)
+    }
+
     /** Counts every vibration the app asks the vibrator for. */
     @Implements(className = "android.os.SystemVibrator", isInAndroidSdk = false)
     class CountingVibrator : ShadowSystemVibrator() {

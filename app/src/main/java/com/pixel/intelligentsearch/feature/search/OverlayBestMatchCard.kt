@@ -124,17 +124,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                 hasStartedTyping = false
                                 focusManager.clearFocus(force = true)
                                 keyboardController?.hide()
-                                val isDirectCall = settingsState.contactDirectCall
-                                val intent = if (isDirectCall && match.phoneNumber.isNotBlank()) {
-                                    Intent(Intent.ACTION_DIAL, "tel:${match.phoneNumber}".toUri())
-                                } else if (match.lookupUri.isNotBlank()) {
-                                    Intent(Intent.ACTION_VIEW, match.lookupUri.toUri()) // Contacts reads it with its own permission; no grant needed
-                                } else if (match.phoneNumber.isNotBlank()) {
-                                    Intent(Intent.ACTION_DIAL, "tel:${match.phoneNumber}".toUri())
-                                } else {
-                                    Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
-                                }
-                                launchSafeIntent(context, intent)
+                                launchSafeIntent(context, ContactActions.openIntent(match, settingsState.contactDirectCall))
                             }
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically

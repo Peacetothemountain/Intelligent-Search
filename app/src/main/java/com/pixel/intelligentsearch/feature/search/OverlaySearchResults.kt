@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
 import com.pixel.intelligentsearch.core.ui.uniqueItems
-import androidx.core.net.toUri
 import com.pixel.intelligentsearch.feature.widget.getLensSearchIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceActionIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceSearchIntent
@@ -782,16 +781,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     .fillMaxWidth()
                                     .expressiveRowClickable {
                                         hasStartedTyping = false
-                                        val intent = if (isDirectCall && contact.phoneNumber.isNotBlank()) {
-                                            Intent(Intent.ACTION_DIAL, "tel:${contact.phoneNumber}".toUri())
-                                        } else if (contact.lookupUri.isNotBlank()) {
-                                            Intent(Intent.ACTION_VIEW, contact.lookupUri.toUri()) // Contacts reads it with its own permission; no grant needed
-                                        } else if (contact.phoneNumber.isNotBlank()) {
-                                            Intent(Intent.ACTION_DIAL, "tel:${contact.phoneNumber}".toUri())
-                                        } else {
-                                            Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
-                                        }
-                                        launchSafeIntent(context, intent)
+                                        launchSafeIntent(context, ContactActions.openIntent(contact, isDirectCall))
                                     }
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -819,7 +809,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     onClick = {
                                         if (contact.phoneNumber.isNotBlank()) {
                                             hasStartedTyping = false
-                                            launchSafeIntent(context, Intent(Intent.ACTION_DIAL, "tel:${contact.phoneNumber}".toUri()))
+                                            launchSafeIntent(context, ContactActions.callIntent(contact.phoneNumber))
                                         }
                                     }
                                 ) {

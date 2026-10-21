@@ -67,6 +67,28 @@ class ContactActionsTest {
     }
 
     @Test
+    fun openingAContactDialsEveryCharacterOfItsNumber() {
+        // Parsed as "tel:*86#" the "#" starts a fragment, and the dialler got "*86".
+        val voicemail = ContactItem("Voicemail", "*86#", "")
+        val dial = ContactActions.openIntent(voicemail, directCall = true)
+        assertEquals(Intent.ACTION_DIAL, dial.action)
+        assertEquals("*86#", dial.data!!.schemeSpecificPart)
+        // Without a card to show, the number is dialled even when the setting says to open the card.
+        assertEquals("*86#", ContactActions.openIntent(voicemail, directCall = false).data!!.schemeSpecificPart)
+    }
+
+    @Test
+    fun openingAContactShowsItsCardUnlessTheSettingSaysCall() {
+        val card = ContactActions.openIntent(alex, directCall = false)
+        assertEquals(Intent.ACTION_VIEW, card.action)
+        assertEquals(alex.lookupUri, card.dataString)
+        assertEquals("(415) 555-2671", ContactActions.openIntent(alex, directCall = true).data!!.schemeSpecificPart)
+        // Nothing to dial or show: the Contacts app.
+        val nothing = ContactActions.openIntent(ContactItem("Nobody", "", ""), directCall = true)
+        assertEquals(android.provider.ContactsContract.Contacts.CONTENT_URI, nothing.data)
+    }
+
+    @Test
     fun numbersBecomeE164UsingTheSimCountryForLocalOnes() {
         assertEquals("+14155552671", ContactActions.toE164("(415) 555-2671", "US"))
         assertEquals("+14155552671", ContactActions.toE164("415-555-2671", "us"))

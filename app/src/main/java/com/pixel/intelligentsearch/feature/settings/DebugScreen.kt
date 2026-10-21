@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.put
+import androidx.core.content.edit
 
 
 import android.content.SharedPreferences
@@ -187,7 +188,7 @@ internal fun disableDebugMode(
 ) {
     val doodles = com.pixel.intelligentsearch.feature.widget.WidgetDoodles
     if (doodles.previewing(prefs) != null) doodles.preview(context, null, prefs, redraw)
-    prefs.edit().put(SettingsManager.DEBUG_UNLOCKED, false).apply()
+    prefs.edit { put(SettingsManager.DEBUG_UNLOCKED, false) }
 }
 
 /**

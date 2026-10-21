@@ -30,7 +30,9 @@ class FrameMetricsMonitor(
         adpfThermalManager.reportFrameMetrics(
             totalDurationNanos = metrics.getMetric(FrameMetrics.TOTAL_DURATION),
             gpuDurationNanos = metrics.getMetric(FrameMetrics.GPU_DURATION),
-            deadlineNanos = metrics.getMetric(FrameMetrics.DEADLINE)
+            deadlineNanos = metrics.getMetric(FrameMetrics.DEADLINE),
+            // The vsync the frame was meant for: where its work period starts.
+            frameStartNanos = metrics.getMetric(FrameMetrics.INTENDED_VSYNC_TIMESTAMP)
         )
     }
 

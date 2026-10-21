@@ -528,7 +528,8 @@ fun SettingsSliderRow(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     if (onReset != null) {
-                        IconButton(
+                        // Material's own IconButton: the click haptic below is this button's one haptic.
+                        androidx.compose.material3.IconButton(
                             onClick = {
                                 performClickHaptic(context)
                                 onReset()
@@ -537,7 +538,7 @@ fun SettingsSliderRow(
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.RestartAlt,
-                                contentDescription = "Reset to Default",
+                                contentDescription = "Reset $title",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -550,7 +551,8 @@ fun SettingsSliderRow(
                     valueRange = valueRange,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     steps = steps,
-                    label = title
+                    label = title,
+                    valueDescription = "${value.toInt()}%"
                 )
             }
         }
@@ -562,6 +564,58 @@ fun SettingsSliderRow(
         }
     }
 }
+
+/**
+ * The "<label> Results: N" block shared by the Contact, File and Web search screens: title with a reset button
+ * (back to [defaultCount]) and a 1 to 20 slider. The title uses the settings row title style, like
+ * [PrioritySetting] below it.
+ */
+@Composable
+fun ResultsCountSetting(key: com.pixel.intelligentsearch.core.data.settings.SettingKey<Int>, label: String, defaultCount: Int) {
+    val context = LocalContext.current
+    var count by com.pixel.intelligentsearch.core.data.settings.rememberSetting(key)
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "$label Results: $count",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            // Material's own IconButton: the click haptic below is this button's one haptic.
+            androidx.compose.material3.IconButton(
+                onClick = {
+                    performClickHaptic(context)
+                    count = defaultCount
+                },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.RestartAlt,
+                    contentDescription = "Reset $label Results",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Android17Slider(
+            label = "$label results",
+            valueDescription = "$count results",
+            value = count.toFloat(),
+            onValueChange = { count = it.toInt() },
+            valueRange = 1f..20f,
+            steps = 18,
+            isSquiggly = false,
+            modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
+        )
+    }
+}
+
 @Composable
 fun Android17Slider(
     value: Float,
@@ -573,7 +627,9 @@ fun Android17Slider(
     isSquiggly: Boolean = true,
     enableHaptics: Boolean = false,
     /** Accessible name; without it TalkBack announces an unlabeled adjustable. */
-    label: String? = null
+    label: String? = null,
+    /** What TalkBack reads as the value ("Medium", "5 results"); without it TalkBack reads a percentage of the range. */
+    valueDescription: String? = null
 ) {
     val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
     
@@ -652,6 +708,7 @@ fun Android17Slider(
             .height(48.dp)
             .semantics(mergeDescendants = true) {
                 if (label != null) contentDescription = label
+                if (valueDescription != null) stateDescription = valueDescription
                 progressBarRangeInfo = ProgressBarRangeInfo(
                     current = value,
                     range = valueRange,

@@ -82,6 +82,21 @@ class SettingsComponentsAccessibilityTest {
     }
 
     @Test
+    fun aPrioritySliderNamesItsLevelInsteadOfAPercentage() {
+        prefs.edit().put(SettingsManager.SEARCH_WEIGHT_CONTACTS, 50).commit()
+        show { ContactSearchScreen(prefs) {} }
+        compose.onNodeWithContentDescription("Contact priority weight")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Medium"))
+    }
+
+    @Test
+    fun eachResetButtonSaysWhatItResets() {
+        show { AppearanceScreen(prefs, {}, {}) }
+        compose.onAllNodesWithContentDescription("Reset to Default").assertCountEquals(0)
+        compose.onNodeWithContentDescription("Reset Background Blur").assertExists()
+    }
+
+    @Test
     fun aDropdownDrawsItsOptionIconsAndHasNoStrayLabel() {
         show {
             SettingsDropdownRow(
@@ -104,4 +119,9 @@ class SettingsComponentsAccessibilityTest {
         compose.onAllNodesWithTag("lead_Bing", useUnmergedTree = true).assertCountEquals(1)
     }
 
+    @Test
+    fun sectionHeadersAreHeadings() {
+        show { AppSearchScreen(prefs, {}, {}) }
+        compose.onNodeWithText("App Settings").assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
+    }
 }

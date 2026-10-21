@@ -12,11 +12,8 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -25,7 +22,6 @@ import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,7 +41,6 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -201,44 +196,12 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onCheckedChange = { thumbnails = it },
                     showDivider = true
                 )
-                
-                var fileResultsCount by rememberSetting(SettingsManager.FILE_RESULTS_COUNT)
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("File Results: $fileResultsCount", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                        IconButton(
-                            onClick = {
-                                performClickHaptic(context)
-                                fileResultsCount = 5
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.RestartAlt,
-                                contentDescription = "Reset to Default",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                    Android17Slider(
-                        label = "File results",
-                        value = fileResultsCount.toFloat(),
-                        onValueChange = { fileResultsCount = it.toInt() },
-                        valueRange = 1f..20f,
-                        steps = 18,
-                        isSquiggly = false,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
-                    )
-                }
+
+                ResultsCountSetting(SettingsManager.FILE_RESULTS_COUNT, "File", defaultCount = 5)
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                PrioritySetting(SettingsManager.SEARCH_WEIGHT_FILES, "File", largeTitle = true)
+                PrioritySetting(SettingsManager.SEARCH_WEIGHT_FILES, "File")
             }
         }
     }

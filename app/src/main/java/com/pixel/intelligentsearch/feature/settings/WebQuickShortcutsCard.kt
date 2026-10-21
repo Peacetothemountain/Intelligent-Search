@@ -389,7 +389,8 @@ internal fun WebQuickShortcutsCard() {
                                             .semantics {
                                                 customActions = listOf(CustomAccessibilityAction("Remove") { removeShortcut(bang); true })
                                             }
-                                            .bouncyClickable {
+                                            // The card's own shape, so the ripple doesn't spill past its corners.
+                                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
                                                 editingBang = bang
                                                 showAddDialog = true
                                             },

@@ -165,6 +165,24 @@ class WidgetEditorAccessibilityTest {
     }
 
     @Test
+    fun aTabThatComesBackDoesNotReopenOnItsOwn() {
+        // The System design has the Custom subtheme; the Material design keeps its default Material subtheme.
+        prefs.edit()
+            .putBoolean("widget_system_design_saved", true)
+            .putString("widget_system_subtheme", "Custom")
+            .commit()
+        openEditor()
+        tap("Color Studio")
+        // Material has no Color Studio tab, so the editor shows Appearance.
+        tap("Material Design")
+        // Picking Material's Custom subtheme brings Color Studio back, but the user is still on Appearance.
+        tap("Custom")
+
+        compose.onNodeWithText("Appearance").assertIsSelected()
+        compose.onNodeWithText("CUSTOM COLOR PALETTE").assertDoesNotExist()
+    }
+
+    @Test
     fun shortcutsSectionHeaderIsAHeading() {
         openEditor()
         tap("Widget Shortcuts")

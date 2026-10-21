@@ -762,6 +762,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             // The tab is kept by name, so a design without the open tab (Color Studio needs the Custom subtheme)
             // falls back to Appearance and the other tabs stay put.
             val activeTabName = selectedTabName.takeIf { name -> tabs.any { it.first == name } } ?: "Appearance"
+            // Remember the fallback, so a tab that comes back later (picking Custom again) doesn't reopen on its own.
+            LaunchedEffect(activeTabName) {
+                if (selectedTabName != activeTabName) selectedTabName = activeTabName
+            }
 
             Row(
                 modifier = Modifier

@@ -11,7 +11,6 @@ import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
 import com.pixel.intelligentsearch.App
-import com.pixel.intelligentsearch.R
 import android.content.Context
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalView
@@ -172,19 +171,21 @@ fun SettingsRow(
     }
 }
 
+/**
+ * A setting picked from a menu. [optionLeadingIcon] draws an option's icon, shown beside the current choice under
+ * the title and beside each option in the menu; it fills the size it is given.
+ */
 @Composable
 fun SettingsDropdownRow(
     title: String,
     subtitle: String? = null,
     icon: ImageVector? = null,
-    iconContent: (@Composable () -> Unit)? = null,
     options: List<String>,
     selectedOption: String,
     onOptionSelected: (String) -> Unit,
     showDivider: Boolean,
-    optionIcons: Map<String, Int>? = null
+    optionLeadingIcon: (@Composable (String) -> Unit)? = null
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
     var expanded by remember { mutableStateOf(false) }
 
     Column {
@@ -194,17 +195,12 @@ fun SettingsDropdownRow(
                 .semantics(mergeDescendants = true) {
                     role = Role.DropdownList
                 }
-                .bouncyClickable { 
-                    performClickHaptic(context)
-                    expanded = true 
-                }
+                // bouncyClickable already gives the click haptic.
+                .bouncyClickable { expanded = true }
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (iconContent != null) {
-                iconContent()
-                Spacer(modifier = Modifier.width(16.dp))
-            } else if (icon != null) {
+            if (icon != null) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null, // decorative: the title is right beside it
@@ -222,12 +218,12 @@ fun SettingsDropdownRow(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 if (subtitle != null) {
-                    if (title == "Primary Search App") {
+                    if (optionLeadingIcon != null) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(top = 2.dp)
                         ) {
-                            SearchAppColorfulIcon(appName = subtitle, modifier = Modifier.size(18.dp))
+                            Box(modifier = Modifier.size(18.dp)) { optionLeadingIcon(subtitle) }
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = subtitle,
@@ -248,7 +244,7 @@ fun SettingsDropdownRow(
             }
             Icon(
                 imageVector = Icons.Outlined.ArrowDropDown,
-                contentDescription = "Dropdown",
+                contentDescription = null, // the row's DropdownList role already says it opens a menu
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
             
@@ -284,30 +280,9 @@ fun SettingsDropdownRow(
                                     )
                                 }
                             } else null,
-                            leadingIcon = if (title == "Primary Search App") {
-                                {
-                                    SearchAppColorfulIcon(appName = option, modifier = Modifier.size(24.dp))
-                                }
-                            } else if (optionIcons != null && optionIcons.containsKey(option)) {
-                                {
-                                    if (title == "Widget Action Icon" && option in listOf("Search", "Assistant", "Gemini", "Now Playing")) {
-                                        ComposeActionIcon(
-                                            iconType = option,
-                                            modifier = Modifier.size(24.dp),
-                                            primaryColor = MaterialTheme.colorScheme.primary,
-                                            secondaryColor = MaterialTheme.colorScheme.secondary,
-                                            tertiaryColor = MaterialTheme.colorScheme.tertiary
-                                        )
-                                    } else {
-                                        Icon(
-                                            painter = androidx.compose.ui.res.painterResource(id = optionIcons[option] ?: R.drawable.ic_search_lens_expressive),
-                                            contentDescription = option,
-                                            modifier = Modifier.size(24.dp),
-                                            tint = androidx.compose.ui.graphics.Color.Unspecified
-                                        )
-                                    }
-                                }
-                            } else null,
+                            leadingIcon = optionLeadingIcon?.let { leading ->
+                                { Box(modifier = Modifier.size(24.dp)) { leading(option) } }
+                            },
                             onClick = {
                                 onOptionSelected(option)
                                 expanded = false
@@ -319,7 +294,7 @@ fun SettingsDropdownRow(
         }
         if (showDivider) {
             HorizontalDivider(
-                modifier = Modifier.padding(start = if (icon != null || iconContent != null) 56.dp else 16.dp, end = 16.dp),
+                modifier = Modifier.padding(start = if (icon != null) 56.dp else 16.dp, end = 16.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
             )
         }

@@ -82,7 +82,8 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         }
                         searchEngine = selected
                     },
-                    showDivider = searchEngine != "Custom"
+                    showDivider = searchEngine != "Custom",
+                    optionLeadingIcon = { engine -> SearchAppColorfulIcon(appName = engine, modifier = Modifier.fillMaxSize()) }
                 )
 
                 if (showTorDialog) {

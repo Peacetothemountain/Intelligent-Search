@@ -9,7 +9,6 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.SharedPreferences
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +43,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.pixel.intelligentsearch.core.haptics.TactileSonicEngine
 import com.pixel.intelligentsearch.core.navigation.Route
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 
@@ -75,7 +73,6 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 SettingsCard {
-                    val isSystemDark = isSystemInDarkTheme()
                     var rawThemeMode by rememberSetting(SettingsManager.THEME)
                     val themeMode = ThemeMode.from(rawThemeMode).storedValue
 
@@ -127,10 +124,8 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         subtitle = "Enable Haptic Vibrations Across Intelligent Search",
                         icon = Icons.Outlined.Vibration,
                         isChecked = vibrationEnabled,
-                        onCheckedChange = { 
-                            vibrationEnabled = it 
-                            TactileSonicEngine.get(context).isHapticEnabled = it
-                        },
+                        // The haptic engines read this setting on every haptic, so saving it is enough.
+                        onCheckedChange = { vibrationEnabled = it },
                         showDivider = true
                     )
 

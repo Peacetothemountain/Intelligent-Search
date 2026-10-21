@@ -123,7 +123,6 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
             Text("Results preferences", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp))
             SettingsCard {
                 var shortcutResultsCount by rememberSetting(SettingsManager.SHORTCUT_RESULTS_COUNT)
-                val viewModel = LocalSettingsViewModel.current
 
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Row(

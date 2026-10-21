@@ -73,7 +73,6 @@ import kotlinx.coroutines.withContext
 fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     val view = LocalView.current
-    val viewModel = LocalSettingsViewModel.current
     val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
 
     var activeIconPack by rememberSetting(SettingsManager.ACTIVE_ICON_PACK)
@@ -135,14 +134,18 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
     var pendingIconPack by remember { mutableStateOf<String?>(null) }
 
+    // Saving activeIconPack writes the setting; it is the only write.
+    fun applyPack(pkg: String) {
+        activeIconPack = pkg
+        com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
+    }
+
     fun activatePack(pkg: String) {
         if (pkg == activeIconPack) return
         if (activeIconPack != "system_default" && !neverShowWarning) {
             pendingIconPack = pkg
         } else {
-            activeIconPack = pkg
-            viewModel?.updateActiveIconPack(pkg)
-            com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
+            applyPack(pkg)
         }
     }
 
@@ -175,10 +178,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 onClick = {
                                     neverShowWarning = true
                                     if (pendingIconPack != null) {
-                                        val chosen = pendingIconPack!!
-                                        activeIconPack = chosen
-                                        viewModel?.updateActiveIconPack(chosen)
-                                        com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
+                                        applyPack(pendingIconPack!!)
                                         pendingIconPack = null
                                     }
                                 }
@@ -194,10 +194,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 Button(
                                     onClick = {
                                         if (pendingIconPack != null) {
-                                            val chosen = pendingIconPack!!
-                                            activeIconPack = chosen
-                                            viewModel?.updateActiveIconPack(chosen)
-                                            com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
+                                            applyPack(pendingIconPack!!)
                                             pendingIconPack = null
                                         }
                                     }

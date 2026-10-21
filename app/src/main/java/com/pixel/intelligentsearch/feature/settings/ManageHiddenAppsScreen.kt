@@ -63,7 +63,6 @@ import kotlinx.coroutines.withContext
 @Composable
 fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
-    val viewModel = LocalSettingsViewModel.current
     var hiddenApps by remember { mutableStateOf(prefs[SettingsManager.HIDDEN_APPS]) }
     var installedApps by remember { mutableStateOf<List<AppItem>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
@@ -219,7 +218,6 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 if (hide) newSet.add(app.packageName) else newSet.remove(app.packageName)
                                 hiddenApps = newSet
                                 prefs.edit().put(SettingsManager.HIDDEN_APPS, newSet).apply()
-                                viewModel?.updateSetting(SettingsManager.HIDDEN_APPS, newSet)
                             },
                             showDivider = index < filteredApps.size - 1
                         )

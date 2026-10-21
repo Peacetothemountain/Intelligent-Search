@@ -135,21 +135,24 @@ class AutoBackup internal constructor(
         val result = try {
             val raw = unwrap(iv, wrapped)
             val key: SecretKey = SecretKeySpec(raw, "AES")
-            try {
+            val writtenId = try {
                 val treeDoc = DocumentsContract.buildDocumentUriUsingTree(folder, DocumentsContract.getTreeDocumentId(folder))
                 val name = FILE_PREFIX + SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.US).format(Date()) + FILE_SUFFIX
                 val file = DocumentsContract.createDocument(context.contentResolver, treeDoc, "application/json", name)
                     ?: throw IllegalStateException("The backup folder can't be written to")
                 unfinished = file
+                val id = DocumentsContract.getDocumentId(file)
                 backupManager.exportWithDerivedKey(file, key, salt).getOrThrow()
                 unfinished = null
+                id
             } finally {
                 raw.fill(0)
             }
-            prune(folder)
+            prune(folder, writtenId)
             Result.success(Unit)
         } catch (e: Throwable) {
-            // An empty or partial file can't be restored, and would take one of the KEEP places from a real backup.
+            // An empty or partial file can't be restored; pruning leaves empty ones alone, and a partial one would take
+            // one of the KEEP places from a real backup.
             unfinished?.let { file ->
                 withContext(NonCancellable) {
                     runCatching { DocumentsContract.deleteDocument(context.contentResolver, file) }
@@ -171,13 +174,14 @@ class AutoBackup internal constructor(
 
     /**
      * Keeps the newest [KEEP] automatic backups in the folder; files the user saved by hand are never touched.
-     * Empty automatic files, left by a run stopped before it wrote anything, are deleted rather than kept in
-     * place of a real backup.
+     *
+     * An automatic file listed as empty is left alone and doesn't take one of the places: it may be another run's
+     * file still being written, or a finished one whose provider hasn't caught up on its size yet. The file this
+     * run just wrote ([writtenId]) always counts, since some cloud providers list it as empty until the upload ends.
      */
-    private fun prune(folder: Uri) {
+    private fun prune(folder: Uri, writtenId: String) {
         val children = DocumentsContract.buildChildDocumentsUriUsingTree(folder, DocumentsContract.getTreeDocumentId(folder))
         val ours = mutableListOf<Pair<String, String>>() // document id, name
-        val empty = mutableListOf<String>()
         context.contentResolver.query(
             children,
             arrayOf(
@@ -188,13 +192,15 @@ class AutoBackup internal constructor(
             null, null, null
         )?.use { c ->
             while (c.moveToNext()) {
+                val id = c.getString(0) ?: continue
                 val name = c.getString(1) ?: continue
                 if (!isAutomaticBackupName(name)) continue
                 // Providers may leave the size unknown (null); only a known 0 marks a file as empty.
-                if (!c.isNull(2) && c.getLong(2) == 0L) empty += c.getString(0) else ours += c.getString(0) to name
+                val listedEmpty = !c.isNull(2) && c.getLong(2) == 0L
+                if (id == writtenId || !listedEmpty) ours += id to name
             }
         }
-        for (id in empty + oldestBeyond(ours, KEEP).map { it.first }) {
+        for ((id, _) in oldestBeyond(ours, KEEP)) {
             runCatching { DocumentsContract.deleteDocument(context.contentResolver, DocumentsContract.buildDocumentUriUsingTree(folder, id)) }
         }
     }

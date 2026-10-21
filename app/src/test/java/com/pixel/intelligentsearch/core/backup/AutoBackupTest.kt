@@ -151,18 +151,44 @@ class AutoBackupTest {
     fun anEmptyLeftoverFileDoesNotTakeThePlaceOfARealBackup() = runBlocking {
         val setup = AutoBackupSetup()
         for (day in 1..4) setup.folder.add("IntelligentSearch-auto-2020-01-0$day-0900.json", "{\"backup\":$day}")
-        setup.folder.add("IntelligentSearch-auto-2099-01-01-0900.json", "") // left by a run that never wrote
+        val empty = "IntelligentSearch-auto-2099-01-01-0900.json"
+        setup.folder.add(empty, "") // left by a run that never wrote, or another run's file still being written
         setup.folder.add("intelligent_search_backup_1.json", "{}") // saved by hand
+        val before = setup.folder.automaticBackupNames().toSet()
 
         setup.autoBackup.runOnce(setup.backupManager).getOrThrow()
 
-        val autoBackups = setup.folder.automaticBackupNames()
-        assertEquals(4, autoBackups.size)
-        assertTrue("the newest real backups are kept: $autoBackups", autoBackups.containsAll(
-            listOf("IntelligentSearch-auto-2020-01-02-0900.json", "IntelligentSearch-auto-2020-01-03-0900.json", "IntelligentSearch-auto-2020-01-04-0900.json")
-        ))
-        assertFalse(autoBackups.contains("IntelligentSearch-auto-2099-01-01-0900.json"))
+        val written = setup.folder.automaticBackupNames() - before
+        assertEquals(1, written.size)
+        val realBackups = setup.folder.automaticBackupNames() - empty
+        assertEquals(
+            "the four newest real backups are kept",
+            setOf("IntelligentSearch-auto-2020-01-02-0900.json", "IntelligentSearch-auto-2020-01-03-0900.json", "IntelligentSearch-auto-2020-01-04-0900.json") + written,
+            realBackups.toSet()
+        )
+        assertTrue("an empty file is left alone, it may still be written", setup.folder.names().contains(empty))
         assertTrue(setup.folder.names().contains("intelligent_search_backup_1.json"))
+        setup.close()
+    }
+
+    @Test
+    fun theNewBackupIsKeptWhileTheFolderStillListsItAsEmpty() = runBlocking {
+        val setup = AutoBackupSetup()
+        for (day in 1..4) setup.folder.add("IntelligentSearch-auto-2020-01-0$day-0900.json", "{\"backup\":$day}")
+        val before = setup.folder.automaticBackupNames().toSet()
+        // Like a cloud provider that lists the size recorded at createDocument until its upload finishes.
+        setup.folder.listsCreatedDocumentsAsEmpty = true
+
+        setup.autoBackup.runOnce(setup.backupManager).getOrThrow()
+
+        val written = setup.folder.automaticBackupNames() - before
+        assertEquals("the backup just written is still there", 1, written.size)
+        assertEquals(
+            "it takes one of the places, so the oldest is pruned",
+            setOf("IntelligentSearch-auto-2020-01-02-0900.json", "IntelligentSearch-auto-2020-01-03-0900.json", "IntelligentSearch-auto-2020-01-04-0900.json"),
+            (setup.folder.automaticBackupNames() - written).toSet()
+        )
+        assertNull(setup.autoBackup.lastFailure)
         setup.close()
     }
 
@@ -192,7 +218,7 @@ class AutoBackupTest {
  */
 class FakeBackupFolderProvider : ContentProvider() {
 
-    private class Doc(val name: String, val file: File)
+    private class Doc(val name: String, val file: File, val created: Boolean)
 
     private val docs = ConcurrentHashMap<String, Doc>()
     private val nextId = AtomicInteger()
@@ -202,6 +228,10 @@ class FakeBackupFolderProvider : ContentProvider() {
     @Volatile
     var onOpen: () -> Unit = {}
 
+    /** Lists documents made by createDocument with size 0 whatever was written, as some cloud providers do. */
+    @Volatile
+    var listsCreatedDocumentsAsEmpty = false
+
     val calledOnMainThread: MutableList<String> = Collections.synchronizedList(mutableListOf())
 
     override fun onCreate(): Boolean {
@@ -209,10 +239,12 @@ class FakeBackupFolderProvider : ContentProvider() {
         return true
     }
 
-    fun add(name: String, content: String): String {
+    fun add(name: String, content: String): String = add(name, content, created = false)
+
+    private fun add(name: String, content: String, created: Boolean): String {
         val id = "doc" + nextId.incrementAndGet()
         val file = File(dir, id).apply { writeText(content) }
-        docs[id] = Doc(name, file)
+        docs[id] = Doc(name, file, created)
         return id
     }
 
@@ -230,7 +262,7 @@ class FakeBackupFolderProvider : ContentProvider() {
         return when (method) {
             "android:createDocument" -> {
                 note("createDocument")
-                val id = add(bundle.getString(Document.COLUMN_DISPLAY_NAME) ?: "untitled", "")
+                val id = add(bundle.getString(Document.COLUMN_DISPLAY_NAME) ?: "untitled", "", created = true)
                 Bundle().apply { putParcelable("uri", DocumentsContract.buildDocumentUriUsingTree(target, id)) }
             }
             "android:deleteDocument" -> {
@@ -252,7 +284,7 @@ class FakeBackupFolderProvider : ContentProvider() {
                     when (column) {
                         Document.COLUMN_DOCUMENT_ID -> id
                         Document.COLUMN_DISPLAY_NAME -> doc.name
-                        Document.COLUMN_SIZE -> doc.file.length()
+                        Document.COLUMN_SIZE -> if (listsCreatedDocumentsAsEmpty && doc.created) 0L else doc.file.length()
                         Document.COLUMN_MIME_TYPE -> "application/json"
                         else -> null
                     }

@@ -177,6 +177,15 @@ class NaturalLanguageIntentParserTest {
         val breakfast = NaturalLanguageIntentParser.parse("meeting tomorrow at 9", currentTimeMs = at(10)) as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
         assertEquals(9, hourOf(breakfast.startMillis))
         assertEquals(11, dayOf(breakfast.startMillis))
+
+        // A leading zero is 24-hour notation, so the hour is meant exactly as written.
+        val early = NaturalLanguageIntentParser.parse("meeting tomorrow at 07:00", currentTimeMs = at(10)) as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
+        assertEquals(7, hourOf(early.startMillis))
+        assertEquals(11, dayOf(early.startMillis))
+
+        val earlyFriday = NaturalLanguageIntentParser.parse("meeting friday at 06:30", currentTimeMs = at(10)) as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
+        assertEquals(6, hourOf(earlyFriday.startMillis))
+        assertEquals(13, dayOf(earlyFriday.startMillis))
     }
 
     @Test

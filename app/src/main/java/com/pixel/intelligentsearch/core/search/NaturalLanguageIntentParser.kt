@@ -489,18 +489,20 @@ object NaturalLanguageIntentParser {
             var hour = timeMatch.groupValues[2].toIntOrNull() ?: 9
             val minute = timeMatch.groupValues[3].toIntOrNull() ?: 0
             val amPm = timeMatch.groupValues[4].lowercase()
+            // "07:00" is 24-hour notation: the hour is meant exactly as written.
+            val zeroPadded = timeMatch.groupValues[2].length == 2 && timeMatch.groupValues[2][0] == '0'
 
             if (amPm == "pm" && hour < 12) hour += 12
             if (amPm == "am" && hour == 12) hour = 0
             // Without am/pm: "tonight at 9" is 21:00. With no day or "today", "at 3" is the next 3 o'clock still
             // ahead. Tomorrow or a weekday has no "already passed" to go by, so 1-7 is read as the afternoon or
-            // evening people mean ("tomorrow at 3") and 8-11 as the morning.
+            // evening people mean ("tomorrow at 3") and 8-11 as the morning, unless the hour has a leading zero.
             if (amPm.isEmpty() && hour in 1..11) {
                 if (isTonight) {
                     hour += 12
                 } else if (relativeMatch == null) {
                     when (namedDay) {
-                        NamedDay.TOMORROW, NamedDay.WEEKDAY -> if (hour <= 7) hour += 12
+                        NamedDay.TOMORROW, NamedDay.WEEKDAY -> if (hour <= 7 && !zeroPadded) hour += 12
                         else -> {
                             val morning = (cal.clone() as Calendar).apply {
                                 set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute.coerceIn(0, 59)); set(Calendar.SECOND, 0)

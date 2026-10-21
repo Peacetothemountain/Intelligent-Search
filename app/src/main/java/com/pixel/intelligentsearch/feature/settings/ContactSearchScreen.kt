@@ -3,9 +3,6 @@ package com.pixel.intelligentsearch.feature.settings
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.SharedPreferences
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,7 +13,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Assistant
-import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -30,20 +26,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
-    val context = LocalContext.current
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.PickContact()) { uri ->
-        if (uri != null) {
-            Toast.makeText(context, "Contact selected: ${uri.lastPathSegment}", Toast.LENGTH_SHORT).show()
-        }
-    }
-    
     Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
                 title = { Text("Contact Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
@@ -58,20 +46,6 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             SettingsCard {
-                SettingsRow(
-                    title = "Contact Menu",
-                    subtitle = "Opens Contact Picker.",
-                    icon = Icons.Outlined.Contacts,
-                    onClick = {
-                        // Not every device has a contact picker (minimal builds, some work profiles).
-                        try {
-                            launcher.launch(null)
-                        } catch (e: android.content.ActivityNotFoundException) {
-                            Toast.makeText(context, "No contact picker available", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    showDivider = true
-                )
                 var directCall by rememberSetting(SettingsManager.CONTACT_DIRECT_CALL)
                 SettingsRowToggle(
                     title = "Direct Call",

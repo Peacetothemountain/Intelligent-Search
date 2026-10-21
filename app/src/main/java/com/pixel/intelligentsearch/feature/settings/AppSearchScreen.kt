@@ -107,16 +107,6 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                     icon = Icons.AutoMirrored.Outlined.ListAlt,
                     isChecked = searchShortcuts,
                     onCheckedChange = { searchShortcuts = it },
-                    showDivider = true
-                )
-                
-                var recentShortcuts by rememberSetting(SettingsManager.SHORTCUT_RECENT)
-                SettingsRowToggle(
-                    title = "Include Recent Shortcuts",
-                    subtitle = "Show Recently Used Shortcuts as Suggestions.",
-                    icon = null,
-                    isChecked = recentShortcuts,
-                    onCheckedChange = { recentShortcuts = it },
                     showDivider = false
                 )
             }

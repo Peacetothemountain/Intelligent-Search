@@ -425,6 +425,10 @@ open class MainActivity : AppCompatActivity() {
             }
             if (packageManager.resolveActivity(fallbackIntent, 0) != null) {
                 startActivity(fallbackIntent)
+            } else if (intent?.action == Intent.ACTION_WEB_SEARCH) {
+                // This activity was itself picked to handle the web search, so handing it on as another web search
+                // would only bring it back here, over and over. With nowhere else to send it, the overlay shows it.
+                return false
             } else {
                 val webIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                     if (queryExtra.isNotEmpty()) {

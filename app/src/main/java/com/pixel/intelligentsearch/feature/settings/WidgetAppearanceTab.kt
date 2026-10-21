@@ -77,7 +77,6 @@ internal fun WidgetAppearanceTab(
     var localSlotOrderStr by fields::slotOrderStr
     var localKeepSystemG by fields::keepSystemG
     var localLockBlack by fields::lockBlack
-    var matLockBlack by fields::lockBlack
     var localActionIcon by fields::actionIcon
     var showCustomHexDialog by ui::showCustomHexDialog
     var tempCustomHexInput by ui::tempCustomHexInput
@@ -280,7 +279,6 @@ internal fun WidgetAppearanceTab(
                             localSubtheme = opt
                             if (opt == "Material") {
                                 localLockBlack = true
-                                matLockBlack = true
                             }
                         },
                     contentAlignment = Alignment.Center
@@ -358,7 +356,6 @@ internal fun WidgetAppearanceTab(
                 isChecked = localLockBlack,
                 onCheckedChange = { checked ->
                     localLockBlack = checked
-                    matLockBlack = checked
                 }
             )
         }

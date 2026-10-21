@@ -404,25 +404,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         MaterialTheme.colorScheme.primary
                     }
                     val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
-                    val matPrimary = MaterialTheme.colorScheme.primary
-                    val matSurfaceVariant = MaterialTheme.colorScheme.surfaceVariant
-
-                    val activeColor = remember(previewIsMaterialYou, localSubtheme, computedCustomColorInt, matPrimary, matSurfaceVariant, effectiveColorAlpha) {
-                        if (localSubtheme == "Custom") {
-                            val hsv = FloatArray(3)
-                            android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
-                            androidx.compose.ui.graphics.Color(
-                                android.graphics.Color.HSVToColor(
-                                    255, 
-                                    floatArrayOf(hsv[0], hsv[1], 1f)
-                                )
-                            )
-                        } else if (!previewIsMaterialYou) {
-                            matSurfaceVariant
-                        } else {
-                            matPrimary
-                        }
-                    }
 
                     val isCustomTheme = localSubtheme == "Custom"
                     val waveColor = if (isCustomTheme) {
@@ -522,10 +503,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val gPrimary = androidx.compose.ui.graphics.Color(finalPInt)
                     val gSecondary = androidx.compose.ui.graphics.Color(finalSInt)
                     val gTertiary = androidx.compose.ui.graphics.Color(finalTInt)
-                    val googleBlue = androidx.compose.ui.graphics.Color(0xFF4285F4)
-                    val googleGreen = androidx.compose.ui.graphics.Color(0xFF34A853)
-                    val googleYellow = androidx.compose.ui.graphics.Color(0xFFFBBC05)
-                    val googleRed = androidx.compose.ui.graphics.Color(0xFFEA4335)
 
                     Row(
                         modifier = Modifier
@@ -716,7 +693,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    val isSystem = localThemeStyle == "System Default"
                     Box(
                         modifier = Modifier
                             .weight(1f)

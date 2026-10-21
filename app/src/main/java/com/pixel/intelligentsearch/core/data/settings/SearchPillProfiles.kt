@@ -25,8 +25,13 @@ class SearchPillProfiles(private val prefs: SharedPreferences) {
         }
     }
 
-    /** Makes [id] the active profile, keeping the one being left so switching back restores it. */
+    /**
+     * Makes [id] the active profile, keeping the one being left so switching back restores it. Picking the active
+     * profile again changes nothing: its working copy can be older than its pills (a restored backup brings only
+     * the pills), and switching to it would put that older copy back.
+     */
     fun switchTo(id: Int): List<String> {
+        if (id == activeProfile) return pills()
         val pills = prefs.getString(workingKey(id), null) ?: savedState(id)
         val leaving = prefs[SettingsManager.SEARCH_PILLS]
         prefs.edit {

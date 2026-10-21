@@ -18,7 +18,6 @@ object SearchScoringEngine {
         DIRECT_ACTION(2.2f),
         SYSTEM_TOGGLE(2.0f),
         APPLICATION(1.8f),
-        APP_SHORTCUT(1.5f),
         CONTACT(1.3f),
         FILE(1.0f),
         WEB_SUGGESTION(0.7f)
@@ -145,9 +144,8 @@ object SearchScoringEngine {
     }
 
     /**
-     * Scores the secondary line: an app's package name, a contact's number, a file's path or a
-     * shortcut's long label. Only digit runs and whole-token or token-prefix matches count. The
-     * phonetic and edit-distance tiers used for titles would read "cam" as "com" and rank every
+     * Scores the secondary line: an app's package name, a contact's number or a file's path. Only
+     * digit runs and whole-token or token-prefix matches count. The phonetic and edit-distance tiers used for titles would read "cam" as "com" and rank every
      * installed app, so they are not applied here.
      */
     private fun computeSubtitleMatchScore(

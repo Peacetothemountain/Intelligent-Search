@@ -67,7 +67,6 @@ class FakeDeviceSearchSources : DeviceSearchSources {
         appUsageReads.incrementAndGet()
         return emptyMap()
     }
-    override fun allShortcuts() = emptyList<com.pixel.intelligentsearch.core.data.AppShortcutItem>()
     override suspend fun allContacts() = contacts("")
     override suspend fun recentFiles(limit: Int, includeHidden: Boolean) = emptyList<com.pixel.intelligentsearch.core.data.FileItem>()
     override suspend fun recentApps(hiddenApps: Set<String>) = apps.filter { it.packageName !in hiddenApps }

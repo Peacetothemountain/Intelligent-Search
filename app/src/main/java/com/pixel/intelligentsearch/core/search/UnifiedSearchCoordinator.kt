@@ -82,8 +82,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         val query: String,
         val mathResult: MathematicalExpressionEngine.MathEvaluationResult? = null,
         val systemAction: SystemActionRouter.ActionResult? = null,
-        val apps: List<AppItem> = emptyList(),
-        val executionTimeMs: Long = 0L
+        val apps: List<AppItem> = emptyList()
     )
 
     data class UnifiedSearchResults(
@@ -95,8 +94,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         val apps: List<AppItem> = emptyList(),
         val contacts: List<ContactItem> = emptyList(),
         val shortcuts: List<AppShortcutItem> = emptyList(),
-        val files: List<FileItem> = emptyList(),
-        val totalExecutionTimeMs: Long = 0L
+        val files: List<FileItem> = emptyList()
     )
 
     /** The highest each result-count setting goes; the view model trims to the user's setting. */
@@ -112,16 +110,14 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val phoneticIndex = ConcurrentHashMap<String, MutableSet<SearchItem>>()
 
     private val prefs = settingsManager.prefs
-    @Volatile private var cachedAppWeightMul: Float = 1.0f
     @Volatile private var appUsage: Map<String, SystemDataProvider.AppUsage> = emptyMap()
-    @Volatile private var cachedContactWeightMul: Float = 1.0f
-    @Volatile private var cachedFileWeightMul: Float = 1.0f
     @Volatile private var cachedFuzzySearchEnabled: Boolean = true
     @Volatile private var cachedContactSearchEnabled: Boolean = false
 
-    // Settings read on every keystroke are cached and refreshed when any of them changes.
+    // Settings read on every keystroke are cached and refreshed when any of them changes. The per-domain search
+    // weights aren't among them: results are ranked within each domain, where one multiplier for every item
+    // changes no order, so the overlay applies them when it orders the sections instead.
     private val cachedSettingNames = listOf(
-        SettingsManager.SEARCH_WEIGHT_APPS, SettingsManager.SEARCH_WEIGHT_CONTACTS, SettingsManager.SEARCH_WEIGHT_FILES,
         SettingsManager.APP_FUZZY_SEARCH, SettingsManager.SEARCH_CONTACTS
     ).flatMap { it.allNames }.toSet()
 
@@ -135,15 +131,9 @@ class UnifiedSearchCoordinator @Inject constructor(
     }
 
     private fun refreshCachedSettings() {
-        cachedAppWeightMul = weightMultiplier(prefs[SettingsManager.SEARCH_WEIGHT_APPS])
-        cachedContactWeightMul = weightMultiplier(prefs[SettingsManager.SEARCH_WEIGHT_CONTACTS])
-        cachedFileWeightMul = weightMultiplier(prefs[SettingsManager.SEARCH_WEIGHT_FILES])
         cachedFuzzySearchEnabled = prefs[SettingsManager.APP_FUZZY_SEARCH]
         cachedContactSearchEnabled = prefs[SettingsManager.SEARCH_CONTACTS]
     }
-
-    /** A priority weight of 50 is neutral (x1). */
-    private fun weightMultiplier(weight: Int): Float = (weight / 50f).coerceAtLeast(0.01f)
 
     /**
      * The calculator and converter answer, with the current currency rates. A currency answer may start a fetch, which
@@ -431,18 +421,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
     }
 
-    /**
-     * Clears all in-memory indices.
-     */
-    fun clearIndex() {
-        appRadixTree.clear()
-        appPackageRadixTree.clear()
-        contactRadixTree.clear()
-        shortcutRadixTree.clear()
-        fileRadixTree.clear()
-        phoneticIndex.clear()
-    }
-
     // ---------------------------------------------------------------------------------------------
     // HIGH-PERFORMANCE SEARCH PIPELINES (< 2ms Tier 0 / < 5ms Full)
     // ---------------------------------------------------------------------------------------------
@@ -468,7 +446,6 @@ class UnifiedSearchCoordinator @Inject constructor(
      * Evaluates instant calculators, system toggles/actions, and Radix Tree app prefix lookups.
      */
     fun executeTier0Search(rawQuery: String): Tier0SearchResults {
-        val startTime = System.nanoTime()
         val query = rawQuery.trim()
         if (query.isEmpty()) {
             return Tier0SearchResults(query = query)
@@ -537,14 +514,11 @@ class UnifiedSearchCoordinator @Inject constructor(
             matchedApps.add(scoredApps[i].item)
         }
 
-        val elapsedMs = (System.nanoTime() - startTime) / 1_000_000
-
         return Tier0SearchResults(
             query = query,
             mathResult = mathResult,
             systemAction = systemAction,
-            apps = matchedApps,
-            executionTimeMs = elapsedMs
+            apps = matchedApps
         )
     }
 
@@ -578,7 +552,7 @@ class UnifiedSearchCoordinator @Inject constructor(
                 targetTitle = item.title,
                 metadata = metadataFor(item),
                 currentTimeMs = now,
-                domainWeightMultiplier = cachedAppWeightMul,
+                domainWeightMultiplier = 1.0f,
                 precomputedQueryMetaphone = queryMetaphone,
                 precomputedTargetMetaphone = item.precomputedMetaphone,
                 targetSubtitle = item.subtitle
@@ -623,7 +597,7 @@ class UnifiedSearchCoordinator @Inject constructor(
                 targetTitle = item.title,
                 metadata = metadataFor(item),
                 currentTimeMs = now,
-                domainWeightMultiplier = cachedContactWeightMul,
+                domainWeightMultiplier = 1.0f,
                 precomputedQueryMetaphone = queryMetaphone,
                 precomputedTargetMetaphone = item.precomputedMetaphone,
                 targetSubtitle = item.subtitle
@@ -641,105 +615,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         return resultContacts
     }
 
-    /**
-     * Queries indexed shortcuts from memory (< 1ms).
-     */
-    fun searchShortcuts(query: String, limit: Int = 6): List<AppShortcutItem> {
-        val q = query.trim()
-        if (q.isEmpty()) return emptyList()
-        val candidates = mutableSetOf<SearchItem>()
-        shortcutRadixTree.searchPrefix(q, limit = limit * 2).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.APP_SHORTCUT }
-
-        val normalized = QueryNormalizer.normalize(q)
-        if (normalized.isNotEmpty() && !normalized.equals(q, ignoreCase = true)) {
-            shortcutRadixTree.searchPrefix(normalized, limit = limit * 2).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.APP_SHORTCUT }
-        }
-
-        val now = System.currentTimeMillis()
-        val queryMetaphone = DoubleMetaphone.encode(q)
-        val isPrivateLocked = multiProfileManager.isPrivateSpaceLocked()
-        val privateUsers = if (isPrivateLocked) {
-            multiProfileManager.profilesState.value
-                .filter { it.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE }
-                .mapTo(HashSet()) { it.userHandle }
-        } else emptySet()
-        val scoredShortcuts = ArrayList<ScoredCandidate<AppShortcutItem>>(candidates.size)
-        for (item in candidates) {
-            if (isPrivateSpaceItemBlocked(item, isPrivateLocked, privateUsers)) continue
-            val score = SearchScoringEngine.evaluateScore(
-                query = q,
-                targetTitle = item.title,
-                metadata = metadataFor(item),
-                currentTimeMs = now,
-                domainWeightMultiplier = 1.0f,
-                precomputedQueryMetaphone = queryMetaphone,
-                precomputedTargetMetaphone = item.precomputedMetaphone,
-                targetSubtitle = item.subtitle
-            )
-            if (score.totalScore > 0f) {
-                scoredShortcuts.add(ScoredCandidate(item.payload as AppShortcutItem, score.totalScore))
-            }
-        }
-        scoredShortcuts.sortByDescending { it.score }
-        val takeCount = minOf(limit, scoredShortcuts.size)
-        val resultShortcuts = ArrayList<AppShortcutItem>(takeCount)
-        for (i in 0 until takeCount) {
-            resultShortcuts.add(scoredShortcuts[i].item)
-        }
-        return resultShortcuts
-    }
-
-    /**
-     * Queries indexed files from memory (< 1ms).
-     */
-    fun searchFiles(query: String, limit: Int = 10): List<FileItem> {
-        val q = query.trim()
-        if (q.isEmpty()) return emptyList()
-        val candidates = mutableSetOf<SearchItem>()
-        fileRadixTree.searchPrefix(q, limit = limit * 2).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.FILE }
-
-        val normalized = QueryNormalizer.normalize(q)
-        if (normalized.isNotEmpty() && !normalized.equals(q, ignoreCase = true)) {
-            fileRadixTree.searchPrefix(normalized, limit = limit * 2).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.FILE }
-        }
-
-        val now = System.currentTimeMillis()
-        val queryMetaphone = DoubleMetaphone.encode(q)
-        val scoredFiles = ArrayList<ScoredCandidate<FileItem>>(candidates.size)
-        for (item in candidates) {
-            val score = SearchScoringEngine.evaluateScore(
-                query = q,
-                targetTitle = item.title,
-                metadata = metadataFor(item),
-                currentTimeMs = now,
-                domainWeightMultiplier = cachedFileWeightMul,
-                precomputedQueryMetaphone = queryMetaphone,
-                precomputedTargetMetaphone = item.precomputedMetaphone,
-                targetSubtitle = item.subtitle
-            )
-            if (score.totalScore > 0f) {
-                scoredFiles.add(ScoredCandidate(item.payload as FileItem, score.totalScore))
-            }
-        }
-        scoredFiles.sortByDescending { it.score }
-        val takeCount = minOf(limit, scoredFiles.size)
-        val resultFiles = ArrayList<FileItem>(takeCount)
-        for (i in 0 until takeCount) {
-            resultFiles.add(scoredFiles[i].item)
-        }
-        return resultFiles
-    }
-
-    /**
-     * Unregisters preference listeners and purges in-memory indices for zero memory leaks.
-     */
-    fun cleanup() {
-        try {
-            prefs.unregisterOnSharedPreferenceChangeListener(prefChangeListener)
-        } catch (_: Exception) {}
-        clearIndex()
-    }
-
     suspend fun executeSearch(rawQuery: String): UnifiedSearchResults = withContext(Dispatchers.Default) {
         executeSearchInternal(rawQuery) { ensureActive() }
     }
@@ -749,7 +624,6 @@ class UnifiedSearchCoordinator @Inject constructor(
     }
 
     private fun executeSearchInternal(rawQuery: String, cancellationCheck: (() -> Unit)? = null): UnifiedSearchResults {
-        val startTime = System.nanoTime()
         val query = rawQuery.trim()
 
         if (query.isEmpty()) {
@@ -838,9 +712,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         // 7. Multi-Factor Relevance Scoring Matrix
         cancellationCheck?.invoke()
         val now = System.currentTimeMillis()
-        val appWeightMul = cachedAppWeightMul
-        val contactWeightMul = cachedContactWeightMul
-        val fileWeightMul = cachedFileWeightMul
         val isPrivateLocked = multiProfileManager.isPrivateSpaceLocked()
         val privateUsers = if (isPrivateLocked) {
             multiProfileManager.profilesState.value
@@ -855,18 +726,12 @@ class UnifiedSearchCoordinator @Inject constructor(
                 cancellationCheck?.invoke()
             }
             if (isPrivateSpaceItemBlocked(item, isPrivateLocked, privateUsers)) continue
-            val domainMul = when (item.domain) {
-                SearchScoringEngine.EntityDomain.APPLICATION, SearchScoringEngine.EntityDomain.APP_SHORTCUT -> appWeightMul
-                SearchScoringEngine.EntityDomain.CONTACT -> contactWeightMul
-                SearchScoringEngine.EntityDomain.FILE -> fileWeightMul
-                else -> 1.0f
-            }
             val scoreBreakdown = SearchScoringEngine.evaluateScore(
                 query = query,
                 targetTitle = item.title,
                 metadata = metadataFor(item),
                 currentTimeMs = now,
-                domainWeightMultiplier = domainMul,
+                domainWeightMultiplier = 1.0f,
                 precomputedQueryMetaphone = queryMetaphone,
                 precomputedTargetMetaphone = item.precomputedMetaphone,
                 targetSubtitle = item.subtitle
@@ -902,8 +767,6 @@ class UnifiedSearchCoordinator @Inject constructor(
             }
         }
 
-        val elapsedMs = (System.nanoTime() - startTime) / 1_000_000
-
         return UnifiedSearchResults(
             query = query,
             mathResult = mathResult,
@@ -913,8 +776,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             apps = matchedApps,
             contacts = matchedContacts,
             shortcuts = matchedShortcuts,
-            files = matchedFiles,
-            totalExecutionTimeMs = elapsedMs
+            files = matchedFiles
         )
     }
 }

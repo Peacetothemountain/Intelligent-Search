@@ -52,7 +52,6 @@ object NaturalLanguageIntentParser {
             val title: String,
             val startMillis: Long,
             val endMillis: Long,
-            val description: String? = null,
             val intent: Intent
         ) : ParsedIntent()
 
@@ -94,10 +93,10 @@ object NaturalLanguageIntentParser {
         ) : ParsedIntent()
     }
 
+    /** [contactLookup] resolves a name in "call ..." and "text ..." to a contact; without it only numbers resolve. */
     fun parse(
         rawQuery: String,
         currentTimeMs: Long = System.currentTimeMillis(),
-        contacts: List<com.pixel.intelligentsearch.core.data.ContactItem> = emptyList(),
         contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)? = null
     ): ParsedIntent? {
         val query = rawQuery.trim()
@@ -117,10 +116,10 @@ object NaturalLanguageIntentParser {
         parseCalendar(lower, query, currentTimeMs)?.let { return it }
 
         // 5. Direct Messaging Intent ("message ...", "text ...")
-        parseDirectMessage(query, contacts, contactLookup)?.let { return it }
+        parseDirectMessage(query, contactLookup)?.let { return it }
 
         // 6. Direct Phone Call Intent ("call ...", "dial ...")
-        parsePhoneCall(lower, query, contacts, contactLookup)?.let { return it }
+        parsePhoneCall(lower, query, contactLookup)?.let { return it }
 
         // 7. Direct Navigation Intent ("directions to ...", "navigate to ...")
         parseNavigation(lower, query)?.let { return it }
@@ -313,7 +312,6 @@ object NaturalLanguageIntentParser {
             title = cleanTitle,
             startMillis = startMs,
             endMillis = endMs,
-            description = "Created by Intelligent Search",
             intent = intent
         )
     }
@@ -324,8 +322,7 @@ object NaturalLanguageIntentParser {
 
     private fun parseDirectMessage(
         original: String,
-        contacts: List<com.pixel.intelligentsearch.core.data.ContactItem> = emptyList(),
-        contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)? = null
+        contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)?
     ): ParsedIntent.DirectMessage? {
         val match = MESSAGE_REGEX.find(original) ?: return null
 
@@ -334,7 +331,7 @@ object NaturalLanguageIntentParser {
         val body = match.groupValues[3].trim()
 
         // Resolve the recipient to a number the same way calls do, so the composer opens addressed to them.
-        val number = resolveRecipientNumber(recipient, contacts, contactLookup)
+        val number = resolveRecipientNumber(recipient, contactLookup)
 
         val intent = if (isWhatsApp) {
             // WhatsApp needs the full international number; without a country code it rejects the link, so
@@ -363,7 +360,6 @@ object NaturalLanguageIntentParser {
     /** A dialable number for [target]: the target itself if it is one, else a matching contact's number. */
     private fun resolveRecipientNumber(
         target: String,
-        contacts: List<com.pixel.intelligentsearch.core.data.ContactItem>,
         contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)?
     ): String? {
         if (target.isEmpty()) return null
@@ -371,15 +367,13 @@ object NaturalLanguageIntentParser {
             return target.filter { it.isDigit() || it == '+' }.takeIf { it.count(Char::isDigit) >= 3 }
         }
         val contact = contactLookup?.invoke(target)?.takeIf { it.phoneNumber.isNotBlank() }
-            ?: contacts.firstOrNull { it.phoneNumber.isNotBlank() && it.name.contains(target, ignoreCase = true) }
         return contact?.phoneNumber?.filter { it.isDigit() || it == '+' }?.takeIf { it.isNotEmpty() }
     }
 
     private fun parsePhoneCall(
         lower: String,
         original: String,
-        contacts: List<com.pixel.intelligentsearch.core.data.ContactItem> = emptyList(),
-        contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)? = null
+        contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)?
     ): ParsedIntent.PhoneCall? {
         val callTriggers = listOf("call ", "dial ", "phone ")
         val matchedTrigger = callTriggers.firstOrNull { lower.startsWith(it) } ?: return null
@@ -393,9 +387,6 @@ object NaturalLanguageIntentParser {
 
         val matchedContact = if (cleanNumber == null) {
             contactLookup?.invoke(target)?.takeIf { it.phoneNumber.isNotBlank() }
-                ?: contacts.firstOrNull {
-                    it.phoneNumber.isNotBlank() && it.name.contains(target, ignoreCase = true)
-                }
         } else null
 
         if (cleanNumber == null && matchedContact == null) return null

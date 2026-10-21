@@ -64,9 +64,9 @@ class CorpusIndexManager @Inject constructor(
     val isIndexReady: StateFlow<Boolean> = _isIndexReady.asStateFlow()
     private val isInitialized = java.util.concurrent.atomic.AtomicBoolean(false)
 
-    // Observer registration runs on the IO scope while cleanup() may arrive from the main thread, so
-    // both are serialized on observerLock. The debounce job is also touched from the main-thread
-    // ContentObserver callback and therefore stays volatile.
+    // Observer registration runs on the IO scope and is serialized on observerLock, so passes that overlap
+    // never register an observer twice. The debounce jobs are touched from the main-thread observer
+    // callbacks and therefore stay volatile.
     private val observerLock = Any()
     private var contactsObserver: ContentObserver? = null
     private var launcherCallback: android.content.pm.LauncherApps.Callback? = null
@@ -81,7 +81,6 @@ class CorpusIndexManager @Inject constructor(
 
     // Folder and photo-picker choices live in settings prefs; any change there rebuilds the file index.
     // SharedPreferences keeps listeners weakly, so the listener must stay referenced from this field.
-    private var filesPrefs: android.content.SharedPreferences? = null
     private var filesPrefListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
     @Volatile
     private var filesDebounceJob: Job? = null
@@ -95,22 +94,21 @@ class CorpusIndexManager @Inject constructor(
     /**
      * Bootstraps eager background indexing of all corpuses.
      */
-    fun initialize(force: Boolean = false) {
-        if (!force && isInitialized.getAndSet(true)) {
+    fun initialize() {
+        if (isInitialized.getAndSet(true)) {
             return
         }
-        isInitialized.set(true)
         scope.launch(Dispatchers.IO) {
             try {
                 val startMs = System.currentTimeMillis()
 
                 // Concurrently index all corpuses using Kotlin coroutines for instant readiness
                 coroutineScope {
-                    val appsDeferred = async { reindexAppsInternal(forceRefresh = force) }
+                    val appsDeferred = async { reindexAppsInternal() }
                     refreshAppUsageIfStale()
                     val shortcutsDeferred = async { reindexShortcutsInternal() }
                     val contactsDeferred = async { reindexContactsInternal() }
-                    val filesDeferred = async { reindexFilesInternal(onlyIfOlderThanMs = if (force) null else FILES_REFRESH_INTERVAL_MS) }
+                    val filesDeferred = async { reindexFilesInternal(onlyIfOlderThanMs = FILES_REFRESH_INTERVAL_MS) }
                     awaitAll(appsDeferred, shortcutsDeferred, contactsDeferred, filesDeferred)
                 }
 
@@ -121,7 +119,7 @@ class CorpusIndexManager @Inject constructor(
                 // Register live system listeners
                 registerObservers()
             } catch (e: CancellationException) {
-                // Cancelled (e.g. by cleanup()): allow a later initialize() to start over.
+                // Cancelled with its scope: allow a later initialize() to start over.
                 isInitialized.set(false)
                 throw e
             } catch (e: Exception) {
@@ -311,7 +309,6 @@ class CorpusIndexManager @Inject constructor(
                     }
                 }
                 prefs.registerOnSharedPreferenceChangeListener(listener)
-                filesPrefs = prefs
                 filesPrefListener = listener
             }
         } catch (e: Exception) {

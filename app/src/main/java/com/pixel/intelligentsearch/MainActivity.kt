@@ -114,9 +114,12 @@ open class MainActivity : AppCompatActivity() {
     /**
      * The assistant gesture with Start Assistant with Voice on asks the search screen to start listening, with the
      * keyboard kept down. With [restoreKeyboard], a plain open puts the keyboard mode back after an earlier voice one.
+     * The assistant asks through the private WidgetActivity. SearchActivity is exported, so any app could send it
+     * the same extra and open search with the microphone on; there it is ignored.
      */
     private fun requestVoiceIfAsked(intent: Intent?, restoreKeyboard: Boolean = false) {
-        val startVoice = intent?.getBooleanExtra(com.pixel.intelligentsearch.feature.voice.IntelligentVoiceInteractionSession.EXTRA_START_VOICE, false) == true
+        val startVoice = this !is com.pixel.intelligentsearch.feature.search.SearchActivity &&
+            intent?.getBooleanExtra(com.pixel.intelligentsearch.feature.voice.IntelligentVoiceInteractionSession.EXTRA_START_VOICE, false) == true
         if (startVoice) {
             applySoftInputMode(keyboardVisible = false)
             searchViewModel.requestVoice()

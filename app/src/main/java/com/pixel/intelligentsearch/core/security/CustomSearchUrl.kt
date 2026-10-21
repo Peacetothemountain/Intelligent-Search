@@ -94,6 +94,11 @@ object CustomSearchUrl {
             val cut = afterScheme.indexOfFirst { it == '/' || it == '?' || it == '#' }
             if (cut == -1) "" else afterScheme.substring(cut)
         }
+        // A bare site has nowhere to put the search words (a %s can't be in the website name, checked above): appended,
+        // they would run into the name, so every search through it would quietly go to Google instead.
+        if (rest.isEmpty()) {
+            return Validation.Invalid("Add %s where the search words go, for example https://site/?q=%s")
+        }
         return Validation.Valid(template = "https://$host$port$rest", host = host)
     }
 

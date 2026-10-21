@@ -88,10 +88,12 @@ android {
 
     testOptions {
       unitTests {
-        // Screenshot tests record goldens with -Proborazzi.record and compare against them otherwise.
+        // Screenshot tests record goldens with -Proborazzi.record (or =true) and compare against them otherwise,
+        // =false included: any value but true used to switch the comparison off without recording either.
+        val recordScreenshots = project.findProperty("roborazzi.record")?.toString()?.let { it.isEmpty() || it.toBoolean() } ?: false
         all { test ->
-          test.systemProperty("roborazzi.test.record", project.findProperty("roborazzi.record")?.toString() ?: "false")
-          test.systemProperty("roborazzi.test.verify", if (project.hasProperty("roborazzi.record")) "false" else "true")
+          test.systemProperty("roborazzi.test.record", recordScreenshots.toString())
+          test.systemProperty("roborazzi.test.verify", (!recordScreenshots).toString())
           // Goldens are inputs: replacing an image must re-run the comparison instead of reusing a cached result.
           test.inputs.files(project.fileTree("src/test/screenshots")).withPropertyName("screenshotGoldens")
           // Goldens are recorded on Windows and match on CI's Linux runners; -PskipScreenshots leaves them out of a run.
@@ -156,15 +158,11 @@ dependencies {
 
   // Compose
   implementation(libs.androidx.compose.ui)
-  implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.compose.material3)
   implementation(libs.androidx.compose.material.icons.core)
   implementation(libs.androidx.compose.material.icons.extended)
-  // Tooling
-  debugImplementation(libs.androidx.compose.ui.tooling)
-  // Instrumented tests (the androidTest classpath does not inherit the BOM applied to `implementation`)
-  androidTestImplementation(platform(libs.androidx.compose.bom))
-  androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+  // No ui-tooling: nothing uses @Preview, and it adds an exported PreviewActivity to debug builds.
+  // The empty activity the Compose test rules host screens in; debug builds only.
   debugImplementation(libs.androidx.compose.ui.test.manifest)
 
   // Local tests: jUnit, coroutines, Android runner
@@ -181,12 +179,6 @@ dependencies {
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.hilt.android.testing)
   kspTest(libs.hilt.android.compiler)
-
-  // Instrumented tests: jUnit rules and runners
-  androidTestImplementation(libs.androidx.test.core)
-  androidTestImplementation(libs.androidx.test.ext.junit)
-  androidTestImplementation(libs.androidx.test.runner)
-  androidTestImplementation(libs.androidx.test.espresso.core)
 
   // Navigation & Serialization
   implementation(libs.androidx.navigation.compose)

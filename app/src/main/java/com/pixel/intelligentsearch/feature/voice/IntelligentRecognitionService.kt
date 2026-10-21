@@ -5,7 +5,9 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.ContextParams
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Bundle
 import android.speech.RecognitionListener
@@ -15,6 +17,8 @@ import android.speech.RecognitionSupportCallback
 import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.annotation.RequiresApi
+
+private const val TAG = "IntelligentRecognition"
 
 /**
  * The speech recognizer named in voice_interaction.xml.
@@ -26,10 +30,6 @@ import androidx.annotation.RequiresApi
  * It never forwards to the default recognizer, which may be this service.
  */
 class IntelligentRecognitionService : RecognitionService() {
-
-    companion object {
-        private const val TAG = "IntelligentRecognition"
-    }
 
     private var delegate: SpeechRecognizer? = null
     /** The recognizer a model download was asked of; it binds asynchronously, so it lives until the service ends. */
@@ -43,17 +43,7 @@ class IntelligentRecognitionService : RecognitionService() {
             return
         }
         delegate = recognizer
-        recognizer.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) = relay { listener.readyForSpeech(params ?: Bundle()) }
-            override fun onBeginningOfSpeech() = relay { listener.beginningOfSpeech() }
-            override fun onRmsChanged(rmsdB: Float) = relay { listener.rmsChanged(rmsdB) }
-            override fun onBufferReceived(buffer: ByteArray?) = relay { buffer?.let { listener.bufferReceived(it) } }
-            override fun onEndOfSpeech() = relay { listener.endOfSpeech() }
-            override fun onError(error: Int) = relay { listener.error(error) }
-            override fun onResults(results: Bundle?) = relay { listener.results(results ?: Bundle()) }
-            override fun onPartialResults(partialResults: Bundle?) = relay { partialResults?.let { listener.partialResults(it) } }
-            override fun onEvent(eventType: Int, params: Bundle?) = Unit
-        })
+        recognizer.setRecognitionListener(RecognitionRelay(CallbackSink(listener)))
         try {
             recognizer.startListening(recognizerIntent)
         } catch (e: Exception) {
@@ -154,19 +144,7 @@ class IntelligentRecognitionService : RecognitionService() {
             @Suppress("DEPRECATION")
             packageManager.queryIntentServices(intent, 0)
         }
-        // Prefer Google's recognizer when present, otherwise the first other provider.
-        val candidates = services.mapNotNull { it.serviceInfo }.filter { it.packageName != packageName }
-        val chosen = candidates.firstOrNull { it.packageName.startsWith("com.google.") } ?: candidates.firstOrNull()
-        return chosen?.let { ComponentName(it.packageName, it.name) }
-    }
-
-    private inline fun relay(block: () -> Unit) {
-        try {
-            block()
-        } catch (e: Exception) {
-            // The client went away (RemoteException); nothing left to deliver to.
-            Log.d(TAG, "Recognition callback dropped: ${e.message}")
-        }
+        return chooseRecognitionDelegate(services.mapNotNull { it.serviceInfo }, packageName)
     }
 
     private fun safeError(listener: Callback, error: Int) = relay { listener.error(error) }
@@ -176,5 +154,109 @@ class IntelligentRecognitionService : RecognitionService() {
             delegate?.destroy()
         } catch (_: Exception) {}
         delegate = null
+    }
+}
+
+/** Google's recognizers, most preferred first. They count only when they came with the phone (see [isSystem]). */
+private val GOOGLE_RECOGNIZERS = listOf(
+    "com.google.android.googlequicksearchbox",
+    "com.google.android.tts",
+    "com.google.android.as",
+)
+
+/**
+ * The recognition service to hand the microphone to, out of [services] (every one installed), never [ownPackage]'s.
+ *
+ * Any app can declare a recognition service, under any package name, including one starting with "com.google.", so
+ * the choice rests on what came with the phone: Google's own recognizer if it is part of the system, then any other
+ * system recognizer. An app the user installed is used only when the phone has no system recognizer at all, which
+ * keeps voice working on phones without Google apps and matches how Android picks its own default recognizer.
+ */
+internal fun chooseRecognitionDelegate(services: List<ServiceInfo>, ownPackage: String): ComponentName? {
+    val candidates = services.filter { it.packageName != ownPackage }
+    val system = candidates.filter { it.isSystem() }
+    val chosen = GOOGLE_RECOGNIZERS.firstNotNullOfOrNull { google -> system.firstOrNull { it.packageName == google } }
+        ?: system.firstOrNull()
+        ?: candidates.firstOrNull()
+    return chosen?.let { ComponentName(it.packageName, it.name) }
+}
+
+/** Part of the system image, including a system app updated from the Play Store. */
+private fun ServiceInfo.isSystem(): Boolean =
+    ((applicationInfo?.flags ?: 0) and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0
+
+/**
+ * Where a [RecognitionRelay] delivers what the delegate recognizer reports. In the service this is the calling app's
+ * [RecognitionService.Callback] (see [CallbackSink]), which can't be created outside the framework.
+ */
+internal interface RecognitionSink {
+    fun readyForSpeech(params: Bundle)
+    fun beginningOfSpeech()
+    fun rmsChanged(rmsdB: Float)
+    fun bufferReceived(buffer: ByteArray)
+    fun endOfSpeech()
+    fun error(error: Int)
+    fun results(results: Bundle)
+    fun partialResults(partialResults: Bundle)
+    fun segmentResults(segmentResults: Bundle)
+    fun endOfSegmentedSession()
+    fun languageDetection(results: Bundle)
+}
+
+/**
+ * Hands each callback of the delegate recognizer on to the app that asked for speech. A segmented session (dictation
+ * that keeps listening through pauses, Android 13+) reports every phrase through onSegmentResults and ends with
+ * onEndOfSegmentedSession instead of onResults, so those are passed on too: without them the caller lost everything
+ * said before the last pause.
+ */
+internal class RecognitionRelay(private val sink: RecognitionSink) : RecognitionListener {
+    override fun onReadyForSpeech(params: Bundle?) = relay { sink.readyForSpeech(params ?: Bundle()) }
+    override fun onBeginningOfSpeech() = relay { sink.beginningOfSpeech() }
+    override fun onRmsChanged(rmsdB: Float) = relay { sink.rmsChanged(rmsdB) }
+    override fun onBufferReceived(buffer: ByteArray?) = relay { buffer?.let { sink.bufferReceived(it) } }
+    override fun onEndOfSpeech() = relay { sink.endOfSpeech() }
+    override fun onError(error: Int) = relay { sink.error(error) }
+    override fun onResults(results: Bundle?) = relay { sink.results(results ?: Bundle()) }
+    override fun onPartialResults(partialResults: Bundle?) = relay { partialResults?.let { sink.partialResults(it) } }
+    override fun onSegmentResults(segmentResults: Bundle) = relay { sink.segmentResults(segmentResults) }
+    override fun onEndOfSegmentedSession() = relay { sink.endOfSegmentedSession() }
+    override fun onLanguageDetection(results: Bundle) = relay { sink.languageDetection(results) }
+    override fun onEvent(eventType: Int, params: Bundle?) = Unit
+}
+
+/**
+ * The calling app's callback. The delegate only reports segments and languages on Android versions that have them,
+ * where the callback has the matching methods; the version checks just say so.
+ */
+private class CallbackSink(private val callback: RecognitionService.Callback) : RecognitionSink {
+    override fun readyForSpeech(params: Bundle) = callback.readyForSpeech(params)
+    override fun beginningOfSpeech() = callback.beginningOfSpeech()
+    override fun rmsChanged(rmsdB: Float) = callback.rmsChanged(rmsdB)
+    override fun bufferReceived(buffer: ByteArray) = callback.bufferReceived(buffer)
+    override fun endOfSpeech() = callback.endOfSpeech()
+    override fun error(error: Int) = callback.error(error)
+    override fun results(results: Bundle) = callback.results(results)
+    override fun partialResults(partialResults: Bundle) = callback.partialResults(partialResults)
+
+    override fun segmentResults(segmentResults: Bundle) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) callback.segmentResults(segmentResults)
+    }
+
+    override fun endOfSegmentedSession() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) callback.endOfSegmentedSession()
+    }
+
+    override fun languageDetection(results: Bundle) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) callback.languageDetection(results)
+    }
+}
+
+/** Delivers one callback to the calling app. */
+private inline fun relay(block: () -> Unit) {
+    try {
+        block()
+    } catch (e: Exception) {
+        // The client went away (RemoteException); nothing left to deliver to.
+        Log.d(TAG, "Recognition callback dropped: ${e.message}")
     }
 }

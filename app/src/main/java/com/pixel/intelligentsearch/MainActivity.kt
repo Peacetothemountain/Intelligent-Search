@@ -114,9 +114,12 @@ open class MainActivity : AppCompatActivity() {
     /**
      * The assistant gesture with Start Assistant with Voice on asks the search screen to start listening, with the
      * keyboard kept down. With [restoreKeyboard], a plain open puts the keyboard mode back after an earlier voice one.
+     * The assistant asks through the private WidgetActivity. SearchActivity is exported, so any app could send it
+     * the same extra and open search with the microphone on; there it is ignored.
      */
     private fun requestVoiceIfAsked(intent: Intent?, restoreKeyboard: Boolean = false) {
-        val startVoice = intent?.getBooleanExtra(com.pixel.intelligentsearch.feature.voice.IntelligentVoiceInteractionSession.EXTRA_START_VOICE, false) == true
+        val startVoice = this !is com.pixel.intelligentsearch.feature.search.SearchActivity &&
+            intent?.getBooleanExtra(com.pixel.intelligentsearch.feature.voice.IntelligentVoiceInteractionSession.EXTRA_START_VOICE, false) == true
         if (startVoice) {
             applySoftInputMode(keyboardVisible = false)
             searchViewModel.requestVoice()
@@ -384,14 +387,6 @@ open class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onTrimMemory(level: Int) {
-        super.onTrimMemory(level)
-        if (level >= TRIM_MEMORY_UI_HIDDEN) {
-            com.pixel.intelligentsearch.feature.search.clearAllUiMemoryCaches()
-            com.pixel.intelligentsearch.core.data.SystemDataProvider.invalidateAppsCache()
-        }
-    }
-
     /**
      * Drops the query from [getIntent] once it has been used, so nothing reads it again later. Otherwise turning the
      * overlay off in Settings and coming back would hand the old query, such as selected text, to a web search on
@@ -422,6 +417,10 @@ open class MainActivity : AppCompatActivity() {
             }
             if (packageManager.resolveActivity(fallbackIntent, 0) != null) {
                 startActivity(fallbackIntent)
+            } else if (intent?.action == Intent.ACTION_WEB_SEARCH) {
+                // This activity was itself picked to handle the web search, so handing it on as another web search
+                // would only bring it back here, over and over. With nowhere else to send it, the overlay shows it.
+                return false
             } else {
                 val webIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                     if (queryExtra.isNotEmpty()) {

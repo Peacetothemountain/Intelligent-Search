@@ -218,49 +218,35 @@ fun ComposeThemedShortcutIcon(
             }
         }
     } else if (isMaterialTheme && resId == com.pixel.intelligentsearch.R.drawable.ic_lens_action) {
-        val path1 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M11.5,9.5 L9.0,4.0 L6.5,9.5 L1.0,12.0 l5.5,2.5 L9.0,20.0 l2.5,-5.5 L17.0,12.0 l-5.5,-2.5 Z").toPath() }
-        val path2 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M19.0,9.0 l1.25,-2.75 L23.0,5.0 l-2.75,-1.25 L19.0,1.0 l-1.25,2.75 L15.0,5.0 l2.75,1.25 L19.0,9.0 Z").toPath() }
-        val path3 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M19.0,15.0 l-1.25,2.75 L15.0,19.0 l2.75,1.25 L19.0,23.0 l1.25,-2.75 L23.0,19.0 l-2.75,-1.25 L19.0,15.0 Z").toPath() }
-
         androidx.compose.foundation.Canvas(modifier = modifier) {
             val scaleX = size.width / 24f
             val scaleY = size.height / 24f
             scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
-                drawPath(path = path1, color = tLighter)
-                drawPath(path = path2, color = pDarker)
-                drawPath(path = path3, color = sLighter)
+                drawPath(path = assistantActionPath1, color = tLighter)
+                drawPath(path = assistantActionPath2, color = pDarker)
+                drawPath(path = assistantActionPath3, color = sLighter)
             }
         }
     } else if (isMaterialTheme && resId == com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive) {
-        val path1 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10.5,4 A 6.5,6.5 0 0 0 4,10.5 A 6.5,6.5 0 0 0 10.5,17 A 6.5,6.5 0 0 0 15,15").toPath() }
-        val path2 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 14,5 A 6.5,6.5 0 0 0 10.5,4 A 6.5,6.5 0 0 0 5,7.5").toPath() }
-        val path3 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 15.5,15.5 L 20,20").toPath() }
-        val path4 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 18,0.5 C 18,4 21,6.5 24,6.5 C 21,6.5 18,9 18,12.5 C 18,9 15,6.5 12,6.5 C 15,6.5 18,4 18,0.5 Z").toPath() }
-
         androidx.compose.foundation.Canvas(modifier = modifier) {
             val scaleX = size.width / 24f
             val scaleY = size.height / 24f
             scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
-                drawPath(path = path1, color = tLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                drawPath(path = path2, color = tLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                drawPath(path = path3, color = sLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                drawPath(path = path4, color = pDarker)
+                drawPath(path = searchActionPath1, color = tLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                drawPath(path = searchActionPath2, color = tLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                drawPath(path = searchActionPath3, color = sLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                drawPath(path = searchActionPath4, color = pDarker)
             }
         }
     } else if (isMaterialTheme && resId == com.pixel.intelligentsearch.R.drawable.ic_music) {
-        val path1 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 19,11.5 L 19,12.5").toPath() }
-        val path2 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 14.5,9.5 L 14.5,15.5").toPath() }
-        val path3 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10,7 L 10,16").toPath() }
-        val path4 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 11.6,16.5 C 11.6,19.26 9.36,21.5 6.6,21.5 C 3.84,21.5 1.6,19.26 1.6,16.5 C 1.6,13.74 3.84,11.5 6.6,11.5 C 8.6,11.5 10.3,12.7 11.1,14.4 Z").toPath() }
-
         androidx.compose.foundation.Canvas(modifier = modifier) {
             val scaleX = size.width / 24f
             val scaleY = size.height / 24f
             scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
-                drawPath(path = path1, color = tLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                drawPath(path = path2, color = sLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                drawPath(path = path3, color = pDarker, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                drawPath(path = path4, color = tLighter)
+                drawPath(path = nowPlayingActionPath1, color = tLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                drawPath(path = nowPlayingActionPath2, color = sLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                drawPath(path = nowPlayingActionPath3, color = pDarker, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                drawPath(path = nowPlayingActionPath4, color = tLighter)
             }
         }
     } else {

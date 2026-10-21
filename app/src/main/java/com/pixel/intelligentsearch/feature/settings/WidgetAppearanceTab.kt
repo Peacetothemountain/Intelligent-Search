@@ -7,6 +7,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -19,15 +20,33 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
+import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 
 /** One colourable widget element as listed in the Appearance tab: its colour key, label and current colour. */
 private data class CustomElementTarget(val key: String, val label: String, val color: Int)
+
+/**
+ * The label colour for a subtheme pill filled with [fill]: black or white, whichever contrasts more with what
+ * the label actually sits on. The fill can be translucent (the custom colour's opacity, the unselected pill's
+ * gradient), so it is composited over [surface], the page behind the pills, first.
+ */
+internal fun subthemePillLabelColor(fill: Color, surface: Color): Color {
+    val shown = fill.compositeOver(surface).toArgb()
+    val onBlack = MaterialYouPaletteHelper.calculateContrastRatio(Color.Black.toArgb(), shown)
+    val onWhite = MaterialYouPaletteHelper.calculateContrastRatio(Color.White.toArgb(), shown)
+    return if (onBlack >= onWhite) Color.Black else Color.White
+}
 
 /** The Appearance tab of the widget editor: G icon, subtheme, Material options and element colours. */
 @Composable
@@ -58,7 +77,6 @@ internal fun WidgetAppearanceTab(
     var localSlotOrderStr by fields::slotOrderStr
     var localKeepSystemG by fields::keepSystemG
     var localLockBlack by fields::lockBlack
-    var matLockBlack by fields::lockBlack
     var localActionIcon by fields::actionIcon
     var showCustomHexDialog by ui::showCustomHexDialog
     var tempCustomHexInput by ui::tempCustomHexInput
@@ -102,12 +120,13 @@ internal fun WidgetAppearanceTab(
     }
 
     if (isMaterialYou) {
-        Text("WIDGET ACTION ICON", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
+        Text("WIDGET ACTION ICON", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp).semantics { heading() })
         SettingsCard {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(6.dp),
+                    .padding(6.dp)
+                    .selectableGroup(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -129,6 +148,7 @@ internal fun WidgetAppearanceTab(
                                 if (isSel) MaterialTheme.colorScheme.primaryContainer 
                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                             )
+                            .semantics { selected = isSel }
                             .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
                                 hapticEngine.performPredictiveBackHaptic(view)
                                 localActionIcon = optionKey
@@ -172,10 +192,14 @@ internal fun WidgetAppearanceTab(
     }
 
     // Floating Theme Pills
+    // The Custom pill is painted in the custom colour, so its label is black or white to match. Unselected, the
+    // pill is a gradient up from half opacity and the label sits on its midpoint, both shown over the page.
+    val pageColor = MaterialTheme.colorScheme.background
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 4.dp)
+            .selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         if (localThemeStyle == "System Default") {
@@ -207,16 +231,14 @@ internal fun WidgetAppearanceTab(
                         .height(48.dp)
                         .then(bgModifier)
                         .clip(RoundedCornerShape(32.dp))
+                        .semantics { selected = isSel }
                         .bouncyClickable(shape = RoundedCornerShape(32.dp)) { localSubtheme = opt },
                     contentAlignment = Alignment.Center
                 ) {
-                    val textColor = if (isSel) {
-                        if (opt == "Custom") {
-                            val luminance = (0.299 * dynColor.red + 0.587 * dynColor.green + 0.114 * dynColor.blue)
-                            if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
-                        } else MaterialTheme.colorScheme.onPrimaryContainer
-                    } else if (opt == "Custom") {
-                        androidx.compose.ui.graphics.Color.White
+                    val textColor = if (opt == "Custom") {
+                        subthemePillLabelColor(if (isSel) dynColor else dynColor.copy(alpha = 0.75f), pageColor)
+                    } else if (isSel) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     }
@@ -252,22 +274,19 @@ internal fun WidgetAppearanceTab(
                         .height(48.dp)
                         .then(bgModifier)
                         .clip(RoundedCornerShape(32.dp))
+                        .semantics { selected = isSel }
                         .bouncyClickable(shape = RoundedCornerShape(32.dp)) {
                             localSubtheme = opt
                             if (opt == "Material") {
                                 localLockBlack = true
-                                matLockBlack = true
                             }
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    val textColor = if (isSel) {
-                        if (opt == "Custom") {
-                            val luminance = (0.299 * dynColor.red + 0.587 * dynColor.green + 0.114 * dynColor.blue)
-                            if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
-                        } else MaterialTheme.colorScheme.onPrimaryContainer
-                    } else if (opt == "Custom") {
-                        androidx.compose.ui.graphics.Color.White
+                    val textColor = if (opt == "Custom") {
+                        subthemePillLabelColor(if (isSel) dynColor else dynColor.copy(alpha = 0.75f), pageColor)
+                    } else if (isSel) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     }
@@ -277,14 +296,15 @@ internal fun WidgetAppearanceTab(
         }
     }
 
-    Text("G ICON STYLE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
+    Text("G ICON STYLE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp).semantics { heading() })
     // G Icon Row with Custom G Icon button right beside Accented G Icon
     SettingsCard {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .padding(4.dp),
+                .padding(4.dp)
+                .selectableGroup(),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -297,6 +317,7 @@ internal fun WidgetAppearanceTab(
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(20.dp))
                         .background(if (isSel) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+                        .semantics { selected = isSel }
                         .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
                             hapticEngine.performPredictiveBackHaptic(view)
                             localMaterialGIconTheme = opt
@@ -335,23 +356,22 @@ internal fun WidgetAppearanceTab(
                 isChecked = localLockBlack,
                 onCheckedChange = { checked ->
                     localLockBlack = checked
-                    matLockBlack = checked
                 }
             )
         }
     }
 
     if (localMaterialGIconTheme == "Custom G Icon") {
-        Text("CUSTOM ICON COLORS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
+        Text("CUSTOM ICON COLORS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp, top = 8.dp).semantics { heading() })
         SettingsCard {
             Column(modifier = Modifier.padding(16.dp)) {
-                // 0. Default Google Color Pallete Switch Row
+                // 0. Default Google Color Palette Switch Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Default Google Color Pallete", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Default Google Color Palette", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                         Text(
                             "Preserve multi-colored Google logo while customizing shortcuts and action button",
                             fontSize = 13.sp,
@@ -362,7 +382,8 @@ internal fun WidgetAppearanceTab(
                         checked = localKeepSystemG,
                         onCheckedChange = { keep ->
                             localKeepSystemG = keep
-                        }
+                        },
+                        label = "Default Google Color Palette"
                     )
                 }
 
@@ -392,7 +413,8 @@ internal fun WidgetAppearanceTab(
                                 localCustomShortcut3Color = localCustomGIconColor
                                 localCustomActionColor = localCustomGIconColor
                             }
-                        }
+                        },
+                        label = "Sync All Colors"
                     )
                 }
 
@@ -436,7 +458,8 @@ internal fun WidgetAppearanceTab(
                         "SELECT ELEMENT TO CUSTOMIZE",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.semantics { heading() }
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -581,126 +604,67 @@ internal fun WidgetAppearanceTab(
                 }
 
                 // 3. Hue Slider (matching Color Studio)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Palette, contentDescription = "Hue", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Hue", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                            Spacer(modifier = Modifier.weight(1f))
-                            Text("${customIconHue.toInt()}°", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
-                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                colors = listOf(
-                                    androidx.compose.ui.graphics.Color.Red,
-                                    androidx.compose.ui.graphics.Color.Yellow,
-                                    androidx.compose.ui.graphics.Color.Green,
-                                    androidx.compose.ui.graphics.Color.Cyan,
-                                    androidx.compose.ui.graphics.Color.Blue,
-                                    androidx.compose.ui.graphics.Color.Magenta,
-                                    androidx.compose.ui.graphics.Color.Red
-                                )
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        )) {
-                            Android17Slider(
-                                showTrack = false,
-                                enableHaptics = false,
-                                value = customIconHue,
-                                onValueChange = { 
-                                    customIconHue = it
-                                    val newCol = android.graphics.Color.HSVToColor(
-                                        floatArrayOf(it, (customIconSat / 100f).coerceIn(0f, 1f), (customIconVal / 100f).coerceIn(0f, 1f))
-                                    )
-                                    updateTargetColor(newCol)
-                                },
-                                valueRange = 0f..360f,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
+                GradientSliderRow(
+                    icon = Icons.Default.Palette,
+                    label = "Hue",
+                    valueText = "${customIconHue.toInt()}°",
+                    gradient = HUE_GRADIENT,
+                    value = customIconHue,
+                    onValueChange = {
+                        customIconHue = it
+                        val newCol = android.graphics.Color.HSVToColor(
+                            floatArrayOf(it, (customIconSat / 100f).coerceIn(0f, 1f), (customIconVal / 100f).coerceIn(0f, 1f))
+                        )
+                        updateTargetColor(newCol)
+                    },
+                    valueRange = 0f..360f
+                )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
 
                 // 4. Saturation Slider (matching Color Studio)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.WaterDrop, contentDescription = "Saturation", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Saturation", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                            Spacer(modifier = Modifier.weight(1f))
-                            Text("${customIconSat.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
-                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                colors = listOf(
-                                    androidx.compose.ui.graphics.Color.White,
-                                    androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(customIconHue, 1f, 1f)))
-                                )
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        )) {
-                            Android17Slider(
-                                showTrack = false,
-                                enableHaptics = false,
-                                value = customIconSat,
-                                onValueChange = { 
-                                    customIconSat = it
-                                    val newCol = android.graphics.Color.HSVToColor(
-                                        floatArrayOf(customIconHue, (it / 100f).coerceIn(0f, 1f), (customIconVal / 100f).coerceIn(0f, 1f))
-                                    )
-                                    updateTargetColor(newCol)
-                                },
-                                valueRange = 0f..100f,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
+                GradientSliderRow(
+                    icon = Icons.Default.WaterDrop,
+                    label = "Saturation",
+                    valueText = "${customIconSat.toInt()}%",
+                    gradient = listOf(
+                        androidx.compose.ui.graphics.Color.White,
+                        androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(customIconHue, 1f, 1f)))
+                    ),
+                    value = customIconSat,
+                    onValueChange = {
+                        customIconSat = it
+                        val newCol = android.graphics.Color.HSVToColor(
+                            floatArrayOf(customIconHue, (it / 100f).coerceIn(0f, 1f), (customIconVal / 100f).coerceIn(0f, 1f))
+                        )
+                        updateTargetColor(newCol)
+                    },
+                    valueRange = 0f..100f
+                )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
 
                 // 5. Brightness Slider (matching Color Studio)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Outlined.BrightnessMedium, contentDescription = "Brightness", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Brightness", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                            Spacer(modifier = Modifier.weight(1f))
-                            Text("${customIconVal.toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Box(modifier = Modifier.fillMaxWidth().height(16.dp).padding(top = 8.dp).background(
-                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                colors = listOf(
-                                    androidx.compose.ui.graphics.Color.Black,
-                                    androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(customIconHue, (customIconSat / 100f).coerceIn(0f, 1f), 1f)))
-                                )
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        )) {
-                            Android17Slider(
-                                showTrack = false,
-                                enableHaptics = false,
-                                value = customIconVal,
-                                onValueChange = { 
-                                    customIconVal = it
-                                    val newCol = android.graphics.Color.HSVToColor(
-                                        floatArrayOf(customIconHue, (customIconSat / 100f).coerceIn(0f, 1f), (it / 100f).coerceIn(0f, 1f))
-                                    )
-                                    updateTargetColor(newCol)
-                                },
-                                valueRange = 0f..100f,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
+                GradientSliderRow(
+                    icon = Icons.Outlined.BrightnessMedium,
+                    label = "Brightness",
+                    valueText = "${customIconVal.toInt()}%",
+                    gradient = listOf(
+                        androidx.compose.ui.graphics.Color.Black,
+                        androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(customIconHue, (customIconSat / 100f).coerceIn(0f, 1f), 1f)))
+                    ),
+                    value = customIconVal,
+                    onValueChange = {
+                        customIconVal = it
+                        val newCol = android.graphics.Color.HSVToColor(
+                            floatArrayOf(customIconHue, (customIconSat / 100f).coerceIn(0f, 1f), (it / 100f).coerceIn(0f, 1f))
+                        )
+                        updateTargetColor(newCol)
+                    },
+                    valueRange = 0f..100f
+                )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
 
                 // 6. Hex Color Pill Bar (matching Color Studio)
                 val activeHex = String.format("#%06X", (0xFFFFFF and activeColor))

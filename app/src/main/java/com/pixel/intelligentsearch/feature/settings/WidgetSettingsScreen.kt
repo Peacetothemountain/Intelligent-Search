@@ -15,6 +15,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -28,11 +29,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.R
@@ -45,7 +49,53 @@ import com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
 // WIDGET SETTINGS SCREEN
 // -----------------------------------------------------------------------------------------
 
-private data class SlotPreviewItem(val slotKey: String, val label: String, val resId: Int, val isMic: Boolean)
+private data class SlotPreviewItem(val slotKey: String, val label: String, val resId: Int)
+
+/** The live preview's pill: its fill, and whether that fill is light, which picks the colours of the icons on it. */
+internal data class PreviewPill(val fill: Color, val isLight: Boolean)
+
+/**
+ * The preview pill of the design being edited. Whether a theme-coloured pill is light or dark comes from
+ * the colour scheme this screen is drawn with, the same source as its fill, so the icons drawn on it keep their
+ * contrast when the app's theme differs from the system's. The fixed light and dark pills of the System
+ * subtheme without dynamic colour still follow the system, as the widget does.
+ */
+@Composable
+internal fun previewPill(
+    isMaterialDesign: Boolean,
+    subtheme: String,
+    lockBlack: Boolean,
+    accentColor: Color,
+    containerAlpha: Float,
+    effectiveColorAlpha: Float,
+    isDynamicColorActive: Boolean
+): PreviewPill {
+    val appDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val themed = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = containerAlpha)
+    val custom = accentColor.copy(alpha = effectiveColorAlpha)
+    val customIsLight = 0.299 * accentColor.red + 0.587 * accentColor.green + 0.114 * accentColor.blue > 0.5
+    val light = Color(0xFFF1F3F4).copy(alpha = containerAlpha)
+    val dark = Color(0xFF303134).copy(alpha = containerAlpha)
+    return if (isMaterialDesign) {
+        when {
+            lockBlack -> PreviewPill(Color(0xFF121212), isLight = false)
+            subtheme == "Custom" -> PreviewPill(custom, customIsLight)
+            else -> PreviewPill(themed, !appDark)
+        }
+    } else {
+        when (subtheme) {
+            "Light" -> PreviewPill(light, isLight = true)
+            "Dark" -> PreviewPill(dark, isLight = false)
+            "Custom" -> PreviewPill(custom, customIsLight)
+            else -> when {
+                isDynamicColorActive -> PreviewPill(themed, !appDark)
+                systemDark -> PreviewPill(dark, isLight = false)
+                else -> PreviewPill(light, isLight = true)
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,7 +167,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var localKeepSystemG by fields::keepSystemG
     // Material-only settings.
     var localLockBlack by fields::lockBlack
-    var matLockBlack by fields::lockBlack
     var localActionIcon by fields::actionIcon
 
     val computedCustomColorInt = remember(localHue, localSaturation, localLightness, localColorOpacity) {
@@ -130,7 +179,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val view = androidx.compose.ui.platform.LocalView.current
     val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
     val coroutineScope = rememberCoroutineScope()
-    var selectedTab by ui::selectedTab
+    var selectedTabName by ui::selectedTabName
 
     // What was last loaded or saved, to tell whether there are unsaved changes.
     var savedThemeStyle by remember { mutableStateOf(localThemeStyle) }
@@ -355,25 +404,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         MaterialTheme.colorScheme.primary
                     }
                     val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
-                    val matPrimary = MaterialTheme.colorScheme.primary
-                    val matSurfaceVariant = MaterialTheme.colorScheme.surfaceVariant
-
-                    val activeColor = remember(previewIsMaterialYou, localSubtheme, computedCustomColorInt, matPrimary, matSurfaceVariant, effectiveColorAlpha) {
-                        if (localSubtheme == "Custom") {
-                            val hsv = FloatArray(3)
-                            android.graphics.Color.colorToHSV(computedCustomColorInt, hsv)
-                            androidx.compose.ui.graphics.Color(
-                                android.graphics.Color.HSVToColor(
-                                    255, 
-                                    floatArrayOf(hsv[0], hsv[1], 1f)
-                                )
-                            )
-                        } else if (!previewIsMaterialYou) {
-                            matSurfaceVariant
-                        } else {
-                            matPrimary
-                        }
-                    }
 
                     val isCustomTheme = localSubtheme == "Custom"
                     val waveColor = if (isCustomTheme) {
@@ -406,19 +436,16 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     
                     val effectiveGIconTheme = localMaterialGIconTheme
 
-                    val customLuminance = (0.299 * accentColor.red + 0.587 * accentColor.green + 0.114 * accentColor.blue)
-                    val isPreviewPillLight = if (previewIsMaterialYou) {
-                        if (localSubtheme == "Custom") (!localLockBlack && (customLuminance > 0.5f)) else (!androidx.compose.foundation.isSystemInDarkTheme() && !localLockBlack)
-                    } else {
-                        when (localSubtheme) {
-                            "Light" -> true
-                            "Dark" -> false
-                            "Custom" -> customLuminance > 0.5f
-                            else -> !androidx.compose.foundation.isSystemInDarkTheme()
-                        }
-                    }
-                    
-                    val materialDarkCompose = androidx.compose.ui.res.colorResource(android.R.color.system_accent1_700)
+                    val pill = previewPill(
+                        isMaterialDesign = previewIsMaterialYou,
+                        subtheme = localSubtheme,
+                        lockBlack = localLockBlack,
+                        accentColor = accentColor,
+                        containerAlpha = containerAlpha,
+                        effectiveColorAlpha = effectiveColorAlpha,
+                        isDynamicColorActive = isDynamicActive
+                    )
+                    val isPreviewPillLight = pill.isLight
 
                     val rimBrush = if (previewIsMaterialYou && localSubtheme == "Custom") {
                         androidx.compose.ui.graphics.SolidColor(accentColor.copy(alpha = effectiveColorAlpha))
@@ -426,29 +453,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         androidx.compose.ui.graphics.Brush.linearGradient(listOf(previewRimColorAlpha, previewRimColorAlpha))
                     }
                     
-                    val previewPillColorAlpha = if (previewIsMaterialYou) {
-                        if (localLockBlack) {
-                            androidx.compose.ui.graphics.Color(0xFF121212)
-                        } else {
-                            if (localSubtheme == "Custom") {
-                                accentColor.copy(alpha = effectiveColorAlpha)
-                            } else {
-                                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = containerAlpha)
-                            }
-                        }
-                    } else {
-                        when (localSubtheme) {
-                            "Light" -> androidx.compose.ui.graphics.Color(0xFFF1F3F4).copy(alpha = containerAlpha)
-                            "Dark" -> androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = containerAlpha)
-                            "Custom" -> accentColor.copy(alpha = effectiveColorAlpha)
-                            else -> if (DynamicThemeDetector.isDynamicColorActive(context)) {
-                                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = containerAlpha)
-                            } else {
-                                if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFF303134).copy(alpha = containerAlpha) else androidx.compose.ui.graphics.Color(0xFFF1F3F4).copy(alpha = containerAlpha)
-                            }
-                        }
-                    }
-                    
+                    val previewPillColorAlpha = pill.fill
+
                     val previewIsDarkSurface = if (previewIsMaterialYou) localLockBlack || (!isPreviewPillLight) else !isPreviewPillLight
                     val previewWidgetColors = remember(previewIsDarkSurface) {
                         DynamicThemeDetector.resolveWidgetColors(context, previewIsDarkSurface)
@@ -497,10 +503,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val gPrimary = androidx.compose.ui.graphics.Color(finalPInt)
                     val gSecondary = androidx.compose.ui.graphics.Color(finalSInt)
                     val gTertiary = androidx.compose.ui.graphics.Color(finalTInt)
-                    val googleBlue = androidx.compose.ui.graphics.Color(0xFF4285F4)
-                    val googleGreen = androidx.compose.ui.graphics.Color(0xFF34A853)
-                    val googleYellow = androidx.compose.ui.graphics.Color(0xFFFBBC05)
-                    val googleRed = androidx.compose.ui.graphics.Color(0xFFEA4335)
 
                     Row(
                         modifier = Modifier
@@ -556,22 +558,22 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     "mic" -> {
                                         if (localShowVoice) {
                                             val micRes = if (useMaterialYouIcons) com.pixel.intelligentsearch.R.drawable.ic_mic else com.pixel.intelligentsearch.R.drawable.ic_mic_original
-                                            previewItemsList.add(SlotPreviewItem("mic", "Voice Search", micRes, true))
+                                            previewItemsList.add(SlotPreviewItem("mic", "Voice Search", micRes))
                                         }
                                     }
                                     "shortcut1" -> {
                                         if (localShortcut1 != "None") {
-                                            previewItemsList.add(SlotPreviewItem("shortcut1", localShortcut1, getShortcutIconRes(localShortcut1, useMaterialYouIcons), false))
+                                            previewItemsList.add(SlotPreviewItem("shortcut1", localShortcut1, getShortcutIconRes(localShortcut1, useMaterialYouIcons)))
                                         }
                                     }
                                     "shortcut2" -> {
                                         if (localShortcut2 != "None") {
-                                            previewItemsList.add(SlotPreviewItem("shortcut2", localShortcut2, getShortcutIconRes(localShortcut2, useMaterialYouIcons), false))
+                                            previewItemsList.add(SlotPreviewItem("shortcut2", localShortcut2, getShortcutIconRes(localShortcut2, useMaterialYouIcons)))
                                         }
                                     }
                                     "shortcut3" -> {
                                         if (localShortcut3 != "None") {
-                                            previewItemsList.add(SlotPreviewItem("shortcut3", localShortcut3, getShortcutIconRes(localShortcut3, useMaterialYouIcons), false))
+                                            previewItemsList.add(SlotPreviewItem("shortcut3", localShortcut3, getShortcutIconRes(localShortcut3, useMaterialYouIcons)))
                                         }
                                     }
                                 }
@@ -686,17 +688,18 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp)
-                        .padding(4.dp),
+                        .padding(4.dp)
+                        .selectableGroup(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    val isSystem = localThemeStyle == "System Default"
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(24.dp))
                             .background(if (isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
+                            .semantics { selected = isSystem }
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
                                 hapticEngine.performPredictiveBackHaptic(view)
                                 localThemeStyle = "System Default"
@@ -718,11 +721,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(24.dp))
                             .background(if (!isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
+                            .semantics { selected = !isSystem }
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
                                 hapticEngine.performPredictiveBackHaptic(view)
+                                // Only shows the Material design; its own settings, like Inner Pill & Circle
+                                // State, stay as the user left them.
                                 localThemeStyle = "Material You (Minimal)"
-                                localLockBlack = true
-                                matLockBlack = true
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -755,14 +759,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 }
             }
 
-            LaunchedEffect(isCustomActive) {
-                if (!isCustomActive) {
-                    if (selectedTab == 1) {
-                        selectedTab = 0
-                    } else if (selectedTab > 1) {
-                        selectedTab = 1
-                    }
-                }
+            // The tab is kept by name, so a design without the open tab (Color Studio needs the Custom subtheme)
+            // falls back to Appearance and the other tabs stay put.
+            val activeTabName = selectedTabName.takeIf { name -> tabs.any { it.first == name } } ?: "Appearance"
+            // Remember the fallback, so a tab that comes back later (picking Custom again) doesn't reopen on its own.
+            LaunchedEffect(activeTabName) {
+                if (selectedTabName != activeTabName) selectedTabName = activeTabName
             }
 
             Row(
@@ -771,11 +773,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     .padding(horizontal = 16.dp, vertical = 4.dp)
                     .clip(RoundedCornerShape(28.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .padding(4.dp),
+                    .padding(4.dp)
+                    .selectableGroup(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                tabs.forEachIndexed { index, tab ->
-                    val isSel = selectedTab == index
+                tabs.forEach { tab ->
+                    val isSel = activeTabName == tab.first
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -784,9 +787,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             .background(
                                 if (isSel) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
                             )
+                            .semantics { selected = isSel }
                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
                                 hapticEngine.performPredictiveBackHaptic(view)
-                                selectedTab = index
+                                selectedTabName = tab.first
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -797,7 +801,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         ) {
                             Icon(
                                 imageVector = tab.second,
-                                contentDescription = tab.first,
+                                contentDescription = null,
                                 tint = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -829,7 +833,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                val activeTabName = tabs.getOrNull(selectedTab)?.first ?: "Appearance"
                 when (activeTabName) {
                     "Appearance" -> WidgetAppearanceTab(fields = fields, ui = ui, colors = colors, themeStyle = themeStyleState, computedCustomColorInt = computedCustomColorInt, view = view, hapticEngine = hapticEngine)
 

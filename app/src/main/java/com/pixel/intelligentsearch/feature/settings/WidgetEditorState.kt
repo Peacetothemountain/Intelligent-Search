@@ -72,7 +72,7 @@ internal class WidgetEditorState(initialSlotItemHeightPx: Float) {
     var draggingSlotKey by mutableStateOf<String?>(null)
     var slotItemHeightPx by mutableFloatStateOf(initialSlotItemHeightPx)
     var itemDragOffset by mutableFloatStateOf(0f)
-    var selectedTab by mutableIntStateOf(0)
+    var selectedTabName by mutableStateOf("Appearance")
 }
 
 /** The element being coloured in the Color Studio and its HSV sliders; starts over when the user switches design. */

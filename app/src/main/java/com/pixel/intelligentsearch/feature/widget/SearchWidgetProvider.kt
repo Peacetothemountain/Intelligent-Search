@@ -56,9 +56,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         // This receiver is exported (the launcher binds widgets through it), so it ignores custom actions any
-        // app could send to force redraws; only an app update, or the clock or time zone changing (broadcasts only
-        // the system can send), triggers a full refresh here. (Wallpaper and configuration broadcasts are never
-        // delivered to manifest receivers.)
+        // app could send to force redraws; only an app update, or the clock, time zone or language changing
+        // (broadcasts only the system can send), triggers a full refresh here. (Wallpaper and configuration
+        // broadcasts are never delivered to manifest receivers.)
         when (intent.action) {
             Intent.ACTION_MY_PACKAGE_REPLACED -> {
                 DynamicThemeDetector.invalidateCache()
@@ -67,8 +67,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 val pendingResult = goAsync()
                 updateAllWidgets(context, pendingResult)
             }
-            // Which doodle the G shows depends on the date where the phone is.
-            Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED -> {
+            // Which doodle the G shows depends on the date where the phone is, and some doodles on its region
+            // (the language setting's country).
+            Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED, Intent.ACTION_LOCALE_CHANGED -> {
                 WidgetDoodles.scheduleNextChange(context)
                 updateAllWidgets(context, goAsync())
             }

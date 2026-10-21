@@ -31,9 +31,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
+import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 
 /** One colourable widget element as listed in the Appearance tab: its colour key, label and current colour. */
 private data class CustomElementTarget(val key: String, val label: String, val color: Int)
+
+/**
+ * The label colour for a subtheme pill filled with [fill]: black or white, whichever contrasts more with what
+ * the label actually sits on. The fill can be translucent (the custom colour's opacity, the unselected pill's
+ * gradient), so it is composited over [surface], the page behind the pills, first.
+ */
+internal fun subthemePillLabelColor(fill: Color, surface: Color): Color {
+    val shown = fill.compositeOver(surface).toArgb()
+    val onBlack = MaterialYouPaletteHelper.calculateContrastRatio(Color.Black.toArgb(), shown)
+    val onWhite = MaterialYouPaletteHelper.calculateContrastRatio(Color.White.toArgb(), shown)
+    return if (onBlack >= onWhite) Color.Black else Color.White
+}
 
 /** The Appearance tab of the widget editor: G icon, subtheme, Material options and element colours. */
 @Composable
@@ -180,6 +193,9 @@ internal fun WidgetAppearanceTab(
     }
 
     // Floating Theme Pills
+    // The Custom pill is painted in the custom colour, so its label is black or white to match. Unselected, the
+    // pill is a gradient up from half opacity and the label sits on its midpoint, both shown over the page.
+    val pageColor = MaterialTheme.colorScheme.background
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -220,13 +236,10 @@ internal fun WidgetAppearanceTab(
                         .bouncyClickable(shape = RoundedCornerShape(32.dp)) { localSubtheme = opt },
                     contentAlignment = Alignment.Center
                 ) {
-                    val textColor = if (isSel) {
-                        if (opt == "Custom") {
-                            val luminance = (0.299 * dynColor.red + 0.587 * dynColor.green + 0.114 * dynColor.blue)
-                            if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
-                        } else MaterialTheme.colorScheme.onPrimaryContainer
-                    } else if (opt == "Custom") {
-                        androidx.compose.ui.graphics.Color.White
+                    val textColor = if (opt == "Custom") {
+                        subthemePillLabelColor(if (isSel) dynColor else dynColor.copy(alpha = 0.75f), pageColor)
+                    } else if (isSel) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     }
@@ -272,13 +285,10 @@ internal fun WidgetAppearanceTab(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    val textColor = if (isSel) {
-                        if (opt == "Custom") {
-                            val luminance = (0.299 * dynColor.red + 0.587 * dynColor.green + 0.114 * dynColor.blue)
-                            if (luminance > 0.5f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
-                        } else MaterialTheme.colorScheme.onPrimaryContainer
-                    } else if (opt == "Custom") {
-                        androidx.compose.ui.graphics.Color.White
+                    val textColor = if (opt == "Custom") {
+                        subthemePillLabelColor(if (isSel) dynColor else dynColor.copy(alpha = 0.75f), pageColor)
+                    } else if (isSel) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     }
